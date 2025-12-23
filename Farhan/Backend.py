@@ -81,15 +81,29 @@ class Gate:
         self.parents.remove(node)
         objlist[node].children[0].discard(self.code)
         objlist[node].children[1].discard(self.code)
-        objlist[node].process()
+
+        out=self.output
+        if len(self.children[0]):
+            out=0
+        elif len(self.children[1]):
+            out=1
+        else:
+            out=0
+        self.output=out
+
+        for parent in self.parents:
+            if self.code not in objlist[node].children[self.output]:
+                objlist[parent].connect(self.code)
+                    
 
     def update(self,prev,out):
         if circuit_breaker[self.code]==-1:
             circuit_breaker[self.code]=self.output
-            if self.turnon() and out!=prev:
+            if self.turnon() and prev!=out:
                 for parent in self.parents:
                     objlist[parent].connect(self.code)
                     if objlist[parent].output==-1:
+                        print('loop detected! Stabilizing Circuit...')
                         self.fix(parent)
                         break
             circuit_breaker[self.code]=-1
@@ -103,8 +117,8 @@ class Gate:
 
     # gives output in T or F
     def display_output(self):
-        if self.output==-1:
-            return 'Error'
+        if self.turnon()==False:
+            return 'OFF'
         elif self.output==0:
             return 'F'
         else:
@@ -133,6 +147,7 @@ class Variable(Gate):
             out=0
         prev=self.output
         self.output=out
+        # may need to update when error
         self.update(prev,out)
 
         
