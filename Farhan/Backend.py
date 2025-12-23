@@ -1,7 +1,10 @@
+import re
 from time import sleep
+
 objlist={}
 complist=[]
 varlist=[]
+circuit_breaker={}
 
 class Signal:
     # default signals that exist indepdently
@@ -40,6 +43,8 @@ class Gate:
         if child in self.children[val]:
             return
         else:
+            if isinstance(self,Variable) or isinstance(self,NOT):
+                self.children[val].clear()
             self.children[val].add(child)
         if child in self.children[val^1]:
             self.children[val^1].remove(child)
@@ -69,17 +74,31 @@ class Gate:
 
 
     def update(self,prev,out):
-        if self.turnon() and out!=prev:
-            for parent in self.parents:
-                objlist[parent].connect(self.code)
+        if circuit_breaker[self.code]==-1:
+            circuit_breaker[self.code]=self.output
+            if self.turnon() and out!=prev:
+                for parent in self.parents:
+                    objlist[parent].connect(self.code)
+                    if objlist[parent].output==-1:
+                        self.output=-1
+                        break
+            circuit_breaker[self.code]=-1
+        elif circuit_breaker[self.code]==self.output:
+            return
+        else:
+            self.output=-1
 
     def process(self):
         pass
 
     # gives output in T or F
     def display_output(self):
-        out=self.output
-        return 'T' if out else 'F'
+        if self.output==-1:
+            return 'Error'
+        elif self.output==0:
+            return 'F'
+        else:
+            return 'T'
 
 
 class Variable(Gate):
@@ -271,6 +290,7 @@ def addComponent():
             varlist.append(gt.code)
         objlist[gt.code]=gt
         complist.append(gt.code)
+        circuit_breaker[gt.code]=-1
 
 def deleteComponent(gate):
     gate_obj=objlist[gate]
