@@ -1,5 +1,6 @@
 import re
 from time import sleep
+from tkinter import N
 
 objlist={}
 complist=[]
@@ -37,7 +38,9 @@ class Gate:
     # connects gates
     def connect(self,child):
         val=objlist[child].output
-        
+        if val==-1:
+            print(f'{child} in a deadlock, break deadlock first')
+            return
         # secondary optimization
         # connect child to self
         if child in self.children[val]:
@@ -52,7 +55,7 @@ class Gate:
             self.children[val^1].clear()
 
         # connect itself to children
-        if isinstance(objlist[child],Signal)==False:
+        if isinstance(objlist[child],Signal)==False and self.code not in objlist[child].parents:
             objlist[child].parents.append(self.code)
         self.process()
 
@@ -61,6 +64,8 @@ class Gate:
         # check if node is a parent or a child
         # then delete accordingly
         val=objlist[node].output
+
+
         if node in self.parents:
             objlist[node].children[val].remove(self.code)
             objlist[node].process()
@@ -71,7 +76,12 @@ class Gate:
             self.process()
         else:
             print('Not Connected')
-
+    def fix(self,node):
+        circuit_breaker[node]=-1
+        self.parents.remove(node)
+        objlist[node].children[0].discard(self.code)
+        objlist[node].children[1].discard(self.code)
+        objlist[node].process()
 
     def update(self,prev,out):
         if circuit_breaker[self.code]==-1:
@@ -80,7 +90,7 @@ class Gate:
                 for parent in self.parents:
                     objlist[parent].connect(self.code)
                     if objlist[parent].output==-1:
-                        self.output=-1
+                        self.fix(parent)
                         break
             circuit_breaker[self.code]=-1
         elif circuit_breaker[self.code]==self.output:
