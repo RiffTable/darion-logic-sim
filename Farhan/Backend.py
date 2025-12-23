@@ -3,6 +3,7 @@
 objlist={}
 complist=[]
 varlist=[]
+probelist=[]
 circuit_breaker={}
 
 class Signal:
@@ -35,6 +36,15 @@ class Gate:
 
     # connects gates
     def connect(self,child):
+        if isinstance(self,Variable):
+            if isinstance(objlist[child],Signal):
+                if self.code in probelist:
+                    probelist.remove(self.code)
+                    varlist.append(self.code)
+            else:
+                if self.code in varlist:
+                    varlist.remove(self.code)
+                    probelist.append(self.code)
         val=objlist[child].output
         # secondary optimization
         # connect child to self
@@ -75,7 +85,10 @@ class Gate:
         objlist[node].parents.discard(self.code)
         self.children[0].discard(node)
         self.children[1].discard(node)
-        self.process()
+        if isinstance(self,Variable):
+            self.connect('0')
+        else:
+            self.process()
                     
 
     def update(self,prev,out):
@@ -91,7 +104,7 @@ class Gate:
         elif circuit_breaker[self.code]==self.output:
             return
         else:
-            print(f'{self.code} is unstable')
+            print('Loop Detected')
             self.output=-1
 
     def process(self):
@@ -319,12 +332,14 @@ def disconnect(gate,comp):
 
 # Result 
 def output(gate):
-    print(objlist[gate].display_output())
+    print(f'{gate} output is{objlist[gate].display_output()}')
 
 
 # Truth Table
 def truthTable(gate):
-    if gate in complist and gate not in varlist:
+    if gate in var:
+        print(f'{gate} is a variable not a gate or a probe')
+    elif gate in complist :
         bits=1<<len(varlist)
         for i in varlist:
             print(i,end=' ')
@@ -337,3 +352,45 @@ def truthTable(gate):
                 print('T' if var.output else 'F',end=' ')
             print('T' if objlist[gate].output else 'F')
 
+
+# diagnose this menu is AI generated and it's not the main part of code just to check errors in CLI mode
+def diagnose():
+    print("--- Component Diagnosis ---")
+    
+    # Define columns dynamically (easy to add/remove in the future)
+    columns = [
+        ("Component", 12),
+        ("Input-0", 22),
+        ("Input-1", 22),
+        ("Parents (Outputs to)", 25),
+        ("State", 10)
+    ]
+    
+    # Calculate total width for separator line
+    total_width = sum(width for _, width in columns)
+    
+    # Header row
+    header_format = "".join(f"{{:<{width}}}" for _, width in columns)
+    header_names = [name for name, _ in columns]
+    print(header_format.format(*header_names))
+    print("-" * total_width)
+    
+    # Data rows
+    row_format = header_format  # Same alignment and widths
+    
+    for comp_code in complist:
+        comp_obj = objlist[comp_code]
+        
+        # Inputs (children)
+        children_0 = ", ".join(sorted(comp_obj.children[0])) if comp_obj.children[0] else "None"
+        children_1 = ", ".join(sorted(comp_obj.children[1])) if comp_obj.children[1] else "None"
+        
+        # Outputs (parents)
+        parents = ", ".join(sorted(comp_obj.parents)) if comp_obj.parents else "None"
+        
+        # State
+        state = comp_obj.display_output()
+        
+        print(row_format.format(comp_code, children_0, children_1, parents, state))
+    
+    print("-" * total_width)

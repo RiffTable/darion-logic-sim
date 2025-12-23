@@ -1,10 +1,17 @@
 import Backend as base
 from readchar import readkey,key
+import os
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+# Usage
 
 
 def menu():
     while True:
-        print("\n--- Circuit Simulator Menu ---")
+        clear_screen()
+        print("--- Circuit Simulator Menu ---")
         print("1. Add Component")
         print("2. List Components")
         print("3. Connect Components")
@@ -13,19 +20,24 @@ def menu():
         print("6. Set Input Variable Value")
         print("7. Show Output of a Component")
         print("8. Show Truth Table of a Component")
+        print("9. Diagnose Components")
 
         print("Enter your choice or press ESC to quit: ",end='')
         choice = readkey()
+
         print()
+        clear_screen()
         if choice == '1':
             base.addComponent()
 
         elif choice == '2':
             base.listComponent()
-
+            input('Press any key to continue....')
         elif choice == '3':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to connect components: ")
+            if gate_code=='':
+                continue
             gate_code=base.complist[int(gate_code)]
             childlist = list(map(int,input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
@@ -35,16 +47,19 @@ def menu():
                     print(f"Cannot connect {base.complist[child]} & {gate_code} due to deadlock")
                 else:    
                     print(f"Connected {base.complist[child]} to {gate_code}.")
-
+            input('Press any key to continue....')
         elif choice == '4':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to disconnect components: ")
+            if gate_code=='':
+                continue
             gate_code=base.complist[int(gate_code)]
+
             childlist = list(map(int,input("Enter the serial of the component to disconnect to: ").split()))
             for child in childlist:
                 base.disconnect(gate_code, base.complist[child])
                 print(f"Disconnected {base.complist[child]} & {gate_code}.")
-
+            input('Press any key to continue....')
         elif choice == '5':
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to delete: ").split()))
@@ -55,6 +70,8 @@ def menu():
         elif choice == '6':
             base.listVar()
             var = input("Enter the serial of the variable to set : ")
+            if var=='':
+                continue
             var=base.varlist[int(var)]
             if var in base.varlist:
                 value = input("Enter the value (0 or 1): ")
@@ -62,21 +79,31 @@ def menu():
                     base.connect(var, value)
                     print(f"Variable {var} set to {value}.")
                 else:
-                    print("Invalid value. Please enter 0 or 1.")
-
+                    print("Invalid value. Please try again")
+            input('Press any key to continue....')
         elif choice == '7':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to see output of: ")
+            if gate_code=='':
+                continue
             gate_code=base.complist[int(gate_code)]
             base.output(gate_code)
-
+            input('Press any key to continue....')
         elif choice == '8':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to see Truth Table of: ")
+            if gate_code=='':
+                continue
             gate_code=base.complist[int(gate_code)]
             base.truthTable(gate_code)
+            input('Press any key to continue....')
+        elif choice == '9':
+            base.diagnose()
+            input('Press any key to continue....')
         elif choice == key.ESC:
-            print("\nExiting Circuit Simulator.")
+            print("Exiting Circuit Simulator......")
+            input('Press any key to continue....')
+            clear_screen()
             break
         else:
             print("Invalid choice. Please try again.")
