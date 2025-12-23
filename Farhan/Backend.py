@@ -1,6 +1,4 @@
-import re
-from time import sleep
-from tkinter import N
+
 
 objlist={}
 complist=[]
@@ -10,7 +8,7 @@ circuit_breaker={}
 class Signal:
     # default signals that exist indepdently
     def __init__(self,value):
-        self.parents=[]
+        self.parents=set()
         self.output=value
     
 objlist['0']=Signal(0)
@@ -21,7 +19,7 @@ class Gate:
     def __init__(self):
         # gate's children or inputs
         self.children=[set(),set()]
-        self.parents=[]
+        self.parents=set()
         # input limit
         self.inputlimit=2
         #default output
@@ -38,9 +36,6 @@ class Gate:
     # connects gates
     def connect(self,child):
         val=objlist[child].output
-        if val==-1:
-            print(f'{child} in a deadlock, break deadlock first')
-            return
         # secondary optimization
         # connect child to self
         if child in self.children[val]:
@@ -50,13 +45,13 @@ class Gate:
                 self.children[val].clear()
             self.children[val].add(child)
         if child in self.children[val^1]:
-            self.children[val^1].remove(child)
+            self.children[val^1].discard(child)
         if isinstance(self,Variable) or isinstance(self,NOT):
             self.children[val^1].clear()
 
         # connect itself to children
         if isinstance(objlist[child],Signal)==False and self.code not in objlist[child].parents:
-            objlist[child].parents.append(self.code)
+            objlist[child].parents.add(self.code)
         self.process()
 
     # deletes parent from the parent list
@@ -67,33 +62,20 @@ class Gate:
 
 
         if node in self.parents:
-            objlist[node].children[val].remove(self.code)
+            objlist[node].children[val].discard(self.code)
             objlist[node].process()
-            self.parents.remove(node)
+            self.parents.discard(node)
         elif node in self.children[val]:
-            objlist[node].parents.remove(self.code)
-            self.children[val].remove(node)
+            objlist[node].parents.discard(self.code)
+            self.children[val].discard(node)
             self.process()
         else:
             print('Not Connected')
     def fix(self,node):
-        circuit_breaker[node]=-1
-        self.parents.remove(node)
-        objlist[node].children[0].discard(self.code)
-        objlist[node].children[1].discard(self.code)
-
-        out=self.output
-        if len(self.children[0]):
-            out=0
-        elif len(self.children[1]):
-            out=1
-        else:
-            out=0
-        self.output=out
-
-        for parent in self.parents:
-            if self.code not in objlist[node].children[self.output]:
-                objlist[parent].connect(self.code)
+        objlist[node].parents.discard(self.code)
+        self.children[0].discard(node)
+        self.children[1].discard(node)
+        self.process()
                     
 
     def update(self,prev,out):
@@ -103,13 +85,13 @@ class Gate:
                 for parent in self.parents:
                     objlist[parent].connect(self.code)
                     if objlist[parent].output==-1:
-                        print('loop detected! Stabilizing Circuit...')
-                        self.fix(parent)
+                        self.output=-1
                         break
             circuit_breaker[self.code]=-1
         elif circuit_breaker[self.code]==self.output:
             return
         else:
+            print(f'{self.code} is unstable')
             self.output=-1
 
     def process(self):
@@ -320,9 +302,9 @@ def addComponent():
 def deleteComponent(gate):
     gate_obj=objlist[gate]
     for child in gate_obj.children[0]:
-        objlist[child].parents.remove(gate)
+        objlist[child].parents.discard(gate)
     for child in gate_obj.children[1]:
-        objlist[child].parents.remove(gate)
+        objlist[child].parents.discard(gate)
     for parent in gate_obj.parents:
         objlist[parent].diconnect(gate)
     del objlist[gate]

@@ -30,7 +30,11 @@ def menu():
             childlist = list(map(int,input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
                 base.connect(gate_code, base.complist[child])
-                print(f"Connected {base.complist[child]} to {gate_code}.")
+                if base.objlist[gate_code].output==-1:
+                    base.objlist[gate_code].fix(base.complist[child])
+                    print(f"Cannot connect {base.complist[child]} & {gate_code} due to deadlock")
+                else:    
+                    print(f"Connected {base.complist[child]} to {gate_code}.")
 
         elif choice == '4':
             base.listComponent()
