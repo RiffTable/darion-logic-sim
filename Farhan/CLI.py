@@ -1,4 +1,4 @@
-import Backend as base
+from Backend import Circuit
 from readchar import readkey,key
 import os
 
@@ -6,7 +6,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 # Usage
-
+base=Circuit()
 
 def menu():
     while True:
@@ -43,7 +43,7 @@ def menu():
             for child in childlist:
                 base.connect(gate_code, base.complist[child])
                 if base.objlist[gate_code].output==-1:
-                    base.objlist[gate_code].fix(base.complist[child])
+                    base.fix(gate_code,base.complist[child])
                     print(f"Cannot connect {base.complist[child]} & {gate_code} due to deadlock")
                 else:    
                     print(f"Connected {base.complist[child]} to {gate_code}.")
