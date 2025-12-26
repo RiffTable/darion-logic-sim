@@ -9,6 +9,7 @@ def clear_screen():
 base=Circuit()
 
 def menu():
+
     while True:
         clear_screen()
         print("--- Circuit Simulator Menu ---")
