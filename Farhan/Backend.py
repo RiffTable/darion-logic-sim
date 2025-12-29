@@ -35,6 +35,8 @@ class Gate:
     def display_output(self):
         if self.turnon()==False:
             return 'OFF'
+        elif self.output==-1:
+            return '0/1'
         elif self.output==0:
             return 'F'
         else:
@@ -63,6 +65,8 @@ class Variable(Gate):
         self.output=out
         # may need to update when error
         self.circuit.update(self.code,prev)
+        if self.output==-1:
+            self.circuit.fix_var(self.code)
 
         
 class NOT(Gate):
@@ -170,6 +174,7 @@ class XOR(Gate):
         self.output=out
         self.circuit.update(self.code,prev)
 
+
 class XNOR(Gate):
     rank=0
     def __init__(self,circuit):
@@ -259,7 +264,7 @@ class Circuit:
         val=child_obj.output
         # connect child to self
 
-        if child in gate_obj.children[val]:# no need to reconnect if connected
+        if child in gate_obj.children[val] and gate_obj.output!=-1:# no need to reconnect if connected
             return
         else:
             if isinstance(gate_obj,Variable) or isinstance(gate_obj,NOT):
@@ -333,7 +338,7 @@ class Circuit:
         elif self.circuit_breaker[gate]==out:
             return
         else:
-            print('Loop Detected')
+            # print('Loop Detected')
             gate_obj.output=-1
         
     # fixes the loop by breaking the connection that caused it
@@ -349,6 +354,16 @@ class Circuit:
             self.connect(parent,'0')
         else:
             parent_obj.process()
+
+
+    def fix_var(self,var):
+        var_obj=self.objlist[var]
+        if len(var_obj.children[0]):
+            out=0
+        else:
+            out=1
+        var_obj.output=out
+
 
     # Result 
     def output(self,gate):
@@ -372,8 +387,8 @@ class Circuit:
                     var=self.varlist[j]
                     bitpoint=int((i & (1<<(len(self.varlist)-j-1)))!=0)
                     self.connect(var,str(bitpoint))
-                    print('T' if self.objlist[var].output else 'F',end=' ')
-                print('T' if self.objlist[gate].output else 'F')
+                    print(self.objlist[var].display_output(),end=' ')
+                print(self.objlist[gate].display_output())
 
 
     # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
