@@ -49,9 +49,9 @@ class Variable(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)          
         self.inputlimit=1
-        self.code=chr(ord('A') + Variable.rank)
+        self.code='8'+str(Variable.rank)
         Variable.rank+=1
-        self.children[0].add('0')
+        self.children[0].add('00')
 
     def process(self):
         out=self.output
@@ -75,7 +75,7 @@ class NOT(Gate):
         super().__init__(circuit)        
         self.inputlimit=1
         NOT.rank+=1
-        self.code='NOT-'+str(NOT.rank)
+        self.code='1'+str(NOT.rank)
 
     def process(self):
         out=self.output
@@ -95,7 +95,7 @@ class AND(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)       
         AND.rank+=1
-        self.code='AND-'+str(AND.rank)
+        self.code='2'+str(AND.rank)
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -114,7 +114,7 @@ class NAND(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)   
         NAND.rank+=1
-        self.code='NAND-'+str(NAND.rank)
+        self.code='3'+str(NAND.rank)
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -132,7 +132,7 @@ class OR(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)         
         OR.rank+=1
-        self.code='OR-'+str(OR.rank)
+        self.code='4'+str(OR.rank)
     def process(self):
         out=self.output
         if len(self.children[1]):
@@ -148,7 +148,7 @@ class NOR(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)   
         NOR.rank+=1
-        self.code='NOR-'+str(NOR.rank)
+        self.code='5'+str(NOR.rank)
     def process(self):
         out=self.output
         if len(self.children[1]):
@@ -167,7 +167,7 @@ class XOR(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)       
         XOR.rank+=1
-        self.code='XOR-'+str(XOR.rank)
+        self.code='6'+str(XOR.rank)
     def process(self):
         out=int(len(self.children[1])%2)
         prev=self.output
@@ -180,7 +180,7 @@ class XNOR(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)   
         XNOR.rank+=1
-        self.code='XNOR-'+str(XNOR.rank)
+        self.code='7'+str(XNOR.rank)
     def process(self):
         out=int(len(self.children[1])%2==0)
         prev=self.output
@@ -196,22 +196,64 @@ class Circuit:
         self.varlist=[]# holds variables with 0/1 input
         self.probelist=[]# variables with gate input or these are probes
         self.circuit_breaker={}# checks for loops while connecting
-        self.objlist['0']=Signal(self,0)
-        self.objlist['1']=Signal(self,1)
+        self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
+        self.objlist['00']=Signal(self,0)
+        self.objlist['01']=Signal(self,1)
 
     # show component
     def listComponent(self):
         for i in range(len(self.complist)):
-            print(f'{i}. {self.complist[i]}')
+            comp=self.decode(self.complist[i])
+            print(f'{i}. {comp}')
 
     # show variables
     def listVar(self):
         for i in range(len(self.varlist)):
-            print(f'{i}. {self.varlist[i]}')
+            var=self.decode(self.varlist[i])
+            print(f'{i}. {var}')
 
     # name suggests it
+    def getcomponent(self,i):
+
+        if i == '1':
+            gt = NOT(self)# feed circuit to the gates so they can access it's holders
+        elif i == '2':
+            gt = AND(self)
+        elif i == '3':
+            gt = NAND(self)
+        elif i == '4':
+            gt = OR(self)
+        elif i == '5':
+            gt = NOR(self)                
+        elif i == '6':
+            gt = XOR(self)
+        elif i == '7':
+            gt = XNOR(self)   
+        elif i=='8':
+            gt=Variable(self)
+            self.varlist.append(gt.code)     
+        else:
+            return
+        self.objlist[gt.code]=gt
+        self.complist.append(gt.code)
+        self.circuit_breaker[gt.code]=-1
+
+    def decode(self,code):
+        gate=int(code[0])
+        if(gate==8):
+            order=int(code[1:])
+            return chr(ord('A')+order%26)+str(order//26)
+        elif gate==0:
+            return code[1:]
+        else:
+            gate-=1
+            return self.gatelist[gate]+'-'+code[1:]
+
+    
+
     def addComponent(self):
         print("Choose a gate to add to the circuit:")
+        
         print("1. NOT")
         print("2. AND")
         print("3. NAND")
@@ -219,31 +261,11 @@ class Circuit:
         print("5. NOR")  
         print("6. XOR")
         print("7. XNOR")
-        print("8. Variable")     
-
+        print("8. Variable")  
+        # 1 should be variable and then others change the entire print list order as in 2 NOT 3 AND   
         choice = input("Enter your choice: ").split()
-
         for i in choice:
-            if i == '1':
-                gt = NOT(self)# feed circuit to the gates so they can access it's holders
-            elif i == '2':
-                gt = AND(self)
-            elif i == '3':
-                gt = NAND(self)
-            elif i == '4':
-                gt = OR(self)
-            elif i == '5':
-                gt = NOR(self)                
-            elif i == '6':
-                gt = XOR(self)
-            elif i == '7':
-                gt = XNOR(self)
-            elif i=='8':
-                gt=Variable(self)
-                self.varlist.append(gt.code)
-            self.objlist[gt.code]=gt
-            self.complist.append(gt.code)
-            self.circuit_breaker[gt.code]=-1
+            self.getcomponent(i)
 
     # connects parent to it's child/inputs
     def connect(self,gate,child):
@@ -367,28 +389,59 @@ class Circuit:
 
     # Result 
     def output(self,gate):
-        print(f'{gate} output is {self.objlist[gate].display_output()}')
+        print(f'{self.decode(gate)} output is {self.objlist[gate].display_output()}')
 
 
     # Truth Table
-    def truthTable(self,gate):
-        if len(self.varlist)==0:
+    def truthTable(self, gate):
+        if len(self.varlist) == 0:
             print('No variable for toggling')
             return
+        
         if gate in self.varlist:
-            print(f'{gate} is a variable not a gate or a probe')
-        elif gate in self.complist :
-            bits=1<<len(self.varlist)
-            for i in self.varlist:
-                print(i,end=' ')
-            print(gate)
-            for i in range(bits):
-                for j in range(len(self.varlist)):
-                    var=self.varlist[j]
-                    bitpoint=int((i & (1<<(len(self.varlist)-j-1)))!=0)
-                    self.connect(var,str(bitpoint))
-                    print(self.objlist[var].display_output(),end=' ')
-                print(self.objlist[gate].display_output())
+            print(f'{self.decode(gate)} is a variable not a gate or a probe')
+            return
+        
+        if gate not in self.complist:
+            print(f'{gate} is not a valid component in the circuit.')
+            return
+
+        n = len(self.varlist)
+        rows = 1 << n
+
+        # Collect decoded variable names and the output gate name
+        var_names = [self.decode(v) for v in self.varlist]
+        output_name = self.decode(gate)
+
+        # Determine column widths for nice alignment
+        col_width = max(len(name) for name in var_names + [output_name]) + 2
+        header = " | ".join(name.center(col_width) for name in var_names + [output_name])
+        separator = "─" * len(header)
+
+        # Print table header
+        print("\nTruth Table for " + output_name)
+        print(separator)
+        print(header)
+        print(separator)
+
+        # Generate all input combinations and outputs
+        for i in range(rows):
+            inputs = []
+            for j in range(n):
+                var = self.varlist[j]
+                bit = 1 if (i & (1 << (n - j - 1))) else 0
+                self.connect(var, '0' + str(bit))
+                inputs.append("1" if bit else "0")
+
+            output = self.objlist[gate].display_output()
+            # Replace internal display values with clean T/F (or keep OFF/0/1 if needed)
+            clean_output = output if output in ['OFF', '0/1'] else ('T' if output == 'T' else 'F')
+
+            row = " | ".join(val.center(col_width) for val in inputs + [clean_output])
+            print(row)
+
+        print(separator)
+        print()  # empty line at the end
 
 
     # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
@@ -420,15 +473,25 @@ class Circuit:
             comp_obj = self.objlist[comp_code]
             
             # Inputs (children)
-            children_0 = ", ".join(sorted(comp_obj.children[0])) if comp_obj.children[0] else "None"
-            children_1 = ", ".join(sorted(comp_obj.children[1])) if comp_obj.children[1] else "None"
+            comp_name = self.decode(comp_code)
+            input_0=[]
+            input_1=[]
+            for i in comp_obj.children[0]:
+                input_0.append(self.decode(i))
+            for i in comp_obj.children[1]:
+                input_1.append(self.decode(i))
+            children_0 = ", ".join(sorted(input_0)) if input_0 else "None"
+            children_1 = ", ".join(sorted(input_1)) if input_1 else "None"
             
             # Outputs (parents)
-            parents = ", ".join(sorted(comp_obj.parents)) if comp_obj.parents else "None"
+            parents=[]
+            for i in comp_obj.parents:
+                parents.append(self.decode(i))
+            parents = ", ".join(sorted(parents)) if parents else "None"
             
             # State
             state = comp_obj.display_output()
             
-            print(row_format.format(comp_code, children_0, children_1, parents, state))
+            print(row_format.format(comp_name, children_0, children_1, parents, state))
         
         print("-" * total_width)
