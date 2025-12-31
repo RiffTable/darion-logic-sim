@@ -261,7 +261,7 @@ class Circuit:
             print(f'{i}. {var}')
 
     # name suggests it
-    def getcomponent(self,i):
+    def getcomponent(self,i,code):
 
         if i == '1':
             gt = NOT(self)# feed circuit to the gates so they can access it's holders
@@ -282,10 +282,11 @@ class Circuit:
             self.varlist.append(gt.code)     
         else:
             return
+        if code!='':
+            gt.override(code)
         self.objlist[int(gt.code[0])][gt.code[1:]]=gt
         self.complist.append(gt.code)
         self.circuit_breaker[gt.code]=-1
-        return gt
 
     def decode(self,code):
         gate=int(code[0])
@@ -312,12 +313,15 @@ class Circuit:
         print("8. Variable")  
         choice = input("Enter your choice: ").split()
         for i in choice:
-            self.getcomponent(i)
+            self.getcomponent(i,'')
 
     # connects parent to it's child/inputs
     def connect(self,gate,child):
         gate_obj=self.getobj(gate)
         child_obj=self.getobj(child)
+        val=child_obj.output
+        if(val==-1):
+            print(f'{self.decode(child)} is in 0/1 state. Can\'t connect!')
         # check for variable or probe
         if gate[0]=='8':
             if child[0]=='0':
@@ -330,7 +334,7 @@ class Circuit:
                 if gate in self.varlist:
                     self.varlist.remove(gate)
                     self.probelist.append(gate)
-        val=child_obj.output
+        
         # connect child to self
 
         if child in gate_obj.children[val] and gate_obj.output!=-1:# no need to reconnect if connected
@@ -356,7 +360,7 @@ class Circuit:
         gate_obj.process()# renew output 
 
     def passive_connect(self,parent,child,child_output):
-        parent_obj=self.getobj(parent)
+        parent_obj=self.getobj(parent)  
         child_obj=self.getobj(child)
         parent_obj.children[child_output].add(child)
         child_obj.parents.add(parent)
@@ -586,8 +590,9 @@ class Circuit:
         
         # create components
         for component in components:
-            gate=self.getcomponent(component[0])
-            gate.override(component)
+            self.getcomponent(component[0],component)
+            if component[0]=='8':
+                self.getobj(component).children[0].clear()
         connections=f.read().split('\n')
         connections.pop()
         for line in connections:
@@ -605,6 +610,16 @@ class Circuit:
             self.getobj(gate).output=int(output)
         f.close()
     def clearcircuit(self):
+        Variable.rank=0
+        NOT.rank=0
+        AND.rank=0
+        NAND.rank=0
+        OR.rank=0
+        NOR.rank=0
+        XOR.rank=0
+        XNOR.rank=0
+        
+        self.circuit_breaker={}
         for i in self.objlist:
             i.clear()
         self.varlist.clear()
