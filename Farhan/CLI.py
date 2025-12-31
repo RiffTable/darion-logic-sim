@@ -22,6 +22,9 @@ def menu():
         print("7. Show Output of a Component")
         print("8. Show Truth Table of a Component")
         print("9. Diagnose Components")
+        print("A. Save Circuit to File")
+        print("B. Load Circuit from File")
+        
 
         print("Enter your choice or press ESC to quit: ",end='')
         choice = readkey()
@@ -64,10 +67,14 @@ def menu():
         elif choice == '5':
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to delete: ").split()))
+            exclusionlist=[]
             for gate in gatelist:
-                base.deleteComponent(base.complist[gate])
-                print(f"Deleted {base.decode(base.complist[gate])}.")
-                del base.complist[gate]
+                gate=base.complist[int(gate)]
+                base.deleteComponent(gate)
+                print(f"Deleted {base.decode(gate)}.")
+                exclusionlist.append(gate)
+            for gate in exclusionlist:
+                base.complist.remove(gate)
         elif choice == '6':
             base.listVar()
             var = input("Enter the serial of the variable to set : ")
@@ -101,7 +108,19 @@ def menu():
         elif choice == '9':
             base.diagnose()
             input('Press Enter to continue....')
+            
+        elif choice.upper() == 'A':
+            base.writetofile()
+            print("Circuit saved to file.txt")
+            input('Press Enter to continue....')
+        elif choice.upper() == 'B':
+            base.clearcircuit()
+            base.readfromfile()
+            print("Circuit loaded from file.txt")
+            input('Press Enter to continue....')
+            
         elif choice == key.ESC:
+            
             print("Exiting Circuit Simulator......")
             input('Press Enter to continue....')
             clear_screen()

@@ -20,6 +20,8 @@ class Gate:
         self.output=0
         # each gate will have it's own unique id
         self.code=''
+    def override(self,code):
+        self.code=code
 
     def turnon(self):
         return len(self.children[0])+len(self.children[1])>=self.inputlimit
@@ -51,7 +53,9 @@ class Variable(Gate):
         self.code='8'+str(Variable.rank)
         Variable.rank+=1
         self.children[0].add('00')
-
+    def override(self, code):
+        super().override(code)
+        Variable.rank=max(Variable.rank,int(code[1:]))
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -75,6 +79,9 @@ class NOT(Gate):
         NOT.rank+=1
         self.code='1'+str(NOT.rank)
 
+    def override(self, code):
+        super().override(code)
+        NOT.rank=max(NOT.rank,int(code[1:]))
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -94,6 +101,11 @@ class AND(Gate):
         super().__init__(circuit)       
         AND.rank+=1
         self.code='2'+str(AND.rank)
+
+    def override(self, code):
+        super().override(code)
+        AND.rank=max(AND.rank,int(code[1:]))
+        
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -112,6 +124,11 @@ class NAND(Gate):
         super().__init__(circuit)   
         NAND.rank+=1
         self.code='3'+str(NAND.rank)
+    
+    def override(self, code):
+        super().override(code)
+        NAND.rank=max(NAND.rank,int(code[1:]))
+        
     def process(self):
         out=self.output
         if len(self.children[0]):
@@ -130,6 +147,12 @@ class OR(Gate):
         super().__init__(circuit)         
         OR.rank+=1
         self.code='4'+str(OR.rank)
+        
+    def override(self, code):
+        super().override(code)
+        OR.rank=max(OR.rank,int(code[1:]))
+        
+        
     def process(self):
         out=self.output
         if len(self.children[1]):
@@ -145,7 +168,12 @@ class NOR(Gate):
     def __init__(self,circuit):
         super().__init__(circuit)   
         NOR.rank+=1
-        self.code='5'+str(NOR.rank)
+        self.code='5'+str(NOR.rank)    
+
+    def override(self, code):
+        super().override(code)
+        NOR.rank=max(NOR.rank,int(code[1:]))
+
     def process(self):
         out=self.output
         if len(self.children[1]):
@@ -165,6 +193,11 @@ class XOR(Gate):
         super().__init__(circuit)       
         XOR.rank+=1
         self.code='6'+str(XOR.rank)
+    
+    def override(self, code):
+        super().override(code)
+        XOR.rank=max(XOR.rank,int(code[1:]))
+        
     def process(self):
         out=int(len(self.children[1])%2)
         prev=self.output
@@ -177,6 +210,11 @@ class XNOR(Gate):
         super().__init__(circuit)   
         XNOR.rank+=1
         self.code='7'+str(XNOR.rank)
+    
+    def override(self, code):
+        super().override(code)
+        XNOR.rank=max(XNOR.rank,int(code[1:]))
+        
     def process(self):
         out=int(len(self.children[1])%2==0)
         prev=self.output
@@ -195,6 +233,7 @@ class Circuit:
         self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
         self.objlist[0]['0']=Signal(self,0)
         self.objlist[0]['1']=Signal(self,1)
+        
     def getobj(self,code):
         return self.objlist[int(code[0])][code[1:]]
     # show component
@@ -234,6 +273,7 @@ class Circuit:
         self.objlist[int(gt.code[0])][gt.code[1:]]=gt
         self.complist.append(gt.code)
         self.circuit_breaker[gt.code]=-1
+        return gt
 
     def decode(self,code):
         gate=int(code[0])
@@ -303,6 +343,11 @@ class Circuit:
             child_obj.parents.add(gate)
         gate_obj.process()# renew output 
 
+    def passive_connect(self,parent,child,child_output):
+        parent_obj=self.getobj(parent)
+        child_obj=self.getobj(child)
+        parent_obj.children[child_output].add(child)
+        child_obj.parents.add(parent)
 
     # disconnects parent & child
     def disconnect_gates(self,parent,child):
@@ -489,3 +534,65 @@ class Circuit:
             print(row_format.format(comp_name, children_0, children_1, parents, state))
         
         print("-" * total_width)
+        
+    def writetofile(self):
+        # write the component list to file
+        f=open('D:/Github/darion-logic-sim/file.txt','w')
+
+        for i in self.complist:
+            f.write(f'{i} ')
+        f.write('\n')
+        for i in self.complist:
+            obj=self.getobj(i)
+            # write self
+            f.write(f'{i} ')
+            # write children
+            input_0=','.join(obj.children[0])
+            if len(input_0):                
+                f.write(f'{input_0} ')
+            else:
+                f.write('X ')   
+            input_1=','.join(obj.children[1])
+            if len(input_1):                
+                f.write(f'{input_1} ')
+            else: 
+                f.write('X ')   
+            # write output
+            f.write(str(obj.output))
+            f.write('\n')
+        f.close()
+
+    def readfromfile(self):
+        f=open('D:/Github/darion-logic-sim/file.txt','r')
+        self.objlist[0]['0']=Signal(self,0)
+        self.objlist[0]['1']=Signal(self,1)
+        components=f.readline().split(' ')
+        if len(components)==0:
+            return
+        components.pop()
+        # create components
+        for component in components:
+            gate=self.getcomponent(component[0])
+            gate.override(component)
+        connections=f.read().split('\n')
+        connections.pop()
+        for line in connections:
+            line=line.split(' ')
+            gate=line[0]
+            children_0=line[1].split(',')
+            if 'X' not in children_0:
+                for child in children_0:
+                    self.passive_connect(gate,child,0)
+            children_1=line[2].split(',')
+            if 'X' not in children_1:
+                for child in children_1:
+                    self.passive_connect(gate,child,1)
+            output=line[3]
+            self.getobj(gate).output=int(output)
+        f.close()
+    def clearcircuit(self):
+        for i in self.objlist:
+            i.clear()
+        self.varlist.clear()
+        self.complist.clear()
+        self.probelist.clear()
