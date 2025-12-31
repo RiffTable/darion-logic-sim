@@ -43,7 +43,7 @@ def menu():
             childlist = list(map(int,input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
                 base.connect(gate_code, base.complist[child])
-                if base.objlist[gate_code].output==-1:
+                if base.getobj(gate_code).output==-1:
                     base.fix(gate_code,base.complist[child])
                     print(f"Cannot connect {base.decode(base.complist[child])} & {base.decode(gate_code)} due to deadlock")
                 else:    
@@ -78,7 +78,7 @@ def menu():
                 value = input("Enter the value (0 or 1): ")
                 if value in ['0', '1']:
                     base.connect(var, '0'+value)
-                    print(f"Variable {var} set to {value}.")
+                    print(f"Variable {base.decode(var)} set to {value}.")
                 else:
                     print("Invalid value. Please try again")
             input('Press Enter to continue....')

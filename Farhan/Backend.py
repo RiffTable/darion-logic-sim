@@ -42,7 +42,6 @@ class Gate:
         else:
             return 'T'
 
-
 class Variable(Gate):
     # this can be both an input or output(bulb)
     rank=0
@@ -68,7 +67,6 @@ class Variable(Gate):
         if self.output==-1:
             self.circuit.fix_var(self.code)
 
-        
 class NOT(Gate):
     rank=0
     def __init__(self,circuit):
@@ -107,7 +105,6 @@ class AND(Gate):
         prev=self.output
         self.output=out
         self.circuit.update(self.code,prev)
-
         
 class NAND(Gate):
     rank=0
@@ -174,7 +171,6 @@ class XOR(Gate):
         self.output=out
         self.circuit.update(self.code,prev)
 
-
 class XNOR(Gate):
     rank=0
     def __init__(self,circuit):
@@ -191,15 +187,16 @@ class XNOR(Gate):
 # inventory
 class Circuit:
     def __init__(self):
-        self.objlist={}# holds the objects with code name
+        self.objlist=[{} for i in range(9)]# holds the objects with code name
         self.complist=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.probelist=[]# variables with gate input or these are probes
         self.circuit_breaker={}# checks for loops while connecting
         self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
-        self.objlist['00']=Signal(self,0)
-        self.objlist['01']=Signal(self,1)
-
+        self.objlist[0]['0']=Signal(self,0)
+        self.objlist[0]['1']=Signal(self,1)
+    def getobj(self,code):
+        return self.objlist[int(code[0])][code[1:]]
     # show component
     def listComponent(self):
         for i in range(len(self.complist)):
@@ -234,7 +231,7 @@ class Circuit:
             self.varlist.append(gt.code)     
         else:
             return
-        self.objlist[gt.code]=gt
+        self.objlist[int(gt.code[0])][gt.code[1:]]=gt
         self.complist.append(gt.code)
         self.circuit_breaker[gt.code]=-1
 
@@ -252,8 +249,7 @@ class Circuit:
     
 
     def addComponent(self):
-        print("Choose a gate to add to the circuit:")
-        
+        print("Choose a gate to add to the circuit:")        
         print("1. NOT")
         print("2. AND")
         print("3. NAND")
@@ -262,18 +258,17 @@ class Circuit:
         print("6. XOR")
         print("7. XNOR")
         print("8. Variable")  
-        # 1 should be variable and then others change the entire print list order as in 2 NOT 3 AND   
         choice = input("Enter your choice: ").split()
         for i in choice:
             self.getcomponent(i)
 
     # connects parent to it's child/inputs
     def connect(self,gate,child):
-        gate_obj=self.objlist[gate]
-        child_obj=self.objlist[child]
+        gate_obj=self.getobj(gate)
+        child_obj=self.getobj(child)
         # check for variable or probe
-        if isinstance(gate_obj,Variable):
-            if isinstance(child_obj,Signal):
+        if gate[0]=='8':
+            if child[0]=='0':
                 # variable has a 0/1 input so it's not a probe
                 if gate in self.probelist:
                     self.probelist.remove(gate)
@@ -289,7 +284,7 @@ class Circuit:
         if child in gate_obj.children[val] and gate_obj.output!=-1:# no need to reconnect if connected
             return
         else:
-            if isinstance(gate_obj,Variable) or isinstance(gate_obj,NOT):
+            if gate[0]=='8' or gate[0]=='1':
                 # variable and not gate will have atmost one input so i need to erase
                 # child set to add new child
                 gate_obj.children[val].clear()
@@ -299,20 +294,20 @@ class Circuit:
             # if the value of a child is changed 
             # it pre exists in the other value so i have to delete it
             gate_obj.children[val^1].discard(child)
-        if isinstance(gate_obj,Variable) or isinstance(gate_obj,NOT):
+        if gate[0]=='8' or gate[0]=='1':
             # not and variable won't have variable in the other container(only one at a time)
             gate_obj.children[val^1].clear()
 
         # connect children to it as their parent
-        if isinstance(child_obj,Signal)==False and gate_obj not in child_obj.parents:
+        if child[0]!='0' and gate_obj not in child_obj.parents:
             child_obj.parents.add(gate)
         gate_obj.process()# renew output 
 
 
     # disconnects parent & child
     def disconnect_gates(self,parent,child):
-        parent_obj=self.objlist[parent]
-        child_obj=self.objlist[child]
+        parent_obj=self.getobj(parent)
+        child_obj=self.getobj(child)
         parent_obj.children[child_obj.output].discard(child)# delete child 
         parent_obj.process()# modify output after removing child
         child_obj.parents.discard(parent)# child disconnects with parent
@@ -320,8 +315,8 @@ class Circuit:
     # identify parent/child
     def disconnect(self,gate1,gate2):
         
-        gate1_obj=self.objlist[gate1]
-        gate2_obj=self.objlist[gate2]
+        gate1_obj=self.getobj(gate1)
+        gate2_obj=self.getobj(gate2)
 
         # check for parenthood and delete with function
         if gate1 in gate2_obj.parents:
@@ -333,27 +328,27 @@ class Circuit:
 
     # deletes component
     def deleteComponent(self,gate):
-        gate_obj=self.objlist[gate]
+        gate_obj=self.getobj(gate)
         parent_list=list(gate_obj.parents)# set changes after deletion so i need list
         for parent in parent_list:# disconnect from parents and they will modify their output 
             self.disconnect_gates(parent,gate)
         for child in gate_obj.children[0]:# disconnect from children
-            self.objlist[child].parents.discard(gate)
+            self.getobj(child).parents.discard(gate)
         for child in gate_obj.children[1]:
-            self.objlist[child].parents.discard(gate)        
-        del self.objlist[gate] # delete from objlist
+            self.getobj(child).parents.discard(gate)        
+        del self.objlist[int(gate[0])][gate[1:]] # delete from objlist
       
     # if my output changes i will update my parents 
     # circuit breaker breaks if a gate seen more than twice in a single operation
     def update(self,gate,prev):
-        gate_obj=self.objlist[gate]
+        gate_obj=self.getobj(gate)
         out=gate_obj.output
         if self.circuit_breaker[gate]==-1:
             self.circuit_breaker[gate]=out
             if gate_obj.turnon() and prev!=out:
                 for parent in gate_obj.parents:
                     self.connect(parent,gate)
-                    if self.objlist[parent].output==-1:
+                    if self.getobj(parent).output==-1:
                         gate_obj.output=-1
                         break
             self.circuit_breaker[gate]=-1
@@ -365,21 +360,21 @@ class Circuit:
         
     # fixes the loop by breaking the connection that caused it
     def fix(self,parent,child):
-        parent_obj=self.objlist[parent]
-        child_obj=self.objlist[child]
+        parent_obj=self.getobj(parent)
+        child_obj=self.getobj(child)
 
         child_obj.parents.discard(parent)
         parent_obj.children[0].discard(child)
         parent_obj.children[1].discard(child)
         
         if isinstance(parent_obj,Variable):
-            self.connect(parent,'0')
+            self.connect(parent,'00')
         else:
             parent_obj.process()
 
 
     def fix_var(self,var):
-        var_obj=self.objlist[var]
+        var_obj=self.getobj(var)
         if len(var_obj.children[0]):
             out=0
         else:
@@ -389,7 +384,7 @@ class Circuit:
 
     # Result 
     def output(self,gate):
-        print(f'{self.decode(gate)} output is {self.objlist[gate].display_output()}')
+        print(f'{self.decode(gate)} output is {self.getobj(gate).display_output()}')
 
 
     # Truth Table
@@ -424,7 +419,6 @@ class Circuit:
         print(header)
         print(separator)
 
-        # Generate all input combinations and outputs
         for i in range(rows):
             inputs = []
             for j in range(n):
@@ -433,7 +427,7 @@ class Circuit:
                 self.connect(var, '0' + str(bit))
                 inputs.append("1" if bit else "0")
 
-            output = self.objlist[gate].display_output()
+            output = self.getobj(gate).display_output()
             # Replace internal display values with clean T/F (or keep OFF/0/1 if needed)
             clean_output = output if output in ['OFF', '0/1'] else ('T' if output == 'T' else 'F')
 
@@ -441,7 +435,7 @@ class Circuit:
             print(row)
 
         print(separator)
-        print()  # empty line at the end
+        print()  
 
 
     # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
@@ -470,7 +464,7 @@ class Circuit:
         row_format = header_format  # Same alignment and widths
         
         for comp_code in self.complist:
-            comp_obj = self.objlist[comp_code]
+            comp_obj = self.getobj(comp_code)
             
             # Inputs (children)
             comp_name = self.decode(comp_code)
