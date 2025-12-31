@@ -20,6 +20,16 @@ class Gate:
         self.output=0
         # each gate will have it's own unique id
         self.code=''
+
+
+    def parity(self):
+        if len(self.parents):
+            for parent in self.parents:
+                if self.code in self.circuit.getobj(parent).children[self.output]:
+                    return False
+                else:
+                    return True
+        return False
     def override(self,code):
         self.code=code
 
@@ -233,6 +243,8 @@ class Circuit:
         self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
         self.objlist[0]['0']=Signal(self,0)
         self.objlist[0]['1']=Signal(self,1)
+        self.undolist=[]
+        self.redolist=[]
         
     def getobj(self,code):
         return self.objlist[int(code[0])][code[1:]]
@@ -383,6 +395,7 @@ class Circuit:
             self.getobj(child).parents.discard(gate)        
         del self.objlist[int(gate[0])][gate[1:]] # delete from objlist
       
+    
     # if my output changes i will update my parents 
     # circuit breaker breaks if a gate seen more than twice in a single operation
     def update(self,gate,prev):
@@ -390,7 +403,7 @@ class Circuit:
         out=gate_obj.output
         if self.circuit_breaker[gate]==-1:
             self.circuit_breaker[gate]=out
-            if gate_obj.turnon() and prev!=out:
+            if gate_obj.turnon() and (prev!=out or gate_obj.parity()):
                 for parent in gate_obj.parents:
                     self.connect(parent,gate)
                     if self.getobj(parent).output==-1:
