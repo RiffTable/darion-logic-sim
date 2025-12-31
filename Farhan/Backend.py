@@ -567,9 +567,10 @@ class Circuit:
         self.objlist[0]['0']=Signal(self,0)
         self.objlist[0]['1']=Signal(self,1)
         components=f.readline().split(' ')
+        components.pop()
         if len(components)==0:
             return
-        components.pop()
+        
         # create components
         for component in components:
             gate=self.getcomponent(component[0])
