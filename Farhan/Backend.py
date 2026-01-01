@@ -4,6 +4,7 @@ class Signal:
         self.circuit=circuit
         self.parents=set()
         self.output=value
+        self.name=str(value)
 
 class Gate:   
 
@@ -21,6 +22,7 @@ class Gate:
         self.prev_output=0
         # each gate will have it's own unique id
         self.code=''
+        self.name=''
 
     def parity(self):
         if len(self.parents):
@@ -248,13 +250,13 @@ class Circuit:
     # show component
     def listComponent(self):
         for i in range(len(self.complist)):
-            comp=self.decode(self.complist[i])
+            comp=self.getname(self.complist[i])
             print(f'{i}. {comp}')
 
     # show variables
     def listVar(self):
         for i in range(len(self.varlist)):
-            var=self.decode(self.varlist[i])
+            var=self.getname(self.varlist[i])
             print(f'{i}. {var}')
 
     # name suggests it
@@ -281,6 +283,7 @@ class Circuit:
             return
         if code!='':
             gt.override(code)
+        gt.name=self.decode(gt.code)
         self.objlist[int(gt.code[0])][gt.code[1:]]=gt
         self.complist.append(gt.code)
         self.circuit_breaker[gt.code]=-1
@@ -296,6 +299,9 @@ class Circuit:
         else:
             gate-=1
             return self.gatelist[gate]+'-'+code[1:]    
+        
+    def getname(self,gate):
+        return self.objlist[int(gate[0])][gate[1:]].name
 
     # connects parent to it's child/inputs
     def connect(self,gate,child):
@@ -405,8 +411,7 @@ class Circuit:
             if gate in self.probelist:
                 self.probelist.append(gate)
             elif gate in self.varlist:
-                self.varlist.append(gate)
-                
+                self.varlist.append(gate)                
     
     # if my output changes i will update my parents 
     # circuit breaker breaks if a gate seen more than twice in a single operation
@@ -450,11 +455,10 @@ class Circuit:
         parent_obj.children[0].discard(child)
         parent_obj.children[1].discard(child)
         
-        if isinstance(parent_obj,Variable):
+        if parent[0]=='8':
             self.connect(parent,'00')
         else:
             self.correction(parent)
-
 
 
     def fix_var(self,var):
@@ -470,7 +474,7 @@ class Circuit:
 
     # Result 
     def output(self,gate):
-        print(f'{self.decode(gate)} output is {self.getobj(gate).display_output()}')
+        print(f'{self.getname(gate)} output is {self.getobj(gate).display_output()}')
 
 
     # Truth Table
@@ -480,7 +484,7 @@ class Circuit:
             return
         
         if gate in self.varlist:
-            print(f'{self.decode(gate)} is a variable not a gate or a probe')
+            print(f'{self.getname(gate)} is a variable not a gate or a probe')
             return
         
         if gate not in self.complist:
@@ -491,8 +495,8 @@ class Circuit:
         rows = 1 << n
 
         # Collect decoded variable names and the output gate name
-        var_names = [self.decode(v) for v in self.varlist]
-        output_name = self.decode(gate)
+        var_names = [self.getname(v) for v in self.varlist]
+        output_name = self.getname(gate)
 
         # Determine column widths for nice alignment
         col_width = max(len(name) for name in var_names + [output_name]) + 2
@@ -515,9 +519,8 @@ class Circuit:
 
             output = self.getobj(gate).display_output()
             # Replace internal display values with clean T/F (or keep OFF/0/1 if needed)
-            clean_output = output if output in ['OFF', '0/1'] else ('T' if output == 'T' else 'F')
 
-            row = " | ".join(val.center(col_width) for val in inputs + [clean_output])
+            row = " | ".join(val.center(col_width) for val in inputs + [output])
             print(row)
 
         print(separator)
@@ -525,6 +528,7 @@ class Circuit:
 
 
     # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
+    # i modified logic in between commits
     def diagnose(self):
         print("--- Component Diagnosis ---")
         
@@ -553,20 +557,20 @@ class Circuit:
             comp_obj = self.getobj(comp_code)
             
             # Inputs (children)
-            comp_name = self.decode(comp_code)
+            comp_name = self.getname(comp_code)
             input_0=[]
             input_1=[]
             for i in comp_obj.children[0]:
-                input_0.append(self.decode(i))
+                input_0.append(self.getname(i))
             for i in comp_obj.children[1]:
-                input_1.append(self.decode(i))
+                input_1.append(self.getname(i))
             children_0 = ", ".join(sorted(input_0)) if input_0 else "None"
             children_1 = ", ".join(sorted(input_1)) if input_1 else "None"
             
             # Outputs (parents)
             parents=[]
             for i in comp_obj.parents:
-                parents.append(self.decode(i))
+                parents.append(self.getname(i))
             parents = ", ".join(sorted(parents)) if parents else "None"
             
             # State
