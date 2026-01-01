@@ -1,5 +1,3 @@
-f=open('file.txt','r')
-data=f.read()
-for i in data.split('\n'):
-    print(i)
-f.close()
+a=[1,2,3,4]
+b=[2,3,4]
+c=[i for i in a]

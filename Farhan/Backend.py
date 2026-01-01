@@ -478,37 +478,33 @@ class Circuit:
 
 
     # Truth Table
-    def truthTable(self, gate):
+    def truthTable(self):
         if len(self.varlist) == 0:
             print('No variable for toggling')
             return
         
-        if gate in self.varlist:
-            print(f'{self.getname(gate)} is a variable not a gate or a probe')
-            return
-        
-        if gate not in self.complist:
-            print(f'{gate} is not a valid component in the circuit.')
-            return
+        output_list=[i for i in self.complist]
+        for i in self.varlist:
+            output_list.remove(i)
 
         n = len(self.varlist)
         rows = 1 << n
 
         # Collect decoded variable names and the output gate name
         var_names = [self.getname(v) for v in self.varlist]
-        output_name = self.getname(gate)
+        output_name=[self.getname(v) for v in output_list]
 
         # Determine column widths for nice alignment
-        col_width = max(len(name) for name in var_names + [output_name]) + 2
-        header = " | ".join(name.center(col_width) for name in var_names + [output_name])
+        col_width = max(len(name) for name in var_names + output_name ) + 2
+        header = " | ".join(name.center(col_width) for name in var_names + output_name)
         separator = "─" * len(header)
 
         # Print table header
-        print("\nTruth Table for " + output_name)
+        print("\nTruth Table")
         print(separator)
         print(header)
         print(separator)
-
+    
         for i in range(rows):
             inputs = []
             for j in range(n):
@@ -516,11 +512,10 @@ class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 self.connect(var, '0' + str(bit))
                 inputs.append("1" if bit else "0")
-
-            output = self.getobj(gate).display_output()
+            output=[self.getobj(gate).display_output() for gate in output_list]
             # Replace internal display values with clean T/F (or keep OFF/0/1 if needed)
 
-            row = " | ".join(val.center(col_width) for val in inputs + [output])
+            row = " | ".join(val.center(col_width) for val in inputs + output)
             print(row)
 
         print(separator)

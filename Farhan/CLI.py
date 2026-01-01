@@ -152,12 +152,7 @@ def menu():
             input('Press Enter to continue....')
             
         elif choice == '8':
-            base.listComponent()
-            gate_code = input("Enter the serial of the gate you want to see Truth Table of: ")
-            if gate_code=='':
-                continue
-            gate_code=base.complist[int(gate_code)]
-            base.truthTable(gate_code)
+            base.truthTable()
             input('Press Enter to continue....')
 
         elif choice == '9':
