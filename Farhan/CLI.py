@@ -5,10 +5,22 @@ import os
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-# Usage
-base=Circuit()
 undolist=[]
 redolist=[]
+def addtoundo(undo,redo,token):
+    undo.append(token)
+    redo.clear
+def popfromundo(undo,redo):
+    x=undo.pop()
+    redo.append(x)
+    return x
+def popfromredo(undo,redo):
+    x=redo.pop()
+    undo.append(x)
+    return x
+# Usage
+base=Circuit()
+
 def menu():
 
     while True:
@@ -46,11 +58,12 @@ def menu():
             for i in choice:
                 gate=base.getcomponent(i,'')
                 token='1 '+gate
-                undolist.append(token)
+                addtoundo(undolist,redolist,token)
 
         elif choice == '2':
             base.listComponent()
             input('Press Enter to continue....')
+
         elif choice == '3':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to connect components: ")
@@ -65,14 +78,15 @@ def menu():
                 if base.getobj(gate_code).output==-1:
                     print(f"Deadlock occured! please disconnect gates")
                     token='3 '+gate_code+' '+ child
-                    undolist.append(token)
+                    addtoundo(undolist,redolist,token)
                 elif base.getobj(child)==-1:
                     print(f'Cannot connect {base.decode(child)} to {base.decode(gate_code)}')
                 else:
                     print(f"Connected {base.decode(child)} to {base.decode(gate_code)}.")
                     token='3 '+gate_code+' '+ child
-                    undolist.append(token)
+                    addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
+
         elif choice == '4':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to disconnect components: ")
@@ -85,8 +99,9 @@ def menu():
                 base.disconnect(gate_code, base.complist[child])
                 print(f"Disconnected {base.decode(base.complist[child])} & {base.decode(gate_code)}.")
                 token='4 '+gate_code+' '+ child
-                undolist.append(token)
+                addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
+
         elif choice == '5':
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to delete: ").split()))
@@ -99,7 +114,8 @@ def menu():
             for gate in exclusionlist:
                 base.complist.remove(gate)
                 token='2 '+gate
-                undolist.append(token)
+                addtoundo(undolist,redolist,token)
+
         elif choice == '6':
             base.listVar()
             var = input("Enter the serial of the variable to set : ")
@@ -113,10 +129,11 @@ def menu():
                     base.fix_var(var)
                     print(f"Variable {base.decode(var)} set to {value}.")
                     token='3 '+var+' '+ '0'+value
-                    undolist.append(token)
+                    addtoundo(undolist,redolist,token)
                 else:
                     print("Invalid value. Please try again")
             input('Press Enter to continue....')
+
         elif choice == '7':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to see output of: ")
@@ -125,6 +142,7 @@ def menu():
             gate_code=base.complist[int(gate_code)]
             base.output(gate_code)
             input('Press Enter to continue....')
+            
         elif choice == '8':
             base.listComponent()
             gate_code = input("Enter the serial of the gate you want to see Truth Table of: ")
@@ -133,6 +151,7 @@ def menu():
             gate_code=base.complist[int(gate_code)]
             base.truthTable(gate_code)
             input('Press Enter to continue....')
+
         elif choice == '9':
             base.diagnose()
             input('Press Enter to continue....')
@@ -141,17 +160,19 @@ def menu():
             base.writetofile()
             print("Circuit saved to file.txt")
             input('Press Enter to continue....')
+
         elif choice.upper() == 'B':
             base.clearcircuit()
+            undolist.clear()
+            redolist.clear()
             base.readfromfile()
             print("Circuit loaded from file.txt")
             input('Press Enter to continue....')
 
-
         elif choice==key.CTRL_Z:
             if len(undolist)==0:
                 continue
-            event=undolist.pop()
+            event=popfromundo(undolist,redolist)
             event=event.split()
             command =event[0]            
             if command=='1':
@@ -180,6 +201,33 @@ def menu():
                 gate2=event[2]
                 base.connect(gate1,gate2)
             input('Press Enter to continue....')
+
+            
+        elif choice==key.CTRL_Y:
+            if len(redolist)==0:
+                continue
+            event=popfromredo(undolist,redolist)
+            event=event.split()
+            command =event[0]            
+            if command=='1':
+                gate=event[1]
+                base.renewComponent(gate)
+                base.complist.append(gate)
+                
+            elif command=='2':
+                gate=event[1]
+                base.deleteComponent(gate)
+                base.complist.remove(gate)
+                
+            elif command=='3':
+                gate1=event[1]
+                gate2=event[2]
+                base.connect(gate1,gate2)
+                
+            elif command=='4':
+                gate1=event[1]
+                gate2=event[2]
+                base.disconnect(gate1,gate2)
 
         elif choice == key.ESC:            
             print("Exiting Circuit Simulator......")
