@@ -397,7 +397,7 @@ class Circuit:
                 self.probelist.remove(gate)
             elif gate in self.varlist:
                 self.varlist.remove(gate)
-                
+        gate_obj.parents=set(parent for parent in parent_list)
     def renewComponent(self,gate):
         gate_obj=self.getobj(gate)
         parent_list=list(gate_obj.parents)# set changes after deletion so i need list
@@ -483,10 +483,7 @@ class Circuit:
             print('No variable for toggling')
             return
         
-        output_list=[i for i in self.complist]
-        for i in self.varlist:
-            output_list.remove(i)
-
+        output_list=[i for i in self.complist if i not in self.varlist]
         n = len(self.varlist)
         rows = 1 << n
 
