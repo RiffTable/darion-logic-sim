@@ -639,4 +639,3 @@ class Circuit:
             i.clear()
         self.varlist.clear()
         self.complist.clear()
-        self.probelist.clear()
