@@ -192,10 +192,7 @@ def menu():
                     gate_obj1=base.getobj(gate1)
                     base.connect(gate1,'0'+str(gate_obj1.output^1))
                 else:
-                    if base.getobj(gate1).output==-1:
-                        base.fallback(gate1,gate2)
-                    else: 
-                        base.disconnect(gate1,gate2)
+                    base.disconnect(gate1,gate2)
             elif command=='4':
                 gate1=event[1]
                 gate2=event[2]
