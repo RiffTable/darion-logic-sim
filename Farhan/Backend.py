@@ -483,6 +483,7 @@ class Circuit:
         # Collect decoded variable names and the output gate name
         var_names = [self.getname(v) for v in self.varlist]
         output_name=[self.getname(v) for v in output_list]
+        output_name.sort()
 
         # Determine column widths for nice alignment
         col_width = max(len(name) for name in var_names + output_name ) + 2
@@ -522,7 +523,7 @@ class Circuit:
             ("Component", 12),
             ("Input-0", 22),
             ("Input-1", 22),
-            ('Input_neg',22),
+            ('Error',22),
             ("Parents (Outputs to)", 25),
             ("State", 10)
         ]
@@ -546,16 +547,16 @@ class Circuit:
             comp_name = self.getname(comp_code)
             input_0=[]
             input_1=[]
-            input_neg=[]
+            Error=[]
             for i in comp_obj.children[0]:
                 input_0.append(self.getname(i))
             for i in comp_obj.children[1]:
                 input_1.append(self.getname(i))
             for i in comp_obj.children[-1]:
-                input_neg.append(self.getname(i))
+                Error.append(self.getname(i))
             children_0 = ", ".join(sorted(input_0)) if input_0 else "None"
             children_1 = ", ".join(sorted(input_1)) if input_1 else "None"
-            children_neg = ", ".join(sorted(input_neg)) if input_neg else "None"
+            children_neg = ", ".join(sorted(Error)) if Error else "None"
             
             # Outputs (parents)
             parents=[]
