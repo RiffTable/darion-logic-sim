@@ -349,14 +349,17 @@ class Circuit:
     def disconnect_gates(self,parent,child):
         parent_obj=self.getobj(parent)
         child_obj=self.getobj(child)
-        parent_obj.children[child_obj.output].discard(child)
-        parent_obj.children[child_obj.output^1].discard(child)# delete child 
+        parent_obj.children[0].discard(child)
+        parent_obj.children[1].discard(child)# delete child 
+        parent_obj.children[-1].discard(child)
+        child_obj.parents.discard(parent)
         if parent[0]=='8':
             self.connect(parent,'00')
         else:
+            child_obj.process()
+            self.update(child)
             parent_obj.process()# modify output after removing child
             self.update(parent)
-        child_obj.parents.discard(parent)# child disconnects with parent
 
     # identify parent/child
     def disconnect(self,gate1,gate2):
