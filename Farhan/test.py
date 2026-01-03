@@ -1,3 +1,3 @@
-a=[1,2,3,4]
-b=[2,3,4]
-c=[i for i in a]
+val=-1
+other=[i for i in [0,1,-1] if not val]
+print(other)

@@ -78,7 +78,7 @@ def menu():
                 gate_obj=base.getobj(gate)
                 child_obj=base.getobj(child)
                 if base.getobj(gate).output==-1:
-                    print(f"Deadlock occured! please disconnect gates")
+                    print(f"Deadlock occured! please undo")
                     token='3 '+gate+' '+ child
                     addtoundo(undolist,redolist,token)
                 elif base.getobj(child)==-1:
@@ -132,7 +132,6 @@ def menu():
                 value='0'+value
                 if value not in var_obj.children[int(value[1:])]:
                     base.connect(var, value)
-                    base.fix_var(var)
                     print(f"Variable {base.decode(var)} set to {value[1:]}.")
                     token='3 '+var+' '+ '0'+value
                     addtoundo(undolist,redolist,token)
@@ -203,6 +202,7 @@ def menu():
                 base.connect(gate1,gate2)
             input('Press Enter to continue....')
             
+
         elif choice==key.CTRL_Y:
             if len(redolist)==0:
                 continue
