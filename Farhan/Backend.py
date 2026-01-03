@@ -479,11 +479,10 @@ class Circuit:
         output_list=[i for i in self.complist if i not in self.varlist]
         n = len(self.varlist)
         rows = 1 << n
-
+        output_list.sort()
         # Collect decoded variable names and the output gate name
         var_names = [self.getname(v) for v in self.varlist]
         output_name=[self.getname(v) for v in output_list]
-        output_name.sort()
 
         # Determine column widths for nice alignment
         col_width = max(len(name) for name in var_names + output_name ) + 2
