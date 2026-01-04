@@ -572,7 +572,7 @@ class Circuit:
         
     def writetofile(self):
         # write the component list to file
-        f=open('D:/Github/darion-logic-sim/file.txt','w')
+        f=open('file.txt','w')
 
         for i in self.complist:
             f.write(f'{i} ')
@@ -598,7 +598,7 @@ class Circuit:
         f.close()
 
     def readfromfile(self):
-        f=open('D:/Github/darion-logic-sim/file.txt','r')
+        f=open('file.txt','r')
         self.objlist[0]['0']=Signal(self,0)
         self.objlist[0]['1']=Signal(self,1)
         components=f.readline().split(' ')
