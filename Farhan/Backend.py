@@ -1,3 +1,4 @@
+
 class Signal:
     # default signals that exist indepdently
     def __init__(self,circuit,value):
@@ -244,7 +245,8 @@ class Circuit:
         self.objlist[0]['0']=Signal(self,0)
         self.objlist[0]['1']=Signal(self,1)
         self.objlist[0]['-1']=Signal(self,-1)
-        
+        self.copydata=[]
+
     def getobj(self,code):
         return self.objlist[int(code[0])][code[1:]]
     # show component
@@ -384,10 +386,7 @@ class Circuit:
             self.getobj(child).parents.discard(gate)
         for child in gate_obj.children[1]:
             self.getobj(child).parents.discard(gate)        
-        if gate[0]=='8':
-            if gate in self.probelist:
-                self.probelist.remove(gate)
-            elif gate in self.varlist:
+        if gate[0]=='8' and gate in self.varlist:
                 self.varlist.remove(gate)
         gate_obj.parents=set(parent for parent in parent_list)
     def renewComponent(self,gate):
@@ -597,20 +596,27 @@ class Circuit:
             f.write('\n')
         f.close()
 
+    # read from file
     def readfromfile(self):
-        f=open('file.txt','r')
-        self.objlist[0]['0']=Signal(self,0)
-        self.objlist[0]['1']=Signal(self,1)
+        f=open('file.txt','r')        
         components=f.readline().split(' ')
         components.pop()
         if len(components)==0:
             return
-        
+        pivot=[0,NOT.rank,AND.rank,NAND.rank,OR.rank,NOR.rank,XOR.rank,XNOR.rank,Variable.rank]   
+        pseudo={}
+        pseudo['00']='00'
+        pseudo['01']='01'
+
         # create components
         for component in components:
-            self.getcomponent(component[0],component)
-            if component[0]=='8':
+            old_rank=int(component[1:])
+            identity=component[0]
+            new_code=identity+str(old_rank+pivot[int(identity)])
+            self.getcomponent(identity,new_code)
+            if identity=='8':
                 self.getobj(component).children[0].clear()
+            pseudo[component]=new_code
         connections=f.read().split('\n')
         connections.pop()
         for line in connections:
@@ -619,14 +625,49 @@ class Circuit:
             children_0=line[1].split(',')
             if 'X' not in children_0:
                 for child in children_0:
-                    self.passive_connect(gate,child,0)
+                    self.passive_connect(pseudo[gate],pseudo[child],0)
             children_1=line[2].split(',')
             if 'X' not in children_1:
                 for child in children_1:
-                    self.passive_connect(gate,child,1)
+                    self.passive_connect(pseudo[gate],pseudo[child],1)
             output=line[3]
             self.getobj(gate).output=int(output)
         f.close()
+    def rank_reset(self):
+        if len(self.objlist[1]):
+            NOT.rank=int(max(self.objlist[1]))
+        else:
+            NOT.rank=0
+        if len(self.objlist[2]):
+            AND.rank=int(max(self.objlist[2]))
+        else:
+            AND.rank=0
+        if len(self.objlist[3]):
+            NAND.rank=int(max(self.objlist[3]))
+        else:
+            NAND.rank=0
+        if len(self.objlist[4]):
+            OR.rank=int(max(self.objlist[4]))
+        else:
+            OR.rank=0
+        if len(self.objlist[5]):
+            NOR.rank=int(max(self.objlist[5]))
+        else:
+            NOR.rank=0
+        if len(self.objlist[6]):
+            XOR.rank=int(max(self.objlist[6]))
+        else:
+            XOR.rank=0
+        if len(self.objlist[7]):
+            XNOR.rank=int(max(self.objlist[7]))
+        else:
+            XNOR.rank=0
+        if len(self.objlist[8]):
+            Variable.rank=int(max(self.objlist[8]))+1
+        else:
+            Variable.rank=0
+            
+            
     def clearcircuit(self):
         Variable.rank=0
         NOT.rank=0
@@ -635,10 +676,58 @@ class Circuit:
         OR.rank=0
         NOR.rank=0
         XOR.rank=0
-        XNOR.rank=0
-        
+        XNOR.rank=0        
         self.circuit_breaker={}
-        for i in self.objlist:
-            i.clear()
+        for i in range(1,len(self.objlist)):
+            self.objlist[i].clear()
         self.varlist.clear()
         self.complist.clear()
+
+    def copy(self,components):
+        if len(components)==0:
+            return
+        self.copydata.clear()
+        self.copydata.append(','.join(components))
+        for component in components:
+            obj=self.getobj(component)
+            info=component
+            info+=' '
+            children=obj.children[0]|obj.children[1]|obj.children[-1]
+            copychild=[]
+            for child in children:
+                if child in components or child[0]=='0':
+                    copychild.append(child)
+            copychild=','.join(copychild)
+            if len(copychild)==0:
+                copychild='X'
+            info+=copychild
+            self.copydata.append(info)
+
+    def paste(self):
+        pivot=[0,NOT.rank,AND.rank,NAND.rank,OR.rank,NOR.rank,XOR.rank,XNOR.rank,Variable.rank]   
+        if len(self.copydata)==0:
+            return
+        components=self.copydata[0]
+        pseudo={}
+        pseudo['00']='00'
+        pseudo['01']='01'
+        new_items=[]
+        for component in components.split(','):
+            old_rank=int(component[1:])
+            identity=component[0]
+            new_code=identity+str(old_rank+pivot[int(identity)])
+            self.getcomponent(identity,new_code)
+            pseudo[component]=new_code
+            new_items.append(new_code)
+        connections=[self.copydata[i] for i in range(1,len(self.copydata))]
+        for line in connections:
+            line=line.split(' ')
+            gate=line[0]
+            children=line[1].split(',')
+            if 'X' not in children:
+                for child in children :
+                    self.connect(pseudo[gate],pseudo[child])
+        return new_items
+
+
+        
