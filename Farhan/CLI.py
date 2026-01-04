@@ -177,14 +177,17 @@ def menu():
             event=popfromundo(undolist,redolist)
             event=event.split()
             command =event[0]            
+
             if command=='1':
                 gate=event[1]
                 base.deleteComponent(gate)
                 base.complist.remove(gate)
+
             elif command=='2':
                 gate=event[1]
                 base.renewComponent(gate)
                 base.complist.append(gate)
+
             elif command=='3':
                 gate1=event[1]
                 gate2=event[2]
@@ -193,12 +196,21 @@ def menu():
                     base.connect(gate1,'0'+str(gate_obj1.output^1))
                 else:
                     base.disconnect(gate1,gate2)
+
             elif command=='4':
                 gate1=event[1]
                 gate2=event[2]
                 base.connect(gate1,gate2)
-            input('Press Enter to continue....')
-            
+
+            elif command=='5':
+                gates=event[2].split(',')
+                for i in gates:
+                    base.deleteComponent(i)
+                    del base.circuit_breaker[i]
+                    del base.objlist[int(i[0])][i[1:]]
+                    base.complist.remove(i)
+                base.rank_reset()
+            input('Press Enter to continue....')         
 
         elif choice==key.CTRL_Y:
             if len(redolist)==0:
@@ -226,6 +238,34 @@ def menu():
                 gate1=event[1]
                 gate2=event[2]
                 base.disconnect(gate1,gate2)
+
+            elif command=='5':
+                gates=event[1].split(',')
+                base.copy(gates)
+                base.paste()
+            input('Press Enter to continue....') 
+
+        elif choice==key.CTRL_A:
+            components=[]
+            base.listComponent()
+            gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
+            for gate in gatelist:
+                gate=base.complist[int(gate)]
+                components.append(gate)
+            base.copy(components)
+            print("Copied")
+            input('Press Enter to continue....')
+
+        elif choice==key.CTRL_B:            
+            if len(base.copydata):
+                source=base.copydata[0]
+                gates=base.paste()
+                gates=','.join(gates)
+                addtoundo(undolist,redolist,'5 '+source+' '+gates)
+                print("Pasted")
+            else:
+                print('Nothing to paste')         
+            input('Press Enter to continue....')
 
         elif choice == key.ESC:            
             print("Exiting Circuit Simulator......")
