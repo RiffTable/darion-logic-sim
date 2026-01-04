@@ -1,4 +1,4 @@
-from Backend import Circuit
+from Circuit import Circuit
 from readchar import readkey,key
 import os
 
@@ -151,7 +151,7 @@ def menu():
             input('Press Enter to continue....')
             
         elif choice == '8':
-            base.truthTable()
+            print(base.truthTable())
             input('Press Enter to continue....')
 
         elif choice == '9':
@@ -159,7 +159,7 @@ def menu():
             input('Press Enter to continue....')
             
         elif choice.upper() == 'A':
-            base.writetofile()
+            base.writetofile('file.txt')
             print("Circuit saved to file.txt")
             input('Press Enter to continue....')
 
@@ -167,7 +167,7 @@ def menu():
             base.clearcircuit()
             undolist.clear()
             redolist.clear()
-            base.readfromfile()
+            base.readfromfile('file.txt')
             print("Circuit loaded from file.txt")
             input('Press Enter to continue....')
 

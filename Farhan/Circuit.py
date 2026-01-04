@@ -1,240 +1,5 @@
+from Gates import *
 
-class Signal:
-    # default signals that exist indepdently
-    def __init__(self,circuit,value):
-        self.circuit=circuit
-        self.parents=set()
-        self.output=value
-        self.name=str(value)
-
-class Gate:   
-
-    def __init__(self,circuit):
-        # a gate needs holders from the circuit
-        self.circuit=circuit
-
-        # gate's children or inputs
-        self.children=[set() for i in range(3)]
-        self.parents=set()
-        # input limit
-        self.inputlimit=2
-        #default output
-        self.output=0
-        self.prev_output=0
-        # each gate will have it's own unique id
-        self.code=''
-        self.name=''
-
-    def parity(self):
-        if len(self.parents):
-            for parent in self.parents:
-                if self.code in self.circuit.getobj(parent).children[self.output]:
-                    return False
-                else:
-                    return True
-        return False
-    def override(self,code):
-        self.code=code
-
-    def turnon(self):
-        return len(self.children[0])+len(self.children[1])+len(self.children[-1])>=self.inputlimit
-
-    # operates on the inputs
-    def process(self):
-        pass
-    
-    def setlimits(self):
-        pass
-
-    # gives output in T or F of off if there isn't enough inputs
-    def display_output(self):
-        if self.output==-1:
-            x= '0<=>1'
-        elif self.output==0:
-            x= 'F'
-        else:
-            x= 'T'
-        if self.turnon()==False:
-            x+='*'
-        return x
-
-class Variable(Gate):
-    # this can be both an input or output(bulb)
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)          
-        self.inputlimit=1
-        self.code='8'+str(Variable.rank)
-        Variable.rank+=1
-        self.children[0].add('00')
-    def override(self, code):
-        super().override(code)
-        Variable.rank=max(Variable.rank,int(code[1:]))
-    def process(self):
-        if len(self.children[0]):
-            out=0
-        elif len(self.children[1]):
-            out=1
-
-        self.prev_output=self.output
-        self.output=out
-
-        
-
-class NOT(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)        
-        self.inputlimit=1
-        NOT.rank+=1
-        self.code='1'+str(NOT.rank)
-
-    def override(self, code):
-        super().override(code)
-        NOT.rank=max(NOT.rank,int(code[1:]))
-    def process(self):
-        if len(self.children[0]):
-            out=1
-        elif len(self.children[1]):
-            out=0
-        else:
-            out=0
-        self.prev_output=self.output
-        self.output=out
-        
-        
-class AND(Gate):
-
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)       
-        AND.rank+=1
-        self.code='2'+str(AND.rank)
-
-    def override(self, code):
-        super().override(code)
-        AND.rank=max(AND.rank,int(code[1:]))
-        
-    def process(self):
-        if len(self.children[0]):
-            out=0
-        elif len(self.children[1]):
-            out=1
-        else: 
-            out=0
-        self.prev_output=self.output
-        self.output=out
-        
-        
-class NAND(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)   
-        NAND.rank+=1
-        self.code='3'+str(NAND.rank)
-    
-    def override(self, code):
-        super().override(code)
-        NAND.rank=max(NAND.rank,int(code[1:]))
-        
-    def process(self):
-
-        if len(self.children[0]):
-            out=1
-        elif len(self.children[1]):
-            out=0
-        else: 
-            out=0
-        self.prev_output=self.output
-        self.output=out
-        
-
-class OR(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)         
-        OR.rank+=1
-        self.code='4'+str(OR.rank)
-        
-    def override(self, code):
-        super().override(code)
-        OR.rank=max(OR.rank,int(code[1:]))
-        
-        
-    def process(self):
-
-        if len(self.children[1]):
-            out=1
-        else: 
-            out=0
-        self.prev_output=self.output
-        self.output=out
-        
-
-class NOR(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)   
-        NOR.rank+=1
-        self.code='5'+str(NOR.rank)    
-
-    def override(self, code):
-        super().override(code)
-        NOR.rank=max(NOR.rank,int(code[1:]))
-
-    def process(self):
-
-        if len(self.children[1]):
-            out=0
-        elif len(self.children[0]):
-            out=1
-        else: 
-            out=0
-        # output needs to be updated first
-        self.prev_output=self.output
-        self.output=out
-        
-
-class XOR(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)       
-        XOR.rank+=1
-        self.code='6'+str(XOR.rank)
-    
-    def override(self, code):
-        super().override(code)
-        XOR.rank=max(XOR.rank,int(code[1:]))
-        
-    def process(self):
-
-        out=int(len(self.children[1])%2)
-        self.prev_output=self.output
-        self.output=out
-        
-
-class XNOR(Gate):
-    rank=0
-    def __init__(self,circuit):
-        super().__init__(circuit)   
-        XNOR.rank+=1
-        self.code='7'+str(XNOR.rank)
-    
-    def override(self, code):
-        super().override(code)
-        XNOR.rank=max(XNOR.rank,int(code[1:]))
-        
-    def process(self):
-        if len(self.children[-1]):
-            out=-1
-        else:
-            out=int(len(self.children[1])%2==0)
-        self.prev_output=self.output
-        self.output=out
-        
-
-
-# inventory
 class Circuit:
     def __init__(self):
         self.objlist=[{} for i in range(9)]# holds the objects with code name
@@ -466,13 +231,12 @@ class Circuit:
 
     # Result 
     def output(self,gate):
-        print(f'{self.getname(gate)} output is {self.getobj(gate).display_output()}')
+        print(f'{self.getname(gate)} output is {self.getobj(gate).getoutput()}')
 
 
     # Truth Table
     def truthTable(self):
         if len(self.varlist) == 0:
-            print('No variable for toggling')
             return
         
         output_list=[i for i in self.complist if i not in self.varlist]
@@ -489,11 +253,11 @@ class Circuit:
         separator = "─" * len(header)
 
         # Print table header
-        print("\nTruth Table")
-        print(separator)
-        print(header)
-        print(separator)
-    
+        Table="\nTruth Table\n"
+        # add seperater header and seperator in Table 
+        Table+=separator+'\n'
+        Table+=header+'\n'
+        Table+=separator+'\n'
         for i in range(rows):
             inputs = []
             for j in range(n):
@@ -501,15 +265,12 @@ class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 self.connect(var, '0' + str(bit))
                 inputs.append("1" if bit else "0")
-            output=[self.getobj(gate).display_output() for gate in output_list]
-            # Replace internal display values with clean T/F (or keep OFF/0/1 if needed)
-
+            output=[self.getobj(gate).getoutput() for gate in output_list]
             row = " | ".join(val.center(col_width) for val in inputs + output)
-            print(row)
-
-        print(separator)
-        print()  
-
+            Table+=row+'\n'
+        Table+=separator+'\n'
+        return Table
+      
 
     # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
     # i modified logic in between commits
@@ -563,15 +324,15 @@ class Circuit:
             parents = ", ".join(sorted(parents)) if parents else "None"
             
             # State
-            state = comp_obj.display_output()
+            state = comp_obj.getoutput()
             
             print(row_format.format(comp_name, children_0, children_1,children_neg, parents, state))
         
         print("-" * total_width)
         
-    def writetofile(self):
+    def writetofile(self,address):
         # write the component list to file
-        f=open('file.txt','w')
+        f=open(address,'w')
 
         for i in self.complist:
             f.write(f'{i} ')
@@ -597,8 +358,8 @@ class Circuit:
         f.close()
 
     # read from file
-    def readfromfile(self):
-        f=open('file.txt','r')        
+    def readfromfile(self,address):
+        f=open(address,'r')        
         components=f.readline().split(' ')
         components.pop()
         if len(components)==0:
@@ -633,6 +394,7 @@ class Circuit:
             output=line[3]
             self.getobj(gate).output=int(output)
         f.close()
+
     def rank_reset(self):
         if len(self.objlist[1]):
             NOT.rank=int(max(self.objlist[1]))
