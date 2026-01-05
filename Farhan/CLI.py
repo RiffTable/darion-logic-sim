@@ -1,6 +1,8 @@
 from Circuit import Circuit
 from readchar import readkey,key
+from Gates import Variable
 import os
+
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -58,7 +60,7 @@ def menu():
             choice = input("Enter your choice: ").split()
             for i in choice:
                 gate=base.getcomponent(i,'')
-                token='1 '+gate
+                token='1 '+gate.code
                 addtoundo(undolist,redolist,token)
 
         elif choice == '2':
@@ -77,13 +79,13 @@ def menu():
                 base.connect(gate, child)
                 if gate.output==-1:
                     print(f"Deadlock occured! please undo")
-                    token='3 '+gate+' '+ child
+                    token='3 '+gate.code+' '+ child.code
                     addtoundo(undolist,redolist,token)
                 elif child==-1:
                     print(f'Cannot connect {child} to {gate}')
                 else:
                     print(f"Connected {child} to {gate}.")
-                    token='3 '+gate+' '+ child
+                    token='3 '+gate.code+' '+ child.code
                     addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
 
@@ -98,7 +100,7 @@ def menu():
                 child=base.complist[child]
                 base.disconnect(gate, child)
                 print(f"Disconnected {child} & {gate}.")
-                token='4 '+gate+' '+ child
+                token='4 '+gate.code+' '+ child.code
                 addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
 
@@ -113,7 +115,7 @@ def menu():
                 exclusionlist.append(gate)
             for gate in exclusionlist:
                 base.complist.remove(gate)
-                token='2 '+gate
+                token='2 '+gate.code
                 addtoundo(undolist,redolist,token)
 
         elif choice == '6':
@@ -124,14 +126,10 @@ def menu():
             var=base.varlist[int(var)]
             value = input("Enter the value (0 or 1): ")
             if value in ['0', '1']:
-                value='0'+value
-                if value not in var.children[int(value[1:])]:
-                    base.connect(var, value)
-                    print(f"Variable {var} set to {value[1:]}.")
-                    token='3 '+var+' '+ '0'+value
-                    addtoundo(undolist,redolist,token)
-                else:
-                    print('No changes done')
+                base.switch(var, value)
+                print(f"Variable {var} set to {value}.")
+                token='3 '+var.code+' '+ value
+                addtoundo(undolist,redolist,token)
             else:
                 print("Invalid value. Please try again")
             input('Press Enter to continue....')
@@ -174,32 +172,32 @@ def menu():
             command =event[0]            
 
             if command=='1':
-                gate=event[1]
+                gate=base.getobj(event[1])
                 base.deleteComponent(gate)
                 base.complist.remove(gate)
 
             elif command=='2':
-                gate=event[1]
+                gate=base.getobj(event[1])
                 base.renewComponent(gate)
                 base.complist.append(gate)
 
             elif command=='3':
-                gate1=event[1]
-                gate2=event[2]
-                if gate1[0]=='8' and gate2[0]=='0':
-                    gate_obj1=base.getobj(gate1)
-                    base.connect(gate1,'0'+str(gate_obj1.output^1))
-                else:
-                    base.disconnect(gate1,gate2)
+                gate1=base.getobj(event[1])
+                if isinstance(gate1,Variable):
+                    base.switch(gate,str(gate1.output^1))
+                    continue
+                gate2=base.getobj(event[2])               
+                base.disconnect(gate1,gate2)
 
             elif command=='4':
-                gate1=event[1]
-                gate2=event[2]
+                gate1=base.getobj(event[1])
+                gate2=base.getobj(event[2])
                 base.connect(gate1,gate2)
 
             elif command=='5':
                 gates=event[2].split(',')
                 for i in gates:
+                    i=base.getobj(i)
                     base.deleteComponent(i)
                     del base.circuit_breaker[i]
                     del base.objlist[int(i[0])][i[1:]]
@@ -215,23 +213,26 @@ def menu():
             command =event[0]   
 
             if command=='1':
-                gate=event[1]
+                gate=base.getobj(event[1])
                 base.renewComponent(gate)
                 base.complist.append(gate)
                 
             elif command=='2':
-                gate=event[1]
+                gate=base.getobj(event[1])
                 base.deleteComponent(gate)
                 base.complist.remove(gate)
                 
             elif command=='3':
-                gate1=event[1]
-                gate2=event[2]
+                gate1=base.getobj(event[1])
+                if isinstance(gate1,Variable):
+                    base.switch(gate,str(gate1.output^1))
+                    continue
+                gate2=base.getobj(event[2])               
                 base.connect(gate1,gate2)
                 
             elif command=='4':
-                gate1=event[1]
-                gate2=event[2]
+                gate1=base.getobj(event[1])
+                gate2=base.getobj(event[2])
                 base.disconnect(gate1,gate2)
 
             elif command=='5':

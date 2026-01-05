@@ -6,6 +6,8 @@ class Signal:
         self.parents=set()
         self.output=value
         self.name=str(value)
+    def __repr__(self):
+        return self.name
 
 class Gate:   
 
@@ -27,6 +29,8 @@ class Gate:
     def __repr__(self):
         return f'{self.name}'
         
+    def __str__(self):
+        return f'{self.name}'
 
     def parity(self):
         if len(self.parents):
@@ -69,7 +73,7 @@ class Variable(Gate):
         self.inputlimit=1
         self.code='8'+str(Variable.rank)
         Variable.rank+=1
-        self.children[0].add('00')
+        self.children[0].add(self.circuit.sign_0)
     def override(self, code):
         super().override(code)
         Variable.rank=max(Variable.rank,int(code[1:]))
