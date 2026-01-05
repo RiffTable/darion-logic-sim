@@ -65,7 +65,11 @@ class Circuit:
         val=child.output  
         if child in gate.children[val]:# no need to reconnect if connected to it's correct value
             return
-
+        if child.output==-1:
+            child.parents.add(gate)
+            gate.children[-1].add(child)
+            self.poison(gate)
+            return
         if isinstance(gate,NOT):         
             for exclude_child in gate.children[gate.output]:                    
                 exclude_child.parents.discard(gate)
