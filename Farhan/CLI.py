@@ -75,16 +75,14 @@ def menu():
             for child in childlist:
                 child=base.complist[child]
                 base.connect(gate, child)
-                gate_obj=base.getobj(gate)
-                child_obj=base.getobj(child)
-                if base.getobj(gate).output==-1:
+                if gate.output==-1:
                     print(f"Deadlock occured! please undo")
                     token='3 '+gate+' '+ child
                     addtoundo(undolist,redolist,token)
-                elif base.getobj(child)==-1:
-                    print(f'Cannot connect {child_obj.name} to {gate_obj.name}')
+                elif child==-1:
+                    print(f'Cannot connect {child} to {gate}')
                 else:
-                    print(f"Connected {child_obj.name} to {gate_obj.name}.")
+                    print(f"Connected {child} to {gate}.")
                     token='3 '+gate+' '+ child
                     addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
@@ -95,12 +93,11 @@ def menu():
             if gate=='':
                 continue
             gate=base.complist[int(gate)]
-            gate_obj=base.getobj(gate)
             childlist = list(map(int,input("Enter the serial of the component to disconnect to: ").split()))
             for child in childlist:
                 child=base.complist[child]
                 base.disconnect(gate, child)
-                print(f"Disconnected {child_obj.name} & {gate_obj.name}.")
+                print(f"Disconnected {child} & {gate}.")
                 token='4 '+gate+' '+ child
                 addtoundo(undolist,redolist,token)
             input('Press Enter to continue....')
@@ -108,12 +105,11 @@ def menu():
         elif choice == '5':
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to delete: ").split()))
+            gatelist=[base.complist[i] for i in gatelist]
             exclusionlist=[]
             for gate in gatelist:
-                gate=base.complist[int(gate)]
-                gate_obj=base.getobj(gate)
                 base.deleteComponent(gate)
-                print(f"Deleted {gate_obj.name}.")
+                print(f"Deleted {gate}.")
                 exclusionlist.append(gate)
             for gate in exclusionlist:
                 base.complist.remove(gate)
@@ -126,13 +122,12 @@ def menu():
             if var=='':
                 continue
             var=base.varlist[int(var)]
-            var_obj=base.getobj(var)
             value = input("Enter the value (0 or 1): ")
             if value in ['0', '1']:
                 value='0'+value
-                if value not in var_obj.children[int(value[1:])]:
+                if value not in var.children[int(value[1:])]:
                     base.connect(var, value)
-                    print(f"Variable {base.decode(var)} set to {value[1:]}.")
+                    print(f"Variable {var} set to {value[1:]}.")
                     token='3 '+var+' '+ '0'+value
                     addtoundo(undolist,redolist,token)
                 else:
@@ -143,11 +138,11 @@ def menu():
 
         elif choice == '7':
             base.listComponent()
-            gate_code = input("Enter the serial of the gate you want to see output of: ")
-            if gate_code=='':
+            gate = input("Enter the serial of the gate you want to see output of: ")
+            if gate=='':
                 continue
-            gate_code=base.complist[int(gate_code)]
-            base.output(gate_code)
+            gate=base.complist[int(gate)]
+            base.output(gate)
             input('Press Enter to continue....')
             
         elif choice == '8':
@@ -249,8 +244,8 @@ def menu():
             components=[]
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
+            gatelist=[base.complist[i] for i in gatelist]
             for gate in gatelist:
-                gate=base.complist[int(gate)]
                 components.append(gate)
             base.copy(components)
             print("Copied")

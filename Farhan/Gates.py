@@ -1,3 +1,4 @@
+gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
 class Signal:
     # default signals that exist indepdently
     def __init__(self,circuit,value):
@@ -23,6 +24,9 @@ class Gate:
         # each gate will have it's own unique id
         self.code=''
         self.name=''
+    def __repr__(self):
+        return f'{self.name}'
+        
 
     def parity(self):
         if len(self.parents):
