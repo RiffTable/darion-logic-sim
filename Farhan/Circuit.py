@@ -69,9 +69,10 @@ class Circuit:
         if isinstance(gate,NOT):         
             for exclude_child in gate.children[gate.output]:                    
                 exclude_child.parents.discard(gate)
-                gate.children[input].discard(exclude_child)     
+                gate.children[exclude_child.output].discard(exclude_child)     
 
-        gate.children[child.prev_output].discard(child)
+        if child in gate.children[child.prev_output]:
+            gate.children[child.prev_output].discard(child)
         gate.children[val].add(child)        
 
         # connect children to it as their parent
