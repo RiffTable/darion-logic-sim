@@ -2,18 +2,20 @@ from Gates import *
 
 class Circuit:
     def __init__(self):
-        self.objlist=[{} for i in range(9)]# holds the objects with code name
+        self.objlist={}# holds the objects with code name
         self.complist=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.circuit_breaker={}# checks for loops while connecting
         self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
-        self.objlist[0]['0']=self.sign_0=Signal(self,0)
-        self.objlist[0]['1']=self.sign_1=Signal(self,1)
-        self.objlist[0]['-1']=Signal(self,-1)
+        self.objlist['00']=self.sign_0=Signal(self,0)
+        self.objlist['01']=self.sign_1=Signal(self,1)
         self.copydata=[]
+        self.gateobjects={'1':NOT, '2':AND, '3':NAND, '4':OR, '5':NOR, '6':XOR, '7':XNOR, '8':Variable}
 
+    def __repr__(self):
+        return 'Circuit'
     def getobj(self,code):
-        return self.objlist[int(code[0])][code[1:]]
+        return self.objlist[code]
     # show component
     def listComponent(self):
         for i in range(len(self.complist)):
@@ -26,30 +28,15 @@ class Circuit:
 
     # name suggests it
     def getcomponent(self,i,code):
-
-        if i == '1':
-            gt = NOT(self)# feed circuit to the gates so they can access it's holders
-        elif i == '2':
-            gt = AND(self)
-        elif i == '3':
-            gt = NAND(self)
-        elif i == '4':
-            gt = OR(self)
-        elif i == '5':
-            gt = NOR(self)                
-        elif i == '6':
-            gt = XOR(self)
-        elif i == '7':
-            gt = XNOR(self)   
-        elif i=='8':
-            gt=Variable(self)
-            self.varlist.append(gt)     
-        else:
+        if i not in self.gateobjects:
             return
+        gt=self.gateobjects[i](self)
+        if i=='8':
+            self.varlist.append(gt)     
         if code!='':
             gt.override(code)
         gt.name=self.decode(gt.code)
-        self.objlist[int(gt.code[0])][gt.code[1:]]=gt
+        self.objlist[gt.code]=gt
         self.complist.append(gt)
         self.circuit_breaker[gt]=-1
         return gt
@@ -66,7 +53,7 @@ class Circuit:
             return self.gatelist[gate]+'-'+code[1:]    
         
     # connects parent to it's child/inputs
-    def switch(self,var,value):
+    def switch(self,var:Variable,value:str):
         if var.output==value:
             return
         var.children[var.output].clear()
@@ -74,7 +61,7 @@ class Circuit:
         var.process()
         self.update(var)
 
-    def connect(self,gate:Gate,child):
+    def connect(self,gate:Gate,child:Gate):
         val=child.output  
         if child in gate.children[val]:# no need to reconnect if connected to it's correct value
             return
@@ -94,16 +81,16 @@ class Circuit:
         self.update(gate)# renew output 
 
     def passive_connect(self,parent,child,child_output):
-
-        parent.children[child_output].add(child)
-        child.parents.add(parent)
+        parent_obj=self.getobj(parent)      
+        child_obj=self.getobj(child)
+        parent_obj.children[child_output].add(child_obj)
+        if child[0]!='0':
+            child_obj.parents.add(parent_obj)
 
     # disconnects parent & child
-    def disconnect_gates(self,parent,child):
+    def disconnect_gates(self,parent:Gate,child:Gate):
 
-        parent.children[0].discard(child)
-        parent.children[1].discard(child)# delete child 
-        parent.children[-1].discard(child)
+        parent.children[child.output].discard(child)
         child.parents.discard(parent)
 
         child.process()
@@ -122,20 +109,27 @@ class Circuit:
 
     # deletes component
     def deleteComponent(self,gate:Gate):
-        parent_list=list(gate.parents)# set changes after deletion so i need list
-        for parent in parent_list:# disconnect from parents and they will modify their output 
-            self.disconnect_gates(parent,gate)
+
+        for parent in gate.parents:# disconnect from parents and they will modify their output 
+            parent.children[gate.output].discard(gate)
         for child in gate.children[0]:# disconnect from children
             child.parents.discard(gate)
         for child in gate.children[1]:
+            child.parents.discard(gate)  
+        for child in gate.children[-1]:
             child.parents.discard(gate)       
         if isinstance(gate,Variable):
             self.varlist.remove(gate)
-        gate.parents=set(parent for parent in parent_list)
+        for parent in gate.parents:# disconnect from parents and they will modify their output 
+            parent.process()
+            self.update(parent)
+
     def renewComponent(self,gate:Gate):
-        parent_list=list(gate.parents)# set changes after deletion so i need list
-        for parent in parent_list:# disconnect from parents and they will modify their output 
-            self.connect(parent,gate)
+        if gate.output==-1:
+                self.poison(gate)
+        else:
+            for parent in gate.parents:# disconnect from parents and they will modify their output 
+                self.connect(parent,gate)
         for child in gate.children[0]:# disconnect from children
             child.parents.add(gate)
         for child in gate.children[1]:
@@ -164,41 +158,14 @@ class Circuit:
             gate.prev_output=gate.output
             self.poison(gate)
         
-
-    def correction(self,gate:Gate):
-        gate=self.getobj(gate)
-        if gate.prev_output!=gate.output:
-            gate.output=gate.prev_output
-            for parent in gate.parents:
-                parent_obj=self.getobj(parent)
-                if gate not in parent_obj.children[gate.output]:
-                    parent_obj.children[gate.output].add(gate)
-                    parent_obj.children[gate.output^1].discard(gate)
-                self.correction(parent)
-        
-    # fixes the loop by breaking the connection that caused it
-    def fallback(self,parent,child):
-        parent_obj=self.getobj(parent)
-        child_obj=child
-
-        child_obj.parents.discard(parent)
-        parent_obj.children[0].discard(child)
-        parent_obj.children[1].discard(child)
-        
-        if parent[0]=='8':
-            self.connect(parent,'00')
-        else:
-            self.correction(parent)
-
     # use queue here***********
     def poison(self,gate:Gate):
         gate.output=-1
-        for parent in gate.parents:
-            parent_obj=self.getobj(parent)
-            parent_obj.children[-1].add(gate)
-            parent_obj.children[0].discard(gate)
-            parent_obj.children[1].discard(gate)
-            if parent_obj.output!=-1:
+        for parent in gate.parents:            
+            parent.children[-1].add(gate)
+            parent.children[0].discard(gate)
+            parent.children[1].discard(gate)
+            if parent.output!=-1:
                 self.poison(parent)
 
     # Result 
@@ -294,7 +261,7 @@ class Circuit:
             # State
             state = component.getoutput()
             
-            print(row_format.format(component.name, children_0, children_1,children_neg, parents, state))
+            print(row_format.format(str(component), children_0, children_1,children_neg, parents, state))
         
         print("-" * total_width)
         
@@ -303,36 +270,47 @@ class Circuit:
         f=open(address,'w')
 
         for i in self.complist:
-            f.write(f'{i} ')
+            f.write(f'{i.code} ')
         f.write('\n')
         for i in self.complist:
-            obj=self.getobj(i)
+
             # write self
-            f.write(f'{i} ')
+            f.write(f'{i.code} ')
             # write children
-            input_0=','.join(obj.children[0])
+            input_0=[child.code for child in i.children[0]]
+            input_0=','.join(input_0)
             if len(input_0):                
                 f.write(f'{input_0} ')
             else:
                 f.write('X ')   
-            input_1=','.join(obj.children[1])
+            input_1=[child.code for child in i.children[1]]
+            input_1=','.join(input_1)
             if len(input_1):                
                 f.write(f'{input_1} ')
-            else: 
-                f.write('X ')   
+            else:
+                f.write('X ') 
+            input_neg=[child.code for child in i.children[-1]]
+            input_neg=','.join(input_neg)
+            if len(input_neg):                
+                f.write(f'{input_neg} ')
+            else:
+                f.write('X ') 
             # write output
-            f.write(str(obj.output))
+            f.write(str(i.output))
             f.write('\n')
         f.close()
 
     # read from file
     def readfromfile(self,address):
+
         f=open(address,'r')        
         components=f.readline().split(' ')
         components.pop()
         if len(components)==0:
             return
-        pivot=[0,NOT.rank,AND.rank,NAND.rank,OR.rank,NOR.rank,XOR.rank,XNOR.rank,Variable.rank]   
+        self.objlist['00']=self.sign_0
+        self.objlist['01']=self.sign_1
+        pivot=[0]+[gate.rank for gate in self.gateobjects.values()]   
         pseudo={}
         pseudo['00']='00'
         pseudo['01']='01'
@@ -359,59 +337,27 @@ class Circuit:
             if 'X' not in children_1:
                 for child in children_1:
                     self.passive_connect(pseudo[gate],pseudo[child],1)
-            output=line[3]
+            children_neg=line[3].split(',')
+            if 'X' not in children_neg:
+                for child in children_neg:
+                    self.passive_connect(pseudo[gate],pseudo[child],-1)
+            output=line[4]
             self.getobj(gate).output=int(output)
         f.close()
 
     def rank_reset(self):
-        if len(self.objlist[1]):
-            NOT.rank=int(max(self.objlist[1]))
-        else:
-            NOT.rank=0
-        if len(self.objlist[2]):
-            AND.rank=int(max(self.objlist[2]))
-        else:
-            AND.rank=0
-        if len(self.objlist[3]):
-            NAND.rank=int(max(self.objlist[3]))
-        else:
-            NAND.rank=0
-        if len(self.objlist[4]):
-            OR.rank=int(max(self.objlist[4]))
-        else:
-            OR.rank=0
-        if len(self.objlist[5]):
-            NOR.rank=int(max(self.objlist[5]))
-        else:
-            NOR.rank=0
-        if len(self.objlist[6]):
-            XOR.rank=int(max(self.objlist[6]))
-        else:
-            XOR.rank=0
-        if len(self.objlist[7]):
-            XNOR.rank=int(max(self.objlist[7]))
-        else:
-            XNOR.rank=0
-        if len(self.objlist[8]):
-            Variable.rank=int(max(self.objlist[8]))+1
-        else:
-            Variable.rank=0
-            
+        for gates in self.gateobjects.values():
+            gates.rank=0
+        for key in self.objlist.keys():
+            if key[0]!='0':
+                self.gateobjects[key[0]].rank=max(self.gateobjects[key[0]].rank,int(key[1:]))            
             
     def clearcircuit(self):
-        Variable.rank=0
-        NOT.rank=0
-        AND.rank=0
-        NAND.rank=0
-        OR.rank=0
-        NOR.rank=0
-        XOR.rank=0
-        XNOR.rank=0        
-        self.circuit_breaker={}
-        for i in range(1,len(self.objlist)):
-            self.objlist[i].clear()
+        self.objlist.clear()
+        self.circuit_breaker.clear()
         self.varlist.clear()
         self.complist.clear()
+        self.rank_reset()
 
     def copy(self,components):
         if len(components)==0:
@@ -434,7 +380,7 @@ class Circuit:
             self.copydata.append(info)
 
     def paste(self):
-        pivot=[0,NOT.rank,AND.rank,NAND.rank,OR.rank,NOR.rank,XOR.rank,XNOR.rank,Variable.rank]   
+        pivot=[0]+[gate.rank for gate in self.gateobjects.values()]   
         if len(self.copydata)==0:
             return
         components=self.copydata[0]

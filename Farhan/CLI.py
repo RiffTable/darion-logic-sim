@@ -3,7 +3,6 @@ from readchar import readkey,key
 from Gates import Variable
 import os
 
-
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -128,7 +127,7 @@ def menu():
             if value in ['0', '1']:
                 base.switch(var, value)
                 print(f"Variable {var} set to {value}.")
-                token='3 '+var.code+' '+ value
+                token='3 '+var.code
                 addtoundo(undolist,redolist,token)
             else:
                 print("Invalid value. Please try again")
@@ -184,7 +183,7 @@ def menu():
             elif command=='3':
                 gate1=base.getobj(event[1])
                 if isinstance(gate1,Variable):
-                    base.switch(gate,str(gate1.output^1))
+                    base.switch(gate1,str(gate1.output^1))
                     continue
                 gate2=base.getobj(event[2])               
                 base.disconnect(gate1,gate2)
@@ -200,7 +199,7 @@ def menu():
                     i=base.getobj(i)
                     base.deleteComponent(i)
                     del base.circuit_breaker[i]
-                    del base.objlist[int(i[0])][i[1:]]
+                    del base.objlist[i.code]
                     base.complist.remove(i)
                 base.rank_reset()
             input('Press Enter to continue....')         
@@ -225,7 +224,7 @@ def menu():
             elif command=='3':
                 gate1=base.getobj(event[1])
                 if isinstance(gate1,Variable):
-                    base.switch(gate,str(gate1.output^1))
+                    base.switch(gate1,str(gate1.output^1))
                     continue
                 gate2=base.getobj(event[2])               
                 base.connect(gate1,gate2)
@@ -245,7 +244,7 @@ def menu():
             components=[]
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
-            gatelist=[base.complist[i] for i in gatelist]
+            gatelist=[base.complist[i].code for i in gatelist]
             for gate in gatelist:
                 components.append(gate)
             base.copy(components)
