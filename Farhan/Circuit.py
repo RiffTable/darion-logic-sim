@@ -71,7 +71,8 @@ class Circuit:
             self.poison(gate)
             return
         if isinstance(gate,NOT):         
-            for exclude_child in gate.children[gate.output]:                    
+            exclude_children=list(gate.children[gate.output])
+            for exclude_child in exclude_children:                    
                 exclude_child.parents.discard(gate)
                 gate.children[exclude_child.output].discard(exclude_child)     
 
@@ -151,7 +152,8 @@ class Circuit:
             self.circuit_breaker[gate]=out
             # i removed parity check here so if i get errors it's because of this
             if prev!=out:
-                for parent in gate.parents:
+                parents=list(gate.parents)
+                for parent in parents:
                     self.connect(parent,gate)
                     if parent.output==-1:
                         break
