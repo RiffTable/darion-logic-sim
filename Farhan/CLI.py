@@ -40,6 +40,8 @@ def menu():
         print("B. Load Circuit from File")
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
+        print("Ctrl+A. Copy Components")
+        print("Ctrl+B. Paste Components")
 
         print("Enter your choice or press ESC to quit: ",end='')
         choice = readkey()
@@ -109,11 +111,10 @@ def menu():
             gatelist=[base.complist[i] for i in gatelist]
             exclusionlist=[]
             for gate in gatelist:
-                base.deleteComponent(gate)
+                base.hideComponent(gate)
                 print(f"Deleted {gate}.")
                 exclusionlist.append(gate)
             for gate in exclusionlist:
-                base.complist.remove(gate)
                 token='2 '+gate.code
                 addtoundo(undolist,redolist,token)
 
@@ -124,8 +125,8 @@ def menu():
                 continue
             var=base.varlist[int(var)]
             value = input("Enter the value (0 or 1): ")
-            if value in ['0', '1']:
-                base.switch(var, value)
+            if value in ['0','1']:
+                base.connect(var, base.sign_1 if value=='1' else base.sign_0)
                 print(f"Variable {var} set to {value}.")
                 token='3 '+var.code
                 addtoundo(undolist,redolist,token)
@@ -172,18 +173,16 @@ def menu():
 
             if command=='1':
                 gate=base.getobj(event[1])
-                base.deleteComponent(gate)
-                base.complist.remove(gate)
+                base.hideComponent(gate)
 
             elif command=='2':
                 gate=base.getobj(event[1])
                 base.renewComponent(gate)
-                base.complist.append(gate)
 
             elif command=='3':
                 gate1=base.getobj(event[1])
                 if isinstance(gate1,Variable):
-                    base.switch(gate1,str(gate1.output^1))
+                    base.connect(gate1,base.sign_1 if gate1.output==0 else base.sign_0)
                     continue
                 gate2=base.getobj(event[2])               
                 base.disconnect(gate1,gate2)
@@ -197,10 +196,7 @@ def menu():
                 gates=event[2].split(',')
                 for i in gates:
                     i=base.getobj(i)
-                    base.deleteComponent(i)
-                    del base.circuit_breaker[i]
-                    del base.objlist[i.code]
-                    base.complist.remove(i)
+                    base.terminate(i)
                 base.rank_reset()
             input('Press Enter to continue....')         
 
@@ -214,17 +210,15 @@ def menu():
             if command=='1':
                 gate=base.getobj(event[1])
                 base.renewComponent(gate)
-                base.complist.append(gate)
                 
             elif command=='2':
                 gate=base.getobj(event[1])
-                base.deleteComponent(gate)
-                base.complist.remove(gate)
+                base.hideComponent(gate)
                 
             elif command=='3':
                 gate1=base.getobj(event[1])
                 if isinstance(gate1,Variable):
-                    base.switch(gate1,str(gate1.output^1))
+                    base.connect(gate1,base.sign_1 if gate1.output==0 else base.sign_0)
                     continue
                 gate2=base.getobj(event[2])               
                 base.connect(gate1,gate2)

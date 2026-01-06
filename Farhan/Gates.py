@@ -1,3 +1,6 @@
+
+class Gate:
+    pass
 class Signal:
     # default signals that exist indepdently
     def __init__(self,circuit,value):
@@ -33,6 +36,62 @@ class Gate:
     def __str__(self):
         return self.name
     
+    def connect(self,child:Gate):
+        val=child.output  
+        if val==-1:
+            child.parents.add(self)
+            self.children[-1].add(child)
+            self.poison()
+            return
+        if child in self.children[child.prev_output]:
+            self.children[child.prev_output].discard(child)
+        self.children[val].add(child)      
+        if self not in child.parents:
+            child.parents.add(self)
+        self.process()  
+    
+    def disconnect(self,child:Gate):
+        val=child.output
+        if child in self.children[val]:
+            self.children[val].discard(child)
+            child.parents.discard(self)
+            child.process()
+            self.process()
+
+    def propogate(self):
+        if self.prev_output!=self.output:
+            self.circuit.update(self)
+
+    def poison(self):
+        self.output=-1
+        for parent in self.parents:            
+            parent.children[-1].add(self)
+            parent.children[0].discard(self)
+            parent.children[1].discard(self)
+            if parent.output!=-1:
+                parent.poison()
+    
+    def hide(self):
+        for parent in self.parents:# disconnect from parents and they will modify their output 
+            parent.children[self.output].discard(self)
+        for child in self.children[0]:# disconnect from children
+            child.parents.discard(self)
+        for child in self.children[1]:
+            child.parents.discard(self)  
+        for child in self.children[-1]:
+            child.parents.discard(self)               
+        for parent in self.parents:# disconnect from parents and they will modify their output 
+            parent.process()
+    def reveal(self):
+        if self.output==-1:
+                self.poison()
+        else:
+            for parent in self.parents:# disconnect from parents and they will modify their output 
+                parent.connect(self)
+        for child in self.children[0]:# disconnect from children
+            child.parents.add(self)
+        for child in self.children[1]:
+            child.parents.add(self)   
     def override(self,code):
         pass
 
@@ -48,15 +107,12 @@ class Gate:
 
     # gives output in T or F of off if there isn't enough inputs
     def getoutput(self):
-        if self.output==-1:
-            x= '0<=>1'
-        elif self.output==0:
-            x= 'F'
-        else:
-            x= 'T'
         if self.turnon()==False:
-            x+='*'
-        return x
+            return 'X'
+        elif self.output==-1:
+            return '0/1'
+        else:
+            return 'T' if self.output else 'F'
 
 class Variable(Gate):
     # this can be both an input or output(bulb)
@@ -72,13 +128,15 @@ class Variable(Gate):
         self.code=code
         Variable.rank=max(Variable.rank,int(code[1:]))
 
+    def connect(self,child:Signal):
+        self.children[self.output].clear()
+        self.children[child.output].add(child)
+        self.process()
+
     def process(self):
-        if len(self.children[0]):
-            out=0
-        elif len(self.children[1]):
-            out=1
         self.prev_output=self.output
-        self.output=out
+        self.output=len(self.children[1])
+        self.propogate()
 
 class NOT(Gate):
     rank=0
@@ -88,19 +146,32 @@ class NOT(Gate):
         NOT.rank+=1
         self.code='1'+str(NOT.rank)
 
+    def connect(self, child):
+        if child.output==-1:
+            child.parents.add(self)
+            self.children[-1].add(child)
+            self.poison()
+            return
+        if len(self.children[self.output]):
+            dead_child=self.children[self.output].pop() 
+            dead_child.parents.discard(self)
+
+        if child in self.children[child.prev_output]:
+            self.children[child.prev_output].discard(child)
+        self.children[child.output].add(child)        
+
+        # connect children to it as their parent
+        if self not in child.parents:
+            child.parents.add(self)
+        self.process()
+
     def override(self, code):
         self.code=code
         NOT.rank=max(NOT.rank,int(code[1:]))
     def process(self):
-        if len(self.children[0]):
-            out=1
-        elif len(self.children[1]):
-            out=0
-        else:
-            out=0
         self.prev_output=self.output
-        self.output=out
-        
+        self.output=len(self.children[0])
+        self.propogate()
         
 class AND(Gate):
 
@@ -115,16 +186,10 @@ class AND(Gate):
         AND.rank=max(AND.rank,int(code[1:]))
         
     def process(self):
-        if len(self.children[0]):
-            out=0
-        elif len(self.children[1]):
-            out=1
-        else: 
-            out=0
         self.prev_output=self.output
-        self.output=out
-        
-        
+        self.output=0 if len(self.children[0]) else 1
+        self.propogate()
+                
 class NAND(Gate):
     rank=0
     def __init__(self,circuit):
@@ -137,16 +202,10 @@ class NAND(Gate):
         NAND.rank=max(NAND.rank,int(code[1:]))
         
     def process(self):
-        if len(self.children[0]):
-            out=1
-        elif len(self.children[1]):
-            out=0
-        else: 
-            out=0
         self.prev_output=self.output
-        self.output=out
+        self.output=1 if len(self.children[0]) else 0
+        self.propogate()
         
-
 class OR(Gate):
     rank=0
     def __init__(self,circuit):
@@ -159,12 +218,9 @@ class OR(Gate):
         OR.rank=max(OR.rank,int(code[1:]))        
         
     def process(self):
-        if len(self.children[1]):
-            out=1
-        else: 
-            out=0
         self.prev_output=self.output
-        self.output=out
+        self.output=1 if len(self.children[1]) else 0
+        self.propogate()
         
 class NOR(Gate):
     rank=0
@@ -186,7 +242,9 @@ class NOR(Gate):
             out=0
         # output needs to be updated first
         self.prev_output=self.output
-        self.output=out
+        self.output=0 if len(self.children[1]) else 1
+        self.propogate()
+        
         
 class XOR(Gate):
     rank=0
@@ -200,9 +258,9 @@ class XOR(Gate):
         XOR.rank=max(XOR.rank,int(code[1:]))
         
     def process(self):
-        out=int(len(self.children[1])%2)
         self.prev_output=self.output
-        self.output=out
+        self.output=len(self.children[1])%2
+        self.propogate()
         
 class XNOR(Gate):
     rank=0
@@ -216,7 +274,8 @@ class XNOR(Gate):
         XNOR.rank=max(XNOR.rank,int(code[1:]))
         
     def process(self):
-        out=int(len(self.children[1])%2==0)
         self.prev_output=self.output
-        self.output=out
+        self.output=(len(self.children[1])%2)^1 
+        self.propogate()
+        
         

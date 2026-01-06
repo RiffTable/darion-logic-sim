@@ -53,38 +53,10 @@ class Circuit:
             return self.gatelist[gate]+'-'+code[1:]    
         
     # connects parent to it's child/inputs
-    def switch(self,var:Variable,value:str):
-        if var.output==value:
-            return
-        var.children[var.output].clear()
-        var.children[int(value)].add(self.sign_1 if value=='1' else self.sign_0)
-        var.process()
-        self.update(var)
 
-    def connect(self,gate:Gate,child:Gate):
-        val=child.output  
-        if child in gate.children[val]:# no need to reconnect if connected to it's correct value
-            return
-        if child.output==-1:
-            child.parents.add(gate)
-            gate.children[-1].add(child)
-            self.poison(gate)
-            return
-        if isinstance(gate,NOT):         
-            exclude_children=list(gate.children[gate.output])
-            for exclude_child in exclude_children:                    
-                exclude_child.parents.discard(gate)
-                gate.children[exclude_child.output].discard(exclude_child)     
-
-        if child in gate.children[child.prev_output]:
-            gate.children[child.prev_output].discard(child)
-        gate.children[val].add(child)        
-
-        # connect children to it as their parent
-        if gate not in child.parents:
-            child.parents.add(gate)
-        gate.process()
-        self.update(gate)# renew output 
+    def connect(self,parent:Gate,child:Gate|Signal):
+        if child not in parent.children[child.output]:
+            parent.connect(child)
 
     def passive_connect(self,parent,child,child_output):
         parent_obj=self.getobj(parent)      
@@ -95,75 +67,51 @@ class Circuit:
 
     # disconnects parent & child
     def disconnect_gates(self,parent:Gate,child:Gate):
-
         parent.children[child.output].discard(child)
         child.parents.discard(parent)
-
         child.process()
         self.update(child)
-        parent.process()# modify output after removing child
+        parent.process()
         self.update(parent)
 
     # identify parent/child
-    def disconnect(self,gate1:Gate,gate2:Gate):
-        
-        # check for parenthood and delete with function
-        if gate1 in gate2.parents:
-            self.disconnect_gates(gate1,gate2)            
-        elif gate2 in gate1.parents:
-            self.disconnect_gates(gate2,gate1)
+    def disconnect(self,parent:Gate,child:Gate):
+        if parent in child.parents:
+            parent.disconnect(child)
 
     # deletes component
-    def deleteComponent(self,gate:Gate):
+    def hideComponent(self,gate:Gate):
+        gate.hide()
+        if isinstance(self,Variable):
+            self.varlist.remove(self)
+        self.complist.remove(gate)
 
-        for parent in gate.parents:# disconnect from parents and they will modify their output 
-            parent.children[gate.output].discard(gate)
-        for child in gate.children[0]:# disconnect from children
-            child.parents.discard(gate)
-        for child in gate.children[1]:
-            child.parents.discard(gate)  
-        for child in gate.children[-1]:
-            child.parents.discard(gate)       
-        if isinstance(gate,Variable):
-            self.varlist.remove(gate)
-        for parent in gate.parents:# disconnect from parents and they will modify their output 
-            parent.process()
-            self.update(parent)
+    def terminate(self,gate:Gate):
+        self.hideComponent(gate)
+        del self.circuit_breaker[gate]
+        del self.objlist[gate.code]
 
     def renewComponent(self,gate:Gate):
-        if gate.output==-1:
-                self.poison(gate)
-        else:
-            for parent in gate.parents:# disconnect from parents and they will modify their output 
-                self.connect(parent,gate)
-        for child in gate.children[0]:# disconnect from children
-            child.parents.add(gate)
-        for child in gate.children[1]:
-            child.parents.add(gate)        
+        gate.reveal()
         if isinstance(gate,Variable):
-            self.varlist.append(gate)                
+            self.varlist.append(gate)
+        self.complist.append(gate)
     
     # if my output changes i will update my parents 
     # circuit breaker breaks if a gate seen more than twice in a single operation
     def update(self,gate:Gate):
-        prev=gate.prev_output
-        out=gate.output
         if self.circuit_breaker[gate]==-1:
-            self.circuit_breaker[gate]=out
-            # i removed parity check here so if i get errors it's because of this
-            if prev!=out:
-                parents=list(gate.parents)
-                for parent in parents:
-                    self.connect(parent,gate)
-                    if parent.output==-1:
-                        break
+            self.circuit_breaker[gate]=gate.output
+            parents=list(gate.parents)
+            for parent in parents:
+                parent.connect(gate)
+                if parent.output==-1:
+                    break
             self.circuit_breaker[gate]=-1
-        elif self.circuit_breaker[gate]==out:
+        elif self.circuit_breaker[gate]==gate.output:
             return
         else:
-            # print('Loop Detected')  
-            gate.prev_output=gate.output
-            self.poison(gate)
+            gate.poison()
         
     # use queue here***********
     def poison(self,gate:Gate):
@@ -207,7 +155,7 @@ class Circuit:
             for j in range(n):
                 var = self.varlist[j]
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
-                self.switch(var, str(bit))
+                self.connect(var,self.sign_1 if bit else self.sign_0)
                 inputs.append("1" if bit else "0")
             output=[gate.getoutput() for gate in gate_list]
             row = " | ".join(val.center(col_width) for val in inputs + output)
@@ -376,6 +324,7 @@ class Circuit:
             info=component
             info+=' '
             children=obj.children[0]|obj.children[1]|obj.children[-1]
+            children=[i.code for i in children]
             copychild=[]
             for child in children:
                 if child in components or child[0]=='0':
@@ -409,7 +358,7 @@ class Circuit:
             children=line[1].split(',')
             if 'X' not in children:
                 for child in children :
-                    self.connect(pseudo[gate],pseudo[child])
+                    self.connect(self.getobj(pseudo[gate]),self.getobj(pseudo[child]))
         return new_items
 
 
