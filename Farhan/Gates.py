@@ -104,8 +104,7 @@ class Gate:
             child.parents.add(self)
         for child in self.children[1]:
             child.parents.add(self)   
-    def override(self,code):
-        pass
+
 
     def turnon(self):
         return len(self.children[0])+len(self.children[1])+len(self.children[-1])>=self.inputlimit

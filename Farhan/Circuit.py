@@ -81,14 +81,10 @@ class Circuit:
     # deletes component
     def hideComponent(self,gate:Gate):
         gate.hide()
-        if isinstance(self,Variable):
-            self.varlist.remove(self)
+        if gate in self.varlist:
+            self.varlist.remove(gate)
         self.canvas.remove(gate)
 
-    def terminate(self,gate:Gate):
-        self.hideComponent(gate)
-        del self.circuit_breaker[gate]
-        del self.objlist[gate.code]
 
     def renewComponent(self,gate:Gate):
         gate.reveal()

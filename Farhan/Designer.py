@@ -30,10 +30,10 @@ class Design(Circuit):
         command =event[0]            
 
         if command==1:
-            self.hideComponent(event[1])
+            super().hideComponent(event[1])
 
         elif command==2:
-            self.renewComponent(event[1])
+            super().renewComponent(event[1])
 
         elif command==3:
             gate1=event[1]
@@ -41,15 +41,18 @@ class Design(Circuit):
                 self.connect(gate1,self.sign_1 if gate1.output==0 else self.sign_0)
                 return
             gate2=event[2]              
-            self.disconnect(gate1,gate2)
+            super().disconnect(gate1,gate2)
 
         elif command==4:
-            self.connect(event[1],event[2])
+            super().connect(event[1],event[2])
 
         elif command==5:
             gates=event[2].split(',')
             for i in gates:
-                self.terminate(self.getobj(i))
+                gate=self.getobj(i)
+                super().hideComponent(gate)
+                del self.circuit_breaker[gate]
+                del self.objlist[gate.code]
             self.rank_reset()
 
     def redo(self):
@@ -77,8 +80,8 @@ class Design(Circuit):
 
         elif command==5:
             gates=event[1].split(',')
-            self.copy(gates)
-            self.paste()
+            super().copy(gates)
+            super().paste()
 
 
 
@@ -88,29 +91,29 @@ class Design(Circuit):
         self.solder(gate)
         self.addtoundo((1,gate))
 
-    def hideComponent(self, gate):
-        super().hideComponent(gate)
+    def livehide(self, gate):
+        self.hideComponent(gate)
         self.addtoundo((2,gate))
 
-    def connect(self, parent, child):
-        super().connect(parent, child)
+    def liveconnect(self, parent, child):
+        self.connect(parent, child)
         self.addtoundo((3,parent,child))
     
     def input(self,var,value):
-        super().connect(var, self.sign_1 if value=='1' else self.sign_0)
+        self.connect(var, self.sign_1 if value=='1' else self.sign_0)
         self.addtoundo((3,var))
 
-    def disconnect(self, parent, child):
-        super().disconnect(parent, child)
+    def livedisconnect(self, parent, child):
+        self.disconnect(parent, child)
         self.addtoundo((4,parent,child))
     
     def copy(self,components):
-        self.copy(components)
+        super().copy(components)
 
-    def paste(self,):
+    def paste(self):
         if len(self.copydata):
             source=self.copydata[0]
-            gates=self.paste()
+            gates=super().paste()
             gates=','.join(gates)
             self.addtoundo((5,source,gates))
 
@@ -145,7 +148,7 @@ class Design(Circuit):
 
     def stage_renew(self,gate:Gate):
         key=(gate,)
-        self.stage.add(gate)
+        self.stage.append(gate)
         if key in self.history:
             self.history.pop(key,None)
         
