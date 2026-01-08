@@ -2,3 +2,4 @@ env/
 testing/
 Farhan/__pycache__
 Farhan/test.py
+.venv/

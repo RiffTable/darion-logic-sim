@@ -277,7 +277,7 @@ class Circuit:
             new_code=identity+str(old_rank+pivot[int(identity)])
             self.getcomponent(identity,new_code)
             if identity=='8':
-                self.getobj(component).children[0].clear()
+                self.getobj(component).children[0]=set()
             pseudo[component]=new_code
         connections=f.read().split('\n')
         connections.pop()
@@ -308,16 +308,16 @@ class Circuit:
                 self.gateobjects[key[0]].rank=max(self.gateobjects[key[0]].rank,int(key[1:]))            
             
     def clearcircuit(self):
-        self.objlist.clear()
-        self.circuit_breaker.clear()
-        self.varlist.clear()
-        self.complist.clear()
+        self.objlist={}
+        self.circuit_breaker={}
+        self.varlist=[]
+        self.complist=[]
         self.rank_reset()
 
     def copy(self,components):
         if len(components)==0:
             return
-        self.copydata.clear()
+        self.copydata=[]
         self.copydata.append(','.join(components))
         for component in components:
             obj=self.getobj(component)

@@ -129,7 +129,7 @@ class Variable(Gate):
         Variable.rank=max(Variable.rank,int(code[1:]))
 
     def connect(self,child:Signal):
-        self.children[self.output].clear()
+        self.children[self.output]=set()
         self.children[child.output].add(child)
         self.process()
 
