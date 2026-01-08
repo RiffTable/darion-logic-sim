@@ -61,8 +61,8 @@ def menu():
             choice = input("Enter your choice: ").split()
             for i in choice:
                 gate=base.getcomponent(i,'')
-                token='1 '+gate.code
-                addtoundo(undolist,redolist,token)
+                base.solder(gate)
+                addtoundo(undolist,redolist,(1,gate))
 
         elif choice == '2':
             base.listComponent()
@@ -73,21 +73,16 @@ def menu():
             gate = input("Enter the serial of the gate you want to connect components: ")
             if gate=='':
                 continue
-            gate=base.complist[int(gate)]
+            gate=base.canvas[int(gate)]
             childlist = list(map(int,input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
-                child=base.complist[child]
+                child=base.canvas[child]
                 base.connect(gate, child)
                 if gate.output==-1:
-                    print(f"Deadlock occured! please undo")
-                    token='3 '+gate.code+' '+ child.code
-                    addtoundo(undolist,redolist,token)
-                elif child==-1:
-                    print(f'Cannot connect {child} to {gate}')
+                    print(f"Deadlock occured! please undo")                    
                 else:
                     print(f"Connected {child} to {gate}.")
-                    token='3 '+gate.code+' '+ child.code
-                    addtoundo(undolist,redolist,token)
+                addtoundo(undolist,redolist,(3,gate,child))
             input('Press Enter to continue....')
 
         elif choice == '4':
@@ -95,28 +90,23 @@ def menu():
             gate = input("Enter the serial of the gate you want to disconnect components: ")
             if gate=='':
                 continue
-            gate=base.complist[int(gate)]
+            gate=base.canvas[int(gate)]
             childlist = list(map(int,input("Enter the serial of the component to disconnect to: ").split()))
             for child in childlist:
-                child=base.complist[child]
+                child=base.canvas[child]
                 base.disconnect(gate, child)
                 print(f"Disconnected {child} & {gate}.")
-                token='4 '+gate.code+' '+ child.code
-                addtoundo(undolist,redolist,token)
+                addtoundo(undolist,redolist,(4,gate,child))
             input('Press Enter to continue....')
 
         elif choice == '5':
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to delete: ").split()))
-            gatelist=[base.complist[i] for i in gatelist]
-            exclusionlist=[]
+            gatelist=[base.canvas[i] for i in gatelist]
             for gate in gatelist:
                 base.hideComponent(gate)
                 print(f"Deleted {gate}.")
-                exclusionlist.append(gate)
-            for gate in exclusionlist:
-                token='2 '+gate.code
-                addtoundo(undolist,redolist,token)
+                addtoundo(undolist,redolist,(2,gate))
 
         elif choice == '6':
             base.listVar()
@@ -128,8 +118,7 @@ def menu():
             if value in ['0','1']:
                 base.connect(var, base.sign_1 if value=='1' else base.sign_0)
                 print(f"Variable {var} set to {value}.")
-                token='3 '+var.code
-                addtoundo(undolist,redolist,token)
+                addtoundo(undolist,redolist,(3,var))
             else:
                 print("Invalid value. Please try again")
             input('Press Enter to continue....')
@@ -139,7 +128,7 @@ def menu():
             gate = input("Enter the serial of the gate you want to see output of: ")
             if gate=='':
                 continue
-            gate=base.complist[int(gate)]
+            gate=base.canvas[int(gate)]
             base.output(gate)
             input('Press Enter to continue....')
             
@@ -168,35 +157,29 @@ def menu():
             if len(undolist)==0:
                 continue
             event=popfromundo(undolist,redolist)
-            event=event.split()
             command =event[0]            
 
-            if command=='1':
-                gate=base.getobj(event[1])
-                base.hideComponent(gate)
+            if command==1:
+                base.hideComponent(event[1])
 
-            elif command=='2':
-                gate=base.getobj(event[1])
-                base.renewComponent(gate)
+            elif command==2:
+                base.renewComponent(event[1])
 
-            elif command=='3':
-                gate1=base.getobj(event[1])
+            elif command==3:
+                gate1=event[1]
                 if isinstance(gate1,Variable):
                     base.connect(gate1,base.sign_1 if gate1.output==0 else base.sign_0)
                     continue
-                gate2=base.getobj(event[2])               
+                gate2=event[2]              
                 base.disconnect(gate1,gate2)
 
-            elif command=='4':
-                gate1=base.getobj(event[1])
-                gate2=base.getobj(event[2])
-                base.connect(gate1,gate2)
+            elif command==4:
+                base.connect(event[1],event[2])
 
-            elif command=='5':
+            elif command==5:
                 gates=event[2].split(',')
                 for i in gates:
-                    i=base.getobj(i)
-                    base.terminate(i)
+                    base.terminate(base.getobj(i))
                 base.rank_reset()
             input('Press Enter to continue....')         
 
@@ -204,31 +187,26 @@ def menu():
             if len(redolist)==0:
                 continue
             event=popfromredo(undolist,redolist)
-            event=event.split()
             command =event[0]   
 
-            if command=='1':
-                gate=base.getobj(event[1])
-                base.renewComponent(gate)
+            if command==1:
+                base.renewComponent(event[1])
                 
-            elif command=='2':
-                gate=base.getobj(event[1])
-                base.hideComponent(gate)
+            elif command==2:
+                base.hideComponent(event[1])
                 
-            elif command=='3':
-                gate1=base.getobj(event[1])
+            elif command==3:
+                gate1=event[1]
                 if isinstance(gate1,Variable):
                     base.connect(gate1,base.sign_1 if gate1.output==0 else base.sign_0)
                     continue
-                gate2=base.getobj(event[2])               
+                gate2=event[2]              
                 base.connect(gate1,gate2)
                 
-            elif command=='4':
-                gate1=base.getobj(event[1])
-                gate2=base.getobj(event[2])
-                base.disconnect(gate1,gate2)
+            elif command==4:
+                base.disconnect(event[1],event[2])
 
-            elif command=='5':
+            elif command==5:
                 gates=event[1].split(',')
                 base.copy(gates)
                 base.paste()
@@ -238,7 +216,7 @@ def menu():
             components=[]
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
-            gatelist=[base.complist[i].code for i in gatelist]
+            gatelist=[base.canvas[i].code for i in gatelist]
             for gate in gatelist:
                 components.append(gate)
             base.copy(components)
@@ -250,7 +228,7 @@ def menu():
                 source=base.copydata[0]
                 gates=base.paste()
                 gates=','.join(gates)
-                addtoundo(undolist,redolist,'5 '+source+' '+gates)
+                addtoundo(undolist,redolist,(5,source,gates))
                 print("Pasted")
             else:
                 print('Nothing to paste')         

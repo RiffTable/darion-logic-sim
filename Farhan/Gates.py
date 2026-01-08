@@ -1,6 +1,6 @@
 
-class Gate:
-    pass
+
+gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
 class Signal:
     # default signals that exist indepdently
     def __init__(self,circuit,value):
@@ -30,13 +30,25 @@ class Gate:
         # each gate will have it's own unique id
         self.code=''
         self.name=''
+
+    def decode(self,code):
+        gate=int(code[0])
+        if(gate==8):
+            order=int(code[1:])
+            return chr(ord('@')+order%26)+str(order//26)
+        elif gate==0:
+            return code[1:]
+        else:
+            gate-=1
+            return gatelist[gate]+'-'+code[1:]    
+        
     def __repr__(self):
         return self.name
         
     def __str__(self):
         return self.name
     
-    def connect(self,child:Gate):
+    def connect(self,child:'Gate'):
         val=child.output  
         if val==-1:
             child.parents.add(self)
@@ -50,7 +62,7 @@ class Gate:
             child.parents.add(self)
         self.process()  
     
-    def disconnect(self,child:Gate):
+    def disconnect(self,child:'Gate'):
         val=child.output
         if child in self.children[val]:
             self.children[val].discard(child)
@@ -117,16 +129,17 @@ class Gate:
 class Variable(Gate):
     # this can be both an input or output(bulb)
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)          
         self.inputlimit=1
-        self.code='8'+str(Variable.rank)
-        Variable.rank+=1
         self.children[0].add(self.circuit.sign_0)
-
-    def override(self, code):
-        self.code=code
-        Variable.rank=max(Variable.rank,int(code[1:]))
+        if code=='':
+            Variable.rank+=1
+            self.code='8'+str(Variable.rank)
+        else:
+            self.code=code
+            Variable.rank=max(Variable.rank,int(code[1:]))
+        self.name=self.decode(self.code)
 
     def connect(self,child:Signal):
         self.children[self.output]=set()
@@ -140,11 +153,17 @@ class Variable(Gate):
 
 class NOT(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)        
         self.inputlimit=1
-        NOT.rank+=1
-        self.code='1'+str(NOT.rank)
+        if code=='':
+            self.code='1'+str(NOT.rank)
+            NOT.rank+=1
+        else:     
+            self.code=code
+            NOT.rank=max(NOT.rank,int(code[1:]))
+        self.name=self.decode(self.code)        
+            
 
     def connect(self, child):
         if child.output==-1:
@@ -165,9 +184,6 @@ class NOT(Gate):
             child.parents.add(self)
         self.process()
 
-    def override(self, code):
-        self.code=code
-        NOT.rank=max(NOT.rank,int(code[1:]))
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[0])
@@ -176,15 +192,16 @@ class NOT(Gate):
 class AND(Gate):
 
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)       
-        AND.rank+=1
-        self.code='2'+str(AND.rank)
+        if code=='':
+            AND.rank+=1
+            self.code='2'+str(AND.rank)
+        else:
+            self.code=code
+            AND.rank=max(AND.rank,int(code[1:]))
+        self.name=self.decode(self.code)            
 
-    def override(self, code):
-        self.code=code
-        AND.rank=max(AND.rank,int(code[1:]))
-        
     def process(self):
         self.prev_output=self.output
         self.output=0 if len(self.children[0]) else 1
@@ -192,15 +209,16 @@ class AND(Gate):
                 
 class NAND(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)   
-        NAND.rank+=1
-        self.code='3'+str(NAND.rank)
-    
-    def override(self, code):
-        self.code=code
-        NAND.rank=max(NAND.rank,int(code[1:]))
-        
+        if code=='':
+            NAND.rank+=1
+            self.code='3'+str(NAND.rank)
+        else:
+            self.code=code
+            NAND.rank=max(NAND.rank,int(code[1:]))
+        self.name=self.decode(self.code)
+
     def process(self):
         self.prev_output=self.output
         self.output=1 if len(self.children[0]) else 0
@@ -208,15 +226,16 @@ class NAND(Gate):
         
 class OR(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)         
-        OR.rank+=1
-        self.code='4'+str(OR.rank)
-        
-    def override(self, code):
-        self.code=code
-        OR.rank=max(OR.rank,int(code[1:]))        
-        
+        if code=='':
+            OR.rank+=1
+            self.code='4'+str(OR.rank)
+        else:
+            self.code=code
+            OR.rank=max(OR.rank,int(code[1:]))
+        self.name=self.decode(self.code)
+
     def process(self):
         self.prev_output=self.output
         self.output=1 if len(self.children[1]) else 0
@@ -224,14 +243,15 @@ class OR(Gate):
         
 class NOR(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)   
-        NOR.rank+=1
-        self.code='5'+str(NOR.rank)    
-
-    def override(self, code):
-        self.code=code
-        NOR.rank=max(NOR.rank,int(code[1:]))
+        if code=='':
+            NOR.rank+=1
+            self.code='5'+str(NOR.rank)
+        else:
+            self.code=code
+            NOR.rank=max(NOR.rank,int(code[1:]))
+        self.name=self.decode(self.code)
 
     def process(self):
         if len(self.children[1]):
@@ -248,15 +268,16 @@ class NOR(Gate):
         
 class XOR(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)       
-        XOR.rank+=1
-        self.code='6'+str(XOR.rank)
-    
-    def override(self, code):
-        self.code=code
-        XOR.rank=max(XOR.rank,int(code[1:]))
-        
+        if code=='':
+            XOR.rank+=1
+            self.code='6'+str(XOR.rank)
+        else:
+            self.code=code
+            XOR.rank=max(XOR.rank,int(code[1:]))
+        self.name=self.decode(self.code)
+
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[1])%2
@@ -264,15 +285,16 @@ class XOR(Gate):
         
 class XNOR(Gate):
     rank=0
-    def __init__(self,circuit):
+    def __init__(self,circuit,code):
         super().__init__(circuit)   
-        XNOR.rank+=1
-        self.code='7'+str(XNOR.rank)
-    
-    def override(self, code):
-        self.code=code
-        XNOR.rank=max(XNOR.rank,int(code[1:]))
-        
+        if code=='':
+            XNOR.rank+=1
+            self.code='7'+str(XNOR.rank)
+        else:
+            self.code=code
+            XNOR.rank=max(XNOR.rank,int(code[1:]))
+        self.name=self.decode(self.code)
+
     def process(self):
         self.prev_output=self.output
         self.output=(len(self.children[1])%2)^1 

@@ -3,10 +3,10 @@ from Gates import *
 class Circuit:
     def __init__(self):
         self.objlist={}# holds the objects with code name
-        self.complist=[]# displays the components 
+        self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.circuit_breaker={}# checks for loops while connecting
-        self.gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
+        
         self.objlist['00']=self.sign_0=Signal(self,0)
         self.objlist['01']=self.sign_1=Signal(self,1)
         self.copydata=[]
@@ -14,12 +14,12 @@ class Circuit:
 
     def __repr__(self):
         return 'Circuit'
-    def getobj(self,code):
+    def getobj(self,code)->Gate|Signal:
         return self.objlist[code]
     # show component
     def listComponent(self):
-        for i in range(len(self.complist)):
-            print(f'{i}. {self.complist[i]}')
+        for i in range(len(self.canvas)):
+            print(f'{i}. {self.canvas[i]}')
 
     # show variables
     def listVar(self):
@@ -27,19 +27,18 @@ class Circuit:
             print(f'{i}. {self.varlist[i]}')
 
     # name suggests it
-    def getcomponent(self,i,code):
+    def getcomponent(self,i,code)->Gate|Signal:
         if i not in self.gateobjects:
             return
-        gt=self.gateobjects[i](self)
-        if i=='8':
-            self.varlist.append(gt)     
-        if code!='':
-            gt.override(code)
-        gt.name=self.decode(gt.code)
-        self.objlist[gt.code]=gt
-        self.complist.append(gt)
-        self.circuit_breaker[gt]=-1
+        gt=self.gateobjects[i](self,code)
         return gt
+
+    def solder(self,gate:Gate):
+        self.objlist[gate.code]=gate
+        self.canvas.append(gate)
+        self.circuit_breaker[gate]=-1
+        if isinstance(gate,Variable):
+            self.varlist.append(gate)
 
     def decode(self,code):
         gate=int(code[0])
@@ -58,7 +57,7 @@ class Circuit:
         if child not in parent.children[child.output]:
             parent.connect(child)
 
-    def passive_connect(self,parent,child,child_output):
+    def passive_connect(self,parent,child,child_output:str):
         parent_obj=self.getobj(parent)      
         child_obj=self.getobj(child)
         parent_obj.children[child_output].add(child_obj)
@@ -84,7 +83,7 @@ class Circuit:
         gate.hide()
         if isinstance(self,Variable):
             self.varlist.remove(self)
-        self.complist.remove(gate)
+        self.canvas.remove(gate)
 
     def terminate(self,gate:Gate):
         self.hideComponent(gate)
@@ -95,7 +94,7 @@ class Circuit:
         gate.reveal()
         if isinstance(gate,Variable):
             self.varlist.append(gate)
-        self.complist.append(gate)
+        self.canvas.append(gate)
     
     # if my output changes i will update my parents 
     # circuit breaker breaks if a gate seen more than twice in a single operation
@@ -132,7 +131,7 @@ class Circuit:
         if len(self.varlist) == 0:
             return
         
-        gate_list=[i for i in self.complist if i not in self.varlist]
+        gate_list=[i for i in self.canvas if i not in self.varlist]
         n = len(self.varlist)
         rows = 1 << n
         # Collect decoded variable names and the output gate name
@@ -191,7 +190,7 @@ class Circuit:
         # Data rows
         row_format = header_format  # Same alignment and widths
         
-        for component in self.complist:
+        for component in self.canvas:
             
             # Inputs (children)
             input_0=[]
@@ -224,10 +223,10 @@ class Circuit:
         # write the component list to file
         f=open(address,'w')
 
-        for i in self.complist:
+        for i in self.canvas:
             f.write(f'{i.code} ')
         f.write('\n')
-        for i in self.complist:
+        for i in self.canvas:
 
             # write self
             f.write(f'{i.code} ')
@@ -275,7 +274,8 @@ class Circuit:
             old_rank=int(component[1:])
             identity=component[0]
             new_code=identity+str(old_rank+pivot[int(identity)])
-            self.getcomponent(identity,new_code)
+            gt=self.getcomponent(identity,new_code)
+            self.solder(gt)
             if identity=='8':
                 self.getobj(component).children[0]=set()
             pseudo[component]=new_code
@@ -311,7 +311,7 @@ class Circuit:
         self.objlist={}
         self.circuit_breaker={}
         self.varlist=[]
-        self.complist=[]
+        self.canvas=[]
         self.rank_reset()
 
     def copy(self,components):
@@ -348,7 +348,8 @@ class Circuit:
             old_rank=int(component[1:])
             identity=component[0]
             new_code=identity+str(old_rank+pivot[int(identity)])
-            self.getcomponent(identity,new_code)
+            gt=self.getcomponent(identity,new_code)
+            self.solder(gt)
             pseudo[component]=new_code
             new_items.append(new_code)
         connections=[self.copydata[i] for i in range(1,len(self.copydata))]
