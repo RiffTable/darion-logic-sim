@@ -5,8 +5,7 @@ class Circuit:
         self.objlist={}# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
-        self.circuit_breaker={}# checks for loops while connecting
-        
+        self.circuit_breaker={}# checks for loops while connecting        
         self.objlist['00']=self.sign_0=Signal(self,0)
         self.objlist['01']=self.sign_1=Signal(self,1)
         self.copydata=[]
@@ -40,16 +39,6 @@ class Circuit:
         if isinstance(gate,Variable):
             self.varlist.append(gate)
 
-    def decode(self,code):
-        gate=int(code[0])
-        if(gate==8):
-            order=int(code[1:])
-            return chr(ord('A')+order%26)+str(order//26)
-        elif gate==0:
-            return code[1:]
-        else:
-            gate-=1
-            return self.gatelist[gate]+'-'+code[1:]    
         
     # connects parent to it's child/inputs
 
