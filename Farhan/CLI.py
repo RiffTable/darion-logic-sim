@@ -44,9 +44,13 @@ def menu():
             print("6. XOR")
             print("7. XNOR")
             print("8. Variable")  
+            print("9. Probe")
+            
             choice = input("Enter your choice: ").split()
             for i in choice:
                 gate=base.addcomponent(i)
+                if i=='9':
+                    gate.name=input('Name Probe without spaces: ')
                 
 
         elif choice == '2':

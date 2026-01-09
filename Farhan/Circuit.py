@@ -1,5 +1,4 @@
-from Gates import *
-from collections import deque
+from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe
 class Circuit:
     def __init__(self):
         self.objlist={}# holds the objects with code name
@@ -8,7 +7,7 @@ class Circuit:
         self.objlist['00']=self.sign_0=Signal(self,0)
         self.objlist['01']=self.sign_1=Signal(self,1)
         self.copydata=[]
-        self.gateobjects={'1':NOT, '2':AND, '3':NAND, '4':OR, '5':NOR, '6':XOR, '7':XNOR, '8':Variable}
+        self.gateobjects={'1':NOT, '2':AND, '3':NAND, '4':OR, '5':NOR, '6':XOR, '7':XNOR, '8':Variable,'9':Probe}
 
     def __repr__(self):
         return 'Circuit'

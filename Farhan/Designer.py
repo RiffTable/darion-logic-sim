@@ -1,4 +1,4 @@
-from Gates import *
+from Gates import Variable,Gate,Probe,NOT
 from Circuit import Circuit
 
 class Design(Circuit):
@@ -79,19 +79,20 @@ class Design(Circuit):
             super().copy(gates)
             super().paste()
 
-    
-            
-
-
-    def addcomponent(self,gate_option):
+    def addcomponent(self,gate_option)->Gate:
         gate=self.getcomponent(gate_option,'')
         self.addtoundo((1,gate))
+        return gate
 
     def livehide(self, gate):
         self.hideComponent(gate)
         self.addtoundo((2,gate))
 
     def liveconnect(self, parent, child):
+        if isinstance(parent,NOT) or isinstance(parent,Probe):
+            if parent.turnon():
+                print('Disconnect first')
+                return 
         self.connect(parent, child)
         self.addtoundo((3,parent,child))
     

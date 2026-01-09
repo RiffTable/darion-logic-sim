@@ -1,6 +1,5 @@
-
 from collections import deque
-gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
+gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR','Variable','Probe']
 class Signal:
     # default signals that exist indepdently
     def __init__(self,circuit,value):
@@ -30,12 +29,14 @@ class Gate:
         # each gate will have it's own unique id
         self.code=''
         self.name=''
+    def rename(self,name):
+        self.name=name
 
     def decode(self,code):
         gate=int(code[0])
         if(gate==8):
             order=int(code[1:])
-            return chr(ord('@')+order%26)+str(order//26)
+            return chr(ord('A')+(order-1)%26)+str(order//26)
         elif gate==0:
             return code[1:]
         else:
@@ -87,7 +88,7 @@ class Gate:
                     fuse[key]=parent.output
                     for grandparent in parent.parents:
                         queue.append((grandparent,parent))
-                elif fuse[key]!=parent.output:
+                elif fuse[key]!=parent.output and (child,parent) in fuse:
                     parent.poison()
                     return
 
@@ -174,6 +175,23 @@ class Variable(Gate):
         self.prev_output=self.output
         self.output=len(self.children[1])
 
+class Probe(Gate):
+    # this can be both an input or output(bulb)
+    rank=0
+    def __init__(self,circuit,code):
+        super().__init__(circuit)          
+        self.inputlimit=1
+        if code=='':
+            Probe.rank+=1
+            self.code='9'+str(Probe.rank)
+        else:
+            self.code=code
+            Probe.rank=max(Probe.rank,int(code[1:]))
+        self.name=self.decode(self.code)
+
+    def process(self):
+        self.prev_output=self.output
+        self.output=len(self.children[1])
 
 class NOT(Gate):
     rank=0
