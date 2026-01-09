@@ -1,11 +1,10 @@
 from Gates import *
-
+from collections import deque
 class Circuit:
     def __init__(self):
         self.objlist={}# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
-        self.circuit_breaker={}# checks for loops while connecting        
         self.objlist['00']=self.sign_0=Signal(self,0)
         self.objlist['01']=self.sign_1=Signal(self,1)
         self.copydata=[]
@@ -30,14 +29,12 @@ class Circuit:
         if i not in self.gateobjects:
             return
         gt=self.gateobjects[i](self,code)
+        
+        self.objlist[gt.code]=gt
+        self.canvas.append(gt)
+        if isinstance(gt,Variable):
+            self.varlist.append(gt)
         return gt
-
-    def solder(self,gate:Gate):
-        self.objlist[gate.code]=gate
-        self.canvas.append(gate)
-        self.circuit_breaker[gate]=-1
-        if isinstance(gate,Variable):
-            self.varlist.append(gate)
 
         
     # connects parent to it's child/inputs
@@ -45,6 +42,8 @@ class Circuit:
     def connect(self,parent:Gate,child:Gate|Signal):
         if child not in parent.children[child.output]:
             parent.connect(child)
+        if parent.prev_output!=parent.output:
+            parent.propagate()
 
     def passive_connect(self,parent,child,child_output:str):
         parent_obj=self.getobj(parent)      
@@ -53,14 +52,7 @@ class Circuit:
         if child[0]!='0':
             child_obj.parents.add(parent_obj)
 
-    # disconnects parent & child
-    def disconnect_gates(self,parent:Gate,child:Gate):
-        parent.children[child.output].discard(child)
-        child.parents.discard(parent)
-        child.process()
-        self.update(child)
-        parent.process()
-        self.update(parent)
+
 
     # identify parent/child
     def disconnect(self,parent:Gate,child:Gate):
@@ -81,32 +73,8 @@ class Circuit:
             self.varlist.append(gate)
         self.canvas.append(gate)
     
-    # if my output changes i will update my parents 
-    # circuit breaker breaks if a gate seen more than twice in a single operation
-    def update(self,gate:Gate):
-        if self.circuit_breaker[gate]==-1:
-            self.circuit_breaker[gate]=gate.output
-            parents=list(gate.parents)
-            for parent in parents:
-                parent.connect(gate)
-                if parent.output==-1:
-                    break
-            self.circuit_breaker[gate]=-1
-        elif self.circuit_breaker[gate]==gate.output:
-            return
-        else:
-            gate.poison()
         
-    # use queue here***********
-    def poison(self,gate:Gate):
-        gate.output=-1
-        for parent in gate.parents:            
-            parent.children[-1].add(gate)
-            parent.children[0].discard(gate)
-            parent.children[1].discard(gate)
-            if parent.output!=-1:
-                self.poison(parent)
-
+    
     # Result 
     def output(self,gate:Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -259,8 +227,7 @@ class Circuit:
             old_rank=int(component[1:])
             identity=component[0]
             new_code=identity+str(old_rank+pivot[int(identity)])
-            gt=self.getcomponent(identity,new_code)
-            self.solder(gt)
+            self.getcomponent(identity,new_code)
             if identity=='8':
                 self.getobj(component).children[0]=set()
             pseudo[component]=new_code
@@ -294,7 +261,6 @@ class Circuit:
             
     def clearcircuit(self):
         self.objlist={}
-        self.circuit_breaker={}
         self.varlist=[]
         self.canvas=[]
         self.rank_reset()
@@ -333,8 +299,7 @@ class Circuit:
             old_rank=int(component[1:])
             identity=component[0]
             new_code=identity+str(old_rank+pivot[int(identity)])
-            gt=self.getcomponent(identity,new_code)
-            self.solder(gt)
+            self.getcomponent(identity,new_code)
             pseudo[component]=new_code
             new_items.append(new_code)
         connections=[self.copydata[i] for i in range(1,len(self.copydata))]

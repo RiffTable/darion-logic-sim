@@ -1,6 +1,5 @@
 from Designer import Design
 from readchar import readkey,key
-from Gates import Variable
 import os
 
 def clear_screen():

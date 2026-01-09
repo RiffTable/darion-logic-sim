@@ -1,5 +1,5 @@
 
-
+from collections import deque
 gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
 class Signal:
     # default signals that exist indepdently
@@ -60,7 +60,7 @@ class Gate:
         self.children[val].add(child)      
         if self not in child.parents:
             child.parents.add(self)
-        self.process()  
+        self.process()
     
     def disconnect(self,child:'Gate'):
         val=child.output
@@ -68,20 +68,41 @@ class Gate:
             self.children[val].discard(child)
             child.parents.discard(self)
             child.process()
+            child.propagate()
             self.process()
+            self.propagate()
 
-    def propogate(self):
-        if self.prev_output!=self.output:
-            self.circuit.update(self)
+    def propagate(self):
+        fuse={}
+        queue=deque()
+        for parent in self.parents:
+            queue.append((parent,self))
+        while len(queue):
+            key=queue.popleft()
+            parent=key[0]
+            child=key[1]
+            parent.connect(child)
+            if parent.prev_output!=parent.output:
+                if key not in fuse:
+                    fuse[key]=parent.output
+                    for grandparent in parent.parents:
+                        queue.append((grandparent,parent))
+                elif fuse[key]!=parent.output:
+                    parent.poison()
+                    return
 
     def poison(self):
-        self.output=-1
-        for parent in self.parents:            
-            parent.children[-1].add(self)
-            parent.children[0].discard(self)
-            parent.children[1].discard(self)
-            if parent.output!=-1:
-                parent.poison()
+        queue=deque()
+        queue.append(self)
+        while len(queue):
+            gate=queue.popleft()
+            gate.output=-1
+            for parent in gate.parents:            
+                parent.children[-1].add(gate)
+                parent.children[0].discard(gate)
+                parent.children[1].discard(gate)
+                if parent.output!=-1:
+                    queue.append(parent)
     
     def hide(self):
         for parent in self.parents:# disconnect from parents and they will modify their output 
@@ -94,16 +115,20 @@ class Gate:
             child.parents.discard(self)               
         for parent in self.parents:# disconnect from parents and they will modify their output 
             parent.process()
+            parent.propagate()
+
     def reveal(self):
         if self.output==-1:
                 self.poison()
         else:
             for parent in self.parents:# disconnect from parents and they will modify their output 
                 parent.connect(self)
-        for child in self.children[0]:# disconnect from children
+        for child in self.children[0]:
             child.parents.add(self)
         for child in self.children[1]:
             child.parents.add(self)   
+        for child in self.children[-1]:
+            child.parents.add(self)
 
 
     def turnon(self):
@@ -148,7 +173,7 @@ class Variable(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[1])
-        self.propogate()
+
 
 class NOT(Gate):
     rank=0
@@ -186,7 +211,7 @@ class NOT(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[0])
-        self.propogate()
+
         
 class AND(Gate):
 
@@ -204,7 +229,7 @@ class AND(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=0 if len(self.children[0]) else 1
-        self.propogate()
+
                 
 class NAND(Gate):
     rank=0
@@ -221,7 +246,7 @@ class NAND(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=1 if len(self.children[0]) else 0
-        self.propogate()
+
         
 class OR(Gate):
     rank=0
@@ -238,7 +263,7 @@ class OR(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=1 if len(self.children[1]) else 0
-        self.propogate()
+
         
 class NOR(Gate):
     rank=0
@@ -253,16 +278,9 @@ class NOR(Gate):
         self.name=self.decode(self.code)
 
     def process(self):
-        if len(self.children[1]):
-            out=0
-        elif len(self.children[0]):
-            out=1
-        else: 
-            out=0
-        # output needs to be updated first
         self.prev_output=self.output
         self.output=0 if len(self.children[1]) else 1
-        self.propogate()
+
         
         
 class XOR(Gate):
@@ -280,7 +298,7 @@ class XOR(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[1])%2
-        self.propogate()
+
         
 class XNOR(Gate):
     rank=0
@@ -297,6 +315,6 @@ class XNOR(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=(len(self.children[1])%2)^1 
-        self.propogate()
+
         
         

@@ -48,7 +48,6 @@ class Design(Circuit):
             for i in gates:
                 gate=self.getobj(i)
                 super().hideComponent(gate)
-                del self.circuit_breaker[gate]
                 del self.objlist[gate.code]
             self.rank_reset()
 
@@ -80,12 +79,12 @@ class Design(Circuit):
             super().copy(gates)
             super().paste()
 
-  
+    
+            
 
 
     def addcomponent(self,gate_option):
         gate=self.getcomponent(gate_option,'')
-        self.solder(gate)
         self.addtoundo((1,gate))
 
     def livehide(self, gate):
