@@ -73,6 +73,15 @@ class Gate:
             self.process()
             self.propagate()
 
+    def paritycheck(self,child:'Gate',fuse:dict):
+        parity=(child,self)
+        if parity in fuse:
+            paritybit=fuse[parity][1]
+            if paritybit!=self.output:
+                self.poison()
+                return True
+        return False
+
     def propagate(self):
         fuse={}
         queue=deque()
@@ -85,12 +94,13 @@ class Gate:
             parent.connect(child)
             if parent.prev_output!=parent.output:
                 if key not in fuse:
-                    fuse[key]=parent.output
-                    for grandparent in parent.parents:
+                    if child in parent.parents:
+                            if parent.paritycheck(child,fuse):
+                                return
+                    fuse[key]=(parent.output,child.output)
+                    for grandparent in parent.parents:                        
                         queue.append((grandparent,parent))
-                elif fuse[key]!=parent.output and (child,parent) in fuse:
-                    parent.poison()
-                    return
+
 
     def poison(self):
         queue=deque()
