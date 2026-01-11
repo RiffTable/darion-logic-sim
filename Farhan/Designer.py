@@ -44,11 +44,10 @@ class Design(Circuit):
             super().connect(event[1],event[2])
 
         elif command==5:
-            gates=event[2].split(',')
+            gates=event[2]
             for i in gates:
                 gate=self.getobj(i)
-                super().hideComponent(gate)
-                del self.objlist[gate.code]
+                self.terminate(gate)
             self.rank_reset()
 
     def redo(self):
@@ -75,12 +74,12 @@ class Design(Circuit):
             self.disconnect(event[1],event[2])
 
         elif command==5:
-            gates=event[1].split(',')
+            gates=event[1]
             super().copy(gates)
             super().paste()
 
     def addcomponent(self,gate_option)->Gate:
-        gate=self.getcomponent(gate_option,'')
+        gate=self.getcomponent(gate_option)
         self.addtoundo((1,gate))
         return gate
 
@@ -111,21 +110,20 @@ class Design(Circuit):
         if len(self.copydata):
             source=self.copydata[0]
             gates=super().paste()
-            gates=','.join(gates)
+           
             self.addtoundo((5,source,gates))
 
     def load(self,file_location):
-        self.clearcircuit()
+        # self.clearcircuit()
         self.undolist.clear()
         self.redolist.clear()
-        self.readfromfile(file_location)
+        self.readfromjson(file_location)
         
     def importfromfile(self,file_location):
         self.readfromfile(file_location)
 
     def save(self,file_location):
-        self.writetofile(file_location)
-
+        self.writetojson(file_location)
 
     def __str__(self):
         return 'Designer'

@@ -3,3 +3,5 @@ testing/
 Farhan/__pycache__
 Farhan/test.py
 .venv/
+file.json/
+temp.json/

@@ -1,25 +1,23 @@
 from collections import deque
-gatelist=['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR','Variable','Probe']
+from Enum import Enum
 class Signal:
     # default signals that exist indepdently
-    def __init__(self,circuit,value):
-        self.circuit=circuit
+    def __init__(self,value):
         self.parents=set()
         self.output=value
         self.name=str(value)
-        self.code='0'+self.name
+        self.code=(0,value)
     def __repr__(self):
         return self.name
     def __str__(self):
         return self.name
 
 class Gate:   
-    def __init__(self,circuit):
+    def __init__(self):
         # a gate needs holders from the circuit
-        self.circuit=circuit
 
         # gate's children or inputs
-        self.children=[set() for i in range(3)]
+        self.children={Enum.LOW:set(),Enum.HIGH:set(),Enum.ERROR:set()}
         self.parents=set()
         # input limit
         self.inputlimit=2
@@ -31,17 +29,6 @@ class Gate:
         self.name=''
     def rename(self,name):
         self.name=name
-
-    def decode(self,code):
-        gate=int(code[0])
-        if(gate==8):
-            order=int(code[1:])
-            return chr(ord('A')+(order-1)%26)+str(order//26)
-        elif gate==0:
-            return code[1:]
-        else:
-            gate-=1
-            return gatelist[gate]+'-'+code[1:]    
         
     def __repr__(self):
         return self.name
@@ -51,10 +38,10 @@ class Gate:
     
     def connect(self,child:'Gate'):
         val=child.output  
-        if val==-1:
+        if val==Enum.ERROR:
             child.parents.add(self)
-            self.children[-1].add(child)
-            self.poison()
+            self.children[Enum.ERROR].add(child)
+            self.burn()
             return
         if child in self.children[child.prev_output]:
             self.children[child.prev_output].discard(child)
@@ -78,7 +65,7 @@ class Gate:
         if parity in fuse:
             paritybit=fuse[parity][1]
             if paritybit!=self.output:
-                self.poison()
+                self.burn()
                 return True
         return False
 
@@ -102,48 +89,48 @@ class Gate:
                         queue.append((grandparent,parent))
 
 
-    def poison(self):
+    def burn(self):
         queue=deque()
         queue.append(self)
         while len(queue):
             gate=queue.popleft()
-            gate.output=-1
+            gate.output=Enum.ERROR
             for parent in gate.parents:            
-                parent.children[-1].add(gate)
-                parent.children[0].discard(gate)
-                parent.children[1].discard(gate)
-                if parent.output!=-1:
+                parent.children[Enum.ERROR].add(gate)
+                parent.children[Enum.LOW].discard(gate)
+                parent.children[Enum.HIGH].discard(gate)
+                if parent.output!=Enum.ERROR:
                     queue.append(parent)
     
     def hide(self):
         for parent in self.parents:# disconnect from parents and they will modify their output 
             parent.children[self.output].discard(self)
-        for child in self.children[0]:# disconnect from children
+        for child in self.children[Enum.LOW]:# disconnect from children
             child.parents.discard(self)
-        for child in self.children[1]:
+        for child in self.children[Enum.HIGH]:
             child.parents.discard(self)  
-        for child in self.children[-1]:
+        for child in self.children[Enum.ERROR]:
             child.parents.discard(self)               
         for parent in self.parents:# disconnect from parents and they will modify their output 
             parent.process()
             parent.propagate()
 
     def reveal(self):
-        if self.output==-1:
-                self.poison()
+        if self.output==Enum.ERROR:
+                self.burn()
         else:
             for parent in self.parents:# disconnect from parents and they will modify their output 
                 parent.connect(self)
-        for child in self.children[0]:
+        for child in self.children[Enum.LOW]:
             child.parents.add(self)
-        for child in self.children[1]:
+        for child in self.children[Enum.HIGH]:
             child.parents.add(self)   
-        for child in self.children[-1]:
+        for child in self.children[Enum.ERROR]:
             child.parents.add(self)
 
 
     def turnon(self):
-        return len(self.children[0])+len(self.children[1])+len(self.children[-1])>=self.inputlimit
+        return len(self.children[Enum.LOW])+len(self.children[Enum.HIGH])+len(self.children[Enum.ERROR])>=self.inputlimit
 
     # operates on the inputs
     def process(self):
@@ -163,18 +150,9 @@ class Gate:
 
 class Variable(Gate):
     # this can be both an input or output(bulb)
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)          
+    def __init__(self):     
+        super().__init__() 
         self.inputlimit=1
-        self.children[0].add(self.circuit.sign_0)
-        if code=='':
-            Variable.rank+=1
-            self.code='8'+str(Variable.rank)
-        else:
-            self.code=code
-            Variable.rank=max(Variable.rank,int(code[1:]))
-        self.name=self.decode(self.code)
 
     def connect(self,child:Signal):
         self.children[self.output]=set()
@@ -183,45 +161,30 @@ class Variable(Gate):
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[1])
+        self.output=len(self.children[Enum.HIGH])
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)          
+
+    def __init__(self):      
+        super().__init__()    
         self.inputlimit=1
-        if code=='':
-            Probe.rank+=1
-            self.code='9'+str(Probe.rank)
-        else:
-            self.code=code
-            Probe.rank=max(Probe.rank,int(code[1:]))
-        self.name=self.decode(self.code)
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[1])
+        self.output=len(self.children[Enum.HIGH])
 
 class NOT(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)        
+
+    def __init__(self):    
+        super().__init__()
         self.inputlimit=1
-        if code=='':
-            self.code='1'+str(NOT.rank)
-            NOT.rank+=1
-        else:     
-            self.code=code
-            NOT.rank=max(NOT.rank,int(code[1:]))
-        self.name=self.decode(self.code)        
-            
 
     def connect(self, child):
-        if child.output==-1:
+        if child.output==Enum.ERROR:
             child.parents.add(self)
-            self.children[-1].add(child)
-            self.poison()
+            self.children[Enum.ERROR].add(child)
+            self.burn()
             return
         if len(self.children[self.output]):
             dead_child=self.children[self.output].pop() 
@@ -238,111 +201,69 @@ class NOT(Gate):
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[0])
+        self.output=len(self.children[Enum.LOW])
 
         
 class AND(Gate):
 
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)       
-        if code=='':
-            AND.rank+=1
-            self.code='2'+str(AND.rank)
-        else:
-            self.code=code
-            AND.rank=max(AND.rank,int(code[1:]))
-        self.name=self.decode(self.code)            
 
+    def __init__(self):
+        super().__init__()
+ 
     def process(self):
         self.prev_output=self.output
-        self.output=0 if len(self.children[0]) else 1
+        self.output=0 if len(self.children[Enum.LOW]) else 1
 
                 
 class NAND(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)   
-        if code=='':
-            NAND.rank+=1
-            self.code='3'+str(NAND.rank)
-        else:
-            self.code=code
-            NAND.rank=max(NAND.rank,int(code[1:]))
-        self.name=self.decode(self.code)
+
+    def __init__(self):
+        super().__init__()   
 
     def process(self):
         self.prev_output=self.output
-        self.output=1 if len(self.children[0]) else 0
+        self.output=1 if len(self.children[Enum.LOW]) else 0
 
         
 class OR(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)         
-        if code=='':
-            OR.rank+=1
-            self.code='4'+str(OR.rank)
-        else:
-            self.code=code
-            OR.rank=max(OR.rank,int(code[1:]))
-        self.name=self.decode(self.code)
+
+    def __init__(self):
+        super().__init__()
 
     def process(self):
         self.prev_output=self.output
-        self.output=1 if len(self.children[1]) else 0
+        self.output=1 if len(self.children[Enum.HIGH]) else 0
 
         
 class NOR(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)   
-        if code=='':
-            NOR.rank+=1
-            self.code='5'+str(NOR.rank)
-        else:
-            self.code=code
-            NOR.rank=max(NOR.rank,int(code[1:]))
-        self.name=self.decode(self.code)
+
+    def __init__(self):
+        super().__init__()
 
     def process(self):
         self.prev_output=self.output
-        self.output=0 if len(self.children[1]) else 1
+        self.output=0 if len(self.children[Enum.HIGH]) else 1
 
         
         
 class XOR(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)       
-        if code=='':
-            XOR.rank+=1
-            self.code='6'+str(XOR.rank)
-        else:
-            self.code=code
-            XOR.rank=max(XOR.rank,int(code[1:]))
-        self.name=self.decode(self.code)
+
+    def __init__(self):
+        super().__init__()
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[1])%2
+        self.output=len(self.children[Enum.HIGH])%2
 
         
 class XNOR(Gate):
-    rank=0
-    def __init__(self,circuit,code):
-        super().__init__(circuit)   
-        if code=='':
-            XNOR.rank+=1
-            self.code='7'+str(XNOR.rank)
-        else:
-            self.code=code
-            XNOR.rank=max(XNOR.rank,int(code[1:]))
-        self.name=self.decode(self.code)
+
+    def __init__(self):
+        super().__init__()
 
     def process(self):
         self.prev_output=self.output
-        self.output=(len(self.children[1])%2)^1 
+        self.output=(len(self.children[Enum.HIGH])%2)^1 
 
         
         

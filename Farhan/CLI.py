@@ -5,11 +5,8 @@ import os
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-
 base=Design()
-
 def menu():
-
     while True:
         clear_screen()
         print("--- Circuit Simulator Menu ---")
@@ -48,8 +45,9 @@ def menu():
             
             choice = input("Enter your choice: ").split()
             for i in choice:
+                i=int(i)
                 gate=base.addcomponent(i)
-                if i=='9':
+                if i==9:
                     gate.name=input('Name Probe without spaces: ')
                 
 
@@ -126,12 +124,12 @@ def menu():
             input('Press Enter to continue....')
             
         elif choice.upper() == 'A':
-            base.save('file.txt')
+            base.save('file.json')
             print("Circuit saved to file.txt")
             input('Press Enter to continue....')
 
         elif choice.upper() == 'B':
-            base.load('file.txt')
+            base.load('file.json')
             print("Circuit loaded from file.txt")
             input('Press Enter to continue....')
 
