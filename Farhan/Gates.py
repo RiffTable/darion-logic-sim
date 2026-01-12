@@ -60,15 +60,6 @@ class Gate:
             self.process()
             self.propagate()
 
-    def paritycheck(self,child:'Gate',fuse:dict):
-        parity=(child,self)
-        if parity in fuse:
-            paritybit=fuse[parity][1]
-            if paritybit!=self.output:
-                self.burn()
-                return True
-        return False
-
     def propagate(self):
         fuse={}
         queue=deque()
@@ -81,12 +72,12 @@ class Gate:
             parent.connect(child)
             if parent.prev_output!=parent.output:
                 if key not in fuse:
-                    if child in parent.parents:
-                            if parent.paritycheck(child,fuse):
-                                return
                     fuse[key]=(parent.output,child.output)
                     for grandparent in parent.parents:                        
                         queue.append((grandparent,parent))
+                elif fuse[key]!=(parent.output,child.output):
+                    child.burn()
+                    return
 
 
     def burn(self):
@@ -140,6 +131,10 @@ class Gate:
         pass
 
     # gives output in T or F of off if there isn't enough inputs
+
+
+
+
     def getoutput(self):
         if self.turnon()==False:
             return 'X'
@@ -165,11 +160,26 @@ class Variable(Gate):
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
-
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
-
+        self.probetype=0
+    def process(self):
+        self.prev_output=self.output
+        self.output=len(self.children[Enum.HIGH])
+class InputPin(Probe):
+    # this can be both an input or output(bulb)
+    def __init__(self):      
+        super().__init__()    
+        self.inputlimit=1
+    def process(self):
+        self.prev_output=self.output
+        self.output=len(self.children[Enum.HIGH])
+class OutputPin(Probe):
+    # this can be both an input or output(bulb)
+    def __init__(self):      
+        super().__init__()    
+        self.inputlimit=1
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
@@ -179,25 +189,6 @@ class NOT(Gate):
     def __init__(self):    
         super().__init__()
         self.inputlimit=1
-
-    def connect(self, child):
-        if child.output==Enum.ERROR:
-            child.parents.add(self)
-            self.children[Enum.ERROR].add(child)
-            self.burn()
-            return
-        if len(self.children[self.output]):
-            dead_child=self.children[self.output].pop() 
-            dead_child.parents.discard(self)
-
-        if child in self.children[child.prev_output]:
-            self.children[child.prev_output].discard(child)
-        self.children[child.output].add(child)        
-
-        # connect children to it as their parent
-        if self not in child.parents:
-            child.parents.add(self)
-        self.process()
 
     def process(self):
         self.prev_output=self.output

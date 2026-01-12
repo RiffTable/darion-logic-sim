@@ -2,119 +2,73 @@
     {
         "Component_List": [
             [
-                6,
-                1
+                1,
+                0
             ],
             [
-                6,
-                2
+                10,
+                0
             ],
             [
-                8,
-                1
-            ],
-            [
-                8,
-                2
+                11,
+                0
             ]
         ]
     },
     {
-        "name": "XOR-1",
+        "name": "NOT-1",
         "code": [
-            6,
-            1
-        ],
-        "high_child": [
-            [
-                8,
-                1
-            ]
-        ],
-        "low_child": [],
-        "error_child": [
-            [
-                6,
-                2
-            ]
-        ],
-        "output": -1,
-        "parents": [
-            [
-                6,
-                2
-            ]
-        ]
-    },
-    {
-        "name": "XOR-2",
-        "code": [
-            6,
-            2
+            1,
+            0
         ],
         "high_child": [],
         "low_child": [
             [
-                8,
-                2
+                10,
+                0
             ]
         ],
-        "error_child": [
-            [
-                6,
-                1
-            ]
-        ],
-        "output": -1,
+        "error_child": [],
+        "output": 1,
         "parents": [
             [
-                6,
-                1
+                11,
+                0
             ]
         ]
     },
     {
-        "name": "A0",
+        "name": "InputPin-1",
         "code": [
-            8,
-            1
+            10,
+            0
+        ],
+        "high_child": [],
+        "low_child": [],
+        "error_child": [],
+        "output": 0,
+        "parents": [
+            [
+                1,
+                0
+            ]
+        ]
+    },
+    {
+        "name": "OutputPin-1",
+        "code": [
+            11,
+            0
         ],
         "high_child": [
             [
-                0,
-                1
+                1,
+                0
             ]
         ],
         "low_child": [],
         "error_child": [],
         "output": 1,
-        "parents": [
-            [
-                6,
-                1
-            ]
-        ]
-    },
-    {
-        "name": "B0",
-        "code": [
-            8,
-            2
-        ],
-        "high_child": [],
-        "low_child": [
-            [
-                0,
-                0
-            ]
-        ],
-        "error_child": [],
-        "output": 0,
-        "parents": [
-            [
-                6,
-                2
-            ]
-        ]
+        "parents": []
     }
 ]

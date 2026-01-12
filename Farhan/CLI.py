@@ -21,6 +21,7 @@ def menu():
         print("9. Diagnose Components")
         print("A. Save Circuit to File")
         print("B. Load Circuit from File")
+        print("C. Create IC")        
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
         print("Ctrl+A. Copy Components")
@@ -42,14 +43,12 @@ def menu():
             print("7. XNOR")
             print("8. Variable")  
             print("9. Probe")
-            
+            print("10. InputPin")
+            print("11. OutputPin")
             choice = input("Enter your choice: ").split()
             for i in choice:
                 i=int(i)
-                gate=base.addcomponent(i)
-                if i==9:
-                    gate.name=input('Name Probe without spaces: ')
-                
+                gate=base.addcomponent(i)       
 
         elif choice == '2':
             base.listComponent()
@@ -64,11 +63,10 @@ def menu():
             childlist = list(map(int,input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
                 child=base.canvas[child]
-                base.liveconnect(gate, child)
-                if gate.output==-1:
-                    print(f"Deadlock occured! please undo")                    
-                else:
+                if base.liveconnect(gate, child):                
                     print(f"Connected {child} to {gate}.")
+                else:
+                    print('Not connected')
             input('Press Enter to continue....')
 
         elif choice == '4':
@@ -132,6 +130,11 @@ def menu():
             base.load('file.json')
             print("Circuit loaded from file.txt")
             input('Press Enter to continue....')
+
+        elif choice.upper() == 'C':
+            base.createIC('file.json')
+            print("IC created from file.txt")
+            input('Press Enter to continue....')            
 
         elif choice==key.CTRL_Z:
             base.undo()

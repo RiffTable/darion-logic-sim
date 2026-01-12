@@ -1,4 +1,4 @@
-from Gates import Variable,Gate,Probe,NOT
+from Gates import InputPin, OutputPin, Variable,Gate,Probe,NOT
 from Circuit import Circuit
 
 class Design(Circuit):
@@ -6,7 +6,6 @@ class Design(Circuit):
         super().__init__()
         self.undolist=[]
         self.redolist=[]
-
 
     def addtoundo(self,token):
         self.undolist.append(token)
@@ -78,6 +77,9 @@ class Design(Circuit):
             super().copy(gates)
             super().paste()
 
+
+
+
     def addcomponent(self,gate_option)->Gate:
         gate=self.getcomponent(gate_option)
         self.addtoundo((1,gate))
@@ -90,10 +92,12 @@ class Design(Circuit):
     def liveconnect(self, parent, child):
         if isinstance(parent,NOT) or isinstance(parent,Probe):
             if parent.turnon():
-                print('Disconnect first')
-                return 
+                return False
+        if isinstance(child,InputPin) or isinstance(parent,OutputPin):
+            return False
         self.connect(parent, child)
         self.addtoundo((3,parent,child))
+        return True
     
     def input(self,var,value):
         self.connect(var, self.sign_1 if value=='1' else self.sign_0)

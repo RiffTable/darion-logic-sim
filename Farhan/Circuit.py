@@ -1,34 +1,33 @@
 import json
-from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe
+from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe,InputPin,OutputPin
 from Enum import Enum
+from IC import IC
 class Circuit:
 
     def __init__(self):
-        self.objlist=[[] for i in range(10)]# holds the objects with code name
+        self.objlist=[[] for i in range(13)]# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.sign_0=Signal(Enum.LOW)
         self.sign_1=Signal(Enum.HIGH)
         self.objlist[0]=[self.sign_0,self.sign_1]
         self.copydata=[]
-        self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe}
+        self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
 
     def __repr__(self):
         return 'Circuit'
-    def getobj(self,code)->Gate|Signal:
-        return self.objlist[code[0]][code[1]-1]
-    def delobj(self,code):
-        self.objlist[code[0]][code[1]-1]=None
+
     def getcomponent(self,choice)->Gate|Signal:
         if choice not in self.gateobjects:
             return
         gt=self.gateobjects[choice]()
-        self.objlist[choice].append(gt)
+
         rank=len(self.objlist[choice])
+        self.objlist[choice].append(gt)
         gt.code=(choice,rank)
         name=gt.__class__.__name__
         if name=='Variable':
-            gt.name=chr(ord('A')+(rank-1)%26)+str(rank//26)
+            gt.name=chr(ord('A')+(rank)%26)+str((rank+1)//26)
             gt.children[Enum.LOW].add(self.sign_0)
         else:
             gt.name=name+'-'+str(len(self.objlist[choice]))
@@ -36,7 +35,21 @@ class Circuit:
         if isinstance(gt,Variable):
             self.varlist.append(gt)
         return gt
+    
+    def getICcomponent(self,choice):
+        gt=self.gateobjects[choice]()
+        rank=len(self.objlist[choice])
+        self.objlist[choice].append(gt)
+        gt.code=(choice,rank)
+        name=gt.__class__.__name__
+        gt.name=name+'-'+str(len(self.objlist[choice]))
+        return gt
 
+    def getobj(self,code)->Gate|Signal:
+        return self.objlist[code[0]][code[1]]
+    
+    def delobj(self,code):
+        self.objlist[code[0]][code[1]]=None
 
     # show component
     def listComponent(self):
@@ -159,7 +172,8 @@ class Circuit:
         row_format = header_format  # Same alignment and widths
         
         for component in self.canvas:
-            
+            if isinstance(component,IC):
+                continue
             # Inputs (children)
             input_0=[]
             input_1=[]
@@ -187,40 +201,7 @@ class Circuit:
         
         print("-" * total_width)
         
-    def writetofile(self,address):
-        # write the component list to file
-        f=open(address,'w')
 
-        for i in self.canvas:
-            f.write(f'{i.code} ')
-        f.write('\n')
-        for i in self.canvas:
-
-            # write self
-            f.write(f'{i.code} ')
-            # write children
-            input_0=[child.code for child in i.children[0]]
-            input_0=','.join(input_0)
-            if len(input_0):                
-                f.write(f'{input_0} ')
-            else:
-                f.write('X ')   
-            input_1=[child.code for child in i.children[1]]
-            input_1=','.join(input_1)
-            if len(input_1):                
-                f.write(f'{input_1} ')
-            else:
-                f.write('X ') 
-            input_neg=[child.code for child in i.children[-1]]
-            input_neg=','.join(input_neg)
-            if len(input_neg):                
-                f.write(f'{input_neg} ')
-            else:
-                f.write('X ') 
-            # write output
-            f.write(str(i.output))
-            f.write('\n')
-        f.close()
     def writetojson(self,location):
         circuit=[{"Component_List":[gate.code for gate in self.canvas]}]
         for gate in self.canvas:
@@ -256,6 +237,32 @@ class Circuit:
             gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])
             gate.output=gate_dict["output"]
             gate.parents=set(pseudo[tuple(parent)] for parent in gate_dict["parents"])
+    
+    def createIC(self,location):
+        myIC=self.getICcomponent(12)
+        with open(location,'r') as file:
+            circuit=json.load(file)
+        pseudo={}
+        pseudo[(0,0)]=self.sign_0
+        pseudo[(0,1)]=self.sign_1
+        for i in circuit[0]["Component_List"]:
+            gate=self.getICcomponent(i[0])
+            myIC.addgate(gate)
+            pseudo[tuple(i)]=gate
+        for i in range(1,len(circuit)):
+            gate_dict=circuit[i]
+            code=tuple(gate_dict["code"])
+            gate=pseudo[code]
+            gate.name=gate_dict["name"]
+            gate.children[Enum.LOW]=set(pseudo[tuple(child)] for child in gate_dict["low_child"])
+            gate.children[Enum.HIGH]=set(pseudo[tuple(child)] for child in gate_dict["high_child"])
+            gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])
+            gate.output=gate_dict["output"]
+            gate.parents=set(pseudo[tuple(parent)] for parent in gate_dict["parents"])
+        for inputs in myIC.inputs:
+            self.canvas.append(inputs)
+        for outputs in myIC.outputs:
+            self.canvas.append(outputs)
 
     def rank_reset(self):
         for key in self.objlist:
@@ -310,4 +317,3 @@ class Circuit:
         return new_items
 
 
-        
