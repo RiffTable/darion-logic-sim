@@ -142,6 +142,18 @@ class Gate:
             return '0/1'
         else:
             return 'T' if self.output else 'F'
+        
+    def fullclone(self,pseudo:dict):
+        clone=pseudo[self.code]
+        for child in self.children[Enum.LOW]|self.children[Enum.HIGH]|self.children[Enum.ERROR]:
+            clone.children[child.output].add(pseudo[child.code])
+        for parent in self.parents:
+            clone.parents.add(pseudo[parent.code])
+        clone.output=self.output
+    def halfclone(self,pseudo:dict):
+        clone=pseudo[self.code]
+        for child in self.children[Enum.LOW]|self.children[Enum.HIGH]|self.children[Enum.ERROR]:
+            clone.connect(pseudo[child.code])
 
 class Variable(Gate):
     # this can be both an input or output(bulb)
@@ -167,6 +179,7 @@ class Probe(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
+        
 class InputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):      
@@ -175,6 +188,7 @@ class InputPin(Probe):
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
+
 class OutputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):      
@@ -185,7 +199,6 @@ class OutputPin(Probe):
         self.output=len(self.children[Enum.HIGH])
 
 class NOT(Gate):
-
     def __init__(self):    
         super().__init__()
         self.inputlimit=1
@@ -196,8 +209,6 @@ class NOT(Gate):
 
         
 class AND(Gate):
-
-
     def __init__(self):
         super().__init__()
  
@@ -207,7 +218,6 @@ class AND(Gate):
 
                 
 class NAND(Gate):
-
     def __init__(self):
         super().__init__()   
 
@@ -217,7 +227,6 @@ class NAND(Gate):
 
         
 class OR(Gate):
-
     def __init__(self):
         super().__init__()
 
