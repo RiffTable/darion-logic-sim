@@ -93,7 +93,6 @@ class Design(Circuit):
         if isinstance(parent,NOT) or isinstance(parent,Probe):
             if parent.turnon():
                 return False
-
         self.connect(parent, child)
         self.addtoundo((3,parent,child))
         return True

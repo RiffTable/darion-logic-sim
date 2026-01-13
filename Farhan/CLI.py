@@ -1,7 +1,7 @@
 from Designer import Design
 from readchar import readkey,key
 import os
-
+from IC import IC
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -22,6 +22,7 @@ def menu():
         print("A. Save Circuit to File")
         print("B. Load Circuit from File")
         print("C. Create IC")        
+        print("D. Configure IC")
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
         print("Ctrl+A. Copy Components")
@@ -136,6 +137,90 @@ def menu():
             print("IC created from file.txt")
             input('Press Enter to continue....')            
 
+        elif choice.upper() == 'D':
+            # show input and output gates of first list the ICs
+            for i,ic in enumerate(base.iclist):
+                print(f'{i}. {ic}')
+            ic=base.iclist[int(input('Enter the serial of the IC you want to configure: '))]
+            while True:
+                clear_screen()
+                print(f"--- Configuring IC: {ic.name} ---")
+                print("1. Show Input Pins")
+                print("2. Show Output Pins")
+                print("3. Show IC Info")                
+                print("4. Connect Input Pin")
+                print("5. Disconnect Input Pin")
+                print("6. Connect Output Pin")
+                print("7. Disconnect Output Pin")
+                print("ESC. Back")
+                ic_choice=readkey()
+                if ic_choice=='1':
+                    ic.showinputpins()
+                    input('Press Enter to continue....')
+                elif ic_choice=='2':
+                    ic.showoutputpins()
+                    input('Press Enter to continue....')
+                   
+                elif ic_choice=='3':
+                    ic.info()
+                    input('Press Enter to continue....')
+                                   
+                elif ic_choice=='4':
+                    ic.showinputpins()
+                    pin=input('Enter the serial of the pin: ')
+                    if pin=='':
+                        continue
+                    pin=ic.inputs[int(pin)]
+                    base.listComponent()
+                    gate=input('Enter the serial of the gate you want to connect: ')
+                    if gate=='':
+                        continue
+                    gate=base.canvas[int(gate)]
+                    base.connect(pin,gate)
+                    input('Press Enter to continue....')  
+
+                elif ic_choice=='5':
+                    ic.showinputpins()
+                    pin=input('Enter the serial of the pin: ')
+                    if pin=='':
+                        continue
+                    pin=ic.inputs[int(pin)]
+                    base.listComponent()
+                    gate=input('Enter the serial of the gate you want to disconnect: ')
+                    if gate=='':
+                        continue
+                    gate=base.canvas[int(gate)]
+                    base.disconnect(pin,gate)
+                    input('Press Enter to continue....')
+                elif ic_choice=='6':
+                    ic.showoutputpins()
+                    pin=input('Enter the serial of the pin: ')
+                    if pin=='':
+                        continue
+                    pin=ic.outputs[int(pin)]
+                    base.listComponent()
+                    gate=input('Enter the serial of the gate you want to connect: ')
+                    if gate=='':
+                        continue
+                    gate=base.canvas[int(gate)]
+                    base.connect(gate,pin)
+                    input('Press Enter to continue....')
+                elif ic_choice=='7':
+                    ic.showoutputpins()
+                    pin=input('Enter the serial of the pin: ')
+                    if pin=='':
+                        continue
+                    pin=ic.outputs[int(pin)]
+                    base.listComponent()
+                    gate=input('Enter the serial of the gate you want to disconnect: ')
+                    if gate=='':
+                        continue
+                    gate=base.canvas[int(gate)]
+                    base.disconnect(gate,pin)
+                    input('Press Enter to continue....')
+                elif ic_choice==key.ESC:
+                    break
+
         elif choice==key.CTRL_Z:
             base.undo()
             input('Press Enter to continue....')         
@@ -147,9 +232,15 @@ def menu():
         elif choice==key.CTRL_A:
             base.listComponent()
             gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
-            gatelist=[base.canvas[i].code for i in gatelist]
+            total_gates=[]
+            for gates in gatelist:
+                gate=base.canvas[gates]
+                if isinstance(gate,IC):
+                    total_gates=total_gates+[i.code for i in gate.allgates]
+                else:
+                    total_gates.append(gate.code)
 
-            base.copy(gatelist)
+            base.copy(total_gates)
             print("Copied")
             input('Press Enter to continue....')
 

@@ -112,6 +112,8 @@ class Gate:
         else:
             for parent in self.parents:# disconnect from parents and they will modify their output 
                 parent.connect(self)
+            for parent in self.parents:# disconnect from parents and they will modify their output 
+                parent.propogate()
         for child in self.children[Enum.LOW]:
             child.parents.add(self)
         for child in self.children[Enum.HIGH]:

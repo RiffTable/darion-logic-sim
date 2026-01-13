@@ -8,6 +8,7 @@ class Circuit:
         self.objlist=[[] for i in range(13)]# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
+        self.iclist=[]
         self.sign_0=Signal(Enum.LOW)
         self.sign_1=Signal(Enum.HIGH)
         self.objlist[0]=[self.sign_0,self.sign_1]
@@ -99,7 +100,7 @@ class Circuit:
             self.varlist.remove(gate)
         self.canvas.remove(gate)
 
-    def renewComponent(self,gate:Gate):
+    def renewComponent(self,gate:Gate|IC):
         gate.reveal()
         if isinstance(gate,Variable):
             self.varlist.append(gate)
@@ -114,7 +115,7 @@ class Circuit:
         if len(self.varlist) == 0:
             return
         
-        gate_list=[i for i in self.canvas if i not in self.varlist]
+        gate_list=[i for i in self.canvas if i not in self.varlist and not isinstance(i,IC)]
         n = len(self.varlist)
         rows = 1 << n
         # Collect decoded variable names and the output gate name
@@ -242,6 +243,7 @@ class Circuit:
     
     def createIC(self,location):
         myIC=self.getcomponent(12)
+        self.iclist.append(myIC)
         with open(location,'r') as file:
             circuit=json.load(file)
         pseudo={}
@@ -255,12 +257,17 @@ class Circuit:
             gate_dict=circuit[i]
             code=tuple(gate_dict["code"])
             gate=pseudo[code]
-            gate.name=gate_dict["name"]
+            if isinstance(gate,InputPin|OutputPin):
+                gate.name=myIC.name+gate_dict["name"]
             gate.children[Enum.LOW]=set(pseudo[tuple(child)] for child in gate_dict["low_child"])
             gate.children[Enum.HIGH]=set(pseudo[tuple(child)] for child in gate_dict["high_child"])
             gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])
             gate.output=gate_dict["output"]
             gate.parents=set(pseudo[tuple(parent)] for parent in gate_dict["parents"])
+        # for inputs in myIC.inputs:
+        #     self.canvas.append(inputs)
+        # for outputs in myIC.outputs:
+        #     self.canvas.append(outputs)
 
     def rank_reset(self):
         for key in self.objlist:
