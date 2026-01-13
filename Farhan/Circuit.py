@@ -21,8 +21,10 @@ class Circuit:
     def getcomponent(self,choice)->Gate|Signal:
         if choice not in self.gateobjects:
             return
-        gt=self.gateobjects[choice]()
-
+        if choice!=12:
+            gt=self.gateobjects[choice]()
+        else:
+            gt=self.gateobjects[choice](self)
         rank=len(self.objlist[choice])
         self.objlist[choice].append(gt)
         gt.code=(choice,rank)
@@ -50,6 +52,10 @@ class Circuit:
         return self.objlist[code[0]][code[1]]
     
     def delobj(self,code):
+        if code[0]==12:
+            ic=self.objlist[code[0]][code[1]]
+            ic.clearlist()
+                
         self.objlist[code[0]][code[1]]=None
 
     # show component
@@ -76,7 +82,6 @@ class Circuit:
         if child[0]!=0:
             child_obj.parents.add(parent_obj)
 
-
     # identify parent/child
     def disconnect(self,parent:Gate,child:Gate):
         if parent in child.parents:
@@ -99,9 +104,7 @@ class Circuit:
         gate.reveal()
         if isinstance(gate,Variable):
             self.varlist.append(gate)
-        self.canvas.append(gate)
-    
-        
+        self.canvas.append(gate)       
     
     # Result 
     def output(self,gate:Gate):
@@ -282,19 +285,19 @@ class Circuit:
             return
         self.copydata=[]
         self.copydata.append(components)
-        for component in components:
-            obj=self.getobj(component)
-            info=[component]
-            children=obj.children[Enum.LOW]|obj.children[Enum.HIGH]|obj.children[Enum.ERROR]
-            children=[i.code for i in children]
-            copychild=[]
-            for child in children:
-                if child in components or child[0]==0:
-                    copychild.append(child)
-            if len(copychild)==0:
-                copychild=()
-            info.append(copychild)
-            self.copydata.append(info)
+        # for component in components:
+        #     obj=self.getobj(component)
+        #     info=[component]
+        #     children=obj.children[Enum.LOW]|obj.children[Enum.HIGH]|obj.children[Enum.ERROR]
+        #     children=[i.code for i in children]
+        #     copychild=[]
+        #     for child in children:
+        #         if child in components or child[0]==0:
+        #             copychild.append(child)
+        #     if len(copychild)==0:
+        #         copychild=()
+        #     info.append(copychild)
+        #     self.copydata.append(info)
 
     def paste(self):
         if len(self.copydata)==0:
@@ -309,13 +312,32 @@ class Circuit:
             comp=self.getcomponent(identity)
             pseudo[component]=comp
             new_items.append(comp.code)
-        connections=[self.copydata[i] for i in range(1,len(self.copydata))]
-        for line in connections:
-            gate=line[0]
-            children=line[1]
-            if 'X' not in children:
-                for child in children :
-                    self.connect(pseudo[gate],pseudo[child])
+        for component in components:
+            self.getobj(component).halfclone(pseudo)
         return new_items
+
+
+
+    # def paste(self):
+    #     if len(self.copydata)==0:
+    #         return
+    #     components=self.copydata[0]
+    #     pseudo={}
+    #     pseudo[(0,0)]=self.sign_0
+    #     pseudo[(0,1)]=self.sign_1
+    #     new_items=[]
+    #     for component in components:
+    #         identity=component[0]
+    #         comp=self.getcomponent(identity)
+    #         pseudo[component]=comp
+    #         new_items.append(comp.code)
+    #     connections=[self.copydata[i] for i in range(1,len(self.copydata))]
+    #     for line in connections:
+    #         gate=line[0]
+    #         children=line[1]
+    #         if 'X' not in children:
+    #             for child in children :
+    #                 self.connect(pseudo[gate],pseudo[child])
+    #     return new_items
 
 
