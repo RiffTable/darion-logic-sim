@@ -1,4 +1,3 @@
-import select
 from Gates import Gate,InputPin,OutputPin
 from Enum import Enum
 class IC:
@@ -16,6 +15,20 @@ class IC:
             self.inputs.append(child)
         if isinstance(child,OutputPin):
             self.outputs.append(child)
+    
+    def getcopyinfo(self,dictionary,cluster):
+        icdict={}
+        for elem in self.allgates:
+            icdict[elem.code]=[parent.code for parent in elem.parents if parent in cluster or self.allgates]
+        dictionary[self.code]=icdict
+
+    def clone(self,pseudo:dict,map:dict):
+        for code in map.keys():
+            self.addgate(pseudo[code])
+        for code,parentlist in map.items():
+            comp=pseudo[code]
+            comp.clone(pseudo,parentlist)
+
     def showinputpins(self):
         for i,gate in enumerate(self.inputs):
             print(f'{i}. {gate}')
@@ -28,6 +41,9 @@ class IC:
         for pin in self.outputs:
             for parent in pin.parents:
                 parent.children[pin.output].discard(pin)
+            for parent in pin.parents:
+                parent.process()
+                parent.propagate()
         for pin in self.inputs:
             for child in pin.children[Enum.LOW]:
                 child.parents.discard(pin)
@@ -39,16 +55,14 @@ class IC:
     def reveal(self):
         for pin in self.outputs:
             for parent in pin.parents:
-                parent.children[pin.output].add(pin)
-            for parent in pin.parents:
-                parent.propogate()
+                parent.connect(pin)
         for pin in self.inputs:
             for child in pin.children[Enum.LOW]:
-                child.parents.discard(pin)
+                child.parents.add(pin)
             for child in pin.children[Enum.HIGH]:
-                child.parents.discard(pin)
+                child.parents.add(pin)
             for child in pin.children[Enum.ERROR]:
-                child.parents.discard(pin)
+                child.parents.add(pin)
     
     def info(self):
         # show all components in a ordered way
@@ -71,6 +85,7 @@ class IC:
             clone.addgate(comp)
         for obj in self.allgates:
             obj.halfclone(pseudo) 
+            
     def clearlist(self):
         for gate in self.allgates:
             self.circuit.delobj(gate.code)

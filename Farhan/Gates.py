@@ -14,8 +14,6 @@ class Signal:
 
 class Gate:   
     def __init__(self):
-        # a gate needs holders from the circuit
-
         # gate's children or inputs
         self.children={Enum.LOW:set(),Enum.HIGH:set(),Enum.ERROR:set()}
         self.parents=set()
@@ -35,6 +33,9 @@ class Gate:
         
     def __str__(self):
         return self.name
+    
+    def getcopyinfo(self,dictionary,cluster):
+        dictionary[self.code]=[parent.code for parent in self.parents if parent in cluster]
     
     def connect(self,child:'Gate'):
         val=child.output  
@@ -79,7 +80,6 @@ class Gate:
                     child.burn()
                     return
 
-
     def burn(self):
         queue=deque()
         queue.append(self)
@@ -96,11 +96,7 @@ class Gate:
     def hide(self):
         for parent in self.parents:# disconnect from parents and they will modify their output 
             parent.children[self.output].discard(self)
-        for child in self.children[Enum.LOW]:# disconnect from children
-            child.parents.discard(self)
-        for child in self.children[Enum.HIGH]:
-            child.parents.discard(self)  
-        for child in self.children[Enum.ERROR]:
+        for child in self.children[Enum.LOW]| self.children[Enum.HIGH]|self.children[Enum.ERROR]:
             child.parents.discard(self)               
         for parent in self.parents:# disconnect from parents and they will modify their output 
             parent.process()
@@ -112,15 +108,8 @@ class Gate:
         else:
             for parent in self.parents:# disconnect from parents and they will modify their output 
                 parent.connect(self)
-            for parent in self.parents:# disconnect from parents and they will modify their output 
-                parent.propogate()
-        for child in self.children[Enum.LOW]:
+        for child in self.children[Enum.LOW]| self.children[Enum.HIGH]|self.children[Enum.ERROR]:
             child.parents.add(self)
-        for child in self.children[Enum.HIGH]:
-            child.parents.add(self)   
-        for child in self.children[Enum.ERROR]:
-            child.parents.add(self)
-
 
     def turnon(self):
         return len(self.children[Enum.LOW])+len(self.children[Enum.HIGH])+len(self.children[Enum.ERROR])>=self.inputlimit
@@ -133,9 +122,6 @@ class Gate:
         pass
 
     # gives output in T or F of off if there isn't enough inputs
-
-
-
 
     def getoutput(self):
         if self.turnon()==False:
@@ -152,11 +138,12 @@ class Gate:
         for parent in self.parents:
             clone.parents.add(pseudo[parent.code])
         clone.output=self.output
-    def halfclone(self,pseudo:dict):
-        clone=pseudo[self.code]
-        for child in self.children[Enum.LOW]|self.children[Enum.HIGH]|self.children[Enum.ERROR]:
-            clone.connect(pseudo[child.code])
-
+    def clone(self,pseudo:dict,parentlist:list):
+        for parent in parentlist:
+            parent=pseudo[parent]
+            parent.connect(self)
+            parent.propagate()
+        
 class Variable(Gate):
     # this can be both an input or output(bulb)
     def __init__(self):     
@@ -209,7 +196,6 @@ class NOT(Gate):
         self.prev_output=self.output
         self.output=len(self.children[Enum.LOW])
 
-        
 class AND(Gate):
     def __init__(self):
         super().__init__()
@@ -218,7 +204,6 @@ class AND(Gate):
         self.prev_output=self.output
         self.output=0 if len(self.children[Enum.LOW]) else 1
 
-                
 class NAND(Gate):
     def __init__(self):
         super().__init__()   
@@ -227,7 +212,6 @@ class NAND(Gate):
         self.prev_output=self.output
         self.output=1 if len(self.children[Enum.LOW]) else 0
 
-        
 class OR(Gate):
     def __init__(self):
         super().__init__()
@@ -236,7 +220,6 @@ class OR(Gate):
         self.prev_output=self.output
         self.output=1 if len(self.children[Enum.HIGH]) else 0
 
-        
 class NOR(Gate):
 
     def __init__(self):
@@ -245,9 +228,7 @@ class NOR(Gate):
     def process(self):
         self.prev_output=self.output
         self.output=0 if len(self.children[Enum.HIGH]) else 1
-
-        
-        
+       
 class XOR(Gate):
 
     def __init__(self):
@@ -257,7 +238,6 @@ class XOR(Gate):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])%2
 
-        
 class XNOR(Gate):
 
     def __init__(self):

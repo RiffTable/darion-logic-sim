@@ -123,17 +123,17 @@ def menu():
             input('Press Enter to continue....')
             
         elif choice.upper() == 'A':
-            base.save('file.json')
+            base.save('Latch.json')
             print("Circuit saved to file.txt")
             input('Press Enter to continue....')
 
         elif choice.upper() == 'B':
-            base.load('file.json')
+            base.load('Latch.json')
             print("Circuit loaded from file.txt")
             input('Press Enter to continue....')
 
         elif choice.upper() == 'C':
-            base.createIC('file.json')
+            base.createIC('IC.json')
             print("IC created from file.txt")
             input('Press Enter to continue....')            
 
@@ -231,16 +231,15 @@ def menu():
 
         elif choice==key.CTRL_A:
             base.listComponent()
-            gatelist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
-            total_gates=[]
-            for gates in gatelist:
-                gate=base.canvas[gates]
-                if isinstance(gate,IC):
-                    total_gates=total_gates+[i.code for i in gate.allgates]
-                else:
-                    total_gates.append(gate.code)
-
-            base.copy(total_gates)
+            complist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
+            # each gate is a component but ic will add it's components
+            components=[]
+            for i in complist:
+                obj=base.canvas[i]
+                components.append(obj)
+                if isinstance(obj,IC):
+                    components=components+obj.allgates
+            base.copy(components)
             print("Copied")
             input('Press Enter to continue....')
 

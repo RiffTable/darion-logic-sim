@@ -1,0 +1,118 @@
+[
+    {
+        "Component_List": [
+            [
+                6,
+                0
+            ],
+            [
+                6,
+                1
+            ],
+            [
+                8,
+                0
+            ],
+            [
+                8,
+                1
+            ]
+        ]
+    },
+    {
+        "name": "XOR-1",
+        "code": [
+            6,
+            0
+        ],
+        "high_child": [],
+        "low_child": [
+            [
+                6,
+                1
+            ],
+            [
+                8,
+                0
+            ]
+        ],
+        "error_child": [],
+        "output": 0,
+        "parents": [
+            [
+                6,
+                1
+            ]
+        ]
+    },
+    {
+        "name": "XOR-2",
+        "code": [
+            6,
+            1
+        ],
+        "high_child": [],
+        "low_child": [
+            [
+                6,
+                0
+            ],
+            [
+                8,
+                1
+            ]
+        ],
+        "error_child": [],
+        "output": 0,
+        "parents": [
+            [
+                6,
+                0
+            ]
+        ]
+    },
+    {
+        "name": "A0",
+        "code": [
+            8,
+            0
+        ],
+        "high_child": [],
+        "low_child": [
+            [
+                0,
+                0
+            ]
+        ],
+        "error_child": [],
+        "output": 0,
+        "parents": [
+            [
+                6,
+                0
+            ]
+        ]
+    },
+    {
+        "name": "B0",
+        "code": [
+            8,
+            1
+        ],
+        "high_child": [],
+        "low_child": [
+            [
+                0,
+                0
+            ]
+        ],
+        "error_child": [],
+        "output": 0,
+        "parents": [
+            [
+                6,
+                1
+            ]
+        ]
+    }
+]

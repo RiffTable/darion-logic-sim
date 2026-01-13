@@ -37,6 +37,8 @@ class Circuit:
         self.canvas.append(gt)
         if isinstance(gt,Variable):
             self.varlist.append(gt)
+        if isinstance(gt,IC):
+            self.iclist.append(gt)
         return gt
     
     def getICcomponent(self,choice):
@@ -243,7 +245,6 @@ class Circuit:
     
     def createIC(self,location):
         myIC=self.getcomponent(12)
-        self.iclist.append(myIC)
         with open(location,'r') as file:
             circuit=json.load(file)
         pseudo={}
@@ -283,8 +284,10 @@ class Circuit:
     def copy(self,components):
         if len(components)==0:
             return
-        self.copydata=[]
-        self.copydata.append(components)
+        
+        self.copydata={}
+        for i in components:
+            i.getcopyinfo(self.copydata,components)
         # for component in components:
         #     obj=self.getobj(component)
         #     info=[component]
@@ -302,21 +305,19 @@ class Circuit:
     def paste(self):
         if len(self.copydata)==0:
             return
-        components=self.copydata[0]
         pseudo={}
         pseudo[(0,0)]=self.sign_0
         pseudo[(0,1)]=self.sign_1
         new_items=[]
-        for component in components:
+        for component in self.copydata.keys():
             identity=component[0]
             comp=self.getcomponent(identity)
             pseudo[component]=comp
             new_items.append(comp.code)
-        for component in components:
-            self.getobj(component).halfclone(pseudo)
+        for component,parentlist in self.copydata.items():
+            component=pseudo[component]
+            component.clone(pseudo,parentlist)
         return new_items
-
-
 
     # def paste(self):
     #     if len(self.copydata)==0:

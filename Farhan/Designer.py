@@ -110,9 +110,8 @@ class Design(Circuit):
 
     def paste(self):
         if len(self.copydata):
-            source=self.copydata[0]
-            gates=super().paste()
-           
+            source=self.copydata.keys()
+            gates=super().paste()           
             self.addtoundo((5,source,gates))
 
     def load(self,file_location):
@@ -121,9 +120,6 @@ class Design(Circuit):
         self.redolist.clear()
         self.readfromjson(file_location)
         
-    def importfromfile(self,file_location):
-        self.readfromfile(file_location)
-
     def save(self,file_location):
         self.writetojson(file_location)
 
