@@ -17,17 +17,11 @@ class IC:
             self.outputs.append(child)
     
     def getcopyinfo(self,dictionary,cluster):
-        icdict={}
-        for elem in self.allgates:
-            icdict[elem.code]=[parent.code for parent in elem.parents if parent in cluster or self.allgates]
-        dictionary[self.code]=icdict
+        dictionary[self.code]=[i.code for i in self.allgates]
 
-    def clone(self,pseudo:dict,map:dict):
-        for code in map.keys():
+    def clone(self,pseudo:dict,elements):
+        for code in elements:
             self.addgate(pseudo[code])
-        for code,parentlist in map.items():
-            comp=pseudo[code]
-            comp.clone(pseudo,parentlist)
 
     def showinputpins(self):
         for i,gate in enumerate(self.inputs):
@@ -76,16 +70,7 @@ class IC:
             
     def connect(self,pin:InputPin,gate:Gate):
         pin.connect(gate)
-
-    def halfclone(self,pseudo:dict):
-        clone=pseudo[self.code]
-        for obj in self.allgates:
-            comp=self.circuit.getICcomponent(obj.code[0])
-            pseudo[obj.code]=comp
-            clone.addgate(comp)
-        for obj in self.allgates:
-            obj.halfclone(pseudo) 
-            
+           
     def clearlist(self):
         for gate in self.allgates:
             self.circuit.delobj(gate.code)

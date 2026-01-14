@@ -5,7 +5,7 @@ from IC import IC
 class Circuit:
 
     def __init__(self):
-        self.objlist=[[] for i in range(13)]# holds the objects with code name
+        self.objlist={i:[] for i in range(-11,13)}# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.iclist=[]
@@ -19,10 +19,10 @@ class Circuit:
         return 'Circuit'
 
     def getcomponent(self,choice)->Gate|Signal:
-        if choice not in self.gateobjects:
+        if abs(choice) not in self.gateobjects:
             return
         if choice!=12:
-            gt=self.gateobjects[choice]()
+            gt=self.gateobjects[abs(choice)]()
         else:
             gt=self.gateobjects[choice](self)
         rank=len(self.objlist[choice])
@@ -34,21 +34,15 @@ class Circuit:
             gt.children[Enum.LOW].add(self.sign_0)
         else:
             gt.name=name+'-'+str(len(self.objlist[choice]))
-        self.canvas.append(gt)
+
         if isinstance(gt,Variable):
             self.varlist.append(gt)
         if isinstance(gt,IC):
             self.iclist.append(gt)
+        if choice>0:
+            self.canvas.append(gt)
         return gt
     
-    def getICcomponent(self,choice):
-        gt=self.gateobjects[choice]()
-        rank=len(self.objlist[choice])
-        self.objlist[choice].append(gt)
-        gt.code=(choice,rank)
-        name=gt.__class__.__name__
-        gt.name=name+'-'+str(len(self.objlist[choice]))
-        return gt
 
     def getobj(self,code)->Gate|Signal:
         return self.objlist[code[0]][code[1]]
@@ -251,7 +245,7 @@ class Circuit:
         pseudo[(0,0)]=self.sign_0
         pseudo[(0,1)]=self.sign_1
         for i in circuit[0]["Component_List"]:
-            gate=self.getICcomponent(i[0])
+            gate=self.getcomponent(i[0])
             myIC.addgate(gate)
             pseudo[tuple(i)]=gate
         for i in range(1,len(circuit)):
