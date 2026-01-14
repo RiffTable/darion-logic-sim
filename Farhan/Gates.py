@@ -25,6 +25,8 @@ class Gate:
         # each gate will have it's own unique id
         self.code=''
         self.name=''
+        self.inputpoint=True
+        self.outputpoint=True
     def rename(self,name):
         self.name=name
         
@@ -130,14 +132,18 @@ class Gate:
             return '0/1'
         else:
             return 'T' if self.output else 'F'
-        
-    def fullclone(self,pseudo:dict):
-        clone=pseudo[self.code]
-        for child in self.children[Enum.LOW]|self.children[Enum.HIGH]|self.children[Enum.ERROR]:
-            clone.children[child.output].add(pseudo[child.code])
-        for parent in self.parents:
-            clone.parents.add(pseudo[parent.code])
-        clone.output=self.output
+    def json_data(self):
+        dictionary={
+            "name":self.name,
+            "code":self.code,
+            "parents":[parent.code for parent in self.parents],
+            "High":[child.code for child in self.children[Enum.HIGH]],
+            "Low":[child.code for child in self.children[Enum.LOW]],
+            "Error":[child.code for child in self.children[Enum.ERROR]],
+            "output":self.output,
+
+        }
+        return dictionary
     def clone(self,pseudo:dict,parentlist:list):
         for parent in parentlist:
             parent=pseudo[parent]
@@ -164,16 +170,30 @@ class Probe(Gate):
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
-        self.probetype=0
+
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
-        
+                    
+    def json_data(self):
+        dictionary={
+            "name":self.name,
+            "code":self.code,
+            "parents":[parent.code for parent in self.parents],
+            "High":[child.code for child in self.children[Enum.HIGH]],
+            "Low":[child.code for child in self.children[Enum.LOW]],
+            "Error":[child.code for child in self.children[Enum.ERROR]],
+            "output":self.output,
+            "inputpoint":self.inputpoint,
+            "outputpoint":self.outputpoint
+        }
+        return dictionary            
 class InputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
+        self.inputpoint=False
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
@@ -183,6 +203,7 @@ class OutputPin(Probe):
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
+        self.outputpoint=False
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])

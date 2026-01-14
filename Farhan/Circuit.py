@@ -253,7 +253,7 @@ class Circuit:
             code=tuple(gate_dict["code"])
             gate=pseudo[code]
             if isinstance(gate,InputPin|OutputPin):
-                gate.name=myIC.name+gate_dict["name"]
+                gate.name=myIC.name+' '+gate_dict["name"]
             gate.children[Enum.LOW]=set(pseudo[tuple(child)] for child in gate_dict["low_child"])
             gate.children[Enum.HIGH]=set(pseudo[tuple(child)] for child in gate_dict["high_child"])
             gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])

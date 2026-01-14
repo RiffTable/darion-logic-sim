@@ -57,7 +57,16 @@ class IC:
                 child.parents.add(pin)
             for child in pin.children[Enum.ERROR]:
                 child.parents.add(pin)
-    
+    def json_data(self):
+        dictionary={
+            "name":self.name,
+            "code":self.code,
+            "allgates":[gate.code for gate in self.allgates],
+            "inputs":[gate.code for gate in self.inputs],
+            "outputs":[gate.code for gate in self.outputs]
+        }
+        return dictionary
+        
     def info(self):
         # show all components in a ordered way
         for comp in self.allgates:

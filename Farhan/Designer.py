@@ -89,10 +89,9 @@ class Design(Circuit):
         self.hideComponent(gate)
         self.addtoundo((2,gate))
 
-    def liveconnect(self, parent, child):
-        if isinstance(parent,NOT) or isinstance(parent,Probe):
-            if parent.turnon():
-                return False
+    def liveconnect(self, parent:Gate, child:Gate):
+        if parent.inputpoint==False or child.outputpoint==False or parent.turnon():
+            return False
         self.connect(parent, child)
         self.addtoundo((3,parent,child))
         return True
