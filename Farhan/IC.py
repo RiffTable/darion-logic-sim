@@ -135,23 +135,18 @@ class IC:
                 parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Enum.LOW]:
-                child.parents.discard(pin)
-            for child in pin.children[Enum.HIGH]:
-                child.parents.discard(pin)
-            for child in pin.children[Enum.ERROR]:
+            for child in pin.children[Enum.LOW]|pin.children[Enum.HIGH]|pin.children[Enum.ERROR]:
                 child.parents.discard(pin)
                 
     def reveal(self):
         for pin in self.outputs:
             for parent in pin.parents:
                 parent.connect(pin)
+            for parent in pin.parents:
+                parent.process()
+                parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Enum.LOW]:
-                child.parents.add(pin)
-            for child in pin.children[Enum.HIGH]:
-                child.parents.add(pin)
-            for child in pin.children[Enum.ERROR]:
+            for child in pin.children[Enum.LOW]| pin.children[Enum.HIGH]|pin.children[Enum.ERROR]:
                 child.parents.add(pin)
       
     def info(self):

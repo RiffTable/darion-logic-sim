@@ -85,7 +85,7 @@
                         ]
                     ]
                 ],
-                "output": -1
+                "output": 0
             },
             {
                 "name": "XOR-2",
@@ -116,7 +116,7 @@
                         ]
                     ]
                 ],
-                "output": -1
+                "output": 0
             },
             {
                 "name": "in-1",
@@ -139,7 +139,7 @@
                         ]
                     ]
                 ],
-                "output": 1
+                "output": 0
             },
             {
                 "name": "in-2",
@@ -176,7 +176,7 @@
                     ]
                 ],
                 "parents": [],
-                "output": -1
+                "output": 0
             },
             {
                 "name": "out-2",
@@ -190,46 +190,8 @@
                     ]
                 ],
                 "parents": [],
-                "output": -1
+                "output": 0
             }
         ]
-    },
-    {
-        "name": "A0",
-        "custom_name": "",
-        "code": [
-            8,
-            0
-        ],
-        "parents": [
-            [
-                10,
-                0,
-                [
-                    12,
-                    0
-                ]
-            ]
-        ],
-        "output": 1
-    },
-    {
-        "name": "B0",
-        "custom_name": "",
-        "code": [
-            8,
-            1
-        ],
-        "parents": [
-            [
-                10,
-                1,
-                [
-                    12,
-                    0
-                ]
-            ]
-        ],
-        "output": 0
     }
 ]

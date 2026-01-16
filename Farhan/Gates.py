@@ -116,6 +116,9 @@ class Gate:
                 parent.connect(self)
         for child in self.children[Enum.LOW]| self.children[Enum.HIGH]|self.children[Enum.ERROR]:
             child.parents.add(self)
+        for parent in self.parents:# disconnect from parents and they will modify their output 
+            parent.process()
+            parent.propagate()
 
     def turnon(self):
         return len(self.children[Enum.LOW])+len(self.children[Enum.HIGH])+len(self.children[Enum.ERROR])>=self.inputlimit
