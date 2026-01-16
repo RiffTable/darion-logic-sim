@@ -1,3 +1,4 @@
+import json
 from Gates import InputPin, OutputPin, Variable,Gate,Probe,NOT
 from Circuit import Circuit
 
@@ -45,8 +46,7 @@ class Design(Circuit):
         elif command==5:
             gates=event[2]
             for i in gates:
-                gate=self.getobj(i)
-                self.terminate(gate)
+                self.terminate(i)
             self.rank_reset()
 
     def redo(self):
@@ -73,7 +73,7 @@ class Design(Circuit):
             self.disconnect(event[1],event[2])
 
         elif command==5:
-            gates=event[1]
+            gates=[self.getobj(code) for code in event[1]]
             super().copy(gates)
             super().paste()
 
@@ -112,9 +112,8 @@ class Design(Circuit):
 
     def paste(self):
         if len(self.copydata):
-            source=self.copydata.keys()
             gates=super().paste()           
-            self.addtoundo((5,source,gates))
+            self.addtoundo((5,self.copydata,gates))
 
     def load(self,file_location):
         # self.clearcircuit()

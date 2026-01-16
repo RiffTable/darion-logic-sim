@@ -136,6 +136,7 @@ class Gate:
             return '0/1'
         else:
             return 'T' if self.output else 'F'
+        
     def json_data(self):
         dictionary={
             "name":self.name,
@@ -148,23 +149,39 @@ class Gate:
             "output":self.output,
         }
         return dictionary
+    
+    def copy_data(self,cluster):
+        dictionary={
+            "name":self.name,
+            "custom_name":self.custom_name,
+            "code":self.code,
+            "parents":[parent.code for parent in self.parents if parent in cluster],
+            "output":self.output,
+        }
+        return dictionary
+    
     def decode(self,code):
-        if len(code)==2:
+        if len(code)==2 :
             return tuple(code)
         return (code[0],code[1],self.decode(code[2]))
-    def implement(self,dictionary,pseudo):
+    
+    def clone(self,dictionary,pseudo):
         self.custom_name=dictionary["custom_name"]
         self.parents=set(pseudo[self.decode(parent)] for parent in dictionary["parents"])
         self.children[Enum.HIGH]=set(pseudo[self.decode(child)] for child in dictionary["High"])
         self.children[Enum.LOW]=set(pseudo[self.decode(child)] for child in dictionary["Low"])
         self.children[Enum.ERROR]=set(pseudo[self.decode(child)] for child in dictionary["Error"])
         self.output=dictionary["output"]
+    
+    def load_to_cluster(self,cluster):
+        cluster.add(self)
 
-    def clone(self,pseudo:dict,parentlist:list):
-        for parent in parentlist:
-            parent=pseudo[parent]
+    def implement(self,dictionary,pseudo):
+        self.custom_name=dictionary["custom_name"]
+        self.parents=set(pseudo[self.decode(parent)] for parent in dictionary["parents"])
+        # connect and propagate to parents
+        for parent in self.parents:
             parent.connect(self)
-            parent.propagate()
         
 class Variable(Gate):
     # this can be both an input or output(bulb)

@@ -45,11 +45,7 @@ class Circuit:
     def getobj(self,code)->Gate|Signal:
         return self.objlist[code[0]][code[1]]
     
-    def delobj(self,code):
-        if code[0]==12:
-            ic=self.objlist[code[0]][code[1]]
-            ic.clearlist()
-                
+    def delobj(self,code): 
         self.objlist[code[0]][code[1]]=None
 
     # show component
@@ -88,11 +84,15 @@ class Circuit:
             self.varlist.remove(gate)
         self.canvas.remove(gate)
 
-    def terminate(self,gate):
-        self.delobj(gate.code)
+    def terminate(self,code):
+        gate=self.getobj(code)
         if gate in self.varlist:
             self.varlist.remove(gate)
-        self.canvas.remove(gate)
+        if gate in self.iclist:
+            self.iclist.remove(gate)
+        if gate in self.canvas:
+            self.canvas.remove(gate)
+        self.delobj(code)
 
     def renewComponent(self,gate:Gate|IC):
         gate.reveal()
@@ -139,10 +139,7 @@ class Circuit:
             Table+=row+'\n'
         Table+=separator+'\n'
         return Table
-      
 
-    # diagnosis: this menu is AI generated and it's not the main part of code just to check errors in CLI mode
-    # i modified logic in between commits
     def diagnose(self):
         print("--- Component Diagnosis ---")
         
@@ -222,16 +219,15 @@ class Circuit:
             if isinstance(gate,IC):
                 gate.map=i["map"]
                 gate.load_components(i,pseudo)
-
             pseudo[code]=gate
         
         for gate_dict in circuit:# connect components or build the circuit
             code=self.decode(gate_dict["code"])
             gate=pseudo[code]
             if isinstance(gate,IC):
-                gate.implement(pseudo)
+                gate.clone(pseudo)
             else:
-                gate.implement(gate_dict,pseudo)
+                gate.clone(gate_dict,pseudo)
     
     def save_as_ic(self,location):
         if self.varlist:
@@ -254,13 +250,9 @@ class Circuit:
             else:
                 print('Cannot Convert to IC')
                 return
-        
-        
-    
-
-
+            
     def rank_reset(self):
-        for key in self.objlist:
+        for key in self.objlist.values():
             while key and key[-1]==None:
                 key.pop()
             
@@ -270,43 +262,42 @@ class Circuit:
         self.varlist=[]
         self.canvas=[]
 
-    def copy(self,components):
+    def copy(self,components:list["Gate"]):
         if len(components)==0:
             return
-        
-        self.copydata={}
+        self.copydata=[]
+        cluster:set["Gate"]=set()
         for i in components:
-            i.getcopyinfo(self.copydata,components)
-        # for component in components:
-        #     obj=self.getobj(component)
-        #     info=[component]
-        #     children=obj.children[Enum.LOW]|obj.children[Enum.HIGH]|obj.children[Enum.ERROR]
-        #     children=[i.code for i in children]
-        #     copychild=[]
-        #     for child in children:
-        #         if child in components or child[0]==0:
-        #             copychild.append(child)
-        #     if len(copychild)==0:
-        #         copychild=()
-        #     info.append(copychild)
-        #     self.copydata.append(info)
+            i.load_to_cluster(cluster)
+        for i in components:
+            self.copydata.append(i.copy_data(cluster))
+        with open('clipboard.json','w') as file:
+            json.dump(self.copydata,file,indent=4)
+        self.copydata=[i.code for i in components]
 
     def paste(self):
-        if len(self.copydata)==0:
-            return
+        with open('clipboard.json','r') as file:
+            circuit=json.load(file)
         pseudo={}
         pseudo[(0,0)]=self.sign_0
         pseudo[(0,1)]=self.sign_1
         new_items=[]
-        for component in self.copydata.keys():
-            identity=component[0]
-            comp=self.getcomponent(identity)
-            pseudo[component]=comp
-            new_items.append(comp.code)
-        for component,parentlist in self.copydata.items():
-            component=pseudo[component]
-            component.clone(pseudo,parentlist)
+        for i in circuit:# load to pseudo
+            code=self.decode(i["code"])
+            gate=self.getcomponent(code[0])
+            new_items.append(gate.code)
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+            pseudo[code]=gate
+        
+        for gate_dict in circuit:# connect components or build the circuit
+            code=self.decode(gate_dict["code"])
+            gate=pseudo[code]
+            if isinstance(gate,IC):
+                gate.implement(pseudo)
+            else:
+                gate.implement(gate_dict,pseudo)
         return new_items
-
 
 

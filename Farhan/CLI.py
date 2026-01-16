@@ -240,13 +240,8 @@ def menu():
             base.listComponent()
             complist = list(map(int,input("Enter the serial of the components you want to copy: ").split()))
             # each gate is a component but ic will add it's components
-            components=[]
-            for i in complist:
-                obj=base.canvas[i]
-                components.append(obj)
-                if isinstance(obj,IC):
-                    components=components+obj.allgates
-            base.copy(components)
+            complist=[base.canvas[i] for i in complist]
+            base.copy(complist)
             print("Copied")
             input('Press Enter to continue....')
 

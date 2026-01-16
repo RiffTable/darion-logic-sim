@@ -37,7 +37,7 @@ class IC:
         pseudo={}
         self.map=dictionary["map"]
         self.load_components(dictionary,pseudo)
-        self.implement(pseudo)
+        self.clone(pseudo)
         
     def decode(self,code):
         if len(code)==2:
@@ -49,6 +49,17 @@ class IC:
             gate=self.getcomponent(code[0])
             pseudo[self.decode(code)]=gate
 
+    def clone(self,pseudo):
+        for i in self.map:
+            code=self.decode(i["code"])      
+            gate=pseudo[code]
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+                gate.clone(pseudo)
+            else:
+                gate.clone(i,pseudo)       
+    
     def implement(self,pseudo):
         for i in self.map:
             code=self.decode(i["code"])      
@@ -77,6 +88,7 @@ class IC:
             child.name='gate-'+str(len(self.internal))
 
     def json_data(self):
+
         dictionary={
             "name":self.name,
             "code":self.code,            
@@ -87,13 +99,25 @@ class IC:
             dictionary["map"].append(i.json_data())
         return dictionary
     
+    def load_to_cluster(self,cluster:set):
+        for i in self.inputs+self.internal+self.outputs:
+            if isinstance(i,IC):
+                cluster.add(i)
+                i.load_to_cluster(cluster)
+            else:                
+                cluster.add(i)
 
-    def getcopyinfo(self,dictionary,cluster):
-        dictionary[self.code]=[i.code for i in self.internal]
+    def copy_data(self,cluster):
+        dictionary={
+            "name":self.name,
+            "code":self.code,            
+            "components":[gate.code for gate in self.internal+self.inputs+self.outputs],
+            "map":[]
+        }
+        for i in self.internal+self.inputs+self.outputs:
+            dictionary["map"].append(i.copy_data(cluster))
+        return dictionary
 
-    def clone(self,pseudo:dict,elements):
-        for code in elements:
-            self.addgate(pseudo[code])
 
     def showinputpins(self):
         for i,gate in enumerate(self.inputs):
