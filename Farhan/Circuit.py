@@ -1,11 +1,12 @@
 import json
+
 from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe,InputPin,OutputPin
 from Enum import Enum
 from IC import IC
 class Circuit:
 
     def __init__(self):
-        self.objlist={i:[] for i in range(-11,13)}# holds the objects with code name
+        self.objlist={i:[] for i in range(0,13)}# holds the objects with code name
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.iclist=[]
@@ -18,13 +19,11 @@ class Circuit:
     def __repr__(self):
         return 'Circuit'
 
-    def getcomponent(self,choice)->Gate|Signal:
-        if abs(choice) not in self.gateobjects:
+    def getcomponent(self,choice)->Gate|Signal|IC:
+        if choice not in self.gateobjects:
             return
-        if choice!=12:
-            gt=self.gateobjects[abs(choice)]()
-        else:
-            gt=self.gateobjects[choice](self)
+        gt=self.gateobjects[choice]()
+
         rank=len(self.objlist[choice])
         self.objlist[choice].append(gt)
         gt.code=(choice,rank)
@@ -39,8 +38,7 @@ class Circuit:
             self.varlist.append(gt)
         if isinstance(gt,IC):
             self.iclist.append(gt)
-        if choice>0:
-            self.canvas.append(gt)
+        self.canvas.append(gt)
         return gt
     
 
@@ -200,69 +198,66 @@ class Circuit:
         
         print("-" * total_width)
         
-
     def writetojson(self,location):
-        circuit=[{"Component_List":[gate.code for gate in self.canvas]}]
+        circuit=[]
         for gate in self.canvas:
-            gate_dict={
-                "name":gate.name,
-                "code":gate.code,
-                "high_child":[child.code for child in gate.children[Enum.HIGH]],
-                "low_child":[child.code for child in gate.children[Enum.LOW]],
-                "error_child":[child.code for child in gate.children[Enum.ERROR]],
-                "output":gate.output,
-                "parents":[parent.code for parent in gate.parents]            
-                 }
-            circuit.append(gate_dict)
+            circuit.append(gate.json_data())
         with open(location,'w') as file:
             json.dump(circuit,file,indent=4)
 
+    def decode(self,code):
+        if len(code)==2:
+            return tuple(code)
+        return (code[0],code[1],self.decode(code[2]))
+    
     def readfromjson(self,location):
         with open(location,'r') as file:
             circuit=json.load(file)
         pseudo={}
         pseudo[(0,0)]=self.sign_0
         pseudo[(0,1)]=self.sign_1
-        for i in circuit[0]["Component_List"]:
-            gate=self.getcomponent(i[0])
-            pseudo[tuple(i)]=gate
+        for i in circuit:# load to pseudo
+            code=self.decode(i["code"])
+            gate=self.getcomponent(code[0])
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+
+            pseudo[code]=gate
         
-        for i in range(1,len(circuit)):
-            gate_dict=circuit[i]
-            code=(gate_dict["code"][0],gate_dict["code"][1])
+        for gate_dict in circuit:# connect components or build the circuit
+            code=self.decode(gate_dict["code"])
             gate=pseudo[code]
-            gate.children[Enum.LOW]=set(pseudo[tuple(child)] for child in gate_dict["low_child"])
-            gate.children[Enum.HIGH]=set(pseudo[tuple(child)] for child in gate_dict["high_child"])
-            gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])
-            gate.output=gate_dict["output"]
-            gate.parents=set(pseudo[tuple(parent)] for parent in gate_dict["parents"])
+            if isinstance(gate,IC):
+                gate.implement(pseudo)
+            else:
+                gate.implement(gate_dict,pseudo)
     
-    def createIC(self,location):
+    def save_as_ic(self,location):
+        if self.varlist:
+            print('Delete Variables First')
+            return
+        lst=[i for i in self.canvas ]
+        myIC=self.getcomponent(12)
+        self.canvas.pop()
+        for component in lst :
+            myIC.addgate(component)
+        with open(location,'w') as file:
+            json.dump(myIC.json_data(),file,indent=4)
+
+    def getIC(self,location):
         myIC=self.getcomponent(12)
         with open(location,'r') as file:
-            circuit=json.load(file)
-        pseudo={}
-        pseudo[(0,0)]=self.sign_0
-        pseudo[(0,1)]=self.sign_1
-        for i in circuit[0]["Component_List"]:
-            gate=self.getcomponent(i[0])
-            myIC.addgate(gate)
-            pseudo[tuple(i)]=gate
-        for i in range(1,len(circuit)):
-            gate_dict=circuit[i]
-            code=tuple(gate_dict["code"])
-            gate=pseudo[code]
-            if isinstance(gate,InputPin|OutputPin):
-                gate.name=myIC.name+' '+gate_dict["name"]
-            gate.children[Enum.LOW]=set(pseudo[tuple(child)] for child in gate_dict["low_child"])
-            gate.children[Enum.HIGH]=set(pseudo[tuple(child)] for child in gate_dict["high_child"])
-            gate.children[Enum.ERROR]=set(pseudo[tuple(child)] for child in gate_dict["error_child"])
-            gate.output=gate_dict["output"]
-            gate.parents=set(pseudo[tuple(parent)] for parent in gate_dict["parents"])
-        # for inputs in myIC.inputs:
-        #     self.canvas.append(inputs)
-        # for outputs in myIC.outputs:
-        #     self.canvas.append(outputs)
+            crct=json.load(file)
+            if isinstance(crct,dict) and "map" in crct:
+                myIC.configure(crct)
+            else:
+                print('Cannot Convert to IC')
+                return
+        
+        
+    
+
 
     def rank_reset(self):
         for key in self.objlist:
@@ -313,26 +308,5 @@ class Circuit:
             component.clone(pseudo,parentlist)
         return new_items
 
-    # def paste(self):
-    #     if len(self.copydata)==0:
-    #         return
-    #     components=self.copydata[0]
-    #     pseudo={}
-    #     pseudo[(0,0)]=self.sign_0
-    #     pseudo[(0,1)]=self.sign_1
-    #     new_items=[]
-    #     for component in components:
-    #         identity=component[0]
-    #         comp=self.getcomponent(identity)
-    #         pseudo[component]=comp
-    #         new_items.append(comp.code)
-    #     connections=[self.copydata[i] for i in range(1,len(self.copydata))]
-    #     for line in connections:
-    #         gate=line[0]
-    #         children=line[1]
-    #         if 'X' not in children:
-    #             for child in children :
-    #                 self.connect(pseudo[gate],pseudo[child])
-    #     return new_items
 
 

@@ -104,6 +104,9 @@ class Design(Circuit):
         self.disconnect(parent, child)
         self.addtoundo((4,parent,child))
     
+
+
+    
     def copy(self,components):
         super().copy(components)
 

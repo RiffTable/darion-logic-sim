@@ -21,8 +21,9 @@ def menu():
         print("9. Diagnose Components")
         print("A. Save Circuit to File")
         print("B. Load Circuit from File")
-        print("C. Create IC")        
+        print("C. Load IC")        
         print("D. Configure IC")
+        print("E. Save as IC")
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
         print("Ctrl+A. Copy Components")
@@ -133,7 +134,7 @@ def menu():
             input('Press Enter to continue....')
 
         elif choice.upper() == 'C':
-            base.createIC('IC.json')
+            base.getIC('x.json')
             print("IC created from file.txt")
             input('Press Enter to continue....')            
 
@@ -220,6 +221,12 @@ def menu():
                     input('Press Enter to continue....')
                 elif ic_choice==key.ESC:
                     break
+
+        elif choice.upper() == 'E':
+            base.save_as_ic('x.json')
+            print("IC designed and saved to file.txt")
+            input('Press Enter to continue....')
+            
 
         elif choice==key.CTRL_Z:
             base.undo()

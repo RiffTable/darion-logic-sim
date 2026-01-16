@@ -25,16 +25,20 @@ class Gate:
         # each gate will have it's own unique id
         self.code=''
         self.name=''
+        self.custom_name=''
         self.inputpoint=True
         self.outputpoint=True
+        self.is_visible=True
+        self.can_be_copied=True
+        
     def rename(self,name):
         self.name=name
         
     def __repr__(self):
-        return self.name
+        return self.name if self.custom_name=='' else self.custom_name
         
     def __str__(self):
-        return self.name
+        return self.name if self.custom_name=='' else self.custom_name
     
     def getcopyinfo(self,dictionary,cluster):
         dictionary[self.code]=[parent.code for parent in self.parents if parent in cluster]
@@ -135,15 +139,27 @@ class Gate:
     def json_data(self):
         dictionary={
             "name":self.name,
+            "custom_name":self.custom_name,
             "code":self.code,
             "parents":[parent.code for parent in self.parents],
             "High":[child.code for child in self.children[Enum.HIGH]],
             "Low":[child.code for child in self.children[Enum.LOW]],
             "Error":[child.code for child in self.children[Enum.ERROR]],
             "output":self.output,
-
         }
         return dictionary
+    def decode(self,code):
+        if len(code)==2:
+            return tuple(code)
+        return (code[0],code[1],self.decode(code[2]))
+    def implement(self,dictionary,pseudo):
+        self.custom_name=dictionary["custom_name"]
+        self.parents=set(pseudo[self.decode(parent)] for parent in dictionary["parents"])
+        self.children[Enum.HIGH]=set(pseudo[self.decode(child)] for child in dictionary["High"])
+        self.children[Enum.LOW]=set(pseudo[self.decode(child)] for child in dictionary["Low"])
+        self.children[Enum.ERROR]=set(pseudo[self.decode(child)] for child in dictionary["Error"])
+        self.output=dictionary["output"]
+
     def clone(self,pseudo:dict,parentlist:list):
         for parent in parentlist:
             parent=pseudo[parent]
@@ -175,25 +191,26 @@ class Probe(Gate):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
                     
-    def json_data(self):
-        dictionary={
-            "name":self.name,
-            "code":self.code,
-            "parents":[parent.code for parent in self.parents],
-            "High":[child.code for child in self.children[Enum.HIGH]],
-            "Low":[child.code for child in self.children[Enum.LOW]],
-            "Error":[child.code for child in self.children[Enum.ERROR]],
-            "output":self.output,
-            "inputpoint":self.inputpoint,
-            "outputpoint":self.outputpoint
-        }
-        return dictionary            
+    # def json_data(self):
+    #     dictionary={
+    #         "name":self.name,
+    #         "code":self.code,
+    #         "parents":[parent.code for parent in self.parents],
+    #         "High":[child.code for child in self.children[Enum.HIGH]],
+    #         "Low":[child.code for child in self.children[Enum.LOW]],
+    #         "Error":[child.code for child in self.children[Enum.ERROR]],
+    #         "output":self.output,
+    #         "inputpoint":self.inputpoint,
+    #         "outputpoint":self.outputpoint
+    #     }
+    #     return dictionary            
+
 class InputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
-        self.inputpoint=False
+        # self.inputpoint=False
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])
@@ -203,7 +220,7 @@ class OutputPin(Probe):
     def __init__(self):      
         super().__init__()    
         self.inputlimit=1
-        self.outputpoint=False
+        # self.outputpoint=False
     def process(self):
         self.prev_output=self.output
         self.output=len(self.children[Enum.HIGH])

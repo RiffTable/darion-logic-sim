@@ -1,23 +1,95 @@
-from Gates import Gate,InputPin,OutputPin
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from Circuit import Circuit
+from Gates import Gate,InputPin, OutputPin, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR, Probe
 from Enum import Enum
 class IC:
-    def __init__(self,circuit):
+    def __init__(self):
         self.inputs=[]
-        self.allgates=[]
+        self.internal=[]
         self.outputs=[]
         self.name='IC'
         self.code=''
-        self.circuit=circuit
+        self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
+        self.map={}
 
-    def addgate(self,child:Gate|OutputPin|InputPin):
-        self.allgates.append(child)
-        if isinstance(child,InputPin):
-            self.inputs.append(child)
-        if isinstance(child,OutputPin):
-            self.outputs.append(child)
+    def getcomponent(self,choice):
+        if choice not in self.gateobjects:
+            return
+        gt=self.gateobjects[choice]()
+        if isinstance(gt,InputPin):
+            rank=len(self.inputs)
+            self.inputs.append(gt)
+            gt.name='in-'+str(len(self.inputs))
+        elif isinstance(gt,OutputPin):
+            rank=len(self.outputs)
+            self.outputs.append(gt)
+            gt.name='out-'+str(len(self.outputs))            
+        else:
+            rank=len(self.internal)
+            self.internal.append(gt)
+            gt.name=gt.__class__.__name__+'-'+str(len(self.internal))
+        gt.code=(choice,rank,self.code)        
+        return gt
     
+    def configure(self,dictionary):
+        pseudo={}
+        self.map=dictionary["map"]
+        self.load_components(dictionary,pseudo)
+        self.implement(pseudo)
+        
+    def decode(self,code):
+        if len(code)==2:
+            return tuple(code)
+        return (code[0],code[1],self.decode(code[2]))
+    
+    def load_components(self,dictionary,pseudo):
+        for code in dictionary["components"]:# generate all the necessary components
+            gate=self.getcomponent(code[0])
+            pseudo[self.decode(code)]=gate
+
+    def implement(self,pseudo):
+        for i in self.map:
+            code=self.decode(i["code"])      
+            gate=pseudo[code]
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+                gate.implement(pseudo)
+            else:
+                gate.implement(i,pseudo)       
+
+    def addgate(self, child:Gate|OutputPin|InputPin):
+        
+        if isinstance(child,InputPin):
+            child.code=(child.code[0],len(self.inputs),self.code)
+            self.inputs.append(child)
+            child.name='in-'+str(len(self.inputs))
+
+        elif isinstance(child,OutputPin):
+            child.code=(child.code[0],len(self.outputs),self.code)
+            self.outputs.append(child)
+            child.name='out-'+str(len(self.outputs))
+        else:
+            child.code=(child.code[0],len(self.internal),self.code)
+            self.internal.append(child)
+            child.name='gate-'+str(len(self.internal))
+
+    def json_data(self):
+        dictionary={
+            "name":self.name,
+            "code":self.code,            
+            "components":[gate.code for gate in self.internal+self.inputs+self.outputs],
+            "map":[]
+        }
+        for i in self.internal+self.inputs+self.outputs:
+            dictionary["map"].append(i.json_data())
+        return dictionary
+    
+
     def getcopyinfo(self,dictionary,cluster):
-        dictionary[self.code]=[i.code for i in self.allgates]
+        dictionary[self.code]=[i.code for i in self.internal]
 
     def clone(self,pseudo:dict,elements):
         for code in elements:
@@ -57,32 +129,23 @@ class IC:
                 child.parents.add(pin)
             for child in pin.children[Enum.ERROR]:
                 child.parents.add(pin)
-    def json_data(self):
-        dictionary={
-            "name":self.name,
-            "code":self.code,
-            "allgates":[gate.code for gate in self.allgates],
-            "inputs":[gate.code for gate in self.inputs],
-            "outputs":[gate.code for gate in self.outputs]
-        }
-        return dictionary
-        
+      
     def info(self):
         # show all components in a ordered way
-        for comp in self.allgates:
-            print(f'{comp.name} with output {comp.output}')
-            print(f'Parents: {[p.name for p in comp.parents]}')
-            print(f'Children (LOW): {[c.name for c in comp.children[Enum.LOW]]}')
-            print(f'Children (HIGH): {[c.name for c in comp.children[Enum.HIGH]]}')
-            print(f'Children (ERROR): {[c.name for c in comp.children[Enum.ERROR]]}')
-            print('---')
+        for comp in self.internal:
+            if isinstance(comp,IC):
+                comp.info()
+            else:
+                print(f'{comp.name} with output {comp.output}')
+                print(f'Parents: {[p.name for p in comp.parents]}')
+                print(f'Children (LOW): {[c.name for c in comp.children[Enum.LOW]]}')
+                print(f'Children (HIGH): {[c.name for c in comp.children[Enum.HIGH]]}')
+                print(f'Children (ERROR): {[c.name for c in comp.children[Enum.ERROR]]}')
+                print('---')
             
     def connect(self,pin:InputPin,gate:Gate):
         pin.connect(gate)
            
-    def clearlist(self):
-        for gate in self.allgates:
-            self.circuit.delobj(gate.code)
     def __repr__(self):
         return self.name
     def __str__(self):
