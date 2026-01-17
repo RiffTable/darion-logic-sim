@@ -2,6 +2,7 @@ from Designer import Design
 from readchar import readkey,key
 import os
 from IC import IC
+from Const import Const
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -24,6 +25,9 @@ def menu():
         print("C. Load IC")        
         print("D. Configure IC")
         print("E. Save as IC")
+        print("S. Simulate Circuit")
+        print("F. Flip-flop Mode")
+        print("R. Reset Simulation")
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
         print("Ctrl+A. Copy Components")
@@ -227,7 +231,6 @@ def menu():
             print("IC designed and saved to file.txt")
             input('Press Enter to continue....')
             
-
         elif choice==key.CTRL_Z:
             base.undo()
             input('Press Enter to continue....')         
@@ -248,12 +251,29 @@ def menu():
         elif choice==key.CTRL_B:            
             base.paste()
             input('Press Enter to continue....')
+        
+        elif choice.upper() == 'S':
+            base.simulate(Const.SIMULATE)
+            print("Simulation started.")
+            input('Press Enter to continue....')
+       
+        elif choice.upper() == 'F':
+            base.simulate(Const.FLIPFLOP)
+            print("Flip-flop mode activated.")
+            input('Press Enter to continue....')
 
+        elif choice.upper() == 'R':
+            base.reset()
+            print("Simulation reset.")
+            input('Press Enter to continue....')
+            
         elif choice == key.ESC:            
+            Const.MODE=Const.DESIGN
             print("Exiting Circuit Simulator......")
             input('Press Enter to continue....')
             clear_screen()
             break
+        
         else:
             print("Invalid choice. Please try again.")
 

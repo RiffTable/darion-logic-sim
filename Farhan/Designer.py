@@ -3,6 +3,7 @@ from Gates import InputPin, OutputPin, Variable,Gate,Probe,NOT
 from Circuit import Circuit
 
 class Design(Circuit):
+
     def __init__(self):
         super().__init__()
         self.undolist=[]
@@ -11,10 +12,12 @@ class Design(Circuit):
     def addtoundo(self,token):
         self.undolist.append(token)
         self.redolist=[]
+    
     def popfromundo(self):
         x=self.undolist.pop()
         self.redolist.append(x)
         return x
+    
     def popfromredo(self):
         x=self.redolist.pop()
         self.undolist.append(x)
@@ -126,6 +129,7 @@ class Design(Circuit):
 
     def __str__(self):
         return 'Designer'
+    
     def __repr__(self):
         return 'Designer'
     

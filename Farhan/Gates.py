@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import deque
 from Const import Const
+
 class Signal:
     # default signals that exist indepdently
     def __init__(self,value):
@@ -8,6 +9,7 @@ class Signal:
         self.output=value
         self.name=str(value)
         self.code=(0,value)
+    
     def __repr__(self):
         return self.name
     def __str__(self):
@@ -37,6 +39,7 @@ class Gate:
 
     def process():
         pass
+    
     def rename(self,name):
         self.name=name
         
@@ -47,6 +50,10 @@ class Gate:
         return self.name if self.custom_name=='' else self.custom_name
     
     def isready(self):
+        if Const.MODE==Const.DESIGN:
+            return False
+        elif Const.MODE==Const.SIMULATE:
+            return self.realchild==self.inputlimit
         return self.imgchild+self.realchild==self.inputlimit        
         
     def add_new_child(self,child:Gate):
@@ -87,7 +94,8 @@ class Gate:
             gate=queue.popleft()
             gate.output=-1
             for parent in gate.parents:            
-                parent.children[gate.prev_output].discard(parent)
+                parent.children[Const.HIGH].discard(gate)
+                parent.children[Const.LOW].discard(gate)
                 parent.children[Const.ERROR].add(gate)
                 if parent.isready() and parent.output!=Const.ERROR:
                     queue.append(parent)
@@ -111,7 +119,7 @@ class Gate:
                     child.burn()
                     return
                 
-    def disconnect(self,child:'Gate'):
+    def disconnect(self,child:Gate):
         val=child.output
         if child in self.children[val]:
             self.children[val].discard(child)
@@ -121,9 +129,10 @@ class Gate:
             self.process()
             self.propagate()
 
-
-
-
+    def reset(self):
+        self.output=Const.UNKNOWN
+        for i in self.children.values():
+            i=set()
     
     def hide(self):
         for parent in self.parents:# disconnect from parents and they will modify their output 
@@ -212,17 +221,20 @@ class Variable(Gate):
     # this can be both an input or output(bulb)
     def __init__(self):     
         super().__init__() 
-        self.output=Const.LOW
         self.inputlimit=1
+        self.realchild=1
 
     def connect(self,child:Signal):
-        self.children[self.output]=set()
         self.children[child.output].add(child)
+        self.children[child.output^1]=set()
         self.process()
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[Const.HIGH])
+        if self.isready():
+            self.output=len(self.children[Const.HIGH])
+        else:
+            self.output=Const.UNKNOWN
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
@@ -232,7 +244,10 @@ class Probe(Gate):
 
     def process(self):
         self.prev_output=self.output
-        self.output=len(self.children[Const.HIGH])
+        if self.isready():
+            self.output=len(self.children[Const.HIGH])
+        else:
+            self.output=Const.UNKNOWN
                     
     # def json_data(self):
     #     dictionary={
@@ -254,9 +269,6 @@ class InputPin(Probe):
         super().__init__()    
         self.inputlimit=1
         # self.inputpoint=False
-    def process(self):
-        self.prev_output=self.output
-        self.output=len(self.children[Const.HIGH])
 
 class OutputPin(Probe):
     # this can be both an input or output(bulb)
@@ -264,9 +276,6 @@ class OutputPin(Probe):
         super().__init__()    
         self.inputlimit=1
         # self.outputpoint=False
-    def process(self):
-        self.prev_output=self.output
-        self.output=len(self.children[Const.HIGH])
 
 class NOT(Gate):
     def __init__(self):    
@@ -312,6 +321,7 @@ class OR(Gate):
             self.output=1 if len(self.children[Const.HIGH]) else 0
         else:
             self.output=Const.UNKNOWN
+
 class NOR(Gate):
 
     def __init__(self):
@@ -335,6 +345,7 @@ class XOR(Gate):
             self.output=len(self.children[Const.HIGH])%2
         else:
             self.output=Const.UNKNOWN
+
 class XNOR(Gate):
 
     def __init__(self):

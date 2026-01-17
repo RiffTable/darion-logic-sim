@@ -298,4 +298,19 @@ class Circuit:
                 gate.implement(gate_dict,pseudo)
         return new_items
 
-
+    def simulate(self,Mode):
+        Const.MODE=Mode
+        loader=set()
+        for i in self.varlist:
+            i.process()
+        for i in self.varlist:
+            for parent in i.parents:
+                parent.connect(i)
+                loader.add(parent)
+        for i in loader:
+            i.propagate()
+            
+    def reset(self):
+        Const.MODE=Const.DESIGN
+        for i in self.canvas:
+            i.reset()
