@@ -91,7 +91,7 @@ def menu():
             for gate in gatelist:
                 base.livehide(gate)
                 print(f"Deleted {gate}.")
-
+ 
         elif choice == '6':
             base.listVar()
             var = input("Enter the serial of the variable to set : ")

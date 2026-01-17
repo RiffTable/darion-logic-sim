@@ -1,16 +1,16 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from Circuit import Circuit
 from Gates import Gate,InputPin, OutputPin, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR, Probe
-from Enum import Enum
+from Const import Const
 class IC:
     def __init__(self):
         self.inputs=[]
         self.internal=[]
         self.outputs=[]
+
         self.name='IC'
+        self.custom_name=''
         self.code=''
+
         self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
         self.map={}
 
@@ -135,7 +135,7 @@ class IC:
                 parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Enum.LOW]|pin.children[Enum.HIGH]|pin.children[Enum.ERROR]:
+            for child in pin.children[Const.LOW]|pin.children[Const.HIGH]|pin.children[Const.ERROR]:
                 child.parents.discard(pin)
                 
     def reveal(self):
@@ -143,10 +143,9 @@ class IC:
             for parent in pin.parents:
                 parent.connect(pin)
             for parent in pin.parents:
-                parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Enum.LOW]| pin.children[Enum.HIGH]|pin.children[Enum.ERROR]:
+            for child in pin.children[Const.LOW]| pin.children[Const.HIGH]|pin.children[Const.ERROR]:
                 child.parents.add(pin)
       
     def info(self):
@@ -157,16 +156,17 @@ class IC:
             else:
                 print(f'{comp.name} with output {comp.output}')
                 print(f'Parents: {[p.name for p in comp.parents]}')
-                print(f'Children (LOW): {[c.name for c in comp.children[Enum.LOW]]}')
-                print(f'Children (HIGH): {[c.name for c in comp.children[Enum.HIGH]]}')
-                print(f'Children (ERROR): {[c.name for c in comp.children[Enum.ERROR]]}')
+                print(f'Children (LOW): {[c.name for c in comp.children[Const.LOW]]}')
+                print(f'Children (HIGH): {[c.name for c in comp.children[Const.HIGH]]}')
+                print(f'Children (ERROR): {[c.name for c in comp.children[Const.ERROR]]}')
                 print('---')
             
     def connect(self,pin:InputPin,gate:Gate):
         pin.connect(gate)
            
     def __repr__(self):
-        return self.name
+        return self.name if self.custom_name=='' else self.custom_name
+        
     def __str__(self):
-        return self.name
+        return self.name if self.custom_name=='' else self.custom_name
     

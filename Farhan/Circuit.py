@@ -1,7 +1,7 @@
 import json
 
 from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe,InputPin,OutputPin
-from Enum import Enum
+from Const import Const
 from IC import IC
 class Circuit:
 
@@ -10,8 +10,8 @@ class Circuit:
         self.canvas=[]# displays the components 
         self.varlist=[]# holds variables with 0/1 input
         self.iclist=[]
-        self.sign_0=Signal(Enum.LOW)
-        self.sign_1=Signal(Enum.HIGH)
+        self.sign_0=Signal(Const.LOW)
+        self.sign_1=Signal(Const.HIGH)
         self.objlist[0]=[self.sign_0,self.sign_1]
         self.copydata=[]
         self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
@@ -30,7 +30,7 @@ class Circuit:
         name=gt.__class__.__name__
         if name=='Variable':
             gt.name=chr(ord('A')+(rank)%26)+str((rank+1)//26)
-            gt.children[Enum.LOW].add(self.sign_0)
+            gt.children[Const.LOW].add(self.sign_0)
         else:
             gt.name=name+'-'+str(len(self.objlist[choice]))
 
@@ -41,7 +41,6 @@ class Circuit:
         self.canvas.append(gt)
         return gt
     
-
     def getobj(self,code)->Gate|Signal:
         return self.objlist[code[0]][code[1]]
     
@@ -60,8 +59,7 @@ class Circuit:
         
     # connects parent to it's child/inputs
     def connect(self,parent:Gate,child:Gate|Signal):
-        if child not in parent.children[child.output]:
-            parent.connect(child)
+        parent.connect(child)
         if parent.prev_output!=parent.output:
             parent.propagate()
 
@@ -172,11 +170,11 @@ class Circuit:
             input_0=[]
             input_1=[]
             Error=[]
-            for i in component.children[Enum.LOW]:
+            for i in component.children[Const.LOW]:
                 input_0.append(i.name)
-            for i in component.children[Enum.HIGH]:
+            for i in component.children[Const.HIGH]:
                 input_1.append(i.name)
-            for i in component.children[Enum.ERROR]:
+            for i in component.children[Const.ERROR]:
                 Error.append(i.name)
             children_0 = ", ".join(sorted(input_0)) if input_0 else "None"
             children_1 = ", ".join(sorted(input_1)) if input_1 else "None"
