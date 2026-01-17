@@ -33,6 +33,22 @@ class IC:
         gt.code=(choice,rank,self.code)        
         return gt
     
+    def addgate(self, child:Gate|OutputPin|InputPin):
+        
+        if isinstance(child,InputPin):
+            rank=len(self.inputs)
+            self.inputs.append(child)
+            child.name='in-'+str(len(self.inputs))
+        elif isinstance(child,OutputPin):
+            rank=len(self.outputs)
+            self.outputs.append(child)
+            child.name='out-'+str(len(self.outputs))            
+        else:
+            rank=len(self.internal)
+            self.internal.append(child)
+            child.name=child.__class__.__name__+'-'+str(len(self.internal))
+        child.code=(child.code[0],rank,self.code)     
+        
     def configure(self,dictionary):
         pseudo={}
         self.map=dictionary["map"]
@@ -71,21 +87,7 @@ class IC:
             else:
                 gate.implement(i,pseudo)       
 
-    def addgate(self, child:Gate|OutputPin|InputPin):
-        
-        if isinstance(child,InputPin):
-            child.code=(child.code[0],len(self.inputs),self.code)
-            self.inputs.append(child)
-            child.name='in-'+str(len(self.inputs))
-
-        elif isinstance(child,OutputPin):
-            child.code=(child.code[0],len(self.outputs),self.code)
-            self.outputs.append(child)
-            child.name='out-'+str(len(self.outputs))
-        else:
-            child.code=(child.code[0],len(self.internal),self.code)
-            self.internal.append(child)
-            child.name='gate-'+str(len(self.internal))
+   
 
     def json_data(self):
 
@@ -135,8 +137,9 @@ class IC:
                 parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Const.LOW]|pin.children[Const.HIGH]|pin.children[Const.ERROR]:
-                child.parents.discard(pin)
+            for i in pin.children.keys():
+                for child in pin.children[i]:
+                    child.parents.discard(pin)   
                 
     def reveal(self):
         for pin in self.outputs:
@@ -145,8 +148,9 @@ class IC:
             for parent in pin.parents:
                 parent.propagate()
         for pin in self.inputs:
-            for child in pin.children[Const.LOW]| pin.children[Const.HIGH]|pin.children[Const.ERROR]:
-                child.parents.add(pin)
+            for i in pin.children.keys():
+                for child in pin.children[i]:
+                    child.parents.add(pin)   
       
     def info(self):
         # show all components in a ordered way

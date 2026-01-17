@@ -15,10 +15,11 @@ class Signal:
     def __str__(self):
         return self.name
 
-class Gate:   
+class Gate:  
+
     def __init__(self):
         # gate's children or inputs
-        self.children={Const.LOW:set(),Const.HIGH:set(),Const.ERROR:set()}
+        self.children={Const.LOW:set(),Const.HIGH:set(),Const.ERROR:set(),Const.UNKNOWN:set()}
         self.parents=set()
         # input limit
         self.inputlimit=2
@@ -52,39 +53,23 @@ class Gate:
     def isready(self):
         if Const.MODE==Const.DESIGN:
             return False
-        elif Const.MODE==Const.SIMULATE:
-            return self.realchild==self.inputlimit
-        return self.imgchild+self.realchild==self.inputlimit        
+        else:
+            realchild=len(self.children[Const.HIGH])+len(self.children[Const.LOW])+len(self.children[Const.ERROR])
+            if Const.MODE==Const.SIMULATE:
+                return realchild==self.inputlimit
+        return realchild and realchild+len(self.children[Const.UNKNOWN])==self.inputlimit        
         
-    def add_new_child(self,child:Gate):
-        if child.output==Const.UNKNOWN:
-            self.imgchild+=1
-        else:
-            self.realchild+=1
-            self.children[child.output].add(child)
-        child.parents.add(self)
-    
-    def child_manage(self,child:Gate):
-        if child.prev_output==child.output:# no output change it's in it's right place
-            return
-        else:
-            if child.prev_output==Const.UNKNOWN:
-                self.realchild+=1
-                self.imgchild-=1
-                self.children[child.output].add(child)
-            else:
-                self.children[child.prev_output].discard(child)
-                if child.output==Const.UNKNOWN:
-                    self.imgchild+=1
-                    self.realchild-=1
-                else:                    
-                    self.children[child.output].add(child)
-
     def connect(self,child:Gate):
-        if self in child.parents:
-            self.child_manage(child)  
-        else:
-            self.add_new_child(child)
+        if child.output==Const.ERROR:
+            child.parents.add(self)
+            child.burn()
+        if child in self.children[child.output]:
+            return
+        if child in self.children[child.prev_output]:
+            self.children[child.prev_output].discard(child)
+        self.children[child.output].add(child)
+        if self not in child.parents:
+            child.parents.add(self)
         self.process()
     
     def burn(self):
@@ -131,19 +116,23 @@ class Gate:
 
     def reset(self):
         self.output=Const.UNKNOWN
-        for i in self.children.keys():
-            self.children[i]=set()
-        self.imgchild=self.realchild+self.imgchild
-        self.realchild=0
+        self.children[Const.UNKNOWN]=self.children[Const.HIGH]|self.children[Const.LOW]|self.children[Const.ERROR]|self.children[Const.UNKNOWN]
+        self.children[Const.HIGH]=set()
+        self.children[Const.LOW]=set()
+        self.children[Const.ERROR]=set()
     
     def hide(self):
-        for parent in self.parents:# disconnect from parents and they will modify their output 
+
+        for parent in self.parents:
             parent.children[self.output].discard(self)
-        for child in self.children[Const.LOW]| self.children[Const.HIGH]|self.children[Const.ERROR]:
-            child.parents.discard(self)               
-        for parent in self.parents:# disconnect from parents and they will modify their output 
+       
+        for i in self.children.keys():
+            for child in self.children[i]:
+                child.parents.discard(self)   
+
+        for parent in self.parents:
             parent.process()
-            parent.propagate()
+            parent.propagate()   
 
     def reveal(self):
         if self.output==Const.ERROR:
@@ -178,10 +167,8 @@ class Gate:
             "name":self.name,
             "custom_name":self.custom_name,
             "code":self.code,
+            "children":[child.code for child in self.children[Const.UNKNOWN]],
             "parents":[parent.code for parent in self.parents],
-            "High":[child.code for child in self.children[Const.HIGH]],
-            "Low":[child.code for child in self.children[Const.LOW]],
-            "Error":[child.code for child in self.children[Const.ERROR]],
             "output":self.output,
         }
         return dictionary
@@ -204,9 +191,7 @@ class Gate:
     def clone(self,dictionary,pseudo):
         self.custom_name=dictionary["custom_name"]
         self.parents=set(pseudo[self.decode(parent)] for parent in dictionary["parents"])
-        self.children[Const.HIGH]=set(pseudo[self.decode(child)] for child in dictionary["High"])
-        self.children[Const.LOW]=set(pseudo[self.decode(child)] for child in dictionary["Low"])
-        self.children[Const.ERROR]=set(pseudo[self.decode(child)] for child in dictionary["Error"])
+        self.children[Const.UNKNOWN]=set(pseudo[self.decode(child)] for child in dictionary["children"])
         self.output=dictionary["output"]
     
     def load_to_cluster(self,cluster):

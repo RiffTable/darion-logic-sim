@@ -1,5 +1,4 @@
 import json
-
 from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR,Probe,InputPin,OutputPin
 from Const import Const
 from IC import IC
@@ -194,6 +193,7 @@ class Circuit:
         print("-" * total_width)
         
     def writetojson(self,location):
+        self.reset()
         circuit=[]
         for gate in self.canvas:
             circuit.append(gate.json_data())
@@ -218,7 +218,7 @@ class Circuit:
                 gate.map=i["map"]
                 gate.load_components(i,pseudo)
             pseudo[code]=gate
-        
+            
         for gate_dict in circuit:# connect components or build the circuit
             code=self.decode(gate_dict["code"])
             gate=pseudo[code]
@@ -233,7 +233,6 @@ class Circuit:
             return
         lst=[i for i in self.canvas ]
         myIC=self.getcomponent(12)
-        self.canvas.pop()
         for component in lst :
             myIC.addgate(component)
         with open(location,'w') as file:
