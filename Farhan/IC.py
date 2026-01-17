@@ -14,6 +14,12 @@ class IC:
         self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
         self.map={}
 
+    def __repr__(self):
+        return self.name if self.custom_name=='' else self.custom_name
+        
+    def __str__(self):
+        return self.name if self.custom_name=='' else self.custom_name
+    
     def getcomponent(self,choice):
         if choice not in self.gateobjects:
             return
@@ -65,30 +71,7 @@ class IC:
             gate=self.getcomponent(code[0])
             pseudo[self.decode(code)]=gate
 
-    def clone(self,pseudo):
-        for i in self.map:
-            code=self.decode(i["code"])      
-            gate=pseudo[code]
-            if isinstance(gate,IC):
-                gate.map=i["map"]
-                gate.load_components(i,pseudo)
-                gate.clone(pseudo)
-            else:
-                gate.clone(i,pseudo)       
-    
-    def implement(self,pseudo):
-        for i in self.map:
-            code=self.decode(i["code"])      
-            gate=pseudo[code]
-            if isinstance(gate,IC):
-                gate.map=i["map"]
-                gate.load_components(i,pseudo)
-                gate.implement(pseudo)
-            else:
-                gate.implement(i,pseudo)       
-
     def json_data(self):
-
         dictionary={
             "name":self.name,
             "code":self.code,            
@@ -99,6 +82,17 @@ class IC:
             dictionary["map"].append(i.json_data())
         return dictionary
     
+    def clone(self,pseudo):
+        for i in self.map:
+            code=self.decode(i["code"])      
+            gate=pseudo[code]
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+                gate.clone(pseudo)
+            else:
+                gate.clone(i,pseudo)       
+
     def load_to_cluster(self,cluster:set):
         for i in self.inputs+self.internal+self.outputs:
             if isinstance(i,IC):
@@ -117,14 +111,17 @@ class IC:
         for i in self.internal+self.inputs+self.outputs:
             dictionary["map"].append(i.copy_data(cluster))
         return dictionary
-
-    def showinputpins(self):
-        for i,gate in enumerate(self.inputs):
-            print(f'{i}. {gate}')
     
-    def showoutputpins(self):
-        for i,gate in enumerate(self.outputs):
-            print(f'{i}. {gate}')            
+    def implement(self,pseudo):
+        for i in self.map:
+            code=self.decode(i["code"])      
+            gate=pseudo[code]
+            if isinstance(gate,IC):
+                gate.map=i["map"]
+                gate.load_components(i,pseudo)
+                gate.implement(pseudo)
+            else:
+                gate.implement(i,pseudo)       
 
     def hide(self):
         for pin in self.outputs:
@@ -148,6 +145,18 @@ class IC:
             for i in pin.children.keys():
                 for child in pin.children[i]:
                     child.parents.add(pin)   
+
+    def reset(self):
+        for i in self.inputs+self.internal+self.outputs:
+            i.reset()
+            
+    def showinputpins(self):
+        for i,gate in enumerate(self.inputs):
+            print(f'{i}. {gate}')
+    
+    def showoutputpins(self):
+        for i,gate in enumerate(self.outputs):
+            print(f'{i}. {gate}')            
       
     def info(self):
         # show all components in a ordered way
@@ -162,9 +171,4 @@ class IC:
                 print(f'Children (ERROR): {[c.name for c in comp.children[Const.ERROR]]}')
                 print('---')
             
-    def __repr__(self):
-        return self.name if self.custom_name=='' else self.custom_name
-        
-    def __str__(self):
-        return self.name if self.custom_name=='' else self.custom_name
-    
+
