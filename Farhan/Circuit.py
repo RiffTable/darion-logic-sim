@@ -5,10 +5,10 @@ from IC import IC
 class Circuit:
 
     def __init__(self):
-        self.objlist={i:[] for i in range(0,13)}# holds the objects with code name
-        self.canvas=[]# displays the components 
-        self.varlist=[]# holds variables with 0/1 input
-        self.iclist=[]
+        self.objlist:dict[int,list[Gate|Signal|IC]]={i:[] for i in range(0,13)}# holds the objects with code name
+        self.canvas:list[Gate|Signal|IC]=[]# displays the components 
+        self.varlist:list[Variable]=[]# holds variables with 0/1 input
+        self.iclist:list[IC]=[]
         self.sign_0=Signal(Const.LOW)
         self.sign_1=Signal(Const.HIGH)
         self.objlist[0]=[self.sign_0,self.sign_1]

@@ -19,8 +19,8 @@ class Gate:
 
     def __init__(self):
         # gate's children or inputs
-        self.children={Const.LOW:set(),Const.HIGH:set(),Const.ERROR:set(),Const.UNKNOWN:set()}
-        self.parents=set()
+        self.children:dict[int|str,set[Gate]]={Const.LOW:set(),Const.HIGH:set(),Const.ERROR:set(),Const.UNKNOWN:set()}
+        self.parents:set[Gate]=set()
         # input limit
         self.inputlimit=2
         #default output
@@ -69,7 +69,7 @@ class Gate:
         self.process()
     
     def burn(self):
-        queue=deque()
+        queue:deque[Gate]=deque()
         queue.append(self)
         while len(queue):
             gate=queue.popleft()

@@ -3,9 +3,9 @@ from Gates import Gate,InputPin, OutputPin, Variable, NOT, AND, NAND, OR, NOR, X
 from Const import Const
 class IC:
     def __init__(self):
-        self.inputs=[]
-        self.internal=[]
-        self.outputs=[]
+        self.inputs:list[InputPin]=[]
+        self.internal:list[OutputPin]=[]
+        self.outputs:list[Gate|IC]=[]
 
         self.name='IC'
         self.custom_name=''
@@ -13,7 +13,7 @@ class IC:
 
         self.gateobjects={1:NOT, 2:AND, 3:NAND, 4:OR, 5:NOR, 6:XOR, 7:XNOR, 8:Variable,9:Probe,10:InputPin,11:OutputPin,12:IC}
         self.map={}
-        
+
         self.inputpoint=False
         self.outputpoint=False
 
