@@ -164,14 +164,13 @@ class Gate:
             self.children[Const.HIGH] | 
             self.children[Const.LOW] | 
             self.children[Const.ERROR]
-    )
+        )
         dictionary={
             "name":self.name,
             "custom_name":self.custom_name,
             "code":self.code,
             "children":[child.code for child in all_children],
             "parents":[parent.code for parent in self.parents],
-            "output":self.output,
         }
         return dictionary
     
@@ -194,7 +193,6 @@ class Gate:
         self.custom_name=dictionary["custom_name"]
         self.parents=set(pseudo[self.decode(parent)] for parent in dictionary["parents"])
         self.children[Const.UNKNOWN]=set(pseudo[self.decode(child)] for child in dictionary["children"])
-        self.output=dictionary["output"]
     
     def load_to_cluster(self,cluster):
         cluster.add(self)
@@ -227,6 +225,17 @@ class Variable(Gate):
             self.output=len(self.children[Const.HIGH])
         else:
             self.output=Const.UNKNOWN
+
+    def json_data(self):
+
+        dictionary={
+            "name":self.name,
+            "custom_name":self.custom_name,
+            "code":self.code,
+            "children":[],
+            "parents":[parent.code for parent in self.parents],
+        }
+        return dictionary   
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
