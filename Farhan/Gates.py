@@ -159,11 +159,17 @@ class Gate:
         return 'T' if self.output == Const.HIGH else 'F'
         
     def json_data(self):
+        all_children = (
+            self.children[Const.UNKNOWN] | 
+            self.children[Const.HIGH] | 
+            self.children[Const.LOW] | 
+            self.children[Const.ERROR]
+    )
         dictionary={
             "name":self.name,
             "custom_name":self.custom_name,
             "code":self.code,
-            "children":[child.code for child in self.children[Const.UNKNOWN]],
+            "children":[child.code for child in all_children],
             "parents":[parent.code for parent in self.parents],
             "output":self.output,
         }
@@ -208,9 +214,10 @@ class Variable(Gate):
         self.realchild=1
 
     def connect(self,child:Signal):
-        self.children[child.output].add(child)
-        self.children[child.output^1]=set()
-        self.process()
+        if isinstance(child,Signal):
+            self.children[child.output].add(child)
+            self.children[child.output^1]=set()
+            self.process()
     def reset(self):
         self.output='X'
         pass

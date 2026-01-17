@@ -193,7 +193,6 @@ class Circuit:
         print("-" * total_width)
         
     def writetojson(self,location):
-        self.reset()
         circuit=[]
         for gate in self.canvas:
             circuit.append(gate.json_data())
@@ -299,7 +298,6 @@ class Circuit:
 
     def simulate(self,Mode):
         Const.MODE=Mode
-        loader=set()
         for i in self.varlist:
             i.process()
         for i in self.varlist:
