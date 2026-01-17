@@ -218,7 +218,7 @@ class Circuit:
                 gate.map=i["map"]
                 gate.load_components(i,pseudo)
             pseudo[code]=gate
-            
+
         for gate_dict in circuit:# connect components or build the circuit
             code=self.decode(gate_dict["code"])
             gate=pseudo[code]
@@ -305,9 +305,9 @@ class Circuit:
         for i in self.varlist:
             for parent in i.parents:
                 parent.connect(i)
-                loader.add(parent)
-        for i in loader:
-            i.propagate()
+                if parent.output!=Const.UNKNOWN:
+                    parent.propagate()
+
             
     def reset(self):
         Const.MODE=Const.DESIGN

@@ -87,8 +87,6 @@ class IC:
             else:
                 gate.implement(i,pseudo)       
 
-   
-
     def json_data(self):
 
         dictionary={
@@ -119,7 +117,6 @@ class IC:
         for i in self.internal+self.inputs+self.outputs:
             dictionary["map"].append(i.copy_data(cluster))
         return dictionary
-
 
     def showinputpins(self):
         for i,gate in enumerate(self.inputs):
@@ -165,9 +162,6 @@ class IC:
                 print(f'Children (ERROR): {[c.name for c in comp.children[Const.ERROR]]}')
                 print('---')
             
-    def connect(self,pin:InputPin,gate:Gate):
-        pin.connect(gate)
-           
     def __repr__(self):
         return self.name if self.custom_name=='' else self.custom_name
         

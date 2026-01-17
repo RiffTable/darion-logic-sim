@@ -26,10 +26,6 @@ class Gate:
         #default output
         self.output=Const.UNKNOWN
         self.prev_output=Const.UNKNOWN
-
-        self.realchild=0
-        self.imgchild=0
-
         # each gate will have it's own unique id
         self.code=''
         self.name=''
