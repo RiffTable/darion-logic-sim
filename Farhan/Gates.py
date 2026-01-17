@@ -131,8 +131,10 @@ class Gate:
 
     def reset(self):
         self.output=Const.UNKNOWN
-        for i in self.children.values():
-            i=set()
+        for i in self.children.keys():
+            self.children[i]=set()
+        self.imgchild=self.realchild+self.imgchild
+        self.realchild=0
     
     def hide(self):
         for parent in self.parents:# disconnect from parents and they will modify their output 
@@ -228,7 +230,9 @@ class Variable(Gate):
         self.children[child.output].add(child)
         self.children[child.output^1]=set()
         self.process()
-
+    def reset(self):
+        self.output='X'
+        pass
     def process(self):
         self.prev_output=self.output
         if self.isready():
