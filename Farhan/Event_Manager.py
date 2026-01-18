@@ -86,7 +86,8 @@ class Event(Circuit):
 
     def addcomponent(self, gate_option) -> Gate:
         gate = self.getcomponent(gate_option)
-        self.addtoundo((Const.ADD, gate))
+        if gate:
+            self.addtoundo((Const.ADD, gate))
         return gate
 
     def livehide(self, gate):
