@@ -1,7 +1,7 @@
 import json
 from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT
 from Circuit import Circuit
-
+from Const import Const
 
 class Design(Circuit):
 
@@ -30,13 +30,13 @@ class Design(Circuit):
         event = self.popfromundo()
         command = event[0]
 
-        if command == 1:
+        if command == Const.ADD:
             super().hideComponent(event[1])
 
-        elif command == 2:
+        elif command == Const.DELETE:
             super().renewComponent(event[1])
 
-        elif command == 3:
+        elif command == Const.CONNECT:
             gate1 = event[1]
             if isinstance(gate1, Variable):
                 self.connect(gate1, self.sign_1 if gate1.output ==
@@ -45,10 +45,10 @@ class Design(Circuit):
             gate2 = event[2]
             super().disconnect(gate1, gate2)
 
-        elif command == 4:
+        elif command == Const.DISCONNECT:
             super().connect(event[1], event[2])
 
-        elif command == 5:
+        elif command == Const.PASTE:
             gates = event[2]
             for i in gates:
                 self.terminate(i)
@@ -60,13 +60,13 @@ class Design(Circuit):
         event = self.popfromredo()
         command = event[0]
 
-        if command == 1:
+        if command == Const.ADD:
             self.renewComponent(event[1])
 
-        elif command == 2:
+        elif command == Const.DELETE:
             self.hideComponent(event[1])
 
-        elif command == 3:
+        elif command == Const.CONNECT:
             gate1 = event[1]
             if isinstance(gate1, Variable):
                 self.connect(gate1, self.sign_1 if gate1.output ==
@@ -75,37 +75,37 @@ class Design(Circuit):
             gate2 = event[2]
             self.connect(gate1, gate2)
 
-        elif command == 4:
+        elif command == Const.DISCONNECT:
             self.disconnect(event[1], event[2])
 
-        elif command == 5:
+        elif command == Const.PASTE:
             gates = [self.getobj(code) for code in event[1]]
             super().copy(gates)
             super().paste()
 
     def addcomponent(self, gate_option) -> Gate:
         gate = self.getcomponent(gate_option)
-        self.addtoundo((1, gate))
+        self.addtoundo((Const.ADD, gate))
         return gate
 
     def livehide(self, gate):
         self.hideComponent(gate)
-        self.addtoundo((2, gate))
+        self.addtoundo((Const.DELETE, gate))
 
     def liveconnect(self, parent: Gate, child: Gate):
         if parent.inputpoint == False or child.outputpoint == False or parent.turnon():
             return False
         self.connect(parent, child)
-        self.addtoundo((3, parent, child))
+        self.addtoundo((Const.CONNECT, parent, child))
         return True
 
     def input(self, var, value):
         self.connect(var, self.sign_1 if value == '1' else self.sign_0)
-        self.addtoundo((3, var))
+        self.addtoundo((Const.CONNECT, var))
 
     def livedisconnect(self, parent, child):
         self.disconnect(parent, child)
-        self.addtoundo((4, parent, child))
+        self.addtoundo((Const.DISCONNECT, parent, child))
 
     def copy(self, components):
         super().copy(components)
@@ -113,7 +113,7 @@ class Design(Circuit):
     def paste(self):
         if len(self.copydata):
             gates = super().paste()
-            self.addtoundo((5, self.copydata, gates))
+            self.addtoundo((Const.PASTE, self.copydata, gates))
 
     def load(self, file_location):
         # self.clearcircuit()
