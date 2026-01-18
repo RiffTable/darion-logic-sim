@@ -1,7 +1,9 @@
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR, Probe
 from Const import Const
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from Store import Components
+from Gates import Gate, InputPin, OutputPin
 
 class IC:
     def __init__(self):
@@ -13,8 +15,6 @@ class IC:
         self.custom_name = ''
         self.code = ''
 
-        self.gateobjects = {1: NOT, 2: AND, 3: NAND, 4: OR, 5: NOR, 6: XOR,
-                            7: XNOR, 8: Variable, 9: Probe, 10: InputPin, 11: OutputPin, 12: IC}
         self.map = {}
 
         self.inputpoint = False
@@ -27,22 +27,21 @@ class IC:
         return self.name if self.custom_name == '' else self.custom_name
 
     def getcomponent(self, choice):
-        if choice not in self.gateobjects:
-            return
-        gt = self.gateobjects[choice]()
-        if isinstance(gt, InputPin):
-            rank = len(self.inputs)
-            self.inputs.append(gt)
-            gt.name = 'in-'+str(len(self.inputs))
-        elif isinstance(gt, OutputPin):
-            rank = len(self.outputs)
-            self.outputs.append(gt)
-            gt.name = 'out-'+str(len(self.outputs))
-        else:
-            rank = len(self.internal)
-            self.internal.append(gt)
-            gt.name = gt.__class__.__name__+'-'+str(len(self.internal))
-        gt.code = (choice, rank, self.code)
+        gt = Components.get(choice)   
+        if gt:                    
+            if isinstance(gt, InputPin):
+                rank = len(self.inputs)
+                self.inputs.append(gt)
+                gt.name = 'in-'+str(len(self.inputs))
+            elif isinstance(gt, OutputPin):
+                rank = len(self.outputs)
+                self.outputs.append(gt)
+                gt.name = 'out-'+str(len(self.outputs))
+            else:
+                rank = len(self.internal)
+                self.internal.append(gt)
+                gt.name = gt.__class__.__name__+'-'+str(len(self.internal))
+            gt.code = (choice, rank, self.code)
         return gt
 
     def addgate(self, child: Gate | OutputPin | InputPin):

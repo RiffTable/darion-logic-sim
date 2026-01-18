@@ -1,9 +1,10 @@
-import json
-from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT
+from typing import TYPE_CHECKING
 from Circuit import Circuit
 from Const import Const
+from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT
 
-class Design(Circuit):
+
+class Event(Circuit):
 
     def __init__(self):
         super().__init__()

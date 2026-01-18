@@ -1,7 +1,6 @@
-from Designer import Design
+from Event_Manager import Event
 from readchar import readkey, key
 import os
-from IC import IC
 from Const import Const
 
 
@@ -9,7 +8,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-base = Design()
+base = Event()
 
 
 def menu():

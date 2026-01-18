@@ -1,7 +1,8 @@
 import json
-from Gates import Gate, Signal, Variable, NOT, AND, NAND, OR, NOR, XOR, XNOR, Probe, InputPin, OutputPin
+from Gates import Gate, Signal, Variable
 from Const import Const
 from IC import IC
+from Store import Components
 
 
 class Circuit:
@@ -16,32 +17,28 @@ class Circuit:
         self.sign_1 = Signal(Const.HIGH)
         self.objlist[0] = [self.sign_0, self.sign_1]
         self.copydata = []
-        self.gateobjects = {1: NOT, 2: AND, 3: NAND, 4: OR, 5: NOR, 6: XOR,
-                            7: XNOR, 8: Variable, 9: Probe, 10: InputPin, 11: OutputPin, 12: IC}
 
     def __repr__(self):
         return 'Circuit'
 
     def getcomponent(self, choice) -> Gate | Signal | IC:
-        if choice not in self.gateobjects:
-            return
-        gt = self.gateobjects[choice]()
+        gt = Components.get(choice)
+        if gt:
+            rank = len(self.objlist[choice])
+            self.objlist[choice].append(gt)
+            gt.code = (choice, rank)
+            name = gt.__class__.__name__
+            if name == 'Variable':
+                gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+                gt.children[Const.LOW].add(self.sign_0)
+            else:
+                gt.name = name+'-'+str(len(self.objlist[choice]))
 
-        rank = len(self.objlist[choice])
-        self.objlist[choice].append(gt)
-        gt.code = (choice, rank)
-        name = gt.__class__.__name__
-        if name == 'Variable':
-            gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
-            gt.children[Const.LOW].add(self.sign_0)
-        else:
-            gt.name = name+'-'+str(len(self.objlist[choice]))
-
-        if isinstance(gt, Variable):
-            self.varlist.append(gt)
-        if isinstance(gt, IC):
-            self.iclist.append(gt)
-        self.canvas.append(gt)
+            if isinstance(gt, Variable):
+                self.varlist.append(gt)
+            if isinstance(gt, IC):
+                self.iclist.append(gt)
+            self.canvas.append(gt)
         return gt
 
     def getobj(self, code) -> Gate | Signal:
