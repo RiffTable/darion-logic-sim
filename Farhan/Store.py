@@ -1,5 +1,4 @@
 from Gates import *
-from typing import TYPE_CHECKING
 from IC import IC
 from Const import GateType
 

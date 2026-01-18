@@ -1,9 +1,6 @@
 from __future__ import annotations
 from Const import Const
 from Gates import Gate, InputPin, OutputPin
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from Store import Components
 
 
 class IC:
@@ -28,9 +25,22 @@ class IC:
         return self.name if self.custom_name == '' else self.custom_name
 
     def getcomponent(self, choice):
+        from Store import Components
         gt = Components.get(choice)
         if gt:
-            self.addgate(gt)
+            if isinstance(gt, InputPin):
+                rank = len(self.inputs)
+                self.inputs.append(gt)
+                gt.name = 'in-'+str(len(self.inputs))
+            elif isinstance(gt, OutputPin):
+                rank = len(self.outputs)
+                self.outputs.append(gt)
+                gt.name = 'out-'+str(len(self.outputs))
+            else:
+                rank = len(self.internal)
+                self.internal.append(gt)
+                gt.name = gt.__class__.__name__+'-'+str(len(self.internal))
+            gt.code = (choice, rank, self.code)
         return gt
 
     def addgate(self, child: Gate | OutputPin | InputPin):
