@@ -130,26 +130,26 @@ class IC:
 
     def hide(self):
         for pin in self.outputs:
-            for parent in pin.parents:
-                parent.children[pin.output].discard(pin)
-            for parent in pin.parents:
+            for parent in pin.dst:
+                parent.src[pin.output].discard(pin)
+            for parent in pin.dst:
                 parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.discard(pin)
+            for i in pin.src.keys():
+                for child in pin.src[i]:
+                    child.dst.discard(pin)
 
     def reveal(self):
         for pin in self.outputs:
-            for parent in pin.parents:
+            for parent in pin.dst:
                 parent.connect(pin)
-            for parent in pin.parents:
+            for parent in pin.dst:
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.add(pin)
+            for i in pin.src.keys():
+                for child in pin.src[i]:
+                    child.dst.add(pin)
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:
@@ -170,11 +170,11 @@ class IC:
                 comp.info()
             else:
                 print(f'{comp.name} with output {comp.output}')
-                print(f'Parents: {[p.name for p in comp.parents]}')
+                print(f'dst: {[p.name for p in comp.dst]}')
                 print(
-                    f'Children (LOW): {[c.name for c in comp.children[Const.LOW]]}')
+                    f'src (LOW): {[c.name for c in comp.src[Const.LOW]]}')
                 print(
-                    f'Children (HIGH): {[c.name for c in comp.children[Const.HIGH]]}')
+                    f'src (HIGH): {[c.name for c in comp.src[Const.HIGH]]}')
                 print(
-                    f'Children (ERROR): {[c.name for c in comp.children[Const.ERROR]]}')
+                    f'src (ERROR): {[c.name for c in comp.src[Const.ERROR]]}')
                 print('---')

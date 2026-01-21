@@ -1,8 +1,8 @@
 class Const:
     HIGH = 1
     LOW = 0
-    ERROR = -1
-    UNKNOWN = 'X'
+    ERROR = 2
+    UNKNOWN = 3
 
     DESIGN = 0
     SIMULATE = 1

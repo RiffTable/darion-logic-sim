@@ -6,7 +6,7 @@
             6,
             0
         ],
-        "parents": [
+        "dst": [
             [
                 6,
                 1
@@ -21,13 +21,13 @@
             6,
             1
         ],
-        "parents": [
+        "dst": [
             [
                 6,
                 0
             ]
         ],
-        "output": 0
+        "output": 1
     },
     {
         "name": "A0",
@@ -36,12 +36,27 @@
             8,
             0
         ],
-        "parents": [
+        "dst": [
             [
                 6,
                 0
             ]
         ],
-        "output": 0
+        "output": 1
+    },
+    {
+        "name": "B0",
+        "custom_name": "",
+        "code": [
+            8,
+            1
+        ],
+        "dst": [
+            [
+                6,
+                1
+            ]
+        ],
+        "output": 1
     }
 ]

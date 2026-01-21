@@ -1,6 +1,10 @@
-def decode(code):
-    if len(code)==2:
-        return tuple(code)
-    return (code[0],code[1],decode(code[2]))
+import json
+from Gates import Gate,AND,Nothing
 
-print(decode([1,2,[1,2,[1,2]]]))
+a=AND()
+a.code=(0,)
+b=AND()
+b.code=(2,)
+l=set(a,b)
+with open('test.json','w') as file:
+    json.dump(l,file)

@@ -44,10 +44,10 @@ class Event(Circuit):
                              0 else self.sign_0)
                 return
             gate2 = event[2]
-            super().disconnect(gate1, gate2)
+            super().disconnect(gate1, gate2, event[3])
 
         elif command == Const.DISCONNECT:
-            super().connect(event[1], event[2])
+            super().connect(event[1], event[2], event[3])
 
         elif command == Const.PASTE:
             gates = event[2]
@@ -74,10 +74,10 @@ class Event(Circuit):
                              0 else self.sign_0)
                 return
             gate2 = event[2]
-            self.connect(gate1, gate2)
+            self.connect(gate1, gate2, event[3])
 
         elif command == Const.DISCONNECT:
-            self.disconnect(event[1], event[2])
+            self.disconnect(event[1], event[2], event[3])
 
         elif command == Const.PASTE:
             gates = [self.getobj(code) for code in event[1]]
@@ -94,20 +94,20 @@ class Event(Circuit):
         self.hideComponent(gate)
         self.addtoundo((Const.DELETE, gate))
 
-    def liveconnect(self, parent: Gate, child: Gate):
+    def liveconnect(self, parent: Gate, child: Gate, index):
         if parent.inputpoint == False or child.outputpoint == False or parent.turnon():
             return False
-        self.connect(parent, child)
-        self.addtoundo((Const.CONNECT, parent, child))
+        self.connect(parent, child, index)
+        self.addtoundo((Const.CONNECT, parent, child, index))
         return True
 
     def input(self, var, value):
         self.connect(var, self.sign_1 if value == '1' else self.sign_0)
         self.addtoundo((Const.CONNECT, var))
 
-    def livedisconnect(self, parent, child):
-        self.disconnect(parent, child)
-        self.addtoundo((Const.DISCONNECT, parent, child))
+    def livedisconnect(self, parent: Gate, index):
+        self.disconnect(parent, index)
+        self.addtoundo((Const.DISCONNECT, parent.children[index], index))
 
     def copy(self, components):
         super().copy(components)

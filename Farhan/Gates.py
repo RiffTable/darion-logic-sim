@@ -18,13 +18,27 @@ class Signal:
         return self.name
 
 
+class Empty:
+    def __init__(self):
+        self.code = ('X', 'X')
+
+    def __repr__(self):
+        return 'Empty'
+
+    def __str__(self):
+        return 'Empty'
+
+
+Nothing = Empty()
+
+
 class Gate:
 
     def __init__(self):
-        # gate's children or inputs
-        self.children: dict[int | str, set[Gate]] = {
-            Const.LOW: set(), Const.HIGH: set(), Const.ERROR: set(), Const.UNKNOWN: set()}
-        self.parents: set[Gate] = set()
+        # gate's child or inputs
+        self.children: list[Gate] = [Empty, Empty]
+        self.parents: dict[Gate, set] = {}
+        self.book: list[int] = [0, 0, 0, 0]
         # input limit
         self.inputlimit = 2
         # default output
@@ -54,101 +68,118 @@ class Gate:
         if Const.MODE == Const.DESIGN:
             return False
         else:
-            realchild = len(
-                self.children[Const.HIGH])+len(self.children[Const.LOW])+len(self.children[Const.ERROR])
+            realchild = self.book[Const.HIGH] + \
+                self.book[Const.LOW] + self.book[Const.ERROR]
             if Const.MODE == Const.SIMULATE:
                 return realchild == self.inputlimit
-        return realchild and realchild+len(self.children[Const.UNKNOWN]) == self.inputlimit
+        return realchild and realchild+self.children[Const.UNKNOWN] == self.inputlimit
 
-    def connect(self, child: Gate):
-        if child.output == Const.ERROR:
-            child.parents.add(self)
-            child.burn()
-        if child in self.children[child.output]:
-            return
-        if child in self.children[child.prev_output]:
-            self.children[child.prev_output].discard(child)
-        self.children[child.output].add(child)
-        if self not in child.parents:
-            child.parents.add(self)
+    def connect(self, child: Gate, index: int):
+        # book manage
+        self.book[child.output] += 1
+        # self in parent register
+        child.parents[self].add(child)
+        # child register
+        self.children[index] = child
+        # update value
         self.process()
+
+    def update(self, parent: Gate):
+        count = len(self.parents[parent])
+        parent.book[self.prev_output] -= count
+        parent.book[self.output] += count
+        # update value
+        parent.process()
+        return parent.prev_output != parent.output
 
     def burn(self):
         queue: deque[Gate] = deque()
         queue.append(self)
         while len(queue):
             gate = queue.popleft()
+            gate.prev_output = gate.output
             gate.output = -1
-            for parent in gate.parents:
-                parent.children[Const.HIGH].discard(gate)
-                parent.children[Const.LOW].discard(gate)
-                parent.children[Const.ERROR].add(gate)
+            for parent in gate.parents.keys():
+                count = len(gate.parents[parent])
+                parent.book[gate.prev_output] -= count
+                parent.book[gate.output] += count
                 if parent.isready() and parent.output != Const.ERROR:
                     queue.append(parent)
 
     def propagate(self):
         fuse = {}
-        queue = deque()
-        for parent in self.parents:
-            queue.append((parent, self))
-        while len(queue):
-            key = queue.popleft()
-            parent = key[0]
-            child = key[1]
-            parent.connect(child)
-            if parent.prev_output != parent.output:
-                if key not in fuse:
-                    fuse[key] = (parent.output, child.output)
-                    for grandparent in parent.parents:
-                        queue.append((grandparent, parent))
-                elif fuse[key] != (parent.output, child.output):
-                    child.burn()
-                    return
+        queue: deque[Gate] = deque()
+        for parent in self.parents.keys():
+            if self.update(parent):
+                fuse[(self, parent)] = (self.output, parent.output)
+                queue.append(parent)
+        while queue:
+            gate = queue.popleft()
+            for parent in gate.parents:
+                if gate.update(parent):
+                    key = (gate, parent)
+                    if key in fuse and fuse[key] != (gate.output, parent.output):
+                        gate.burn()
+                        return
+                    fuse[(gate, parent)] = (gate.output, parent.output)
+                    queue.append((gate, parent))
 
-    def disconnect(self, child: Gate):
-        val = child.output
-        if child in self.children[val]:
-            self.children[val].discard(child)
-            child.parents.discard(self)
-            child.process()
-            child.propagate()
-            self.process()
-            self.propagate()
+            # parent.connect(child)
+            # if parent.prev_output != parent.output:
+            #     if key not in fuse:
+            #         fuse[key] = (parent.output, child.output)
+            #         for grandparent in parent.parents:
+            #             queue.append((grandparent, parent))
+            #     elif fuse[key] != (parent.output, child.output):
+            #         child.burn()
+            #         return
+
+    def disconnect(self, index: int):
+        child = self.children[index]
+        self.book[child.output] -= 1
+        self.children[index] = Nothing
+        child.parents[self].discard(index)
+        if len(child.parents[self]) == 0:
+            child.parents.pop(self)
+
+        child.process()  # probably not needed
+        child.propagate()
+        self.process()
+        self.propagate()
 
     def reset(self):
         self.output = Const.UNKNOWN
-        self.children[Const.UNKNOWN] = self.children[Const.HIGH] | self.children[
-            Const.LOW] | self.children[Const.ERROR] | self.children[Const.UNKNOWN]
-        self.children[Const.HIGH] = set()
-        self.children[Const.LOW] = set()
-        self.children[Const.ERROR] = set()
+        self.book = [0, 0, 0, sum(self.book)]
 
     def hide(self):
+        # disconnect from parent
+        for parent, index in self.parents.items():
+            for i in index:
+                parent.children[i] = Nothing
+        # disconnect from child
+        for child in self.children:
+            child.parents.pop(self)
 
-        for parent in self.parents:
-            parent.children[self.output].discard(self)
-
-        for i in self.children.keys():
-            for child in self.children[i]:
-                child.parents.discard(self)
-
-        for parent in self.parents:
+        for parent in self.parents.keys():
             parent.process()
             parent.propagate()
 
     def reveal(self):
+        # connect to parents
         if self.output == Const.ERROR:
             self.burn()
         else:
-            for parent in self.parents:  # disconnect from parents and they will modify their output
-                parent.connect(self)
-        for child in self.children[Const.LOW] | self.children[Const.HIGH] | self.children[Const.ERROR]:
-            child.parents.add(self)
-        for parent in self.parents:  # disconnect from parents and they will modify their output
-            parent.propagate()
+            for parent, index in self.parents.items():
+                for i in index:
+                    parent.connect(self, i)
 
-    def turnon(self):
-        return len(self.children[Const.LOW])+len(self.children[Const.HIGH])+len(self.children[Const.ERROR]) >= self.inputlimit
+        # connect to children
+        for index, child in enumerate(self.children):
+            child.parents[self].add(index)
+
+        # Propagate Parents
+        for parent in self.parents.keys():
+            parent.propagate()
 
     def setlimits(self):
         pass
@@ -163,18 +194,12 @@ class Gate:
         return 'T' if self.output == Const.HIGH else 'F'
 
     def json_data(self):
-        all_children = (
-            self.children[Const.UNKNOWN] |
-            self.children[Const.HIGH] |
-            self.children[Const.LOW] |
-            self.children[Const.ERROR]
-        )
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "children": [child.code for child in all_children],
-            "parents": [parent.code for parent in self.parents],
+            "child": [child.code for child in self.children],
+            "parent": {parent.code: list(self.parents[parent]) for parent in self.parents},
         }
         return dictionary
 
@@ -183,7 +208,7 @@ class Gate:
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "parents": [parent.code for parent in self.parents if parent in cluster],
+            "parent": {parent.code: list(index) for parent, index in self.parents.items() if parent in cluster},
             "output": self.output,
         }
         return dictionary
@@ -195,19 +220,21 @@ class Gate:
 
     def clone(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        self.parents = set(pseudo[self.decode(parent)]
-                           for parent in dictionary["parents"])
-        self.children[Const.UNKNOWN] = set(
-            pseudo[self.decode(child)] for child in dictionary["children"])
+        for parent_code, index_set in dictionary["parent"].items():
+            parent = pseudo[self.decode(parent_code)]
+            self.parents[parent] = set(index_set)
+        self.children = list(pseudo[self.decode(child)]
+                             for child in dictionary["child"])
 
-    def load_to_cluster(self, cluster):
+    def load_to_cluster(self, cluster: set):
         cluster.add(self)
 
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        self.parents = set(pseudo[self.decode(parent)]
-                           for parent in dictionary["parents"])
-        # connect and propagate to parents
+        for parent_code, index_set in dictionary["parent"].items():
+            parent = pseudo[self.decode(parent_code)]
+            self.parents[parent] = set(index_set)
+        # connect and propagate to parent
         for parent in self.parents:
             parent.connect(self)
 
@@ -216,13 +243,15 @@ class Variable(Gate):
     # this can be both an input or output(bulb)
     def __init__(self):
         super().__init__()
+        self.children = 0
         self.inputlimit = 1
-        self.realchild = 1
 
-    def connect(self, child: Signal):
-        if isinstance(child, Signal):
-            self.children[child.output].add(child)
-            self.children[child.output ^ 1] = set()
+    def connect(self, child, index):
+        pass
+
+    def toggle(self, child: int):
+        if isinstance(child, int):
+            self.children = child
             self.process()
 
     def reset(self):
@@ -232,7 +261,7 @@ class Variable(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = len(self.children[Const.HIGH])
+            self.output = self.children
         else:
             self.output = Const.UNKNOWN
 
@@ -242,8 +271,8 @@ class Variable(Gate):
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "children": [],
-            "parents": [parent.code for parent in self.parents],
+            "child": self.children,
+            "parent": [parent.code for parent in self.parents],
         }
         return dictionary
 
@@ -265,7 +294,7 @@ class Probe(Gate):
     #     dictionary={
     #         "name":self.name,
     #         "code":self.code,
-    #         "parents":[parent.code for parent in self.parents],
+    #         "parent":[parent.code for parent in self.parents],
     #         "High":[child.code for child in self.children[Const.HIGH]],
     #         "Low":[child.code for child in self.children[Const.LOW]],
     #         "Error":[child.code for child in self.children[Const.ERROR]],

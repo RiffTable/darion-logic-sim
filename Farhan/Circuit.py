@@ -58,8 +58,8 @@ class Circuit:
             print(f'{i}. {self.varlist[i]}')
 
     # connects parent to it's child/inputs
-    def connect(self, parent: Gate, child: Gate | Signal):
-        parent.connect(child)
+    def connect(self, parent: Gate, child: Gate | Signal,index):
+        parent.connect(child,index)
         if parent.prev_output != parent.output:
             parent.propagate()
 
@@ -149,7 +149,7 @@ class Circuit:
             ("Input-0", 22),
             ("Input-1", 22),
             ('Error', 22),
-            ("Parents (Outputs to)", 25),
+            ("dst (Outputs to)", 25),
             ("State", 10)
         ]
 
@@ -168,7 +168,7 @@ class Circuit:
         for component in self.canvas:
             if isinstance(component, IC):
                 continue
-            # Inputs (children)
+            # Inputs (src)
             input_0 = []
             input_1 = []
             Error = []
@@ -178,21 +178,21 @@ class Circuit:
                 input_1.append(i.name)
             for i in component.children[Const.ERROR]:
                 Error.append(i.name)
-            children_0 = ", ".join(sorted(input_0)) if input_0 else "None"
-            children_1 = ", ".join(sorted(input_1)) if input_1 else "None"
-            children_neg = ", ".join(sorted(Error)) if Error else "None"
+            src_0 = ", ".join(sorted(input_0)) if input_0 else "None"
+            src_1 = ", ".join(sorted(input_1)) if input_1 else "None"
+            src_neg = ", ".join(sorted(Error)) if Error else "None"
 
-            # Outputs (parents)
-            parents = []
+            # Outputs (dst)
+            dst = []
             for i in component.parents:
-                parents.append(i.name)
-            parents = ", ".join(sorted(parents)) if parents else "None"
+                dst.append(i.name)
+            dst = ", ".join(sorted(dst)) if dst else "None"
 
             # State
             state = component.getoutput()
 
-            print(row_format.format(str(component), children_0,
-                  children_1, children_neg, parents, state))
+            print(row_format.format(str(component), src_0,
+                  src_1, src_neg, dst, state))
 
         print("-" * total_width)
 
