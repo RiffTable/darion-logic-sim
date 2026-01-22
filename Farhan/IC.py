@@ -1,13 +1,13 @@
 from __future__ import annotations
 from Const import Const
-from Gates import Gate, InputPin, OutputPin
+from Gates import Gate, InputPin, OutputPin, Nothing
 
 
 class IC:
     def __init__(self):
         self.inputs: list[InputPin] = []
-        self.internal: list[OutputPin] = []
-        self.outputs: list[Gate | IC] = []
+        self.internal: list[Gate|IC] = []
+        self.outputs: list[OutputPin] = []
 
         self.name = 'IC'
         self.custom_name = ''
@@ -61,6 +61,7 @@ class IC:
 
     def configure(self, dictionary):
         pseudo = {}
+        pseudo[('X', 'X')] = Nothing
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
@@ -130,26 +131,32 @@ class IC:
 
     def hide(self):
         for pin in self.outputs:
-            for parent in pin.parents:
-                parent.children[pin.output].discard(pin)
-            for parent in pin.parents:
-                parent.process()
+            for parent, infolist in pin.parents.items():
+                for i in infolist[0]:
+                    parent.children[i].discard(pin)
+                    parent.book[infolist[1]]-=1
+                    parent.process()
+            for parent, infolist in pin.parents.items():
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.discard(pin)
+            for child in pin.children:
+                child.parents.pop(pin)
 
     def reveal(self):
         for pin in self.outputs:
-            for parent in pin.parents:
-                parent.connect(pin)
-            for parent in pin.parents:
+            for parent, infolist in pin.parents.items():
+                for i in infolist[0]:
+                    parent.children[i].add(pin)
+                    parent.book[infolist[1]]+=1
+                    parent.process()
+
+            for parent, infolist in pin.parents.items():
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.add(pin)
+            for index, child in enumerate(pin.children):
+                if pin not in child.parents:
+                    child.parents[pin] = [set(), child.output]
+                child.parents[pin][0].add(index)
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:
@@ -164,17 +171,45 @@ class IC:
             print(f'{i}. {gate}')
 
     def info(self):
-        # show all components in a ordered way
-        for comp in self.internal:
-            if isinstance(comp, IC):
-                comp.info()
-            else:
-                print(f'{comp.name} with output {comp.output}')
-                print(f'Parents: {[p.name for p in comp.parents]}')
-                print(
-                    f'Children (LOW): {[c.name for c in comp.children[Const.LOW]]}')
-                print(
-                    f'Children (HIGH): {[c.name for c in comp.children[Const.HIGH]]}')
-                print(
-                    f'Children (ERROR): {[c.name for c in comp.children[Const.ERROR]]}')
-                print('---')
+        """Show all IC components in an organized way."""
+        print(f"\n  IC: {self.name} (Code: {self.code})")
+        print("  " + "-" * 40)
+
+        # Show inputs
+        if self.inputs:
+            print("  INPUTS:")
+            for pin in self.inputs:
+                parents = [str(p) for p in pin.parents.keys()]
+                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
+
+        # Show internal components
+        if self.internal:
+            print("  INTERNAL:")
+            for comp in self.internal:
+                if isinstance(comp, IC):
+                    comp.info()
+                else:
+                    # Children (list with indices)
+                    if isinstance(comp.children, list):
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.children) if str(c) != 'Empty']
+                        ch_str = ", ".join(ch) if ch else "None"
+                    else:
+                        ch_str = f"val:{comp.children}"
+                    # Parents
+                    par = [str(p) for p in comp.parents.keys()]
+                    par_str = ", ".join(par) if par else "None"
+                    print(f"    {comp.name}: out={comp.getoutput()}, children={ch_str}, parents={par_str}")
+
+        # Show outputs
+        if self.outputs:
+            print("  OUTPUTS:")
+            for pin in self.outputs:
+                if isinstance(pin.children, list):
+                    ch = [f"{c}" for c in pin.children if str(c) != 'Empty']
+                    ch_str = ", ".join(ch) if ch else "None"
+                else:
+                    ch_str = "None"
+                print(f"    {pin.name}: out={pin.getoutput()}, from={ch_str}")
+
+        print("  " + "-" * 40)
+
