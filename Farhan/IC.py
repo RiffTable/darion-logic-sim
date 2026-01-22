@@ -1,13 +1,13 @@
 from __future__ import annotations
 from Const import Const
-from Gates import Gate, InputPin, OutputPin
+from Gates import Gate, InputPin, OutputPin, Nothing
 
 
 class IC:
     def __init__(self):
         self.inputs: list[InputPin] = []
-        self.internal: list[OutputPin] = []
-        self.outputs: list[Gate | IC] = []
+        self.internal: list[Gate|IC] = []
+        self.outputs: list[OutputPin] = []
 
         self.name = 'IC'
         self.custom_name = ''
@@ -61,6 +61,7 @@ class IC:
 
     def configure(self, dictionary):
         pseudo = {}
+        pseudo[('X', 'X')] = Nothing
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
@@ -130,26 +131,32 @@ class IC:
 
     def hide(self):
         for pin in self.outputs:
-            for parent in pin.parents.keys():
-                parent.children[pin.output].discard(pin)
-            for parent in pin.parents.keys():
-                parent.process()
+            for parent, infolist in pin.parents.items():
+                for i in infolist[0]:
+                    parent.children[i].discard(pin)
+                    parent.book[infolist[1]]-=1
+                    parent.process()
+            for parent, infolist in pin.parents.items():
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.discard(pin)
+            for child in pin.children:
+                child.parents.pop(pin)
 
     def reveal(self):
         for pin in self.outputs:
-            for parent in pin.parents:
-                parent.connect(pin)
-            for parent in pin.parents:
+            for parent, infolist in pin.parents.items():
+                for i in infolist[0]:
+                    parent.children[i].add(pin)
+                    parent.book[infolist[1]]+=1
+                    parent.process()
+
+            for parent, infolist in pin.parents.items():
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.children.keys():
-                for child in pin.children[i]:
-                    child.parents.add(pin)
+            for index, child in enumerate(pin.children):
+                if pin not in child.parents:
+                    child.parents[pin] = [set(), child.output]
+                child.parents[pin][0].add(index)
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:

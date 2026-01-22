@@ -29,9 +29,9 @@ def menu():
         print("C. Load IC")
         print("D. Configure IC")
         print("E. Save as IC")
-        print("S. Simulate Circuit")
         print("F. Flip-flop Mode")
         print("R. Reset Simulation")
+        print("S. Simulate Circuit")
         print("Ctrl+Z. Undo")
         print("Ctrl+Y. Redo")
         print("Ctrl+A. Copy Components")
@@ -226,7 +226,9 @@ def menu():
                         if gate == '':
                             continue
                         gate = base.canvas[int(gate)]
-                        base.connect(pin, gate)
+                        # InputPin has inputlimit 1, so index is always 0
+                        index = 0
+                        base.connect(pin, gate, index)
                         print(f"Connected {gate} -> {pin.name}")
                     elif pin_type == 'O':
                         ic.showoutputpins()
@@ -239,7 +241,12 @@ def menu():
                         if gate == '':
                             continue
                         gate = base.canvas[int(gate)]
-                        base.connect(gate, pin)
+                        try:
+                            index = int(input(f"Enter input index (0-{gate.inputlimit - 1}): "))
+                        except ValueError:
+                            print("Invalid index.")
+                            continue
+                        base.connect(gate, pin, index)
                         print(f"Connected {pin.name} -> {gate}")
                     input('Press Enter to continue....')
 
@@ -257,7 +264,8 @@ def menu():
                         if gate == '':
                             continue
                         gate = base.canvas[int(gate)]
-                        base.disconnect(pin, gate)
+                        # InputPin has 1 input at index 0
+                        base.disconnect(pin, 0)
                         print(f"Disconnected {gate} from {pin.name}")
                     elif pin_type == 'O':
                         ic.showoutputpins()
@@ -270,7 +278,12 @@ def menu():
                         if gate == '':
                             continue
                         gate = base.canvas[int(gate)]
-                        base.disconnect(gate, pin)
+                        try:
+                            index = int(input(f"Enter input index to disconnect (0-{gate.inputlimit - 1}): "))
+                        except ValueError:
+                            print("Invalid index.")
+                            continue
+                        base.disconnect(gate, index)
                         print(f"Disconnected {pin.name} from {gate}")
                     input('Press Enter to continue....')
 
@@ -280,6 +293,11 @@ def menu():
         elif choice.upper() == 'E':
             base.save_as_ic('x.json')
             print("IC designed and saved to file.txt")
+            input('Press Enter to continue....')
+
+        elif choice.upper() == 'F':
+            base.simulate(Const.FLIPFLOP)
+            print("Flip-flop mode activated.")
             input('Press Enter to continue....')
 
         elif choice == key.CTRL_Z:
@@ -304,20 +322,16 @@ def menu():
             base.paste()
             input('Press Enter to continue....')
 
+        elif choice.upper() == 'R':
+            base.reset()
+            print("Simulation reset.")
+            input('Press Enter to continue....')
+
         elif choice.upper() == 'S':
             base.simulate(Const.SIMULATE)
             print("Simulation started.")
             input('Press Enter to continue....')
 
-        elif choice.upper() == 'F':
-            base.simulate(Const.FLIPFLOP)
-            print("Flip-flop mode activated.")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'R':
-            base.reset()
-            print("Simulation reset.")
-            input('Press Enter to continue....')
 
         elif choice == key.ESC:
             Const.MODE = Const.DESIGN

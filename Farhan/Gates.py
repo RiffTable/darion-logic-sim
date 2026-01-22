@@ -37,7 +37,8 @@ class Gate:
     def __init__(self):
         # gate's child or inputs
         self.children: list[Gate] = [Nothing, Nothing]
-        self.parents: dict[Gate, set] = {}
+        # self.parents: dict[Gate, tuple[set[int], int]] = {}
+        self.parents: dict[Gate, list[set, int]] = {}
         # input limit
         self.inputlimit = 2
         self.book: list[int] = [0, 0, 0, 0]
@@ -78,74 +79,69 @@ class Gate:
         self.book[child.output] += 1
         # self in parent register
         if self not in child.parents:
-            child.parents[self] = set()
-        child.parents[self].add(index)
+            child.parents[self] = [set(), child.output]
+        child.parents[self][0].add(index)
         # child register
         self.children[index] = child
         # update value
         if child.output==Const.ERROR:
             if self.isready():
-                self.output=Const.ERROR
+                self.burn()
         else:
             self.process()
 
-    def update(self, parent: Gate):
-        count = len(self.parents[parent])
-        parent.book[self.prev_output] -= count
+    def update(self, parent: Gate,infolist: list[set|int]):
+        if self.output==infolist[1]:
+            return False
+        count=len(infolist[0])
+        parent.book[infolist[1]] -= count
         parent.book[self.output] += count
         # update value
         if self.output==Const.ERROR:
-            parent.burn()
+            if self.isready():
+                self.output=Const.ERROR
         else:
             parent.process()
+        infolist[1]=self.output
         return parent.prev_output != parent.output
 
+    def sync(self):
+        self.book=[0,0,0,0]
+        for child in self.children:
+            self.book[child.output]+=1
+
     def burn(self):
-        self.prev_output=self.output
-        if self.isready():
-            self.output = Const.ERROR
-        else:
-            self.output=Const.UNKNOWN
-        # queue: deque[Gate] = deque()
-        # queue.append(self)
-        # while len(queue):
-        #     gate = queue.popleft()
-        #     gate.prev_output = gate.output
-        #     gate.output = Const.ERROR
-        #     for parent in gate.parents.keys():
-        #         count = len(gate.parents[parent])
-        #         parent.book[gate.prev_output] -= count
-        #         parent.book[gate.output] += count
-        #         if parent.isready() and parent.output != Const.ERROR:
-        #             queue.append(parent)
+        queue: deque[Gate] = deque()
+        queue.append(self)
+        while len(queue):
+            gate = queue.popleft()
+            gate.prev_output = gate.output
+            gate.output = Const.ERROR
+            for parent,infolist in gate.parents.items():
+                parent.sync()
+                infolist[1]=Const.ERROR
+                if parent.isready() and parent.output != Const.ERROR:
+                    queue.append(parent)
 
 
     def propagate(self):
         fuse = {}
         queue: deque[Gate] = deque()
-        for parent in self.parents.keys():
-            if self.update(parent):
+        for parent,infolist in self.parents.items():
+            if self.update(parent,infolist):
                 fuse[(self, parent)] = (self.output, parent.output)
                 queue.append(parent)
         while queue:
             gate = queue.popleft()
-            for parent in gate.parents.keys():
-                if gate.update(parent):
+            for parent,infolist in gate.parents.items():
+                if gate.update(parent,infolist):
                     key = (gate, parent)
                     if gate==parent:
-                        gate.update(parent)
                         gate.burn()
-                        queue=deque()
-                        queue.append(gate)
-                        fuse={}
-                        continue
+                        return
                     if key in fuse and fuse[key] != (gate.output, parent.output):
-                        parent.output=parent.prev_output
                         gate.burn()
-                        queue=deque()
-                        queue.append(gate)
-                        fuse={}
-                        continue
+                        return
                     fuse[(gate, parent)] = (gate.output, parent.output)
                     queue.append(parent)
 
@@ -163,8 +159,8 @@ class Gate:
         child = self.children[index]
         self.book[child.output] -= 1
         self.children[index] = Nothing
-        child.parents[self].discard(index)
-        if len(child.parents[self]) == 0:
+        child.parents[self][0].discard(index)
+        if len(child.parents[self][0]) == 0:
             child.parents.pop(self)
 
         child.process()  # probably not needed
@@ -178,10 +174,10 @@ class Gate:
 
     def hide(self):
         # disconnect from parent
-        for parent, index in self.parents.items():
-            for i in index:
+        for parent, infolist in self.parents.items():
+            for i in infolist[0]:
                 parent.children[i] = Nothing
-                parent.book[self.output] -= 1
+                parent.book[infolist[1]] -= 1
         # disconnect from child
         for child in self.children:
             if child != Nothing:
@@ -194,24 +190,27 @@ class Gate:
 
     def reveal(self):
         # connect to parents
-
-        for parent, index in self.parents.items():
-            for i in index:
-                parent.children[i]=self
-                parent.book[self.output]+=1
-                if self.output==Const.ERROR:
-                    parent.burn()
-                else:
+        if self.output==Const.ERROR:
+            for parent, infolist in self.parents.items():
+                for i in infolist[0]:
+                    parent.children[i]=self
+            self.burn()
+        else:
+            for parent, infolist in self.parents.items():
+                for i in infolist[0]:
+                    parent.children[i]=self
+                    parent.book[infolist[1]]+=1
                     parent.process()
 
-        for parent in self.parents.keys():
-            if parent!=self:
-                parent.propagate()
+            for parent in self.parents.keys():
+                if parent!=self:
+                    parent.propagate()
+
         # connect to children
         for index, child in enumerate(self.children):
             if self not in child.parents:
-                child.parents[self] = set()
-            child.parents[self].add(index)
+                child.parents[self] = [set(), child.output]
+            child.parents[self][0].add(index)
 
         # Propagate Parents
 
@@ -224,7 +223,7 @@ class Gate:
         if self.output == Const.ERROR:
             return '1/0'
         if self.output == Const.UNKNOWN:
-            return Const.UNKNOWN
+            return 'X'
         return 'T' if self.output == Const.HIGH else 'F'
 
     def json_data(self):
@@ -233,9 +232,8 @@ class Gate:
             "custom_name": self.custom_name,
             "code": self.code,
             "child": [child.code for child in self.children],
-            "parent": [[parent.code, list(index)] for parent, index in self.parents.items()],
-            "output": self.output,
-            "book": self.book,
+            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
+            "book": [0,0,0,sum(self.book)],
         }
         return dictionary
 
@@ -244,9 +242,8 @@ class Gate:
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "parent": [[parent.code, list(index)] for parent, index in self.parents.items() if parent in cluster],
-            "output": self.output,
-            "book": self.book,
+            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
+            "book": [0,0,0,sum(self.book)],
             }
         return dictionary
 
@@ -259,9 +256,8 @@ class Gate:
         self.custom_name = dictionary["custom_name"]
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = set(i[1])
+            self.parents[parent] = [set(i[1]), i[2]]
         self.children = list(pseudo[self.decode(child)] for child in dictionary["child"])
-        self.output = dictionary["output"]
         self.book = dictionary["book"]
 
     def load_to_cluster(self, cluster: set):
@@ -271,9 +267,9 @@ class Gate:
         self.custom_name = dictionary["custom_name"]
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = set(i[1])
+            self.parents[parent] = [set(i[1]), i[2]]
         # connect and propagate to parent
-        for parent,index_set in self.parents.items():
+        for parent, [index_set, output] in self.parents.items():
             for i in index_set:
                 parent.connect(self,i)
 
@@ -316,7 +312,7 @@ class Variable(Gate):
             "custom_name": self.custom_name,
             "code": self.code,
             "child": self.children,
-            "parent": [[parent.code, list(index)] for parent, index in self.parents.items()],
+            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
         }
         return dictionary
 
@@ -324,7 +320,7 @@ class Variable(Gate):
         self.custom_name = dictionary["custom_name"]
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = set(i[1])
+            self.parents[parent] = [set(i[1]), i[2]]
         self.children = dictionary["child"]
 
 class Probe(Gate):

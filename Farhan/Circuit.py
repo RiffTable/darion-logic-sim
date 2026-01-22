@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Signal, Variable
+from Gates import Gate, Signal, Variable, Nothing
 from Const import Const
 from IC import IC
 from Store import Components
@@ -66,13 +66,6 @@ class Circuit:
         parent.toggle(value)
         if parent.prev_output != parent.output:
             parent.propagate()
-
-    def passive_connect(self, parent, child, child_output: str):
-        parent_obj = self.getobj(parent)
-        child_obj = self.getobj(child)
-        parent_obj.children[child_output].add(child_obj)
-        if child[0] != 0:
-            child_obj.parents.add(parent_obj)
 
     # identify parent/child
     def disconnect(self, parent: Gate, index):
@@ -176,7 +169,7 @@ class Circuit:
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
                 # Parents (outputs to)
-                par = [f"{p}" for p in comp.parents.keys()]
+                par = [f"{p} ({list(v[0])})" for p, v in comp.parents.items()]
                 par_str = ", ".join(par) if par else "None"
 
                 # Truncate long strings
@@ -200,7 +193,7 @@ class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        parents = [str(p) for p in pin.parents.keys()]
+                        parents = [f"{p} ({list(v[0])})" for p, v in pin.parents.items()]
                         print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
 
                 # Output pins
@@ -230,6 +223,7 @@ class Circuit:
         pseudo = {}
         pseudo[(0, 0)] = self.sign_0
         pseudo[(0, 1)] = self.sign_1
+        pseudo[('X', 'X')] = Nothing
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
@@ -295,8 +289,7 @@ class Circuit:
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
         pseudo = {}
-        pseudo[(0, 0)] = self.sign_0
-        pseudo[(0, 1)] = self.sign_1
+        pseudo[('X', 'X')] = Nothing
         new_items = []
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
@@ -321,8 +314,8 @@ class Circuit:
         for i in self.varlist:
             i.process()
         for i in self.varlist:
-            for parent in i.parents:
-                i.update(parent)
+            for parent,infolist in i.parents.items():
+                i.update(parent,infolist)
                 if parent.output != Const.UNKNOWN:
                     parent.propagate()
 

@@ -1,2 +1,3 @@
-for i in range(1000000):
-    print(i)
+l=(set(),34)
+l[0].add(1)
+print(l)
