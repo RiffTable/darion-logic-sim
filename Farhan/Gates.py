@@ -54,7 +54,8 @@ class Gate:
 
     def process():
         pass
-
+    def turnon(self):
+        return self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR] >= self.inputlimit
     def rename(self, name):
         self.name = name
 
@@ -63,22 +64,22 @@ class Gate:
 
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
-
     def isready(self):
         if Const.MODE == Const.DESIGN:
             return False
         else:
-            realchild = self.book[Const.HIGH] + \
-                self.book[Const.LOW] + self.book[Const.ERROR]
+            realchild = self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR]
             if Const.MODE == Const.SIMULATE:
                 return realchild == self.inputlimit
-        return realchild and realchild+self.children[Const.UNKNOWN] == self.inputlimit
+        return realchild and realchild+self.book[Const.UNKNOWN] == self.inputlimit
 
     def connect(self, child: Gate, index: int):
         # book manage
         self.book[child.output] += 1
         # self in parent register
-        child.parents[self].add(child)
+        if self not in child.parents:
+            child.parents[self] = set()
+        child.parents[self].add(index)
         # child register
         self.children[index] = child
         # update value
@@ -98,7 +99,7 @@ class Gate:
         while len(queue):
             gate = queue.popleft()
             gate.prev_output = gate.output
-            gate.output = -1
+            gate.output = Const.ERROR
             for parent in gate.parents.keys():
                 count = len(gate.parents[parent])
                 parent.book[gate.prev_output] -= count
@@ -115,14 +116,15 @@ class Gate:
                 queue.append(parent)
         while queue:
             gate = queue.popleft()
-            for parent in gate.parents:
+            for parent in gate.parents.keys():
                 if gate.update(parent):
                     key = (gate, parent)
                     if key in fuse and fuse[key] != (gate.output, parent.output):
+                        parent.output=parent.prev_output
                         gate.burn()
                         return
                     fuse[(gate, parent)] = (gate.output, parent.output)
-                    queue.append((gate, parent))
+                    queue.append(parent)
 
             # parent.connect(child)
             # if parent.prev_output != parent.output:
@@ -199,7 +201,9 @@ class Gate:
             "custom_name": self.custom_name,
             "code": self.code,
             "child": [child.code for child in self.children],
-            "parent": {parent.code: list(self.parents[parent]) for parent in self.parents},
+            "parent": [[parent.code, list(index)] for parent, index in self.parents.items()],
+            "output": self.output,
+            "book": self.book,
         }
         return dictionary
 
@@ -208,9 +212,10 @@ class Gate:
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "parent": {parent.code: list(index) for parent, index in self.parents.items() if parent in cluster},
+            "parent": [[parent.code, list(index)] for parent, index in self.parents.items() if parent in cluster],
             "output": self.output,
-        }
+            "book": self.book,
+            }
         return dictionary
 
     def decode(self, code):
@@ -220,23 +225,25 @@ class Gate:
 
     def clone(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        for parent_code, index_set in dictionary["parent"].items():
-            parent = pseudo[self.decode(parent_code)]
-            self.parents[parent] = set(index_set)
-        self.children = list(pseudo[self.decode(child)]
-                             for child in dictionary["child"])
+        for i in dictionary["parent"]:
+            parent = pseudo[self.decode(i[0])]
+            self.parents[parent] = set(i[1])
+        self.children = list(pseudo[self.decode(child)] for child in dictionary["child"])
+        self.output = dictionary["output"]
+        self.book = dictionary["book"]
 
     def load_to_cluster(self, cluster: set):
         cluster.add(self)
 
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        for parent_code, index_set in dictionary["parent"].items():
-            parent = pseudo[self.decode(parent_code)]
-            self.parents[parent] = set(index_set)
+        for i in dictionary["parent"]:
+            parent = pseudo[self.decode(i[0])]
+            self.parents[parent] = set(i[1])
         # connect and propagate to parent
-        for parent in self.parents:
-            parent.connect(self)
+        for parent,index_set in self.parents.items():
+            for i in index_set:
+                parent.connect(self,i)
 
 
 class Variable(Gate):
@@ -255,9 +262,14 @@ class Variable(Gate):
             self.process()
 
     def reset(self):
-        self.output = 'X'
+        self.output = Const.UNKNOWN
         pass
-
+    
+    def isready(self):
+        if Const.MODE==Const.DESIGN:
+            return False
+        else:
+            return True
     def process(self):
         self.prev_output = self.output
         if self.isready():
@@ -272,10 +284,16 @@ class Variable(Gate):
             "custom_name": self.custom_name,
             "code": self.code,
             "child": self.children,
-            "parent": [parent.code for parent in self.parents],
+            "parent": [[parent.code, list(index)] for parent, index in self.parents.items()],
         }
         return dictionary
 
+    def clone(self, dictionary, pseudo):
+        self.custom_name = dictionary["custom_name"]
+        for i in dictionary["parent"]:
+            parent = pseudo[self.decode(i[0])]
+            self.parents[parent] = set(i[1])
+        self.children = dictionary["child"]
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
@@ -286,7 +304,7 @@ class Probe(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = len(self.children[Const.HIGH])
+            self.output = self.book[Const.HIGH]
         else:
             self.output = Const.UNKNOWN
 
@@ -329,7 +347,7 @@ class NOT(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = len(self.children[Const.LOW])
+            self.output = self.book[Const.LOW]
         else:
             self.output = Const.UNKNOWN
 
@@ -341,7 +359,7 @@ class AND(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if len(self.children[Const.LOW]) else 1
+            self.output = 0 if self.book[Const.LOW] else 1
         else:
             self.output = Const.UNKNOWN
 
@@ -353,7 +371,7 @@ class NAND(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if len(self.children[Const.LOW]) else 0
+            self.output = 1 if self.book[Const.LOW] else 0
         else:
             self.output = Const.UNKNOWN
 
@@ -365,7 +383,7 @@ class OR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if len(self.children[Const.HIGH]) else 0
+            self.output = 1 if self.book[Const.HIGH] else 0
         else:
             self.output = Const.UNKNOWN
 
@@ -378,7 +396,7 @@ class NOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if len(self.children[Const.HIGH]) else 1
+            self.output = 0 if self.book[Const.HIGH] else 1
         else:
             self.output = Const.UNKNOWN
 
@@ -391,7 +409,7 @@ class XOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = len(self.children[Const.HIGH]) % 2
+            self.output = self.book[Const.HIGH] % 2
         else:
             self.output = Const.UNKNOWN
 
@@ -404,6 +422,6 @@ class XNOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = (len(self.children[Const.HIGH]) % 2) ^ 1
+            self.output = (self.book[Const.HIGH] % 2) ^ 1
         else:
             self.output = Const.UNKNOWN

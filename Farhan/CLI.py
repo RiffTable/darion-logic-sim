@@ -75,7 +75,14 @@ def menu():
                 map(int, input("Enter the serial of the component to connect to: ").split()))
             for child in childlist:
                 child = base.canvas[child]
-                if base.liveconnect(gate, child):
+                try:
+                    index = int(input(
+                        f"Enter the input index (0-{gate.inputlimit - 1}) for {child} -> {gate}: "))
+                except ValueError:
+                    print("Invalid index. Skipping.")
+                    continue
+
+                if base.liveconnect(gate, child, index):
                     print(f"Connected {child} to {gate}.")
                 else:
                     print('Not connected')
@@ -89,11 +96,16 @@ def menu():
                 continue
             gate = base.canvas[int(gate)]
             childlist = list(
-                map(int, input("Enter the serial of the component to disconnect to: ").split()))
+                map(int, input("Enter the serial of the component to disconnect: ").split()))
             for child in childlist:
                 child = base.canvas[child]
-                base.livedisconnect(gate, child)
-                print(f"Disconnected {child} & {gate}.")
+                indices = [i for i, c in enumerate(
+                    gate.children) if c == child]
+                if not indices:
+                    print(f"{child} is not connected to {gate} inputs.")
+                for index in indices:
+                    base.livedisconnect(gate, index)
+                    print(f"Disconnected {child} from {gate} index {index}.")
             input('Press Enter to continue....')
 
         elif choice == '5':
@@ -153,91 +165,95 @@ def menu():
             input('Press Enter to continue....')
 
         elif choice.upper() == 'D':
-            # show input and output gates of first list the ICs
+            # Show ICs and select one to configure
+            if not base.iclist:
+                print("No ICs in circuit.")
+                input('Press Enter to continue....')
+                continue
             for i, ic in enumerate(base.iclist):
                 print(f'{i}. {ic}')
-            ic = base.iclist[int(
-                input('Enter the serial of the IC you want to configure: '))]
+            try:
+                ic = base.iclist[int(input('Select IC: '))]
+            except (ValueError, IndexError):
+                print("Invalid selection.")
+                input('Press Enter to continue....')
+                continue
+
             while True:
                 clear_screen()
-                print(f"--- Configuring IC: {ic.name} ---")
-                print("1. Show Input Pins")
-                print("2. Show Output Pins")
-                print("3. Show IC Info")
-                print("4. Connect Input Pin")
-                print("5. Disconnect Input Pin")
-                print("6. Connect Output Pin")
-                print("7. Disconnect Output Pin")
+                print(f"=== IC: {ic.name} ===")
+                print("1. View IC Info")
+                print("2. Connect Pin")
+                print("3. Disconnect Pin")
                 print("ESC. Back")
                 ic_choice = readkey()
-                if ic_choice == '1':
-                    ic.showinputpins()
-                    input('Press Enter to continue....')
-                elif ic_choice == '2':
-                    ic.showoutputpins()
-                    input('Press Enter to continue....')
 
-                elif ic_choice == '3':
+                if ic_choice == '1':
                     ic.info()
                     input('Press Enter to continue....')
 
-                elif ic_choice == '4':
-                    ic.showinputpins()
-                    pin = input('Enter the serial of the pin: ')
-                    if pin == '':
-                        continue
-                    pin = ic.inputs[int(pin)]
-                    base.listComponent()
-                    gate = input(
-                        'Enter the serial of the gate you want to connect: ')
-                    if gate == '':
-                        continue
-                    gate = base.canvas[int(gate)]
-                    base.connect(pin, gate)
+                elif ic_choice == '2':
+                    print("\nConnect: [I]nput or [O]utput pin?")
+                    pin_type = readkey().upper()
+                    if pin_type == 'I':
+                        ic.showinputpins()
+                        pin = input('Pin #: ')
+                        if pin == '':
+                            continue
+                        pin = ic.inputs[int(pin)]
+                        base.listComponent()
+                        gate = input('Connect to gate #: ')
+                        if gate == '':
+                            continue
+                        gate = base.canvas[int(gate)]
+                        base.connect(pin, gate)
+                        print(f"Connected {gate} -> {pin.name}")
+                    elif pin_type == 'O':
+                        ic.showoutputpins()
+                        pin = input('Pin #: ')
+                        if pin == '':
+                            continue
+                        pin = ic.outputs[int(pin)]
+                        base.listComponent()
+                        gate = input('Connect from gate #: ')
+                        if gate == '':
+                            continue
+                        gate = base.canvas[int(gate)]
+                        base.connect(gate, pin)
+                        print(f"Connected {pin.name} -> {gate}")
                     input('Press Enter to continue....')
 
-                elif ic_choice == '5':
-                    ic.showinputpins()
-                    pin = input('Enter the serial of the pin: ')
-                    if pin == '':
-                        continue
-                    pin = ic.inputs[int(pin)]
-                    base.listComponent()
-                    gate = input(
-                        'Enter the serial of the gate you want to disconnect: ')
-                    if gate == '':
-                        continue
-                    gate = base.canvas[int(gate)]
-                    base.disconnect(pin, gate)
+                elif ic_choice == '3':
+                    print("\nDisconnect: [I]nput or [O]utput pin?")
+                    pin_type = readkey().upper()
+                    if pin_type == 'I':
+                        ic.showinputpins()
+                        pin = input('Pin #: ')
+                        if pin == '':
+                            continue
+                        pin = ic.inputs[int(pin)]
+                        base.listComponent()
+                        gate = input('Disconnect from gate #: ')
+                        if gate == '':
+                            continue
+                        gate = base.canvas[int(gate)]
+                        base.disconnect(pin, gate)
+                        print(f"Disconnected {gate} from {pin.name}")
+                    elif pin_type == 'O':
+                        ic.showoutputpins()
+                        pin = input('Pin #: ')
+                        if pin == '':
+                            continue
+                        pin = ic.outputs[int(pin)]
+                        base.listComponent()
+                        gate = input('Disconnect from gate #: ')
+                        if gate == '':
+                            continue
+                        gate = base.canvas[int(gate)]
+                        base.disconnect(gate, pin)
+                        print(f"Disconnected {pin.name} from {gate}")
                     input('Press Enter to continue....')
-                elif ic_choice == '6':
-                    ic.showoutputpins()
-                    pin = input('Enter the serial of the pin: ')
-                    if pin == '':
-                        continue
-                    pin = ic.outputs[int(pin)]
-                    base.listComponent()
-                    gate = input(
-                        'Enter the serial of the gate you want to connect: ')
-                    if gate == '':
-                        continue
-                    gate = base.canvas[int(gate)]
-                    base.connect(gate, pin)
-                    input('Press Enter to continue....')
-                elif ic_choice == '7':
-                    ic.showoutputpins()
-                    pin = input('Enter the serial of the pin: ')
-                    if pin == '':
-                        continue
-                    pin = ic.outputs[int(pin)]
-                    base.listComponent()
-                    gate = input(
-                        'Enter the serial of the gate you want to disconnect: ')
-                    if gate == '':
-                        continue
-                    gate = base.canvas[int(gate)]
-                    base.disconnect(gate, pin)
-                    input('Press Enter to continue....')
+
                 elif ic_choice == key.ESC:
                     break
 

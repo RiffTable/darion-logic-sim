@@ -130,26 +130,26 @@ class IC:
 
     def hide(self):
         for pin in self.outputs:
-            for parent in pin.dst:
-                parent.src[pin.output].discard(pin)
-            for parent in pin.dst:
+            for parent in pin.parents.keys():
+                parent.children[pin.output].discard(pin)
+            for parent in pin.parents.keys():
                 parent.process()
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.src.keys():
-                for child in pin.src[i]:
-                    child.dst.discard(pin)
+            for i in pin.children.keys():
+                for child in pin.children[i]:
+                    child.parents.discard(pin)
 
     def reveal(self):
         for pin in self.outputs:
-            for parent in pin.dst:
+            for parent in pin.parents:
                 parent.connect(pin)
-            for parent in pin.dst:
+            for parent in pin.parents:
                 parent.propagate()
         for pin in self.inputs:
-            for i in pin.src.keys():
-                for child in pin.src[i]:
-                    child.dst.add(pin)
+            for i in pin.children.keys():
+                for child in pin.children[i]:
+                    child.parents.add(pin)
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:
@@ -164,17 +164,45 @@ class IC:
             print(f'{i}. {gate}')
 
     def info(self):
-        # show all components in a ordered way
-        for comp in self.internal:
-            if isinstance(comp, IC):
-                comp.info()
-            else:
-                print(f'{comp.name} with output {comp.output}')
-                print(f'dst: {[p.name for p in comp.dst]}')
-                print(
-                    f'src (LOW): {[c.name for c in comp.src[Const.LOW]]}')
-                print(
-                    f'src (HIGH): {[c.name for c in comp.src[Const.HIGH]]}')
-                print(
-                    f'src (ERROR): {[c.name for c in comp.src[Const.ERROR]]}')
-                print('---')
+        """Show all IC components in an organized way."""
+        print(f"\n  IC: {self.name} (Code: {self.code})")
+        print("  " + "-" * 40)
+
+        # Show inputs
+        if self.inputs:
+            print("  INPUTS:")
+            for pin in self.inputs:
+                parents = [str(p) for p in pin.parents.keys()]
+                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
+
+        # Show internal components
+        if self.internal:
+            print("  INTERNAL:")
+            for comp in self.internal:
+                if isinstance(comp, IC):
+                    comp.info()
+                else:
+                    # Children (list with indices)
+                    if isinstance(comp.children, list):
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.children) if str(c) != 'Empty']
+                        ch_str = ", ".join(ch) if ch else "None"
+                    else:
+                        ch_str = f"val:{comp.children}"
+                    # Parents
+                    par = [str(p) for p in comp.parents.keys()]
+                    par_str = ", ".join(par) if par else "None"
+                    print(f"    {comp.name}: out={comp.getoutput()}, children={ch_str}, parents={par_str}")
+
+        # Show outputs
+        if self.outputs:
+            print("  OUTPUTS:")
+            for pin in self.outputs:
+                if isinstance(pin.children, list):
+                    ch = [f"{c}" for c in pin.children if str(c) != 'Empty']
+                    ch_str = ", ".join(ch) if ch else "None"
+                else:
+                    ch_str = "None"
+                print(f"    {pin.name}: out={pin.getoutput()}, from={ch_str}")
+
+        print("  " + "-" * 40)
+

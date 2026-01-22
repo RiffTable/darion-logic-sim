@@ -1,32 +1,12 @@
 [
     {
-        "name": "XOR-1",
+        "name": "NOT-1",
         "custom_name": "",
         "code": [
-            6,
+            1,
             0
         ],
-        "dst": [
-            [
-                6,
-                1
-            ]
-        ],
-        "output": 0
-    },
-    {
-        "name": "XOR-2",
-        "custom_name": "",
-        "code": [
-            6,
-            1
-        ],
-        "dst": [
-            [
-                6,
-                0
-            ]
-        ],
+        "parent": [],
         "output": 1
     },
     {
@@ -36,12 +16,27 @@
             8,
             0
         ],
-        "dst": [
+        "parent": [
             [
-                6,
-                0
+                [
+                    1,
+                    0
+                ],
+                [
+                    0
+                ]
             ]
         ],
+        "output": 0
+    },
+    {
+        "name": "NOT-2",
+        "custom_name": "",
+        "code": [
+            1,
+            1
+        ],
+        "parent": [],
         "output": 1
     },
     {
@@ -51,12 +46,17 @@
             8,
             1
         ],
-        "dst": [
+        "parent": [
             [
-                6,
-                1
+                [
+                    1,
+                    1
+                ],
+                [
+                    0
+                ]
             ]
         ],
-        "output": 1
+        "output": 0
     }
 ]

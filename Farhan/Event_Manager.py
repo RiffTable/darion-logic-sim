@@ -102,7 +102,7 @@ class Event(Circuit):
         return True
 
     def input(self, var, value):
-        self.connect(var, self.sign_1 if value == '1' else self.sign_0)
+        self.toggle(var, int(value))
         self.addtoundo((Const.CONNECT, var))
 
     def livedisconnect(self, parent: Gate, index):

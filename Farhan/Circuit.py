@@ -30,7 +30,6 @@ class Circuit:
             name = gt.__class__.__name__
             if name == 'Variable':
                 gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
-                gt.children[Const.LOW].add(self.sign_0)
             else:
                 gt.name = name+'-'+str(len(self.objlist[choice]))
 
@@ -62,6 +61,11 @@ class Circuit:
         parent.connect(child,index)
         if parent.prev_output != parent.output:
             parent.propagate()
+            
+    def toggle(self, parent: Variable,value):
+        parent.toggle(value)
+        if parent.prev_output != parent.output:
+            parent.propagate()
 
     def passive_connect(self, parent, child, child_output: str):
         parent_obj = self.getobj(parent)
@@ -71,9 +75,8 @@ class Circuit:
             child_obj.parents.add(parent_obj)
 
     # identify parent/child
-    def disconnect(self, parent: Gate, child: Gate):
-        if parent in child.parents:
-            parent.disconnect(child)
+    def disconnect(self, parent: Gate, index):
+        parent.disconnect(index)
 
     # deletes component
     def hideComponent(self, gate: Gate | IC):
@@ -141,60 +144,73 @@ class Circuit:
         return Table
 
     def diagnose(self):
-        print("--- Component Diagnosis ---")
+        print("=" * 90)
+        print(" " * 35 + "CIRCUIT DIAGNOSIS")
+        print("=" * 90)
 
-        # Define columns dynamically (easy to add/remove in the future)
-        columns = [
-            ("Component", 12),
-            ("Input-0", 22),
-            ("Input-1", 22),
-            ('Error', 22),
-            ("dst (Outputs to)", 25),
-            ("State", 10)
-        ]
+        # Diagnose regular gates
+        gates = [c for c in self.canvas if not isinstance(c, IC)]
+        if gates:
+            columns = [
+                ("Component", 14),
+                ("Children", 28),
+                ("Book[L,H,E,U]", 15),
+                ("Parents", 25),
+                ("Out", 6)
+            ]
+            total_width = sum(w for _, w in columns)
+            fmt = "".join(f"{{:<{w}}}" for _, w in columns)
 
-        # Calculate total width for separator line
-        total_width = sum(width for _, width in columns)
+            print("\n" + fmt.format(*[n for n, _ in columns]))
+            print("-" * total_width)
 
-        # Header row
-        header_format = "".join(f"{{:<{width}}}" for _, width in columns)
-        header_names = [name for name, _ in columns]
-        print(header_format.format(*header_names))
-        print("-" * total_width)
+            for comp in gates:
+                # Children (inputs) - list with indices
+                if isinstance(comp.children, list):
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.children) if str(c) != 'Empty']
+                    ch_str = ", ".join(ch) if ch else "None"
+                else:
+                    ch_str = f"val:{comp.children}"
 
-        # Data rows
-        row_format = header_format  # Same alignment and widths
+                # Book counts
+                book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
-        for component in self.canvas:
-            if isinstance(component, IC):
-                continue
-            # Inputs (src)
-            input_0 = []
-            input_1 = []
-            Error = []
-            for i in component.children[Const.LOW]:
-                input_0.append(i.name)
-            for i in component.children[Const.HIGH]:
-                input_1.append(i.name)
-            for i in component.children[Const.ERROR]:
-                Error.append(i.name)
-            src_0 = ", ".join(sorted(input_0)) if input_0 else "None"
-            src_1 = ", ".join(sorted(input_1)) if input_1 else "None"
-            src_neg = ", ".join(sorted(Error)) if Error else "None"
+                # Parents (outputs to)
+                par = [f"{p}" for p in comp.parents.keys()]
+                par_str = ", ".join(par) if par else "None"
 
-            # Outputs (dst)
-            dst = []
-            for i in component.parents:
-                dst.append(i.name)
-            dst = ", ".join(sorted(dst)) if dst else "None"
+                # Truncate long strings
+                ch_str = ch_str[:26] + ".." if len(ch_str) > 28 else ch_str
+                par_str = par_str[:23] + ".." if len(par_str) > 25 else par_str
 
-            # State
-            state = component.getoutput()
+                print(fmt.format(str(comp), ch_str, book, par_str, str(comp.getoutput())))
 
-            print(row_format.format(str(component), src_0,
-                  src_1, src_neg, dst, state))
+            print("-" * total_width)
 
-        print("-" * total_width)
+        # Diagnose ICs
+        if self.iclist:
+            print("\n" + "=" * 90)
+            print(" " * 40 + "IC STATUS")
+            print("=" * 90)
+            for ic in self.iclist:
+                print(f"\n  IC: {ic.name} (Code: {ic.code})")
+                print("  " + "-" * 50)
+
+                # Input pins
+                if ic.inputs:
+                    print("  INPUT PINS:")
+                    for pin in ic.inputs:
+                        parents = [str(p) for p in pin.parents.keys()]
+                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
+
+                # Output pins
+                if ic.outputs:
+                    print("  OUTPUT PINS:")
+                    for pin in ic.outputs:
+                        ch = [f"{c}" for c in pin.children if str(c) != 'Empty'] if isinstance(pin.children, list) else []
+                        print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+
+        print("\n" + "=" * 90)
 
     def writetojson(self, location):
         circuit = []
@@ -306,7 +322,7 @@ class Circuit:
             i.process()
         for i in self.varlist:
             for parent in i.parents:
-                parent.connect(i)
+                i.update(parent)
                 if parent.output != Const.UNKNOWN:
                     parent.propagate()
 
