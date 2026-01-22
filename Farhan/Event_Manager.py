@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 from Circuit import Circuit
 from Const import Const
-from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT
+from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT,Nothing
 
 
 class Event(Circuit):
@@ -89,7 +89,7 @@ class Event(Circuit):
         self.addtoundo((Const.DELETE, gate))
 
     def liveconnect(self, parent: Gate, child: Gate, index):
-        if parent.inputpoint == False or child.outputpoint == False or parent.turnon():
+        if parent.inputpoint == False or child.outputpoint == False or parent.children[index] != Nothing:
             return False
         self.connect(parent, child, index)
         self.addtoundo((Const.CONNECT, parent, child, index))
