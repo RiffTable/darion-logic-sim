@@ -14,6 +14,9 @@ class CircuitView(QGraphicsView):
 
 		self.setSceneRect(-5000, -5000, 10000, 10000)
 		self.viewport().setMouseTracking(True)
+		self.setInteractive(True)
+		self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+		self.setRubberBandSelectionMode(Qt.ItemSelectionMode.IntersectsItemShape)
 		self.setRenderHints(
 			QPainter.RenderHint.Antialiasing |
 			QPainter.RenderHint.TextAntialiasing
@@ -75,8 +78,9 @@ class CircuitView(QGraphicsView):
 
 		# Check if Mouse Wheel
 		if dev and dev.type() == QInputDevice.DeviceType.Mouse:
+			# angleDelta.y() equals to +/- 120 for mouse scroll, never below
 			dy = angleDelta.y()
-			if abs(dy) <= 1: return
+			if abs(dy) <= 10: return
 
 			self.applyZoom(
 				event.position().toPoint(),
