@@ -42,6 +42,7 @@ def menu():
 
         print()
         clear_screen()
+        
         if choice == '1':
             print("Choose a gate to add to the circuit:")
             print("1. NOT")

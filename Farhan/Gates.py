@@ -55,8 +55,10 @@ class Gate:
 
     def process():
         pass
+    
     def turnon(self):
         return self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR] >= self.inputlimit
+    
     def rename(self, name):
         self.name = name
 
@@ -65,6 +67,7 @@ class Gate:
 
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
+
     def isready(self):
         if Const.MODE == Const.DESIGN:
             return False
@@ -123,7 +126,6 @@ class Gate:
                 if parent.isready() and parent.output != Const.ERROR:
                     queue.append(parent)
 
-
     def propagate(self):
         fuse = {}
         queue: deque[Gate] = deque()
@@ -145,16 +147,6 @@ class Gate:
                     fuse[(gate, parent)] = (gate.output, parent.output)
                     queue.append(parent)
 
-            # parent.connect(child)
-            # if parent.prev_output != parent.output:
-            #     if key not in fuse:
-            #         fuse[key] = (parent.output, child.output)
-            #         for grandparent in parent.parents:
-            #             queue.append((grandparent, parent))
-            #     elif fuse[key] != (parent.output, child.output):
-            #         child.burn()
-            #         return
-
     def disconnect(self, index: int):
         child = self.children[index]
         self.book[child.output] -= 1
@@ -171,6 +163,9 @@ class Gate:
     def reset(self):
         self.output = Const.UNKNOWN
         self.book = [0, 0, 0, sum(self.book)]
+        self.prev_output = Const.UNKNOWN
+        for infolist in self.parents.values():
+            infolist[1]=Const.UNKNOWN
 
     def hide(self):
         # disconnect from parent
@@ -212,12 +207,8 @@ class Gate:
                 child.parents[self] = [set(), child.output]
             child.parents[self][0].add(index)
 
-        # Propagate Parents
-
     def setlimits(self):
         pass
-
-    # gives output in T or F of off if there isn't enough inputs
 
     def getoutput(self):
         if self.output == Const.ERROR:
@@ -291,13 +282,16 @@ class Variable(Gate):
 
     def reset(self):
         self.output = Const.UNKNOWN
-        pass
-    
+        self.prev_output = Const.UNKNOWN
+        for infolist in self.parents.values():
+            infolist[1]=Const.UNKNOWN
+
     def isready(self):
         if Const.MODE==Const.DESIGN:
             return False
         else:
             return True
+    
     def process(self):
         self.prev_output = self.output
         if self.isready():
@@ -323,11 +317,36 @@ class Variable(Gate):
             self.parents[parent] = [set(i[1]), i[2]]
         self.children = dictionary["child"]
 
+    def hide(self):
+        # disconnect from parent
+        for parent, infolist in self.parents.items():
+            for i in infolist[0]:
+                parent.children[i] = Nothing
+                parent.book[infolist[1]] -= 1
+
+        for parent in self.parents.keys():
+            if parent!=self:
+                parent.process()
+                parent.propagate()
+
+    def reveal(self):
+        # connect to parents
+        for parent, infolist in self.parents.items():
+            for i in infolist[0]:
+                parent.children[i]=self
+                parent.book[infolist[1]]+=1
+                parent.process()
+
+        for parent in self.parents.keys():
+            if parent!=self:
+                parent.propagate()
+
 class Probe(Gate):
     # this can be both an input or output(bulb)
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
+        self.children = [Nothing]
 
     def process(self):
         self.prev_output = self.output
@@ -358,14 +377,12 @@ class InputPin(Probe):
         self.inputlimit = 1
         # self.inputpoint=False
 
-
 class OutputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
-        # self.outputpoint=False
-
+        # self.outputpoint=Falses 
 
 class NOT(Gate):
     def __init__(self):
@@ -379,7 +396,6 @@ class NOT(Gate):
             self.output = self.book[Const.LOW]
         else:
             self.output = Const.UNKNOWN
-
 
 class AND(Gate):
     def __init__(self):
@@ -404,7 +420,6 @@ class NAND(Gate):
         else:
             self.output = Const.UNKNOWN
 
-
 class OR(Gate):
     def __init__(self):
         super().__init__()
@@ -415,7 +430,6 @@ class OR(Gate):
             self.output = 1 if self.book[Const.HIGH] else 0
         else:
             self.output = Const.UNKNOWN
-
 
 class NOR(Gate):
 
@@ -429,9 +443,7 @@ class NOR(Gate):
         else:
             self.output = Const.UNKNOWN
 
-
 class XOR(Gate):
-
     def __init__(self):
         super().__init__()
 
@@ -441,7 +453,6 @@ class XOR(Gate):
             self.output = self.book[Const.HIGH] % 2
         else:
             self.output = Const.UNKNOWN
-
 
 class XNOR(Gate):
 
