@@ -105,16 +105,25 @@ class Circuit:
 
         gate_list = [
             i for i in self.canvas if i not in self.varlist and not isinstance(i, IC)]
+        
+        ic_outputs = []
+        for i in self.canvas:
+            if isinstance(i, IC):
+                for pin in i.outputs:
+                    ic_outputs.append((i, pin))
+
         n = len(self.varlist)
         rows = 1 << n
         # Collect decoded variable names and the output gate name
         var_names = [v.name for v in self.varlist]
-        output_name = [v.name for v in gate_list]
+        gate_names = [v.name for v in gate_list]
+        ic_names = [f"{ic}:{pin.name}" for ic, pin in ic_outputs]
+        output_names = gate_names + ic_names
 
         # Determine column widths for nice alignment
-        col_width = max(len(name) for name in var_names + output_name) + 2
+        col_width = max(len(name) for name in var_names + output_names) + 2
         header = " | ".join(name.center(col_width)
-                            for name in var_names + output_name)
+                            for name in var_names + output_names)
         separator = "─" * len(header)
 
         # Print table header
@@ -128,10 +137,13 @@ class Circuit:
             for j in range(n):
                 var = self.varlist[j]
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
-                self.connect(var, self.sign_1 if bit else self.sign_0)
+                self.toggle(var, bit)
                 inputs.append("1" if bit else "0")
-            output = [gate.getoutput() for gate in gate_list]
-            row = " | ".join(val.center(col_width) for val in inputs + output)
+            
+            output_vals = [gate.getoutput() for gate in gate_list]
+            output_vals += [pin.getoutput() for _, pin in ic_outputs]
+            
+            row = " | ".join(val.center(col_width) for val in inputs + output_vals)
             Table += row+'\n'
         Table += separator+'\n'
         return Table
