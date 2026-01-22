@@ -14,6 +14,7 @@ class Const:
     CONNECT = 3
     DISCONNECT = 4
     PASTE = 5
+    TOGGLE = 6
 
 
 class GateType:

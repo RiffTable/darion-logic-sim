@@ -38,13 +38,7 @@ class Event(Circuit):
             super().renewComponent(event[1])
 
         elif command == Const.CONNECT:
-            gate1 = event[1]
-            if isinstance(gate1, Variable):
-                self.connect(gate1, self.sign_1 if gate1.output ==
-                             0 else self.sign_0)
-                return
-            gate2 = event[2]
-            super().disconnect(gate1, gate2, event[3])
+            super().disconnect(event[1], event[2], event[3])
 
         elif command == Const.DISCONNECT:
             super().connect(event[1], event[2], event[3])
@@ -54,6 +48,9 @@ class Event(Circuit):
             for i in gates:
                 self.terminate(i)
             self.rank_reset()
+
+        elif command == Const.TOGGLE:
+            self.toggle(event[1], event[2]^1)
 
     def redo(self):
         if len(self.redolist) == 0:
@@ -68,13 +65,7 @@ class Event(Circuit):
             self.hideComponent(event[1])
 
         elif command == Const.CONNECT:
-            gate1 = event[1]
-            if isinstance(gate1, Variable):
-                self.connect(gate1, self.sign_1 if gate1.output ==
-                             0 else self.sign_0)
-                return
-            gate2 = event[2]
-            self.connect(gate1, gate2, event[3])
+            self.connect(event[1], event[2], event[3])
 
         elif command == Const.DISCONNECT:
             self.disconnect(event[1], event[2], event[3])
@@ -83,6 +74,9 @@ class Event(Circuit):
             gates = [self.getobj(code) for code in event[1]]
             super().copy(gates)
             super().paste()
+
+        elif command == Const.TOGGLE:
+            self.toggle(event[1], event[2])
 
     def addcomponent(self, gate_option) -> Gate:
         gate = self.getcomponent(gate_option)
@@ -103,11 +97,12 @@ class Event(Circuit):
 
     def input(self, var, value):
         self.toggle(var, int(value))
-        self.addtoundo((Const.CONNECT, var))
+        self.addtoundo((Const.TOGGLE, var, int(value)))
 
     def livedisconnect(self, parent: Gate, index):
+        self.addtoundo((Const.DISCONNECT,parent, parent.children[index], index))
         self.disconnect(parent, index)
-        self.addtoundo((Const.DISCONNECT, parent.children[index], index))
+
 
     def copy(self, components):
         super().copy(components)

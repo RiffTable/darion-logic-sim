@@ -95,17 +95,37 @@ def menu():
             if gate == '':
                 continue
             gate = base.canvas[int(gate)]
-            childlist = list(
-                map(int, input("Enter the serial of the component to disconnect: ").split()))
-            for child in childlist:
-                child = base.canvas[child]
-                indices = [i for i, c in enumerate(
-                    gate.children) if c == child]
-                if not indices:
-                    print(f"{child} is not connected to {gate} inputs.")
-                for index in indices:
-                    base.livedisconnect(gate, index)
-                    print(f"Disconnected {child} from {gate} index {index}.")
+            
+            # Display the gate and its input pins with connections
+            print(f"\n=== {gate} - Input Pins ===")
+            has_connections = False
+            for i, child in enumerate(gate.children):
+                status = f"[{i}] -> {child}"
+                print(status)
+                if str(child) != 'Empty':
+                    has_connections = True
+            
+            if not has_connections:
+                print("No connections to disconnect.")
+                input('Press Enter to continue....')
+                continue
+            
+            # Ask which indices to disconnect
+            indices_input = input("\nEnter the input index/indices to disconnect (space-separated): ")
+            if indices_input == '':
+                continue
+            indices = list(map(int, indices_input.split()))
+            
+            for index in indices:
+                if index < 0 or index >= len(gate.children):
+                    print(f"Invalid index {index}. Skipping.")
+                    continue
+                child = gate.children[index]
+                if str(child) == 'Empty':
+                    print(f"Index {index} is already empty. Skipping.")
+                    continue
+                base.livedisconnect(gate, index)
+                print(f"Disconnected {child} from {gate} at index {index}.")
             input('Press Enter to continue....')
 
         elif choice == '5':
