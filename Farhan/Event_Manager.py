@@ -5,12 +5,15 @@ from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT,Nothing
 
 
 class Event(Circuit):
+    # This class handles time travel (undo/redo)
+    # It remembers every action so we can reverse it
 
     def __init__(self):
         super().__init__()
         self.undolist = []
         self.redolist = []
 
+    # saves an action to history
     def addtoundo(self, token):
         self.undolist.append(token)
         self.redolist = []
@@ -25,6 +28,7 @@ class Event(Circuit):
         self.undolist.append(x)
         return x
 
+    # reverses the last action
     def undo(self):
         if len(self.undolist) == 0:
             return
@@ -52,6 +56,7 @@ class Event(Circuit):
         elif command == Const.TOGGLE:
             self.toggle(event[1], event[2]^1)
 
+    # re-applies an action we just undid
     def redo(self):
         if len(self.redolist) == 0:
             return

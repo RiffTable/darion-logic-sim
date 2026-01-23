@@ -6,21 +6,32 @@ from Store import Components
 
 
 class Circuit:
+    # the main circuit board that holds everything together
+    # it knows about all gates, connections, and states
 
     def __init__(self):
+        # lookup table for objects by code
         self.objlist: dict[int, list[Gate | Signal | IC]] = {
             i: [] for i in range(0, 13)}  # holds the objects with code name
+        # list of everything visible on the board
         self.canvas: list[Gate | Signal | IC] = []  # displays the components
+        # special list for input/output variables (0/1 switches)
         self.varlist: list[Variable] = []  # holds variables with 0/1 input
+        # distinct list for Integrated Circuits
         self.iclist: list[IC] = []
+        
+        # default global signals
         self.sign_0 = Signal(Const.LOW)
         self.sign_1 = Signal(Const.HIGH)
         self.objlist[0] = [self.sign_0, self.sign_1]
+        
+        # clipboard for copy/paste
         self.copydata = []
 
     def __repr__(self):
         return 'Circuit'
 
+    # creates and adds a new component to the circuit
     def getcomponent(self, choice) -> Gate | Signal | IC:
         gt = Components.get(choice)
         if gt:
@@ -28,6 +39,8 @@ class Circuit:
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
             name = gt.__class__.__name__
+            
+            # give it a nice name like A1, B2 or AND-1
             if name == 'Variable':
                 gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
             else:
@@ -56,12 +69,14 @@ class Circuit:
         for i in range(len(self.varlist)):
             print(f'{i}. {self.varlist[i]}')
 
-    # connects parent to it's child/inputs
+    # connects a parent gate to a child (input)
     def connect(self, parent: Gate, child: Gate | Signal,index):
         parent.connect(child,index)
+        # if the connection changed something, let everyone know
         if parent.prev_output != parent.output:
             parent.propagate()
             
+    # switches a variable on or off
     def toggle(self, parent: Variable,value):
         parent.toggle(value)
         if parent.prev_output != parent.output:
@@ -71,13 +86,14 @@ class Circuit:
     def disconnect(self, parent: Gate, index):
         parent.disconnect(index)
 
-    # deletes component
+    # removes a component from view (soft delete)
     def hideComponent(self, gate: Gate | IC):
         gate.hide()
         if gate in self.varlist:
             self.varlist.remove(gate)
         self.canvas.remove(gate)
 
+    # completely wipes a component from existence
     def terminate(self, code):
         gate = self.getobj(code)
         if gate in self.varlist:
@@ -98,7 +114,7 @@ class Circuit:
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
 
-    # Truth Table
+    # generates a truth table for all possible inputs
     def truthTable(self):
         if len(self.varlist) == 0:
             return
@@ -148,6 +164,7 @@ class Circuit:
         Table += separator+'\n'
         return Table
 
+    # prints a detailed report of everything going on
     def diagnose(self):
         print("=" * 90)
         print(" " * 35 + "CIRCUIT DIAGNOSIS")
@@ -252,6 +269,7 @@ class Circuit:
             else:
                 gate.clone(gate_dict, pseudo)
 
+    # packages the current circuit into an IC
     def save_as_ic(self, location):
         if self.varlist:
             print('Delete Variables First')
@@ -284,6 +302,7 @@ class Circuit:
         self.varlist = []
         self.canvas = []
 
+    # copies selected components to clipboard
     def copy(self, components: list["Gate"]):
         if len(components) == 0:
             return
@@ -297,6 +316,7 @@ class Circuit:
             json.dump(self.copydata, file, indent=4)
         self.copydata = [i.code for i in components]
 
+    # pastes components from clipboard
     def paste(self):
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
@@ -321,6 +341,7 @@ class Circuit:
                 gate.implement(gate_dict, pseudo)
         return new_items
 
+    # runs the simulation
     def simulate(self, Mode):
         Const.MODE = Mode
         for i in self.varlist:

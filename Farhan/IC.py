@@ -4,6 +4,8 @@ from Gates import Gate, InputPin, OutputPin, Nothing
 
 
 class IC:
+    # Integrated Circuit: a custom chip made of other gates
+    # It acts like a black box with inputs and outputs
     def __init__(self):
         self.inputs: list[InputPin] = []
         self.internal: list[Gate|IC] = []
@@ -24,6 +26,7 @@ class IC:
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
 
+    # helps created parts inside the IC
     def getcomponent(self, choice):
         from Store import Components
         gt = Components.get(choice)
@@ -59,6 +62,7 @@ class IC:
             child.name = child.__class__.__name__+'-'+str(len(self.internal))
         child.code = (child.code[0], rank, self.code)
 
+    # sets up the IC from a saved plan
     def configure(self, dictionary):
         pseudo = {}
         pseudo[('X', 'X')] = Nothing
@@ -71,12 +75,14 @@ class IC:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
+    # brings the components to life based on the plan
     def load_components(self, dictionary, pseudo):
         # generate all the necessary components
         for code in dictionary["components"]:
             gate = self.getcomponent(code[0])
             pseudo[self.decode(code)] = gate
 
+    # prepares data to be saved to file
     def json_data(self):
         dictionary = {
             "name": self.name,
@@ -118,6 +124,7 @@ class IC:
             dictionary["map"].append(i.copy_data(cluster))
         return dictionary
 
+    # builds the connections based on the map
     def implement(self, pseudo):
         for i in self.map:
             code = self.decode(i["code"])
@@ -129,6 +136,7 @@ class IC:
             else:
                 gate.implement(i, pseudo)
 
+    # disconnects internal logic (used when deleting)
     def hide(self):
         for pin in self.outputs:
             for parent, infolist in pin.parents.items():
@@ -142,6 +150,7 @@ class IC:
             for child in pin.children:
                 child.parents.pop(pin)
 
+    # reconnects internal logic
     def reveal(self):
         for pin in self.outputs:
             for parent, infolist in pin.parents.items():
