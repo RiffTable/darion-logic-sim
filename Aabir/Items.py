@@ -18,7 +18,7 @@ class Facing(Enum):
 
 
 
-
+###======= COMPONENT ITEM =======###
 class CompItem(QGraphicsRectItem):
 	def __init__(self, x: float, y: float):
 		super().__init__(x, y, 80, 50)
@@ -61,6 +61,7 @@ class CompItem(QGraphicsRectItem):
 
 
 
+###======= PIN ITEM =======###
 class PinItem(QGraphicsEllipseItem):
 	def __init__(self, parent: CompItem):
 		r = 5
@@ -84,18 +85,31 @@ class PinItem(QGraphicsEllipseItem):
 		self.hovering = True
 		self.updateVisual()
 		super().hoverEnterEvent(event)
-
 	def hoverLeaveEvent(self, event):
 		self.hovering = False
 		self.updateVisual()
 		super().hoverLeaveEvent(event)
 
+class InputPinItem(PinItem):
+	supply: list[WireItem]
+	def __init__(self, parent: CompItem):
+		super().__init__(parent)
+	
+	def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
+		# Wire drawing logic
+		super().mousePressEvent(event)
+
+class OutputPinItem(PinItem):
+	def __init__(self, parent: CompItem):
+		super().__init__(parent)
 
 
 
 
+###======= WIRE ITEM =======###
 class WireItem(QGraphicsPathItem):
-	def __init__(self, beg: CompItem, end: CompItem):
+	source: WireItem
+	def __init__(self, beg: InputPinItem, end: OutputPinItem):
 		super().__init__()
 	
 	def updateVisual(self):
