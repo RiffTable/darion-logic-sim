@@ -4,7 +4,8 @@ from Const import Const
 
 
 class Signal:
-    # default signals that exist indepdently
+    # basic signal that just carries a value
+    # it exists on its own without needing inputs
     def __init__(self, value):
         self.parents = set()
         self.output = value
@@ -19,6 +20,7 @@ class Signal:
 
 
 class Empty:
+    # placeholder for when nothing is connected
     def __init__(self):
         self.code = ('X', 'X')
         self.parents={}
@@ -33,29 +35,37 @@ Nothing = Empty()
 
 
 class Gate:
+    # the blueprint for all logical gates
+    # it handles inputs, outputs, and processing logic
 
     def __init__(self):
-        # gate's child or inputs
+        # who feeds into this gate? (inputs)
         self.children: list[Gate] = [Nothing, Nothing]
-        # self.parents: dict[Gate, tuple[set[int], int]] = {}
+        # who does this gate feed into? (outputs)
         self.parents: dict[Gate, list[set, int]] = {}
-        # input limit
+        # how many inputs do we need?
         self.inputlimit = 2
+        # keeps track of what kind of inputs we have (high, low, etc)
         self.book: list[int] = [0, 0, 0, 0]
-        # default output
+        
+        # current and previous state
         self.output = Const.UNKNOWN
         self.prev_output = Const.UNKNOWN
-        # each gate will have it's own unique id
+        
+        # identity details
         self.code = ''
         self.name = ''
         self.custom_name = ''
-
+        
+        # can we connect to it?
         self.inputpoint = True
         self.outputpoint = True
 
-    def process():
+    # calculates the output based on inputs
+    def process(self):
         pass
     
+    # checks if we have enough inputs to function
     def turnon(self):
         return self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR] >= self.inputlimit
     
@@ -68,94 +78,126 @@ class Gate:
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
 
+    # checks if the gate is ready to calculate an output
     def isready(self):
         if Const.MODE == Const.DESIGN:
+            # if we are designing, nothing works yet
             return False
         else:
             realchild = self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR]
             if Const.MODE == Const.SIMULATE:
+                # in simulation, we need all inputs connected
                 return realchild == self.inputlimit
-        return realchild and realchild+self.book[Const.UNKNOWN] == self.inputlimit
+            else:
+                # in flipflop mode, we're a bit more lenient
+                return realchild and realchild+self.book[Const.UNKNOWN] == self.inputlimit
 
+    # connect a child gate (input) to this gate
     def connect(self, child: Gate, index: int):
-        # book manage
+        # update our input counts
         self.book[child.output] += 1
-        # self in parent register
+        
+        # let the child know we are listening to it
         if self not in child.parents:
             child.parents[self] = [set(), child.output]
         child.parents[self][0].add(index)
-        # child register
+        
+        # actually plug it in
         self.children[index] = child
-        # update value
+        
+        # if something is wrong with the input, react
         if child.output==Const.ERROR:
             if self.isready():
                 self.burn()
         else:
+            # otherwise, recalculate our output
             self.process()
 
+    # called when an input changes
     def update(self, parent: Gate,infolist: list[set|int]):
         if self.output==infolist[1]:
+            # if nothing changed, relax
             return False
+            
+        # update the parent's records
         count=len(infolist[0])
         parent.book[infolist[1]] -= count
         parent.book[self.output] += count
-        # update value
+        
         if self.output==Const.ERROR:
+            # error propagation
             if self.isready():
                 self.output=Const.ERROR
         else:
+            # let the parent recalculate
             parent.process()
+            
+        # update what the parent thinks our output is
         infolist[1]=self.output
         return parent.prev_output != parent.output
 
+    # protect against weird loops by resetting counts
     def sync(self):
         self.book=[0,0,0,0]
         for child in self.children:
             self.book[child.output]+=1
 
+    # handles error states and spreads the error
     def burn(self):
         queue: deque[Gate] = deque()
         queue.append(self)
         while len(queue):
             gate = queue.popleft()
             gate.prev_output = gate.output
-            gate.output = Const.ERROR
+            # mark as error
+            gate.output = Const.ERROR 
             for parent,infolist in gate.parents.items():
                 parent.sync()
-                infolist[1]=Const.ERROR
+                # update parent's knowledge
+                infolist[1]=Const.ERROR 
                 if parent.isready() and parent.output != Const.ERROR:
                     queue.append(parent)
 
+    # spread the signal change to all connected gates
     def propagate(self):
         fuse = {}
         queue: deque[Gate] = deque()
+        
+        # notify all parents
         for parent,infolist in self.parents.items():
             if self.update(parent,infolist):
                 fuse[(self, parent)] = (self.output, parent.output)
                 queue.append(parent)
+                
+        # keep propagating until everything settles
         while queue:
             gate = queue.popleft()
             for parent,infolist in gate.parents.items():
                 if gate.update(parent,infolist):
                     key = (gate, parent)
-                    if gate==parent:
+                    # check for loops or inconsistencies
+                    if gate==parent: 
                         gate.burn()
                         return
-                    if key in fuse and fuse[key] != (gate.output, parent.output):
+                    if key in fuse and fuse[key] != (gate.output, parent.output): 
                         gate.burn()
                         return
-                    fuse[(gate, parent)] = (gate.output, parent.output)
+                    fuse[(gate, parent)] = (gate.output, parent.output) 
                     queue.append(parent)
 
+    # remove a connection at a specific index
     def disconnect(self, index: int):
         child = self.children[index]
-        self.book[child.output] -= 1
-        self.children[index] = Nothing
-        child.parents[self][0].discard(index)
+        self.book[child.output] -= 1 
+        self.children[index] = Nothing 
+        child.parents[self][0].discard(index) 
+        
+        # if no more connections to this parent, remove it from list
         if len(child.parents[self][0]) == 0:
             child.parents.pop(self)
 
-        child.process()  # probably not needed
+        # recalculate everything
+        child.process()
         child.propagate()
         self.process()
         self.propagate()

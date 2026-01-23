@@ -4,6 +4,8 @@ from Const import GateType
 
 
 class Components:
+    # A shelf where we keep all the component blueprints
+    # This helps us create new gates by just asking for them by name
     gateobjects = {GateType.NOT: NOT, GateType.AND: AND, GateType.NAND: NAND, GateType.OR: OR, GateType.NOR: NOR, GateType.XOR: XOR,
                    GateType.XNOR: XNOR, GateType.VARIABLE: Variable, GateType.PROBE: Probe, GateType.INPUT_PIN: InputPin, GateType.OUTPUT_PIN: OutputPin, GateType.IC: IC}
 

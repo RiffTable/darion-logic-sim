@@ -5,12 +5,14 @@ from Const import Const
 
 
 def clear_screen():
+    # clears the clutter
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 base = Event()
 
 
+# The main loop that talks to the user
 def menu():
     while True:
         clear_screen()
@@ -44,6 +46,7 @@ def menu():
         clear_screen()
         
         if choice == '1':
+            # Add Component section
             print("Choose a gate to add to the circuit:")
             print("1. NOT")
             print("2. AND")
@@ -66,6 +69,7 @@ def menu():
             input('Press Enter to continue....')
 
         elif choice == '3':
+            # Connect Components section
             base.listComponent()
             gate = input(
                 "Enter the serial of the gate you want to connect components: ")
@@ -163,6 +167,7 @@ def menu():
             input('Press Enter to continue....')
 
         elif choice == '8':
+            # Show Truth Table section
             print(base.truthTable())
             input('Press Enter to continue....')
 
@@ -186,6 +191,7 @@ def menu():
             input('Press Enter to continue....')
 
         elif choice.upper() == 'D':
+            # Configure IC section
             # Show ICs and select one to configure
             if not base.iclist:
                 print("No ICs in circuit.")
