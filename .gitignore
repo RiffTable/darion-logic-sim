@@ -1,7 +1,8 @@
 env/
-testing/
-Farhan/__pycache__
-Farhan/test.py
 .venv/
+.vscode/
+testing/
+__pycache__
+Farhan/test.py
 file.json/
 temp.json/
