@@ -18,3 +18,5 @@ from PySide6.QtGui import (
 	QInputDevice,
 	QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent,
 )
+
+GraphicsItemChange = QGraphicsItem.GraphicsItemChange

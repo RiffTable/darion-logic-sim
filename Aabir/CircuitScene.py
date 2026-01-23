@@ -11,14 +11,12 @@ class CircuitScene(QGraphicsScene):
 	def __init__(self):
 		super().__init__()
 
-		self.setAcceptDrops(True)
-
 		self.SIZE = 20
 		self.gates: list[CompItem] = []
 		self.wires: list[WireItem] = []
 
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
-		comp = comp_type(*self.snapToGrid(x, y))
+		comp = comp_type(QPointF(x, y), QPoint(5, 4), QPointF(0, 5))
 		self.addItem(comp)
 		self.gates.append(comp)
 
