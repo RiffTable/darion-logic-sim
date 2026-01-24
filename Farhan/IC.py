@@ -66,6 +66,7 @@ class IC:
     def configure(self, dictionary):
         pseudo = {}
         pseudo[('X', 'X')] = Nothing
+        self.custom_name=dictionary["custom_name"]
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
@@ -86,6 +87,7 @@ class IC:
     def json_data(self):
         dictionary = {
             "name": self.name,
+            "custom_name": self.custom_name,
             "code": self.code,
             "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
             "map": []

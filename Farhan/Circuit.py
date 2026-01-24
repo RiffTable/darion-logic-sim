@@ -249,6 +249,8 @@ class Circuit:
     def readfromjson(self, location):
         with open(location, 'r') as file:
             circuit = json.load(file)
+        if isinstance(circuit,dict):
+            return
         pseudo = {}
         pseudo[(0, 0)] = self.sign_0
         pseudo[(0, 1)] = self.sign_1
@@ -330,6 +332,7 @@ class Circuit:
             gate = self.getcomponent(code[0])
             new_items.append(gate.code)
             if isinstance(gate, IC):
+                gate.custom_name=i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
