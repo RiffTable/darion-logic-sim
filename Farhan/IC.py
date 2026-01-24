@@ -116,6 +116,7 @@ class IC:
     def copy_data(self, cluster):
         dictionary = {
             "name": self.name,
+            "custom_name": self.custom_name,
             "code": self.code,
             "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
             "map": []

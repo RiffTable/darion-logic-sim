@@ -273,7 +273,7 @@ class Gate:
     def copy_data(self, cluster):
         dictionary = {
             "name": self.name,
-            "custom_name": self.custom_name,
+            "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
             "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
             "book": [0,0,0,sum(self.book)],
@@ -419,12 +419,22 @@ class InputPin(Probe):
         self.inputlimit = 1
         # self.inputpoint=False
 
+    def copy_data(self, cluster):
+        d = super().copy_data(cluster)
+        d["custom_name"] = self.custom_name
+        return d
+
 class OutputPin(Probe):
     # this can be both an input or output(bulb)
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
         # self.outputpoint=Falses 
+
+    def copy_data(self, cluster):
+        d = super().copy_data(cluster)
+        d["custom_name"] = self.custom_name
+        return d 
 
 class NOT(Gate):
     def __init__(self):

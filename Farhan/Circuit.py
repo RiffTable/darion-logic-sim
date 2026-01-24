@@ -270,12 +270,14 @@ class Circuit:
                 gate.clone(gate_dict, pseudo)
 
     # packages the current circuit into an IC
-    def save_as_ic(self, location):
+    def save_as_ic(self, location, ic_name="IC"):
         if self.varlist:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
         myIC = self.getcomponent(12)
+        myIC.name = ic_name
+        myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
             myIC.addgate(component)
         with open(location, 'w') as file:

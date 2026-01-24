@@ -57,6 +57,7 @@ def submenu_components():
         print("5. Delete Components")
         print("6. Copy Selection")
         print("7. Paste Selection")
+        print("8. Rename Component")
         print("B. Back to Main Menu")
         
         choice = input("\nSelect Option: ").strip().upper()
@@ -236,6 +237,24 @@ def submenu_components():
             print("Pasted.")
             input('Press Enter...')
 
+        elif choice == '8':
+            base.listComponent()
+            idx = input("Enter serial to rename: ")
+            if idx == '': continue
+            try:
+                comp = base.canvas[int(idx)]
+                # "Not ICs after they are imported"
+                if isinstance(comp, IC):
+                    print("Cannot rename imported ICs.")
+                else:
+                    new_name = input(f"Enter new name for {comp.name}: ")
+                    if new_name:
+                        comp.custom_name = new_name
+                        print(f"Renamed to {new_name}")
+            except (ValueError, IndexError):
+                print("Invalid selection.")
+            input("Press Enter...")
+
         elif choice == 'B':
             break
 
@@ -337,9 +356,14 @@ def submenu_project():
             input("Press Enter...")
 
         elif choice == '3':
+            ic_name = input("Enter Name for the IC (e.g. MyLatch): ")
+            if not ic_name:
+                print("IC Name is required.")
+                input("Press Enter...")
+                continue
             name = input("Enter filename for IC (e.g. my_ic.json): ")
             if name:
-                base.save_as_ic(name)
+                base.save_as_ic(name, ic_name)
                 print("IC Saved.")
             input("Press Enter...")
 
