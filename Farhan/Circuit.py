@@ -239,7 +239,7 @@ class Circuit:
         for gate in self.canvas:
             circuit.append(gate.json_data())
         with open(location, 'w') as file:
-            json.dump(circuit, file, indent=4)
+            json.dump(circuit, file)
 
     def decode(self, code):
         if len(code) == 2:
@@ -259,6 +259,7 @@ class Circuit:
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
             if isinstance(gate, IC):
+                gate.custom_name = i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
@@ -283,7 +284,7 @@ class Circuit:
         for component in lst:
             myIC.addgate(component)
         with open(location, 'w') as file:
-            json.dump(myIC.json_data(), file, indent=4)
+            json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
         myIC = self.getcomponent(12)
@@ -317,7 +318,7 @@ class Circuit:
         for i in components:
             self.copydata.append(i.copy_data(cluster))
         with open('clipboard.json', 'w') as file:
-            json.dump(self.copydata, file, indent=4)
+            json.dump(self.copydata, file)
         self.copydata = [i.code for i in components]
 
     # pastes components from clipboard
