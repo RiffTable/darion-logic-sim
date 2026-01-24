@@ -1,7 +1,7 @@
 from Event_Manager import Event
-from readchar import readkey, key
 import os
 from Const import Const
+from IC import IC
 
 
 def clear_screen():
@@ -16,53 +16,65 @@ base = Event()
 def menu():
     while True:
         clear_screen()
-        print("--- Circuit Simulator Menu ---")
+        print("--- Circuit Simulator ---")
+        print("1. Components & Connections")
+        print("2. Simulation & Analysis")
+        print("3. Project Management (Files & ICs)")
+        print("4. Undo")
+        print("5. Redo")
+        print("E. Exit")
+        
+        choice = input("\nEnter your choice: ").strip().upper()
+
+        if choice == '1':
+            submenu_components()
+        elif choice == '2':
+            submenu_simulation()
+        elif choice == '3':
+            submenu_project()
+        elif choice == '4':
+            base.undo()
+            input("Undone. Press Enter...")
+        elif choice == '5':
+            base.redo()
+            input("Redone. Press Enter...")
+        elif choice == 'E':
+            Const.MODE = Const.DESIGN
+            print("Exiting Circuit Simulator......")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+            input("Press Enter...")
+
+def submenu_components():
+    while True:
+        clear_screen()
+        print("--- Components & Connections ---")
         print("1. Add Component")
         print("2. List Components")
         print("3. Connect Components")
         print("4. Disconnect Components")
         print("5. Delete Components")
-        print("6. Set Input Variable Value")
-        print("7. Show Output of a Component")
-        print("8. Show Truth Table of a Component")
-        print("9. Diagnose Components")
-        print("A. Save Circuit to File")
-        print("B. Load Circuit from File")
-        print("C. Load IC")
-        print("D. Configure IC")
-        print("E. Save as IC")
-        print("F. Flip-flop Mode")
-        print("R. Reset Simulation")
-        print("S. Simulate Circuit")
-        print("Ctrl+Z. Undo")
-        print("Ctrl+Y. Redo")
-        print("Ctrl+A. Copy Components")
-        print("Ctrl+B. Paste Components")
-
-        print("Enter your choice or press ESC to quit: ", end='')
-        choice = readkey()
-
-        print()
-        clear_screen()
+        print("6. Copy Selection")
+        print("7. Paste Selection")
+        print("B. Back to Main Menu")
+        
+        choice = input("\nSelect Option: ").strip().upper()
         
         if choice == '1':
             # Add Component section
-            print("Choose a gate to add to the circuit:")
-            print("1. NOT")
-            print("2. AND")
-            print("3. NAND")
-            print("4. OR")
-            print("5. NOR")
-            print("6. XOR")
-            print("7. XNOR")
-            print("8. Variable")
-            print("9. Probe")
-            print("10. InputPin")
-            print("11. OutputPin")
-            choice = input("Enter your choice: ").split()
-            for i in choice:
-                i = int(i)
-                gate = base.addcomponent(i)
+            print("\nChoose a gate to add:")
+            print("1. NOT  2. AND  3. NAND  4. OR  5. NOR")
+            print("6. XOR  7. XNOR  8. Variable  9. Probe")
+            print("10. InputPin  11. OutputPin")
+            
+            c = input("Enter choices (space separated): ").split()
+            for i in c:
+                try:
+                    val = int(i)
+                    base.addcomponent(val)
+                except ValueError:
+                    continue
 
         elif choice == '2':
             base.listComponent()
@@ -71,285 +83,278 @@ def menu():
         elif choice == '3':
             # Connect Components section
             base.listComponent()
-            gate = input(
-                "Enter the serial of the gate you want to connect components: ")
-            if gate == '':
+            gate_idx = input("Enter Parent Serial (Target): ")
+            if gate_idx == '': continue
+            try:
+                parent_component = base.canvas[int(gate_idx)]
+            except (ValueError, IndexError):
+                print("Invalid Parent.")
+                input("Press Enter...")
                 continue
-            gate = base.canvas[int(gate)]
-            childlist = list(
-                map(int, input("Enter the serial of the component to connect to: ").split()))
-            for child in childlist:
-                child = base.canvas[child]
+
+            childlist_indices = list(map(int, input("Enter Child Serials (Source): ").split()))
+
+            for child_idx in childlist_indices:
                 try:
-                    index = int(input(
-                        f"Enter the input index (0-{gate.inputlimit - 1}) for {child} -> {gate}: "))
-                except ValueError:
-                    print("Invalid index. Skipping.")
+                    child_component = base.canvas[child_idx]
+                except IndexError:
                     continue
 
-                if base.liveconnect(gate, child, index):
-                    print(f"Connected {child} to {gate}.")
+                # Handle Child Selection (Source)
+                actual_child = child_component
+                if isinstance(child_component, IC):
+                    print(f"\nSelect Output Pin for Child IC '{child_component.name}':")
+                    for k, pin in enumerate(child_component.outputs):
+                        print(f"{k}: {pin.name}")
+                    try:
+                        pin_idx = int(input(f"Select Pin (0-{len(child_component.outputs)-1}): "))
+                        actual_child = child_component.outputs[pin_idx]
+                    except (ValueError, IndexError):
+                        print("Invalid Pin. Skipping.")
+                        continue
+
+                # Handle Parent Selection (Target)
+                actual_parent = parent_component
+                target_index = 0
+
+                if isinstance(parent_component, IC):
+                    print(f"\nSelect Input Pin for Parent IC '{parent_component.name}':")
+                    for k, pin in enumerate(parent_component.inputs):
+                        current_child = pin.children[0] if pin.children and str(pin.children[0]) != 'Empty' else "Empty"
+                        print(f"{k}: {pin.name} (Current: {current_child})")
+                    try:
+                        pin_idx = int(input(f"Select Pin (0-{len(parent_component.inputs)-1}): "))
+                        actual_parent = parent_component.inputs[pin_idx]
+                        target_index = 0
+                    except (ValueError, IndexError):
+                        print("Invalid Pin. Skipping.")
+                        continue
+                else:
+                    print(f"\nParent Gate '{parent_component.name}' Inputs:")
+                    for k, c in enumerate(parent_component.children):
+                        print(f"Index {k}: {c}")
+                    try:
+                        target_index = int(input(f"Enter input index for {actual_child} -> {parent_component}: "))
+                    except ValueError:
+                        print("Invalid index. Skipping.")
+                        continue
+
+                if base.liveconnect(actual_parent, actual_child, target_index):
+                    print(f"Connected {actual_child} to {actual_parent}.")
                 else:
                     print('Not connected')
             input('Press Enter to continue....')
 
         elif choice == '4':
             base.listComponent()
-            gate = input(
-                "Enter the serial of the gate you want to disconnect components: ")
-            if gate == '':
+            gate_idx = input("Enter Parent Serial to Disconnect: ")
+            if gate_idx == '': continue
+            try:
+                parent = base.canvas[int(gate_idx)]
+            except (ValueError, IndexError):
+                print("Invalid serial.")
+                input("Press Enter...")
                 continue
-            gate = base.canvas[int(gate)]
-            
-            # Display the gate and its input pins with connections
-            print(f"\n=== {gate} - Input Pins ===")
-            has_connections = False
-            for i, child in enumerate(gate.children):
-                status = f"[{i}] -> {child}"
-                print(status)
-                if str(child) != 'Empty':
-                    has_connections = True
-            
-            if not has_connections:
-                print("No connections to disconnect.")
-                input('Press Enter to continue....')
-                continue
-            
-            # Ask which indices to disconnect
-            indices_input = input("\nEnter the input index/indices to disconnect (space-separated): ")
-            if indices_input == '':
-                continue
-            indices = list(map(int, indices_input.split()))
-            
-            for index in indices:
-                if index < 0 or index >= len(gate.children):
-                    print(f"Invalid index {index}. Skipping.")
+
+            if isinstance(parent, IC):
+                print(f"\n=== IC '{parent.name}' - Input Pins ===")
+                has_connections = False
+                for i, pin in enumerate(parent.inputs):
+                    child = pin.children[0]
+                    conn_str = str(child) if str(child) != 'Empty' else "Empty"
+                    print(f"[{i}] {pin.name} <-- {conn_str}")
+                    if str(child) != 'Empty':
+                        has_connections = True
+                
+                if not has_connections:
+                    print("No connections to disconnect.")
+                    input('Press Enter...')
                     continue
-                child = gate.children[index]
-                if str(child) == 'Empty':
-                    print(f"Index {index} is already empty. Skipping.")
+
+                indices_input = input("\nEnter Pin indices to disconnect: ")
+                if indices_input == '': continue
+                try:
+                    indices = list(map(int, indices_input.split()))
+                    for index in indices:
+                        if index < 0 or index >= len(parent.inputs): continue
+                        target_pin = parent.inputs[index]
+                        if str(target_pin.children[0]) == 'Empty': continue
+                        child_name = str(target_pin.children[0])
+                        base.livedisconnect(target_pin, 0)
+                        print(f"Disconnected {child_name} from Pin {index}.")
+                except ValueError: pass
+
+            else:
+                print(f"\n=== {parent} - Input Pins ===")
+                has_connections = False
+                for i, child in enumerate(parent.children):
+                    print(f"[{i}] -> {child}")
+                    if str(child) != 'Empty': has_connections = True
+                
+                if not has_connections:
+                    print("No connections.")
+                    input('Press Enter...')
                     continue
-                base.livedisconnect(gate, index)
-                print(f"Disconnected {child} from {gate} at index {index}.")
+                
+                indices_input = input("\nEnter indices to disconnect: ")
+                if indices_input == '': continue
+                try:
+                    indices = list(map(int, indices_input.split()))
+                    for index in indices:
+                        if index < 0 or index >= len(parent.children): continue
+                        if str(parent.children[index]) == 'Empty': continue
+                        base.livedisconnect(parent, index)
+                        print(f"Disconnected index {index}.")
+                except ValueError: pass
             input('Press Enter to continue....')
 
         elif choice == '5':
             base.listComponent()
-            gatelist = list(map(int, input(
-                "Enter the serial of the components you want to delete: ").split()))
-            gatelist = [base.canvas[i] for i in gatelist]
-            for gate in gatelist:
-                base.livehide(gate)
-                print(f"Deleted {gate}.")
+            gatelist = input("Enter serials to delete: ").split()
+            for i in gatelist:
+                try:
+                    gate = base.canvas[int(i)]
+                    base.livehide(gate)
+                    print(f"Deleted {gate}.")
+                except (ValueError, IndexError):
+                    pass
+            input("Press Enter...")
 
         elif choice == '6':
-            base.listVar()
-            var = input("Enter the serial of the variable to set : ")
-            if var == '':
-                continue
-            var = base.varlist[int(var)]
-            value = input("Enter the value (0 or 1): ")
-            if value in ['0', '1']:
-                base.input(var, value)
-                print(f"Variable {var} set to {value}.")
-            else:
-                print("Invalid value. Please try again")
-            input('Press Enter to continue....')
+            base.listComponent()
+            try:
+                complist = list(map(int, input("Enter serials to copy: ").split()))
+                complist = [base.canvas[i] for i in complist]
+                base.copy(complist)
+                print("Copied")
+            except (ValueError, IndexError):
+                print("Error in selection.")
+            input('Press Enter...')
 
         elif choice == '7':
-            base.listComponent()
-            gate = input(
-                "Enter the serial of the gate you want to see output of: ")
-            if gate == '':
-                continue
-            gate = base.canvas[int(gate)]
-            base.output(gate)
-            input('Press Enter to continue....')
-
-        elif choice == '8':
-            # Show Truth Table section
-            print(base.truthTable())
-            input('Press Enter to continue....')
-
-        elif choice == '9':
-            base.diagnose()
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'A':
-            base.save('Latch.json')
-            print("Circuit saved to file.txt")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'B':
-            base.load('Latch.json')
-            print("Circuit loaded from file.txt")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'C':
-            base.getIC('x.json')
-            print("IC created from file.txt")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'D':
-            # Configure IC section
-            # Show ICs and select one to configure
-            if not base.iclist:
-                print("No ICs in circuit.")
-                input('Press Enter to continue....')
-                continue
-            for i, ic in enumerate(base.iclist):
-                print(f'{i}. {ic}')
-            try:
-                ic = base.iclist[int(input('Select IC: '))]
-            except (ValueError, IndexError):
-                print("Invalid selection.")
-                input('Press Enter to continue....')
-                continue
-
-            while True:
-                clear_screen()
-                print(f"=== IC: {ic.name} ===")
-                print("1. View IC Info")
-                print("2. Connect Pin")
-                print("3. Disconnect Pin")
-                print("ESC. Back")
-                ic_choice = readkey()
-
-                if ic_choice == '1':
-                    ic.info()
-                    input('Press Enter to continue....')
-
-                elif ic_choice == '2':
-                    print("\nConnect: [I]nput or [O]utput pin?")
-                    pin_type = readkey().upper()
-                    if pin_type == 'I':
-                        ic.showinputpins()
-                        pin = input('Pin #: ')
-                        if pin == '':
-                            continue
-                        pin = ic.inputs[int(pin)]
-                        base.listComponent()
-                        gate = input('Connect to gate #: ')
-                        if gate == '':
-                            continue
-                        gate = base.canvas[int(gate)]
-                        # InputPin has inputlimit 1, so index is always 0
-                        index = 0
-                        base.connect(pin, gate, index)
-                        print(f"Connected {gate} -> {pin.name}")
-                    elif pin_type == 'O':
-                        ic.showoutputpins()
-                        pin = input('Pin #: ')
-                        if pin == '':
-                            continue
-                        pin = ic.outputs[int(pin)]
-                        base.listComponent()
-                        gate = input('Connect from gate #: ')
-                        if gate == '':
-                            continue
-                        gate = base.canvas[int(gate)]
-                        try:
-                            index = int(input(f"Enter input index (0-{gate.inputlimit - 1}): "))
-                        except ValueError:
-                            print("Invalid index.")
-                            continue
-                        base.connect(gate, pin, index)
-                        print(f"Connected {pin.name} -> {gate}")
-                    input('Press Enter to continue....')
-
-                elif ic_choice == '3':
-                    print("\nDisconnect: [I]nput or [O]utput pin?")
-                    pin_type = readkey().upper()
-                    if pin_type == 'I':
-                        ic.showinputpins()
-                        pin = input('Pin #: ')
-                        if pin == '':
-                            continue
-                        pin = ic.inputs[int(pin)]
-                        base.listComponent()
-                        gate = input('Disconnect from gate #: ')
-                        if gate == '':
-                            continue
-                        gate = base.canvas[int(gate)]
-                        # InputPin has 1 input at index 0
-                        base.disconnect(pin, 0)
-                        print(f"Disconnected {gate} from {pin.name}")
-                    elif pin_type == 'O':
-                        ic.showoutputpins()
-                        pin = input('Pin #: ')
-                        if pin == '':
-                            continue
-                        pin = ic.outputs[int(pin)]
-                        base.listComponent()
-                        gate = input('Disconnect from gate #: ')
-                        if gate == '':
-                            continue
-                        gate = base.canvas[int(gate)]
-                        try:
-                            index = int(input(f"Enter input index to disconnect (0-{gate.inputlimit - 1}): "))
-                        except ValueError:
-                            print("Invalid index.")
-                            continue
-                        base.disconnect(gate, index)
-                        print(f"Disconnected {pin.name} from {gate}")
-                    input('Press Enter to continue....')
-
-                elif ic_choice == key.ESC:
-                    break
-
-        elif choice.upper() == 'E':
-            base.save_as_ic('x.json')
-            print("IC designed and saved to file.txt")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'F':
-            base.simulate(Const.FLIPFLOP)
-            print("Flip-flop mode activated.")
-            input('Press Enter to continue....')
-
-        elif choice == key.CTRL_Z:
-            base.undo()
-            input('Press Enter to continue....')
-
-        elif choice == key.CTRL_Y:
-            base.redo()
-            input('Press Enter to continue....')
-
-        elif choice == key.CTRL_A:
-            base.listComponent()
-            complist = list(
-                map(int, input("Enter the serial of the components you want to copy: ").split()))
-            # each gate is a component but ic will add it's components
-            complist = [base.canvas[i] for i in complist]
-            base.copy(complist)
-            print("Copied")
-            input('Press Enter to continue....')
-
-        elif choice == key.CTRL_B:
             base.paste()
-            input('Press Enter to continue....')
+            print("Pasted.")
+            input('Press Enter...')
 
-        elif choice.upper() == 'R':
-            base.reset()
-            print("Simulation reset.")
-            input('Press Enter to continue....')
-
-        elif choice.upper() == 'S':
-            base.simulate(Const.SIMULATE)
-            print("Simulation started.")
-            input('Press Enter to continue....')
-
-
-        elif choice == key.ESC:
-            Const.MODE = Const.DESIGN
-            print("Exiting Circuit Simulator......")
-            input('Press Enter to continue....')
-            clear_screen()
+        elif choice == 'B':
             break
 
-        else:
-            print("Invalid choice. Please try again.")
+def submenu_simulation():
+    while True:
+        clear_screen()
+        print("--- Simulation & Analysis ---")
+        print("1. Set Variable Value")
+        print("2. Show Output")
+        print("3. Show Truth Table")
+        print("4. Diagnose")
+        print("5. Start Simulation")
+        print("6. Flip-Flop Mode")
+        print("7. Reset Simulation")
+        print("B. Back to Main Menu")
+        
+        choice = input("\nSelect Option: ").strip().upper()
 
+        if choice == '1':
+            base.listVar()
+            var_idx = input("Enter variable serial: ")
+            if var_idx == '': continue
+            try:
+                var = base.varlist[int(var_idx)]
+                val = input("Enter value (0/1): ")
+                if val in ['0', '1']:
+                    base.input(var, val)
+                    print(f"Set {var} to {val}")
+                else:
+                    print("Invalid value.")
+            except (ValueError, IndexError):
+                print("Invalid serial.")
+            input("Press Enter...")
+
+        elif choice == '2':
+            base.listComponent()
+            idx = input("Enter component serial: ")
+            if idx == '': continue
+            try:
+                gate = base.canvas[int(idx)]
+                base.output(gate)
+            except (ValueError, IndexError):
+                print("Invalid serial.")
+            input("Press Enter...")
+
+        elif choice == '3':
+            print(base.truthTable())
+            input("Press Enter...")
+
+        elif choice == '4':
+            base.diagnose()
+            input("Press Enter...")
+
+        elif choice == '5':
+            base.simulate(Const.SIMULATE)
+            print("Simulation Started.")
+            input("Press Enter...")
+
+        elif choice == '6':
+            base.simulate(Const.FLIPFLOP)
+            print("Flip-Flop Mode Activated.")
+            input("Press Enter...")
+
+        elif choice == '7':
+            base.reset()
+            print("Reset complete.")
+            input("Press Enter...")
+
+        elif choice == 'B':
+            break
+
+def submenu_project():
+    while True:
+        clear_screen()
+        print("--- Project Management ---")
+        print("1. Save Circuit")
+        print("2. Load Circuit")
+        print("3. Save as IC")
+        print("4. Load IC")
+        print("B. Back to Main Menu")
+
+        choice = input("\nSelect Option: ").strip().upper()
+
+        if choice == '1':
+            name = input("Enter filename (e.g. Latch.json): ")
+            if name:
+                base.save(name)
+                print("Saved.")
+            input("Press Enter...")
+
+        elif choice == '2':
+            name = input("Enter filename to load: ")
+            if name:
+                try:
+                    base.load(name)
+                    print("Loaded.")
+                except FileNotFoundError:
+                    print("File not found.")
+            input("Press Enter...")
+
+        elif choice == '3':
+            name = input("Enter filename for IC (e.g. my_ic.json): ")
+            if name:
+                base.save_as_ic(name)
+                print("IC Saved.")
+            input("Press Enter...")
+
+        elif choice == '4':
+            name = input("Enter IC filename to load: ")
+            if name:
+                try:
+                    base.getIC(name)
+                    print("IC Loaded.")
+                except FileNotFoundError:
+                    print("File not found.")
+            input("Press Enter...")
+
+        elif choice == 'B':
+            break
 
 if __name__ == "__main__":
     menu()
