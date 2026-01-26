@@ -165,7 +165,7 @@ class Gate:
                             return
                         fuse[(gate, parent)] = (gate.output, parent.output) 
                         queue.append(parent)
-        elif Const.MODE==Const.SIMULATION:# don't need fuse, the logic itself is loop-proof
+        elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
             queue: deque[Gate] = deque()            
             # notify all parents
             for parent,infolist in self.parents.items():
