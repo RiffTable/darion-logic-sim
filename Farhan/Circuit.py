@@ -11,10 +11,10 @@ class Circuit:
 
     def __init__(self):
         # lookup table for objects by code
-        self.objlist: dict[int, list[Gate | Signal | IC]] = {
-            i: [] for i in range(0, 13)}  # holds the objects with code name
+        self.objlist: list[list[Gate | IC]] = [
+            [] for i in range(0, 13)]  # holds the objects with code name
         # list of everything visible on the board
-        self.canvas: list[Gate | Signal | IC] = []  # displays the components
+        self.canvas: list[Gate | IC] = []  # displays the components
         # special list for input/output variables (0/1 switches)
         self.varlist: list[Variable] = []  # holds variables with 0/1 input
         # distinct list for Integrated Circuits
@@ -32,7 +32,7 @@ class Circuit:
         return 'Circuit'
 
     # creates and adds a new component to the circuit
-    def getcomponent(self, choice) -> Gate | Signal | IC:
+    def getcomponent(self, choice) -> Gate | IC:
         gt = Components.get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -297,9 +297,9 @@ class Circuit:
                 return
 
     def rank_reset(self):
-        for key in self.objlist.values():
-            while key and key[-1] == None:
-                key.pop()
+        for i in range(13):
+            while self.objlist[i] and self.objlist[i][-1] == None:
+                self.objlist[i].pop()
 
     def clearcircuit(self):
         for i, _ in enumerate(self.objlist):
