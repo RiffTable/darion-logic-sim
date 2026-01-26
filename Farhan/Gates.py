@@ -143,34 +143,27 @@ class Gate:
     # spread the signal change to all connected gates
     def propagate(self):
         if Const.MODE==Const.FLIPFLOP:
-            fuse = {}
+            fuse = set()
             queue: deque[Gate] = deque()
             # notify all parents
-            for parent,infolist in self.parents.items():
-                if self.update(parent,infolist):
-                    fuse[(self, parent)] = (self.output, parent.output)
-                    queue.append(parent)
+            queue.append(self)
             # keep propagating until everything settles
             while queue:
                 gate = queue.popleft()
                 for parent,infolist in gate.parents.items():
                     if gate.update(parent,infolist):
-                        key = (gate, parent)
                         # check for loops or inconsistencies
                         if gate==parent: 
                             gate.burn()
                             return
-                        if key in fuse and fuse[key] != (gate.output, parent.output): 
+                        if id(infolist) in fuse: 
                             gate.burn()
                             return
-                        fuse[(gate, parent)] = (gate.output, parent.output) 
+                        fuse.add(id(infolist))
                         queue.append(parent)
         elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
             queue: deque[Gate] = deque()            
-            # notify all parents
-            for parent,infolist in self.parents.items():
-                if self.update(parent,infolist):
-                    queue.append(parent)                            
+            queue.append(self)                       
             # keep propagating until everything settles
             while queue:
                 gate = queue.popleft()

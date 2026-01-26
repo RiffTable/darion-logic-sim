@@ -1,3 +1,3 @@
-l=(set(),34)
-l[0].add(1)
-print(l)
+l=[0,1,2,3]
+x=[id(i) for i in l]
+print(x)
