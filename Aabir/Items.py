@@ -1,116 +1,270 @@
 from __future__ import annotations
-from typing import cast
-from enum import Enum
+from typing import cast, TYPE_CHECKING
+from enum import IntEnum
 from QtCore import *
 
-from styles import (Color, Font)
+from styles import Color, Font
+from Enums import Facing, Rotation, EditorState
+
+if TYPE_CHECKING:
+	from CircuitScene import CircuitScene
 
 
 
 
 
-class Facing(Enum):
-	North = 1
-	East  = 2
-	South = 3
-	West  = 4
-
-
-
+SIZE = 12
+def snapToGrid(x: float, y:float) -> tuple[int, int]:
+	return (
+		round(x/SIZE)*SIZE,
+		round(y/SIZE)*SIZE
+	)
 
 ###======= COMPONENT ITEM =======###
 class CompItem(QGraphicsRectItem):
-	def __init__(self, x: float, y: float):
-		super().__init__(x, y, 80, 50)
+	def __init__(self, pos: QPointF, size: QPoint, padding: QPointF):
+		x, y = snapToGrid(*pos.toTuple())
+		w, h = size.toTuple()
+		dx, dy = padding.toTuple()
+		super().__init__(-dx, -dy, w*SIZE + 2*dx, h*SIZE + 2*dy)
 		
 		# Behavior
+		self.setPos(x, y)
+		self.setZValue(0)
 		self.setFlags(
 			QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges |
+			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 
 		# Properties
 		self.state = False
 		self.facing = Facing.East
-		self.tail = []
-		self.head = []
-		self.top = []
-		self.bottom = []
+		self.outputPins : list[OutputPinItem] = []    # Facing.East
+		self.inputPins  : list[InputPinItem] = []    # Facing.West
+		self.topPins    : list[PinItem] = []    # Facing.North
+		self.bottomPins : list[PinItem] = []    # Facing.South
 
 		# Visual
 		self.setPen(QPen(Color.outline, 2))
 		self.setBrush(Color.gate)
+		# inPin1  = InputPinItem(self, (0, 0), Facing.West)
+		# inPin2  = InputPinItem(self, (0, 60), Facing.West)
+		# outPin1 = OutputPinItem(self, (80, 0), Facing.East)
+		# outPin1 = OutputPinItem(self, (80, 60), Facing.East)
+		inputA  = InputPinItem(self, (0, 1*SIZE), Facing.West)
+		inputB  = InputPinItem(self, (0, 3*SIZE), Facing.West)
+		output  = OutputPinItem(self, (w*SIZE, 2*SIZE), Facing.East)
+
 
 		# Label
 		self.label = QGraphicsTextItem("XOR", self)
 		self.label.setFont(Font.default)
-		self.label.setPos(x+5, y+5)
+		self.label.setPos(5, 10)
 
-
-	def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
-		if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
-			return QPointF(*self.scene().snapToGrid(
-				value.x(),
-				value.y()
-			))
+	def itemChange(self, change: GraphicsItemChange, value):
+		if change == GraphicsItemChange.ItemPositionChange:
+			return QPointF(*snapToGrid(*value.toTuple()))
 
 		return super().itemChange(change, value)
+	
+	def updateVisual(self):
+		...
+	
+	def mouseReleaseEvent(self, event):
+		return super().mouseReleaseEvent(event)
 
 
 
 
 
 ###======= PIN ITEM =======###
-class PinItem(QGraphicsEllipseItem):
-	def __init__(self, parent: CompItem):
-		r = 5
-		super().__init__(-r, -r, 2*r, 2*r, parent)
+class PinItem(QGraphicsRectItem):
+	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+		super().__init__(-SIZE/2, -SIZE/2, SIZE, SIZE, parent)
+		self.setFlags(
+			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
+			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
+		)
 		self.setAcceptHoverEvents(True)
+		self.setZValue(1)
 
 		self.state = False
-		self.hovering = False
+		self.wire: WireItem = None
+		self.isHighlighted = False
+		self.facing = facing
 		self.label = ""
 
-		self.setPen(QPen(Color.outline, 1))
 		self.updateVisual()
-		# self.setPos(80 if is_output else 0, 25)
+		self.setPos(*relpos)
 	
-	def updateVisual(self):
-		if self.state:      self.setBrush(QBrush(Color.signal_on))
-		elif self.hovering: self.setBrush(QBrush(Color.pin_hover))
-		else:               self.setBrush(QBrush(Color.signal_off))
+	def itemChange(self, change: GraphicsItemChange, value):
+		if change == GraphicsItemChange.ItemScenePositionHasChanged:
+			if self.wire: self.wire.updatePath()
+		
+		return super().itemChange(change, value)
 	
+	# def mouseReleaseEvent(self, event:QGraphicsSceneMouseEvent):
+	# 	# self.parentItem().mouseReleaseEvent(event)
+	# 	# Makes sure pins don't mess with ending a wire connection
+	# 	event.ignore()
+			
+	# 	super().mouseReleaseEvent(event)
+	
+	def highlight(self, isHovered: bool) -> None:
+		...    # ABSTRACT METHOD
+
 	def hoverEnterEvent(self, event):
-		self.hovering = True
+		self.highlight(True)
 		self.updateVisual()
 		super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event):
-		self.hovering = False
+		self.highlight(False)
 		self.updateVisual()
 		super().hoverLeaveEvent(event)
+	
+	def paint(self, painter, option, widget):
+		r = 6
 
+		painter.setBrush(self.brush())
+		painter.setPen(self.pen())
+		painter.drawEllipse(QRectF(
+			-r, -r, 2*r, 2*r
+		))
+	
+	def updateVisual(self):
+		if self.isHighlighted:
+			self.setBrush(QBrush(Color.pin_hover))
+			return
+		
+		if self.state:  self.setBrush(QBrush(Color.signal_on))
+		else:           self.setBrush(QBrush(Color.signal_off))
+
+
+### Input Pin
 class InputPinItem(PinItem):
-	supply: list[WireItem]
-	def __init__(self, parent: CompItem):
-		super().__init__(parent)
+	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+		super().__init__(parent, relpos, facing)
+
+	def disconnect(self):
+		self.wire.cutSupply(self)
+		self.wire = None
+	
+	def highlight(self, isHovered: bool) -> None:
+		scene: CircuitScene = self.scene()
+		self.isHighlighted = isHovered and scene.state == EditorState.WIRING
+		self.updateVisual()
+	
+	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
+		scene: CircuitScene = self.scene()
+		if scene.state == EditorState.WIRING:
+			source = scene.wireSource
+			if not source.wire:
+				w = WireItem(source, self)
+				scene.wires.append(w)
+				scene.addItem(w)
+			else:
+				source.wire.connect(self)
+
+			# self.run_logic()
+			scene.state = EditorState.NORMAL
+			scene.wireSource = None
+		
+		super().mouseReleaseEvent(event)
+
+
+
+### Output Pin
+class OutputPinItem(PinItem):
+	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+		super().__init__(parent, relpos, facing)
+	
+	def disconnect(self, wire: WireItem):
+		wire.cutSource()
+		self.wire = None
+	
+	def highlight(self, isHovered: bool) -> None:
+		scene: CircuitScene = self.scene()
+		self.isHighlighted = isHovered and scene.state == EditorState.NORMAL
+		self.updateVisual()
 	
 	def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-		# Wire drawing logic
+		if event.button() == Qt.LeftButton:
+			scene: CircuitScene = self.scene()
+			scene.state = EditorState.WIRING
+			scene.wireSource = self
+		
 		super().mousePressEvent(event)
-
-class OutputPinItem(PinItem):
-	def __init__(self, parent: CompItem):
-		super().__init__(parent)
 
 
 
 
 ###======= WIRE ITEM =======###
 class WireItem(QGraphicsPathItem):
-	source: WireItem
-	def __init__(self, beg: InputPinItem, end: OutputPinItem):
+	MINWALK = 2
+	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
+
+		# Behavior
+		self.setFlags(QGraphicsItem.ItemIsSelectable)
+		self.setZValue(-1)
+
+		beg.wire = end.wire = self
+
+		# Properties
+		self.state = False
+		self.source = beg
+		self.supplies: list[InputPinItem] = [end]
+
+		self.updatePath()
 	
+	def connect(self, pin: InputPinItem):
+		self.supplies.append(pin)
+		pin.wire = self
+		self.updatePath()
+	
+	def cutSupply(self, pin: InputPinItem):
+		if not pin in self.supplies:
+			return
+		pin.wire = None
+		self.supplies.remove(pin)
+		if len(self.supplies) == 0:
+			self.source.wire = None
+			self.scene().removeItem(self)
+	
+	def cutSource(self):
+		self.source.wire = None
+		for supply in self.supplies:
+			supply.wire = None
+		self.supplies.clear()
+		self.source.wire = None
+		self.scene().removeItem(self)
+			
 	def updateVisual(self):
-		...
+		color = Color.signal_on if self.state else Color.signal_off
+		# if self.isSelected(): color = QColor("#f39c12")
+		self.setPen(QPen(color, 3))
+	
+	def updatePath(self):
+		path = QPainterPath()
+		p1 = self.source.scenePos()
+
+		for out in self.supplies:
+			p2 = out.scenePos()
+			path.moveTo(p1)
+			path.cubicTo(
+				p1.x() + 50, p1.y(),
+				p2.x() - 50, p2.y(),
+				p2.x(), p2.y()
+			)
+			path.lineTo(p2)
+		
+		self.setPath(path)
+		self.updateVisual()
+
+
+	def mousePressEvent(self, event):
+		if event.button() == Qt.RightButton:
+			self.manager.remove_wire(self)
+		super().mousePressEvent(event)

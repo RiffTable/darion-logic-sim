@@ -18,4 +18,4 @@ class Color:
 	outline        = QColor("#000000")
 
 class Font:
-	default        = QFont("Arial", 12, QFont.Weight.Bold)
+	default        = QFont("Arial", 10, QFont.Weight.Bold)
