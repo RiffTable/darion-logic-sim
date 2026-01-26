@@ -86,6 +86,8 @@ class Circuit:
         gate.hide()
         if gate in self.varlist:
             self.varlist.remove(gate)
+        if gate in self.iclist:
+            self.iclist.remove(gate)
         self.canvas.remove(gate)
 
     # completely wipes a component from existence
@@ -104,6 +106,8 @@ class Circuit:
         if isinstance(gate, Variable):
             self.varlist.append(gate)
         self.canvas.append(gate)
+        if isinstance(gate, IC):
+            self.iclist.append(gate)
 
     # Result
     def output(self, gate: Gate):
@@ -299,6 +303,7 @@ class Circuit:
             self.objlist[i] = []
         self.varlist = []
         self.canvas = []
+        self.iclist = []
 
     # copies selected components to clipboard
     def copy(self, components: list["Gate"]):

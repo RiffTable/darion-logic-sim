@@ -143,7 +143,7 @@ class IC:
         for pin in self.outputs:
             for parent, infolist in pin.parents.items():
                 for i in infolist[0]:
-                    parent.children[i].discard(pin)
+                    parent.children[i]=Nothing
                     parent.book[infolist[1]]-=1
                     parent.process()
             for parent, infolist in pin.parents.items():
@@ -157,7 +157,7 @@ class IC:
         for pin in self.outputs:
             for parent, infolist in pin.parents.items():
                 for i in infolist[0]:
-                    parent.children[i].add(pin)
+                    parent.children[i]=pin
                     parent.book[infolist[1]]+=1
                     parent.process()
 
