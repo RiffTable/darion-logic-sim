@@ -47,7 +47,7 @@ class Event:
             self.circuit.renewComponent(event[1])
 
         elif command == Const.CONNECT:
-            self.circuit.disconnect(event[1], event[2], event[3])
+            self.circuit.disconnect(event[1], event[3])
 
         elif command == Const.DISCONNECT:
             self.circuit.connect(event[1], event[2], event[3])
@@ -78,7 +78,7 @@ class Event:
             self.circuit.connect(event[1], event[2], event[3])
 
         elif command == Const.DISCONNECT:
-            self.circuit.disconnect(event[1], event[2], event[3])
+            self.circuit.disconnect(event[1], event[3])
 
         elif command == Const.PASTE:
             gates = [self.getobj(code) for code in event[1]]
