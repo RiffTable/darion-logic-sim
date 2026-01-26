@@ -87,6 +87,7 @@ class PinItem(QGraphicsRectItem):
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
 			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
+		self.setPen(Qt.PenStyle.NoPen)
 		self.setAcceptHoverEvents(True)
 		self.setZValue(1)
 
@@ -105,15 +106,12 @@ class PinItem(QGraphicsRectItem):
 		
 		return super().itemChange(change, value)
 	
-	# def mouseReleaseEvent(self, event:QGraphicsSceneMouseEvent):
-	# 	# self.parentItem().mouseReleaseEvent(event)
-	# 	# Makes sure pins don't mess with ending a wire connection
-	# 	event.ignore()
-			
-	# 	super().mouseReleaseEvent(event)
-	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
+	
+	def connect(self, wire: WireItem):
+		self.wire = wire
+		self.updateVisual()
 
 	def hoverEnterEvent(self, event):
 		self.highlight(True)
@@ -124,8 +122,8 @@ class PinItem(QGraphicsRectItem):
 		self.updateVisual()
 		super().hoverLeaveEvent(event)
 	
-	def paint(self, painter, option, widget):
-		r = 6
+	def paint(self, painter: QPainter, option, widget):
+		r = 3
 
 		painter.setBrush(self.brush())
 		painter.setPen(self.pen())
@@ -135,11 +133,19 @@ class PinItem(QGraphicsRectItem):
 	
 	def updateVisual(self):
 		if self.isHighlighted:
+			self.setPen(Qt.PenStyle.NoPen)
 			self.setBrush(QBrush(Color.pin_hover))
-			return
 		
-		if self.state:  self.setBrush(QBrush(Color.signal_on))
-		else:           self.setBrush(QBrush(Color.signal_off))
+		elif self.wire:
+			self.setPen(QPen(Color.outline, 2))
+			self.setBrush(Qt.BrushStyle.NoBrush)
+		
+		else:
+			self.setPen(Qt.PenStyle.NoPen)
+			if self.state:
+				self.setBrush(QBrush(Color.pin_on))
+			else:
+				self.setBrush(QBrush(Color.pin_off))
 
 
 ### Input Pin
@@ -150,6 +156,7 @@ class InputPinItem(PinItem):
 	def disconnect(self):
 		self.wire.cutSupply(self)
 		self.wire = None
+		self.updateVisual()
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
@@ -165,8 +172,8 @@ class InputPinItem(PinItem):
 				scene.wires.append(w)
 				scene.addItem(w)
 			else:
-				source.wire.connect(self)
-
+				source.wire.addSupply(self)
+			
 			# self.run_logic()
 			scene.state = EditorState.NORMAL
 			scene.wireSource = None
@@ -174,15 +181,16 @@ class InputPinItem(PinItem):
 		super().mouseReleaseEvent(event)
 
 
-
 ### Output Pin
 class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
 		super().__init__(parent, relpos, facing)
 	
-	def disconnect(self, wire: WireItem):
-		wire.cutSource()
+	def disconnect(self):
+		self.wire.cutSource()
 		self.wire = None
+		self.updateVisual()
+
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
@@ -199,7 +207,6 @@ class OutputPinItem(PinItem):
 
 
 
-
 ###======= WIRE ITEM =======###
 class WireItem(QGraphicsPathItem):
 	MINWALK = 2
@@ -210,7 +217,8 @@ class WireItem(QGraphicsPathItem):
 		self.setFlags(QGraphicsItem.ItemIsSelectable)
 		self.setZValue(-1)
 
-		beg.wire = end.wire = self
+		beg.connect(self)
+		end.connect(self)
 
 		# Properties
 		self.state = False
@@ -219,9 +227,9 @@ class WireItem(QGraphicsPathItem):
 
 		self.updatePath()
 	
-	def connect(self, pin: InputPinItem):
+	def addSupply(self, pin: InputPinItem):
 		self.supplies.append(pin)
-		pin.wire = self
+		pin.connect(self)
 		self.updatePath()
 	
 	def cutSupply(self, pin: InputPinItem):
@@ -230,14 +238,19 @@ class WireItem(QGraphicsPathItem):
 		pin.wire = None
 		self.supplies.remove(pin)
 		if len(self.supplies) == 0:
-			self.source.wire = None
-			self.scene().removeItem(self)
+			self.delete()
+		else:
+			self.updatePath()
 	
 	def cutSource(self):
 		self.source.wire = None
 		for supply in self.supplies:
 			supply.wire = None
+			supply.updateVisual()
 		self.supplies.clear()
+		self.delete()
+	
+	def delete(self):
 		self.source.wire = None
 		self.scene().removeItem(self)
 			
