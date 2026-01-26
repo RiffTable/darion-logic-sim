@@ -99,11 +99,11 @@ class Event:
         if ic:
             self.addtoundo((Const.ADD, ic))
 
-    def livehide(self, gate):
+    def hide(self, gate):
         self.circuit.hideComponent(gate)
         self.addtoundo((Const.DELETE, gate))
 
-    def liveconnect(self, parent: Gate, child: Gate, index):
+    def connect(self, parent: Gate, child: Gate, index):
         if parent.children[index] != Nothing:
             return False
         self.circuit.connect(parent, child, index)
@@ -114,7 +114,7 @@ class Event:
         self.circuit.toggle(var, int(value))
         self.addtoundo((Const.TOGGLE, var, int(value)))
 
-    def livedisconnect(self, parent: Gate, index):
+    def disconnect(self, parent: Gate, index):
         self.addtoundo((Const.DISCONNECT,parent, parent.children[index], index))
         self.circuit.disconnect(parent, index)
 

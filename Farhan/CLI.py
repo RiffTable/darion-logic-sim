@@ -141,7 +141,7 @@ def submenu_components():
                         print("Invalid index. Skipping.")
                         continue
 
-                if base.liveconnect(actual_parent, actual_child, target_index):
+                if base.connect(actual_parent, actual_child, target_index):
                     print(f"Connected {actual_child} to {actual_parent}.")
                 else:
                     print('Not connected')
@@ -182,7 +182,7 @@ def submenu_components():
                         target_pin = parent.inputs[index]
                         if str(target_pin.children[0]) == 'Empty': continue
                         child_name = str(target_pin.children[0])
-                        base.livedisconnect(target_pin, 0)
+                        base.disconnect(target_pin, 0)
                         print(f"Disconnected {child_name} from Pin {index}.")
                 except ValueError: pass
 
@@ -205,7 +205,7 @@ def submenu_components():
                     for index in indices:
                         if index < 0 or index >= len(parent.children): continue
                         if str(parent.children[index]) == 'Empty': continue
-                        base.livedisconnect(parent, index)
+                        base.disconnect(parent, index)
                         print(f"Disconnected index {index}.")
                 except ValueError: pass
             input('Press Enter to continue....')
@@ -216,7 +216,7 @@ def submenu_components():
             for i in gatelist:
                 try:
                     gate = base.circuit.canvas[int(i)]
-                    base.livehide(gate)
+                    base.hide(gate)
                     print(f"Deleted {gate}.")
                 except (ValueError, IndexError):
                     pass
