@@ -1,5 +1,6 @@
 from Event_Manager import Event
 from Circuit import Circuit
+from Gates import Variable, Probe
 import os
 from Const import Const
 from IC import IC
@@ -266,6 +267,8 @@ def submenu_components():
                 # ICs and Variables/Probes have fixed input limits
                 if isinstance(comp, IC):
                     print("Cannot change input limit of ICs.")
+                elif isinstance(comp, (Variable, Probe)):
+                    print("Cannot change input limit of Variables/Probes.")
                 elif not hasattr(comp, 'setlimits') or not hasattr(comp, 'inputlimit'):
                     print("This component does not support input limit changes.")
                 else:

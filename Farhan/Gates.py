@@ -205,7 +205,7 @@ class Gate:
                 parent.book[infolist[1]] -= 1
         # disconnect from child
         for child in self.children:
-            if child != Nothing:
+            if child != Nothing and self in child.parents:
                 child.parents.pop(self)
 
         for parent in self.parents.keys():
