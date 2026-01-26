@@ -21,7 +21,15 @@ class Event:
         if len(self.undolist) > Const.LIMIT:
             event=self.undolist.popleft()
             if event[0]==Const.DELETE:
-                self.circuit.delobj(event[1].code)
+                gate= event[1]
+                row=gate.code[0]
+                col=gate.code[1]
+                lastgate=self.circuit.objlist[row][-1]
+                self.circuit.objlist[row][col]=lastgate
+                lastgate.code=(row,col)
+                lastgate.name=gate.name
+                self.circuit.objlist[row].pop()
+
 
     def popfromundo(self):
         x = self.undolist.pop()
