@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING
 from Circuit import Circuit
 from Const import Const
-from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT,Nothing
+from Gates import Gate,Nothing
 from collections import deque
 
 class Event:

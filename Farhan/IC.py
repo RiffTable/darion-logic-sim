@@ -1,5 +1,4 @@
 from __future__ import annotations
-from Const import Const
 from Gates import Gate, InputPin, OutputPin, Nothing
 
 
