@@ -6,6 +6,8 @@ from Gates import Gate, InputPin, OutputPin, Nothing
 class IC:
     # Integrated Circuit: a custom chip made of other gates
     # It acts like a black box with inputs and outputs
+    __slots__=['inputs','internal','outputs','name','custom_name','code','map']
+    
     def __init__(self):
         self.inputs: list[InputPin] = []
         self.internal: list[Gate|IC] = []
@@ -16,9 +18,6 @@ class IC:
         self.code = ''
 
         self.map = {}
-
-        self.inputpoint = False
-        self.outputpoint = False
 
     def __repr__(self):
         return self.name if self.custom_name == '' else self.custom_name

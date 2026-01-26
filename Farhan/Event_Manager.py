@@ -2,21 +2,26 @@ from typing import TYPE_CHECKING
 from Circuit import Circuit
 from Const import Const
 from Gates import InputPin, OutputPin, Variable, Gate, Probe, NOT,Nothing
+from collections import deque
 
-
-class Event(Circuit):
+class Event:
     # This class handles time travel (undo/redo)
     # It remembers every action so we can reverse it
-
-    def __init__(self):
-        super().__init__()
-        self.undolist = []
-        self.redolist = []
+    __slots__ = ['circuit', 'undolist', 'redolist']
+    
+    def __init__(self,circuit:Circuit): 
+        self.circuit = circuit
+        self.undolist:deque[tuple] = deque()
+        self.redolist:deque[tuple] = deque()
 
     # saves an action to history
     def addtoundo(self, token):
         self.undolist.append(token)
-        self.redolist = []
+        self.redolist=deque()
+        if len(self.undolist) > Const.LIMIT:
+            event=self.undolist.popleft()
+            if event[0]==Const.DELETE:
+                self.circuit.delobj(event[1].code)
 
     def popfromundo(self):
         x = self.undolist.pop()
@@ -36,25 +41,25 @@ class Event(Circuit):
         command = event[0]
 
         if command == Const.ADD:
-            super().hideComponent(event[1])
+            self.circuit.hideComponent(event[1])
 
         elif command == Const.DELETE:
-            super().renewComponent(event[1])
+            self.circuit.renewComponent(event[1])
 
         elif command == Const.CONNECT:
-            super().disconnect(event[1], event[2], event[3])
+            self.circuit.disconnect(event[1], event[2], event[3])
 
         elif command == Const.DISCONNECT:
-            super().connect(event[1], event[2], event[3])
+            self.circuit.connect(event[1], event[2], event[3])
 
         elif command == Const.PASTE:
             gates = event[2]
             for i in gates:
-                self.terminate(i)
-            self.rank_reset()
+                self.circuit.terminate(i)
+            self.circuit.rank_reset()
 
         elif command == Const.TOGGLE:
-            self.toggle(event[1], event[2]^1)
+            self.circuit.toggle(event[1], event[2]^1)
 
     # re-applies an action we just undid
     def redo(self):
@@ -64,67 +69,72 @@ class Event(Circuit):
         command = event[0]
 
         if command == Const.ADD:
-            self.renewComponent(event[1])
+            self.circuit.renewComponent(event[1])
 
         elif command == Const.DELETE:
-            self.hideComponent(event[1])
+            self.circuit.hideComponent(event[1])
 
         elif command == Const.CONNECT:
-            self.connect(event[1], event[2], event[3])
+            self.circuit.connect(event[1], event[2], event[3])
 
         elif command == Const.DISCONNECT:
-            self.disconnect(event[1], event[2], event[3])
+            self.circuit.disconnect(event[1], event[2], event[3])
 
         elif command == Const.PASTE:
             gates = [self.getobj(code) for code in event[1]]
-            super().copy(gates)
-            super().paste()
+            self.circuit.copy(gates)
+            self.circuit.paste()
 
         elif command == Const.TOGGLE:
-            self.toggle(event[1], event[2])
+            self.circuit.toggle(event[1], event[2])
 
     def addcomponent(self, gate_option) -> Gate:
-        gate = self.getcomponent(gate_option)
+        gate = self.circuit.getcomponent(gate_option)
         if gate:
             self.addtoundo((Const.ADD, gate))
         return gate
+    
+    def getIC(self, name):
+        ic=self.circuit.getIC(name)
+        if ic:
+            self.addtoundo((Const.ADD, ic))
 
     def livehide(self, gate):
-        self.hideComponent(gate)
+        self.circuit.hideComponent(gate)
         self.addtoundo((Const.DELETE, gate))
 
     def liveconnect(self, parent: Gate, child: Gate, index):
-        if parent.inputpoint == False or child.outputpoint == False or parent.children[index] != Nothing:
+        if parent.children[index] != Nothing:
             return False
-        self.connect(parent, child, index)
+        self.circuit.connect(parent, child, index)
         self.addtoundo((Const.CONNECT, parent, child, index))
         return True
 
     def input(self, var, value):
-        self.toggle(var, int(value))
+        self.circuit.toggle(var, int(value))
         self.addtoundo((Const.TOGGLE, var, int(value)))
 
     def livedisconnect(self, parent: Gate, index):
         self.addtoundo((Const.DISCONNECT,parent, parent.children[index], index))
-        self.disconnect(parent, index)
+        self.circuit.disconnect(parent, index)
 
 
     def copy(self, components):
-        super().copy(components)
+        self.circuit.copy(components)
 
     def paste(self):
         if len(self.copydata):
-            gates = super().paste()
+            gates = self.circuit.paste()
             self.addtoundo((Const.PASTE, self.copydata, gates))
 
     def load(self, file_location):
         # self.clearcircuit()
-        self.undolist.clear()
-        self.redolist.clear()
-        self.readfromjson(file_location)
+        self.undolist=deque()
+        self.redolist=deque()
+        self.circuit.readfromjson(file_location)
 
     def save(self, file_location):
-        self.writetojson(file_location)
+        self.circuit.writetojson(file_location)
 
     def __str__(self):
         return 'Designer'

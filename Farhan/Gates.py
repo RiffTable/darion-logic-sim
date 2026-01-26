@@ -3,21 +3,6 @@ from collections import deque
 from Const import Const
 
 
-class Signal:
-    # basic signal that just carries a value
-    # it exists on its own without needing inputs
-    def __init__(self, value):
-        self.parents = set()
-        self.output = value
-        self.name = str(value)
-        self.code = (0, value)
-
-    def __repr__(self):
-        return self.name
-
-    def __str__(self):
-        return self.name
-
 
 class Empty:
     # placeholder for when nothing is connected
@@ -35,6 +20,7 @@ Nothing = Empty()
 
 
 class Gate:
+    __slots__ = ['children', 'parents', 'inputlimit', 'book', 'output', 'prev_output', 'code', 'name', 'custom_name']
     # the blueprint for all logical gates
     # it handles inputs, outputs, and processing logic
 
@@ -56,10 +42,6 @@ class Gate:
         self.code = ''
         self.name = ''
         self.custom_name = ''
-        
-        # can we connect to it?
-        self.inputpoint = True
-        self.outputpoint = True
 
     # calculates the output based on inputs
     def process(self):
@@ -309,6 +291,8 @@ class Gate:
 
 class Variable(Gate):
     # this can be both an input or output(bulb)
+    __slots__ = ()  
+    
     def __init__(self):
         super().__init__()
         self.children = 0
@@ -385,6 +369,7 @@ class Variable(Gate):
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
+    __slots__=()
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
@@ -397,27 +382,15 @@ class Probe(Gate):
         else:
             self.output = Const.UNKNOWN
 
-    # def json_data(self):
-    #     dictionary={
-    #         "name":self.name,
-    #         "code":self.code,
-    #         "parent":[parent.code for parent in self.parents],
-    #         "High":[child.code for child in self.children[Const.HIGH]],
-    #         "Low":[child.code for child in self.children[Const.LOW]],
-    #         "Error":[child.code for child in self.children[Const.ERROR]],
-    #         "output":self.output,
-    #         "inputpoint":self.inputpoint,
-    #         "outputpoint":self.outputpoint
-    #     }
-    #     return dictionary
+
 
 
 class InputPin(Probe):
     # this can be both an input or output(bulb)
+    __slots__=()
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
-        # self.inputpoint=False
 
     def copy_data(self, cluster):
         d = super().copy_data(cluster)
@@ -426,10 +399,10 @@ class InputPin(Probe):
 
 class OutputPin(Probe):
     # this can be both an input or output(bulb)
+    __slots__=()
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
-        # self.outputpoint=Falses 
 
     def copy_data(self, cluster):
         d = super().copy_data(cluster)
@@ -437,6 +410,7 @@ class OutputPin(Probe):
         return d 
 
 class NOT(Gate):
+    __slots__=()
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
@@ -450,6 +424,7 @@ class NOT(Gate):
             self.output = Const.UNKNOWN
 
 class AND(Gate):
+    __slots__=()
     def __init__(self):
         super().__init__()
 
@@ -462,6 +437,7 @@ class AND(Gate):
 
 
 class NAND(Gate):
+    __slots__=()
     def __init__(self):
         super().__init__()
 
@@ -473,6 +449,7 @@ class NAND(Gate):
             self.output = Const.UNKNOWN
 
 class OR(Gate):
+    __slots__=()
     def __init__(self):
         super().__init__()
 
@@ -484,7 +461,7 @@ class OR(Gate):
             self.output = Const.UNKNOWN
 
 class NOR(Gate):
-
+    __slots__=()
     def __init__(self):
         super().__init__()
 
@@ -496,6 +473,7 @@ class NOR(Gate):
             self.output = Const.UNKNOWN
 
 class XOR(Gate):
+    __slots__=()
     def __init__(self):
         super().__init__()
 
@@ -507,7 +485,7 @@ class XOR(Gate):
             self.output = Const.UNKNOWN
 
 class XNOR(Gate):
-
+    __slots__=()
     def __init__(self):
         super().__init__()
 

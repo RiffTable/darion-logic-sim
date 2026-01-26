@@ -1,4 +1,5 @@
 from Event_Manager import Event
+from Circuit import Circuit
 import os
 from Const import Const
 from IC import IC
@@ -9,7 +10,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-base = Event()
+base = Event(Circuit())
 
 
 # The main loop that talks to the user
@@ -65,9 +66,9 @@ def submenu_components():
         if choice == '1':
             # Add Component section
             print("\nChoose a gate to add:")
-            print("1. NOT  2. AND  3. NAND  4. OR  5. NOR")
-            print("6. XOR  7. XNOR  8. Variable  9. Probe")
-            print("10. InputPin  11. OutputPin")
+            print("0. NOT  1. AND  2. NAND  3. OR  4. NOR")
+            print("5. XOR  6. XNOR  7. Variable  8. Probe")
+            print("9. InputPin  10. OutputPin")
             
             c = input("Enter choices (space separated): ").split()
             for i in c:
@@ -78,16 +79,16 @@ def submenu_components():
                     continue
 
         elif choice == '2':
-            base.listComponent()
+            base.circuit.listComponent()
             input('Press Enter to continue....')
 
         elif choice == '3':
             # Connect Components section
-            base.listComponent()
+            base.circuit.listComponent()
             gate_idx = input("Enter Parent Serial (Target): ")
             if gate_idx == '': continue
             try:
-                parent_component = base.canvas[int(gate_idx)]
+                parent_component = base.circuit.canvas[int(gate_idx)]
             except (ValueError, IndexError):
                 print("Invalid Parent.")
                 input("Press Enter...")
@@ -97,7 +98,7 @@ def submenu_components():
 
             for child_idx in childlist_indices:
                 try:
-                    child_component = base.canvas[child_idx]
+                    child_component = base.circuit.canvas[child_idx]
                 except IndexError:
                     continue
 
@@ -147,11 +148,11 @@ def submenu_components():
             input('Press Enter to continue....')
 
         elif choice == '4':
-            base.listComponent()
+            base.circuit.listComponent()
             gate_idx = input("Enter Parent Serial to Disconnect: ")
             if gate_idx == '': continue
             try:
-                parent = base.canvas[int(gate_idx)]
+                parent = base.circuit.canvas[int(gate_idx)]
             except (ValueError, IndexError):
                 print("Invalid serial.")
                 input("Press Enter...")
@@ -210,11 +211,11 @@ def submenu_components():
             input('Press Enter to continue....')
 
         elif choice == '5':
-            base.listComponent()
+            base.circuit.listComponent()
             gatelist = input("Enter serials to delete: ").split()
             for i in gatelist:
                 try:
-                    gate = base.canvas[int(i)]
+                    gate = base.circuit.canvas[int(i)]
                     base.livehide(gate)
                     print(f"Deleted {gate}.")
                 except (ValueError, IndexError):
@@ -222,7 +223,7 @@ def submenu_components():
             input("Press Enter...")
 
         elif choice == '6':
-            base.listComponent()
+            base.circuit.listComponent()
             try:
                 complist = list(map(int, input("Enter serials to copy: ").split()))
                 complist = [base.canvas[i] for i in complist]
@@ -238,7 +239,7 @@ def submenu_components():
             input('Press Enter...')
 
         elif choice == '8':
-            base.listComponent()
+            base.circuit.listComponent()
             idx = input("Enter serial to rename: ")
             if idx == '': continue
             try:
@@ -274,11 +275,11 @@ def submenu_simulation():
         choice = input("\nSelect Option: ").strip().upper()
 
         if choice == '1':
-            base.listVar()
+            base.circuit.listVar()
             var_idx = input("Enter variable serial: ")
             if var_idx == '': continue
             try:
-                var = base.varlist[int(var_idx)]
+                var = base.circuit.varlist[int(var_idx)]
                 val = input("Enter value (0/1): ")
                 if val in ['0', '1']:
                     base.input(var, val)
@@ -290,36 +291,36 @@ def submenu_simulation():
             input("Press Enter...")
 
         elif choice == '2':
-            base.listComponent()
+            base.circuit.listComponent()
             idx = input("Enter component serial: ")
             if idx == '': continue
             try:
-                gate = base.canvas[int(idx)]
-                base.output(gate)
+                gate = base.circuit.canvas[int(idx)]
+                base.circuit.output(gate)
             except (ValueError, IndexError):
                 print("Invalid serial.")
             input("Press Enter...")
 
         elif choice == '3':
-            print(base.truthTable())
+            print(base.circuit.truthTable())
             input("Press Enter...")
 
         elif choice == '4':
-            base.diagnose()
+            base.circuit.diagnose()
             input("Press Enter...")
 
         elif choice == '5':
-            base.simulate(Const.SIMULATE)
+            base.circuit.simulate(Const.SIMULATE)
             print("Simulation Started.")
             input("Press Enter...")
 
         elif choice == '6':
-            base.simulate(Const.FLIPFLOP)
+            base.circuit.simulate(Const.FLIPFLOP)
             print("Flip-Flop Mode Activated.")
             input("Press Enter...")
 
         elif choice == '7':
-            base.reset()
+            base.circuit.reset()
             print("Reset complete.")
             input("Press Enter...")
 
@@ -363,7 +364,7 @@ def submenu_project():
                 continue
             name = input("Enter filename for IC (e.g. my_ic.json): ")
             if name:
-                base.save_as_ic(name, ic_name)
+                base.circuit.save_as_ic(name, ic_name)
                 print("IC Saved.")
             input("Press Enter...")
 

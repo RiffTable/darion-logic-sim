@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Signal, Variable, Nothing
+from Gates import Gate, Variable, Nothing
 from Const import Const
 from IC import IC
 from Store import Components
@@ -8,23 +8,18 @@ from Store import Components
 class Circuit:
     # the main circuit board that holds everything together
     # it knows about all gates, connections, and states
-
+    __slots__ = ['objlist', 'canvas', 'varlist', 'iclist', 'copydata']
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [
-            [] for i in range(0, 13)]  # holds the objects with code name
+            [] for i in range(0, 12)]  # holds the objects with code name
         # list of everything visible on the board
         self.canvas: list[Gate | IC] = []  # displays the components
         # special list for input/output variables (0/1 switches)
         self.varlist: list[Variable] = []  # holds variables with 0/1 input
         # distinct list for Integrated Circuits
         self.iclist: list[IC] = []
-        
-        # default global signals
-        self.sign_0 = Signal(Const.LOW)
-        self.sign_1 = Signal(Const.HIGH)
-        self.objlist[0] = [self.sign_0, self.sign_1]
-        
+
         # clipboard for copy/paste
         self.copydata = []
 
@@ -53,7 +48,7 @@ class Circuit:
             self.canvas.append(gt)
         return gt
 
-    def getobj(self, code) -> Gate | Signal:
+    def getobj(self, code) -> Gate:
         return self.objlist[code[0]][code[1]]
 
     def delobj(self, code):
@@ -70,7 +65,7 @@ class Circuit:
             print(f'{i}. {self.varlist[i]}')
 
     # connects a parent gate to a child (input)
-    def connect(self, parent: Gate, child: Gate | Signal,index):
+    def connect(self, parent: Gate, child: Gate, index):
         parent.connect(child,index)
         # if the connection changed something, let everyone know
         if parent.prev_output != parent.output:
@@ -252,8 +247,6 @@ class Circuit:
         if isinstance(circuit,dict):
             return
         pseudo = {}
-        pseudo[(0, 0)] = self.sign_0
-        pseudo[(0, 1)] = self.sign_1
         pseudo[('X', 'X')] = Nothing
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])

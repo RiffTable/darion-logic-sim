@@ -16,17 +16,19 @@ class Const:
     PASTE = 5
     TOGGLE = 6
 
+    LIMIT=100
+
 
 class GateType:
-    NOT = 1
-    AND = 2
-    NAND = 3
-    OR = 4
-    NOR = 5
-    XOR = 6
-    XNOR = 7
-    VARIABLE = 8
-    PROBE = 9
-    INPUT_PIN = 10
-    OUTPUT_PIN = 11
-    IC = 12
+    NOT = 0
+    AND = 1
+    NAND = 2
+    OR = 3
+    NOR = 4
+    XOR = 5
+    XNOR = 6
+    VARIABLE = 7
+    PROBE = 8
+    INPUT_PIN = 9
+    OUTPUT_PIN = 10
+    IC = 11
