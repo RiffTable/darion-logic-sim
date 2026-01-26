@@ -11,6 +11,8 @@ class Color:
 	gate           = QColor("#47494b")
 	signal_on      = QColor("#37D431")
 	signal_off     = QColor("#3c3f41")
+	pin_on         = QColor("#37D431")
+	pin_off        = QColor("#cccccc")
 	pin_hover      = QColor("#656a6d")
 	LED_on         = QColor("#f1c40f")
 	LED_off        = QColor("#e74c3c")

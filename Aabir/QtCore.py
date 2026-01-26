@@ -14,9 +14,9 @@ from PySide6.QtCore import (
 	QPoint, QPointF, QLineF, QRectF,
 )
 from PySide6.QtGui import (
-	QPalette, QColor, QFont, QPainter, QPen, QBrush, QPainterPath,
+	QPalette, QColor, QFont, QPainter, QPen, QBrush, QPainterPath, QTransform,
 	QInputDevice,
-	QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent,
+	QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent
 )
 
 GraphicsItemChange = QGraphicsItem.GraphicsItemChange

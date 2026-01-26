@@ -24,9 +24,3 @@ class CircuitScene(QGraphicsScene):
 		comp = comp_type(QPointF(x, y), QPoint(5, 4), QPointF(0, 3))
 		self.addItem(comp)
 		self.gates.append(comp)
-
-	def snapToGrid(self, x: float, y:float) -> tuple[int, int]:
-		return (
-			round(x/self.SIZE)*self.SIZE,
-			round(y/self.SIZE)*self.SIZE
-		)
