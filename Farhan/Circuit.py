@@ -64,6 +64,9 @@ class Circuit:
         for i in range(len(self.varlist)):
             print(f'{i}. {self.varlist[i]}')
 
+    def setlimits(self,gate:Gate,size:int):
+        return gate.setlimits(size)
+
     # connects a parent gate to a child (input)
     def connect(self, parent: Gate, child: Gate, index):
         parent.connect(child,index)
@@ -294,7 +297,7 @@ class Circuit:
                 return
 
     def rank_reset(self):
-        for i in range(13):
+        for i in range(12):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 

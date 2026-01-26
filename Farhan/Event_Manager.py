@@ -68,6 +68,9 @@ class Event:
         elif command == Const.TOGGLE:
             self.circuit.toggle(event[1], event[2]^1)
 
+        elif command == Const.SETLIMITS:
+            self.circuit.setlimits(event[1], event[2])
+
     # re-applies an action we just undid
     def redo(self):
         if len(self.redolist) == 0:
@@ -94,6 +97,9 @@ class Event:
 
         elif command == Const.TOGGLE:
             self.circuit.toggle(event[1], event[2])
+
+        elif command == Const.SETLIMITS:
+            self.circuit.setlimits(event[1], event[3])
 
     def addcomponent(self, gate_option) -> Gate:
         gate = self.circuit.getcomponent(gate_option)
@@ -125,14 +131,20 @@ class Event:
         self.addtoundo((Const.DISCONNECT,parent, parent.children[index], index))
         self.circuit.disconnect(parent, index)
 
+    def setlimits(self,gate,size):
+        prev_size=gate.inputlimit
+        if self.circuit.setlimits(gate,size):
+            self.addtoundo((Const.SETLIMITS,gate,prev_size,size))
+            return True
+        return False
 
     def copy(self, components):
         self.circuit.copy(components)
 
     def paste(self):
-        if len(self.copydata):
+        if len(self.circuit.copydata):
             gates = self.circuit.paste()
-            self.addtoundo((Const.PASTE, self.copydata, gates))
+            self.addtoundo((Const.PASTE, self.circuit.copydata, gates))
 
     def load(self, file_location):
         # self.clearcircuit()

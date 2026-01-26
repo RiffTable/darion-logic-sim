@@ -15,6 +15,7 @@ class Const:
     DISCONNECT = 4
     PASTE = 5
     TOGGLE = 6
+    SETLIMITS = 7
 
     LIMIT=100
 

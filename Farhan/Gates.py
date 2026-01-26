@@ -237,8 +237,20 @@ class Gate:
                 child.parents[self] = [set(), child.output]
             child.parents[self][0].add(index)
 
-    def setlimits(self):
-        pass
+    def setlimits(self,size):
+        if size>self.inputlimit:
+            for i in range(self.inputlimit,size):
+                self.children.append(Nothing)
+            self.inputlimit=size
+            return True
+        elif size<self.inputlimit:
+            for i in range(size,self.inputlimit):
+                if self.children[i] != Nothing:
+                    return False
+            self.children = self.children[:size]
+            self.inputlimit=size
+            return True
+        return False
 
     def getoutput(self):
         if self.output == Const.ERROR:
@@ -252,6 +264,7 @@ class Gate:
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
+            "inputlimit": self.inputlimit,
             "child": [child.code for child in self.children],
             "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
             "book": [0,0,0,sum(self.book)],
@@ -263,6 +276,7 @@ class Gate:
             "name": self.name,
             "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
+            "inputlimit": self.inputlimit,
             "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
             "book": [0,0,0,sum(self.book)],
             }
@@ -275,6 +289,7 @@ class Gate:
 
     def clone(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
+        self.inputlimit = dictionary["inputlimit"]
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
             self.parents[parent] = [set(i[1]), i[2]]
@@ -286,6 +301,11 @@ class Gate:
 
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
+        self.inputlimit = dictionary["inputlimit"]
+        if isinstance(self,Variable):
+            self.children = 0
+        else:
+            self.children = list(Nothing for _ in range(self.inputlimit))
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
             self.parents[parent] = [set(i[1]), i[2]]
@@ -303,7 +323,8 @@ class Variable(Gate):
         super().__init__()
         self.children = 0
         self.inputlimit = 1
-
+    def setlimits(self,size):
+        return False
     def connect(self, child, index):
         pass
 
@@ -380,7 +401,8 @@ class Probe(Gate):
         super().__init__()
         self.inputlimit = 1
         self.children = [Nothing]
-
+    def setlimits(self,size):
+        return False
     def process(self):
         self.prev_output = self.output
         if self.isready():

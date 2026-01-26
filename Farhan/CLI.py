@@ -59,6 +59,7 @@ def submenu_components():
         print("6. Copy Selection")
         print("7. Paste Selection")
         print("8. Rename Component")
+        print("9. Change Input Limit")
         print("B. Back to Main Menu")
         
         choice = input("\nSelect Option: ").strip().upper()
@@ -226,7 +227,7 @@ def submenu_components():
             base.circuit.listComponent()
             try:
                 complist = list(map(int, input("Enter serials to copy: ").split()))
-                complist = [base.canvas[i] for i in complist]
+                complist = [base.circuit.canvas[i] for i in complist]
                 base.copy(complist)
                 print("Copied")
             except (ValueError, IndexError):
@@ -243,7 +244,7 @@ def submenu_components():
             idx = input("Enter serial to rename: ")
             if idx == '': continue
             try:
-                comp = base.canvas[int(idx)]
+                comp = base.circuit.canvas[int(idx)]
                 # "Not ICs after they are imported"
                 if isinstance(comp, IC):
                     print("Cannot rename imported ICs.")
@@ -252,6 +253,38 @@ def submenu_components():
                     if new_name:
                         comp.custom_name = new_name
                         print(f"Renamed to {new_name}")
+            except (ValueError, IndexError):
+                print("Invalid selection.")
+            input("Press Enter...")
+
+        elif choice == '9':
+            base.circuit.listComponent()
+            idx = input("Enter serial of component to change input limit: ")
+            if idx == '': continue
+            try:
+                comp = base.circuit.canvas[int(idx)]
+                # ICs and Variables/Probes have fixed input limits
+                if isinstance(comp, IC):
+                    print("Cannot change input limit of ICs.")
+                elif not hasattr(comp, 'setlimits') or not hasattr(comp, 'inputlimit'):
+                    print("This component does not support input limit changes.")
+                else:
+                    print(f"\nCurrent input limit: {comp.inputlimit}")
+                    print("Current inputs:")
+                    for i, child in enumerate(comp.children):
+                        print(f"  [{i}] -> {child}")
+                    new_limit = input("Enter new input limit: ")
+                    if new_limit:
+                        try:
+                            new_size = int(new_limit)
+                            if new_size < 1:
+                                print("Input limit must be at least 1.")
+                            elif base.setlimits(comp,new_size):
+                                print(f"Input limit changed to {new_size}")
+                            else:
+                                print("Could not change input limit. Make sure disconnected inputs are removed first.")
+                        except ValueError:
+                            print("Invalid number.")
             except (ValueError, IndexError):
                 print("Invalid selection.")
             input("Press Enter...")
