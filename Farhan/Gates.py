@@ -302,10 +302,7 @@ class Gate:
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
         self.inputlimit = dictionary["inputlimit"]
-        if isinstance(self,Variable):
-            self.children = 0
-        else:
-            self.children = list(Nothing for _ in range(self.inputlimit))
+        self.children = list(Nothing for _ in range(self.inputlimit))
         for i in dictionary["parent"]:
             parent = pseudo[self.decode(i[0])]
             self.parents[parent] = [set(i[1]), i[2]]
@@ -357,6 +354,7 @@ class Variable(Gate):
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
+            "inputlimit": self.inputlimit,
             "code": self.code,
             "child": self.children,
             "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
@@ -369,6 +367,31 @@ class Variable(Gate):
             parent = pseudo[self.decode(i[0])]
             self.parents[parent] = [set(i[1]), i[2]]
         self.children = dictionary["child"]
+
+    def copy_data(self, cluster):
+        dictionary = {
+            "name": self.name,
+            "custom_name": "", # Do not copy custom name for gates
+            "code": self.code,
+            "inputlimit": self.inputlimit,
+            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
+            "book": [0,0,0,0],
+            }
+        return dictionary
+
+    def implement(self, dictionary, pseudo):
+        self.custom_name = dictionary["custom_name"]
+        self.children = 0
+        for i in dictionary["parent"]:
+            parent = pseudo[self.decode(i[0])]
+            self.parents[parent] = [set(i[1]), i[2]]
+        # connect and propagate to parent
+        for parent, [index_set, output] in self.parents.items():
+            for i in index_set:
+                parent.connect(self,i)
+                
+        
+
 
     def hide(self):
         # disconnect from parent
