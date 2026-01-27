@@ -44,21 +44,21 @@ class IC:
             gt.code = (choice, rank, self.code)
         return gt
 
-    def addgate(self, child: Gate | OutputPin | InputPin):
+    def addgate(self, source: Gate | OutputPin | InputPin):
 
-        if isinstance(child, InputPin):
+        if isinstance(source, InputPin):
             rank = len(self.inputs)
-            self.inputs.append(child)
-            child.name = 'in-'+str(len(self.inputs))
-        elif isinstance(child, OutputPin):
+            self.inputs.append(source)
+            source.name = 'in-'+str(len(self.inputs))
+        elif isinstance(source, OutputPin):
             rank = len(self.outputs)
-            self.outputs.append(child)
-            child.name = 'out-'+str(len(self.outputs))
+            self.outputs.append(source)
+            source.name = 'out-'+str(len(self.outputs))
         else:
             rank = len(self.internal)
-            self.internal.append(child)
-            child.name = child.__class__.__name__+'-'+str(len(self.internal))
-        child.code = (child.code[0], rank, self.code)
+            self.internal.append(source)
+            source.name = source.__class__.__name__+'-'+str(len(self.internal))
+        source.code = (source.code[0], rank, self.code)
 
     # sets up the IC from a saved plan
     def configure(self, dictionary):
@@ -140,33 +140,33 @@ class IC:
     # disconnects internal logic (used when deleting)
     def hide(self):
         for pin in self.outputs:
-            for parent, infolist in pin.parents.items():
+            for target, infolist in pin.targets.items():
                 for i in infolist[0]:
-                    parent.children[i]=Nothing
-                    parent.book[infolist[1]]-=1
-                    parent.process()
-            for parent, infolist in pin.parents.items():
-                parent.propagate()
+                    target.sources[i]=Nothing
+                    target.book[infolist[1]]-=1
+                    target.process()
+            for target, infolist in pin.targets.items():
+                target.propagate()
         for pin in self.inputs:
-            for child in pin.children:
-                child.parents.pop(pin)
+            for source in pin.sources:
+                source.targets.pop(pin)
 
     # reconnects internal logic
     def reveal(self):
         for pin in self.outputs:
-            for parent, infolist in pin.parents.items():
+            for target, infolist in pin.targets.items():
                 for i in infolist[0]:
-                    parent.children[i]=pin
-                    parent.book[infolist[1]]+=1
-                    parent.process()
+                    target.sources[i]=pin
+                    target.book[infolist[1]]+=1
+                    target.process()
 
-            for parent, infolist in pin.parents.items():
-                parent.propagate()
+            for target, infolist in pin.targets.items():
+                target.propagate()
         for pin in self.inputs:
-            for index, child in enumerate(pin.children):
-                if pin not in child.parents:
-                    child.parents[pin] = [set(), child.output]
-                child.parents[pin][0].add(index)
+            for index, source in enumerate(pin.sources):
+                if pin not in source.targets:
+                    source.targets[pin] = [set(), source.output]
+                source.targets[pin][0].add(index)
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:
@@ -189,8 +189,8 @@ class IC:
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
-                parents = [str(p) for p in pin.parents.keys()]
-                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
+                targets = [str(p) for p in pin.targets.keys()]
+                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         # Show internal components
         if self.internal:
@@ -199,23 +199,23 @@ class IC:
                 if isinstance(comp, IC):
                     comp.info()
                 else:
-                    # Children (list with indices)
-                    if isinstance(comp.children, list):
-                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.children) if str(c) != 'Empty']
+                    # Sources (list with indices)
+                    if isinstance(comp.sources, list):
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
                         ch_str = ", ".join(ch) if ch else "None"
                     else:
-                        ch_str = f"val:{comp.children}"
-                    # Parents
-                    par = [str(p) for p in comp.parents.keys()]
-                    par_str = ", ".join(par) if par else "None"
-                    print(f"    {comp.name}: out={comp.getoutput()}, children={ch_str}, parents={par_str}")
+                        ch_str = f"val:{comp.sources}"
+                    # Targets
+                    tgt = [str(p) for p in comp.targets.keys()]
+                    tgt_str = ", ".join(tgt) if tgt else "None"
+                    print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
         # Show outputs
         if self.outputs:
             print("  OUTPUTS:")
             for pin in self.outputs:
-                if isinstance(pin.children, list):
-                    ch = [f"{c}" for c in pin.children if str(c) != 'Empty']
+                if isinstance(pin.sources, list):
+                    ch = [f"{c}" for c in pin.sources if str(c) != 'Empty']
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"

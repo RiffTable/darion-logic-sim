@@ -116,20 +116,20 @@ class Event:
         self.circuit.hideComponent(gate)
         self.addtoundo((Const.DELETE, gate))
 
-    def connect(self, parent: Gate, child: Gate, index):
-        if parent.children[index] != Nothing:
+    def connect(self, target: Gate, source: Gate, index):
+        if target.sources[index] != Nothing:
             return False
-        self.circuit.connect(parent, child, index)
-        self.addtoundo((Const.CONNECT, parent, child, index))
+        self.circuit.connect(target, source, index)
+        self.addtoundo((Const.CONNECT, target, source, index))
         return True
 
     def input(self, var, value):
         self.circuit.toggle(var, int(value))
         self.addtoundo((Const.TOGGLE, var, int(value)))
 
-    def disconnect(self, parent: Gate, index):
-        self.addtoundo((Const.DISCONNECT,parent, parent.children[index], index))
-        self.circuit.disconnect(parent, index)
+    def disconnect(self, target: Gate, index):
+        self.addtoundo((Const.DISCONNECT,target, target.sources[index], index))
+        self.circuit.disconnect(target, index)
 
     def setlimits(self,gate,size):
         prev_size=gate.inputlimit
