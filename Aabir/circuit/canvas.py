@@ -21,7 +21,12 @@ def snapToGrid(x: float, y:float) -> tuple[int, int]:
 
 # region: ###======= COMPONENT ITEM =======###
 class CompItem(QGraphicsRectItem):
-	def __init__(self, pos: QPointF, size: QPoint, padding: QPointF):
+	def __init__(
+			self,
+			pos: QPointF | tuple[float, float],
+			size: QPoint | tuple[int, int],
+			padding: QPointF | tuple[float, float]
+		):
 		x, y = snapToGrid(*pos.toTuple())
 		w, h = size.toTuple()
 		dx, dy = padding.toTuple()
@@ -41,27 +46,45 @@ class CompItem(QGraphicsRectItem):
 		self.state = False
 		self.facing = Facing.East
 		self.labelText = "COMP"
-		self.outputPins : list[OutputPinItem] = []    # Facing.East
-		self.inputPins  : list[InputPinItem] = []    # Facing.West
+		self.outputPins : list[PinItem] = []    # Facing.East
+		self.inputPins  : list[PinItem] = []    # Facing.West
 		self.topPins    : list[PinItem] = []    # Facing.North
 		self.bottomPins : list[PinItem] = []    # Facing.South
 
 		# Visual
 		self.setPen(QPen(Color.outline, 2))
 		self.setBrush(Color.gate)
-		# inPin1  = InputPinItem(self, (0, 0), Facing.West)
-		# inPin2  = InputPinItem(self, (0, 60), Facing.West)
-		# outPin1 = OutputPinItem(self, (80, 0), Facing.East)
-		# outPin1 = OutputPinItem(self, (80, 60), Facing.East)
-		inputA  = InputPinItem(self, (0, 1*SIZE), Facing.West)
-		inputB  = InputPinItem(self, (0, 3*SIZE), Facing.West)
-		output  = OutputPinItem(self, (w*SIZE, 2*SIZE), Facing.East)
+
+		# fuck
+		self.inputPins.append(InputPinItem(self, (0, 1*SIZE), Facing.West))
+		self.inputPins.append(InputPinItem(self, (0, 3*SIZE), Facing.West))
+		self.outputPins.append(OutputPinItem(self, (w*SIZE, 2*SIZE), Facing.East))
 
 
 		# Label
 		self.labelItem = QGraphicsTextItem(self.labelText, self)
 		self.labelItem.setFont(Font.default)
 		self.labelItem.setPos(5, 10)
+	
+	# def addInputPin(self, index: int, edge: Facing) -> InputPinItem:
+	# 	facing = {
+	# 		Facing.East: self.outputPins,
+	# 		Facing.West: self.inputPins,
+	# 		Facing.North: self.topPins,
+	# 		Facing.South: self.bottomPins
+	# 	}[edge]
+	# 	...
+	
+	# def addOutputPin(self, index: int, edge: Facing) -> OutputPinItem:
+	# 	...
+	
+	def allPins(self):
+		pins = self.outputPins + self.inputPins + self.topPins + self.bottomPins
+		return pins
+	
+	def cutConnections(self):
+		for p in self.allPins():
+			p.disconnect()
 
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
@@ -91,7 +114,7 @@ class PinItem(QGraphicsRectItem):
 		self.setZValue(1)
 
 		self.state = False
-		self.wire: WireItem = None
+		self._wire: WireItem = None
 		self.isHighlighted = False
 		self.facing = facing
 		self.label = ""
@@ -101,25 +124,21 @@ class PinItem(QGraphicsRectItem):
 	
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemScenePositionHasChanged:
-			if self.wire: self.wire.updatePath()
+			if self._wire: self._wire.updatePath()
 		
 		return super().itemChange(change, value)
 	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
+	def disconnect(self):
+		...    # ABSTRACT METHOD
 	
-	def connect(self, wire: WireItem):
-		self.wire = wire
+	def setWire(self, wire: WireItem):
+		self._wire = wire
 		self.updateVisual()
 
-	def hoverEnterEvent(self, event):
-		self.highlight(True)
-		self.updateVisual()
-		super().hoverEnterEvent(event)
-	def hoverLeaveEvent(self, event):
-		self.highlight(False)
-		self.updateVisual()
-		super().hoverLeaveEvent(event)
+	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
+	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
 	
 	def paint(self, painter: QPainter, option, widget):
 		r = 3
@@ -132,15 +151,15 @@ class PinItem(QGraphicsRectItem):
 	
 	def updateVisual(self):
 		if self.isHighlighted:
-			self.setPen(Qt.PenStyle.NoPen)
+			self.setPen(QPen(Color.outline, 2))
 			self.setBrush(QBrush(Color.pin_hover))
 		
-		elif self.wire:
-			self.setPen(QPen(Color.outline, 2))
+		elif self._wire:
+			self.setPen(Qt.PenStyle.NoPen)
 			self.setBrush(Qt.BrushStyle.NoBrush)
 		
 		else:
-			self.setPen(Qt.PenStyle.NoPen)
+			self.setPen(QPen(Color.outline, 2))
 			if self.state:
 				self.setBrush(QBrush(Color.pin_on))
 			else:
@@ -153,9 +172,9 @@ class InputPinItem(PinItem):
 		super().__init__(parent, relpos, facing)
 
 	def disconnect(self):
-		self.wire.cutSupply(self)
-		self.wire = None
-		self.updateVisual()
+		if not self._wire: return
+
+		self._wire.cutSupply(self)
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
@@ -166,12 +185,13 @@ class InputPinItem(PinItem):
 		scene: CircuitScene = self.scene()
 		if scene.state == EditorState.WIRING:
 			source = scene.wireSource
-			if not source.wire:
-				w = WireItem(source, self)
-				scene.wires.append(w)
-				scene.addItem(w)
-			else:
-				source.wire.addSupply(self)
+			if not self._wire:
+				if not source._wire:
+					w = WireItem(source, self)
+					scene.wires.append(w)
+					scene.addItem(w)
+				else:
+					source._wire.addSupply(self)
 			
 			# self.run_logic()
 			scene.state = EditorState.NORMAL
@@ -186,10 +206,10 @@ class OutputPinItem(PinItem):
 		super().__init__(parent, relpos, facing)
 	
 	def disconnect(self):
-		self.wire.cutSource()
-		self.wire = None
-		self.updateVisual()
+		if not self._wire: return
 
+		scene: CircuitScene = self.scene()
+		scene.removeWire(self._wire)
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
@@ -217,8 +237,8 @@ class WireItem(QGraphicsPathItem):
 		self.setFlags(QGraphicsItem.ItemIsSelectable)
 		self.setZValue(-1)
 
-		beg.connect(self)
-		end.connect(self)
+		beg.setWire(self)
+		end.setWire(self)
 
 		# Properties
 		self.state = False
@@ -228,32 +248,24 @@ class WireItem(QGraphicsPathItem):
 		self.updatePath()
 	
 	def addSupply(self, pin: InputPinItem):
+		if pin in self.supplies: return
 		self.supplies.append(pin)
-		pin.connect(self)
+		pin.setWire(self)
 		self.updatePath()
 	
 	def cutSupply(self, pin: InputPinItem):
-		if not pin in self.supplies:
-			return
-		pin.wire = None
+		if not pin in self.supplies: return
+
+		pin.setWire(None)
 		self.supplies.remove(pin)
+
+		# Check if wire has any supply left
 		if len(self.supplies) == 0:
-			self.delete()
+			scene: CircuitScene = self.scene()
+			scene.removeWire(self)
 		else:
 			self.updatePath()
 	
-	def cutSource(self):
-		self.source.wire = None
-		for supply in self.supplies:
-			supply.wire = None
-			supply.updateVisual()
-		self.supplies.clear()
-		self.delete()
-	
-	def delete(self):
-		self.source.wire = None
-		self.scene().removeItem(self)
-			
 	def updateVisual(self):
 		color = Color.signal_on if self.state else Color.signal_off
 		# if self.isSelected(): color = QColor("#f39c12")
@@ -291,7 +303,7 @@ class CircuitScene(QGraphicsScene):
 		super().__init__()
 
 		self.SIZE = 12
-		self.gates: list[CompItem] = []
+		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
 		self.state = EditorState.NORMAL
 		self.wireSource: OutputPinItem = None
@@ -299,5 +311,37 @@ class CircuitScene(QGraphicsScene):
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
 		comp = comp_type(QPointF(x, y), QPoint(5, 4), QPointF(0, 3))
 		self.addItem(comp)
-		self.gates.append(comp)
+		self.comps.append(comp)
+		# run_logic()
+	
+	def removeComp(self, comp: CompItem):
+		if comp not in self.comps: return
+		comp.cutConnections()
+
+		self.comps.remove(comp)
+		self.removeItem(comp)
+		# run_logic()
+	
+	def removeWire(self, wire: WireItem):
+		if wire not in self.wires: return
+		
+		wire.source.setWire(None)
+		for supply in wire.supplies:
+			supply.setWire(None)
+
+		self.wires.remove(wire)
+		self.removeItem(wire)
+		# run_logic()
+
+	def keyPressEvent(self, event):
+		if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_X):
+			for item in self.selectedItems():
+				if isinstance(item, WireItem):
+					if item in self.wires: self.removeWire(item)
+				
+				elif isinstance(item, CompItem):
+					if item in self.comps: self.removeComp(item)
+				
+			# self.run_logic()
+		super().keyPressEvent(event)
 # endregion

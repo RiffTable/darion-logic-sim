@@ -10,24 +10,24 @@ from circuit.canvas import (CompItem)
 
 
 ###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
-GATELOOKUP: list[tuple[str, str, type[CompItem]]] = [
-	("AND Gate", "and-gate", CompItem),
-	("OR Gate", "or-gate", CompItem),
-	("NOT Gate", "not-gate", CompItem),
-	("NOR Gate", "nor-gate", CompItem),
-	("NAND Gate", "nand-gate", CompItem),
-	("XOR Gate", "xor-gate", CompItem),
-	("XNOR Gate", "xnor-gate", CompItem),
+COMPONENT_LOOKUP: list[tuple[str, int, type[CompItem]]] = [
+	("NOT Gate", 0, CompItem),
+	("AND Gate", 1, CompItem),
+	("NAND Gate", 2, CompItem),
+	("OR Gate", 3, CompItem),
+	("NOR Gate", 4, CompItem),
+	("XOR Gate", 5, CompItem),
+	("XNOR Gate", 6, CompItem),
 ]
 
-Name_to_ID    : dict[str, str] = {}
-ID_to_Name    : dict[str, str] = {}
-ID_to_Class   : dict[str, type[CompItem]] = {}
-Class_to_ID   : dict[type[CompItem], str] = {}
+Name_to_ID    : dict[str, int] = {}
+ID_to_Name    : dict[int, str] = {}
+ID_to_Class   : dict[int, type[CompItem]] = {}
+Class_to_ID   : dict[type[CompItem], int] = {}
 Name_to_Class : dict[str, type[CompItem]] = {}
 Class_to_Name : dict[type[CompItem], str] = {}
 
-for name_, id_, class_ in GATELOOKUP:
+for name_, id_, class_ in COMPONENT_LOOKUP:
 	Name_to_ID[name_]     = {id_}
 	ID_to_Name[id_]       = {name_}
 	ID_to_Class[id_]      = {class_}
@@ -39,8 +39,3 @@ for name_, id_, class_ in GATELOOKUP:
 class GateItem(CompItem):
 	def __init__(self, x, y):
 		super().__init__(x, y)
-
-		self.tail = []
-		self.head = []
-		self.top = []
-		self.bottom = []
