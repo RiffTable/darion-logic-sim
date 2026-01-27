@@ -8,7 +8,7 @@ class Empty:
     # placeholder for when nothing is connected
     def __init__(self):
         self.code = ('X', 'X')
-        self.parents={}
+        self.targets={}
     def __repr__(self):
         return 'Empty'
 
@@ -20,15 +20,15 @@ Nothing = Empty()
 
 
 class Gate:
-    __slots__ = ['children', 'parents', 'inputlimit', 'book', 'output', 'prev_output', 'code', 'name', 'custom_name']
+    __slots__ = ['sources', 'targets', 'inputlimit', 'book', 'output', 'prev_output', 'code', 'name', 'custom_name']
     # the blueprint for all logical gates
     # it handles inputs, outputs, and processing logic
 
     def __init__(self):
         # who feeds into this gate? (inputs)
-        self.children: list[Gate] = [Nothing, Nothing]
+        self.sources: list[Gate] = [Nothing, Nothing]
         # who does this gate feed into? (outputs)
-        self.parents: dict[Gate, list[set, int]] = {}
+        self.targets: dict[Gate, list[set, int]] = {}
         # how many inputs do we need?
         self.inputlimit = 2
         # keeps track of what kind of inputs we have (high, low, etc)
@@ -62,29 +62,29 @@ class Gate:
             # if we are designing, nothing works yet
             return False
         else:
-            realchild = sum(self.book[:3])
+            realsource = sum(self.book[:3])
             if Const.MODE == Const.SIMULATE:
                 # in simulation, we need all inputs connected
-                return realchild == self.inputlimit
+                return realsource == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return realchild and realchild+self.book[Const.UNKNOWN] == self.inputlimit
+                return realsource and realsource+self.book[Const.UNKNOWN] == self.inputlimit
 
-    # connect a child gate (input) to this gate
-    def connect(self, child: Gate, index: int):
+    # connect a source gate (input) to this gate
+    def connect(self, source: Gate, index: int):
         # update our input counts
-        self.book[child.output] += 1
+        self.book[source.output] += 1
         
-        # let the child know we are listening to it
-        if self not in child.parents:
-            child.parents[self] = [set(), child.output]
-        child.parents[self][0].add(index)
+        # let the source know we are listening to it
+        if self not in source.targets:
+            source.targets[self] = [set(), source.output]
+        source.targets[self][0].add(index)
         
         # actually plug it in
-        self.children[index] = child
+        self.sources[index] = source
         
         # if something is wrong with the input, react
-        if child.output==Const.ERROR:
+        if source.output==Const.ERROR:
             if self.isready():
                 self.burn()
         else:
@@ -92,42 +92,42 @@ class Gate:
             self.process()
 
     # called when an input changes
-    def update(self, parent: Gate,infolist: list[set|int]):
+    def update(self, target: Gate,infolist: list[set|int]):
         if self.output==infolist[1]:
             # if nothing changed, relax
             return False
-        if isinstance(parent,Probe):
+        if isinstance(target,Probe):
             infolist[1]=self.output
-            parent.output=self.output
-            parent.bypass()
+            target.output=self.output
+            target.bypass()
             return False
-        # update the parent's records
+        # update the target's records
         count=len(infolist[0])
-        parent.book[infolist[1]] -= count
-        parent.book[self.output] += count
+        target.book[infolist[1]] -= count
+        target.book[self.output] += count
         
         if self.output==Const.ERROR:
             # error propagation
-            if parent.isready():
-                parent.output=Const.ERROR
+            if target.isready():
+                target.output=Const.ERROR
         else:
-            # let the parent recalculate
-            parent.process()
+            # let the target recalculate
+            target.process()
             
-        # update what the parent thinks our output is
+        # update what the target thinks our output is
         infolist[1]=self.output
-        return parent.prev_output != parent.output
+        return target.prev_output != target.output
     
     def bypass(self):
-        for parent,infolist in self.parents.items():
-            if self.update(parent,infolist):
-                parent.propagate()  
+        for target,infolist in self.targets.items():
+            if self.update(target,infolist):
+                target.propagate()  
 
     # protect against weird loops by resetting counts
     def sync(self):
         self.book=[0,0,0,0]
-        for child in self.children:
-            self.book[child.output]+=1
+        for source in self.sources:
+            self.book[source.output]+=1
 
     # handles error states and spreads the error
     def burn(self):
@@ -138,60 +138,60 @@ class Gate:
             gate.prev_output = gate.output
             # mark as error
             gate.output = Const.ERROR 
-            for parent,infolist in gate.parents.items():
-                parent.sync()
-                # update parent's knowledge
+            for target,infolist in gate.targets.items():
+                target.sync()
+                # update target's knowledge
                 infolist[1]=Const.ERROR 
-                if parent.isready() and parent.output != Const.ERROR:
-                    queue.append(parent)
+                if target.isready() and target.output != Const.ERROR:
+                    queue.append(target)
 
     # spread the signal change to all connected gates
     def propagate(self):
         if Const.MODE==Const.FLIPFLOP:
             fuse = set()
             queue: deque[Gate] = deque()
-            # notify all parents
+            # notify all targets
             queue.append(self)
             # keep propagating until everything settles
             while queue:
                 gate = queue.popleft()
-                for parent,infolist in gate.parents.items():
-                    if gate.update(parent,infolist):
+                for target,infolist in gate.targets.items():
+                    if gate.update(target,infolist):
                         # check for loops or inconsistencies
-                        if gate==parent: 
+                        if gate==target: 
                             gate.burn()
                             return
                         if id(infolist) in fuse: 
                             gate.burn()
                             return
                         fuse.add(id(infolist))
-                        queue.append(parent)
+                        queue.append(target)
         elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
             queue: deque[Gate] = deque()            
             queue.append(self)                       
             # keep propagating until everything settles
             while queue:
                 gate = queue.popleft()
-                for parent,infolist in gate.parents.items():
-                    if gate.update(parent,infolist):
-                        queue.append(parent)
+                for target,infolist in gate.targets.items():
+                    if gate.update(target,infolist):
+                        queue.append(target)
         else:
             pass
 
     # remove a connection at a specific index
     def disconnect(self, index: int):
-        child = self.children[index]
-        self.book[child.output] -= 1 
-        self.children[index] = Nothing 
-        child.parents[self][0].discard(index) 
+        source = self.sources[index]
+        self.book[source.output] -= 1 
+        self.sources[index] = Nothing 
+        source.targets[self][0].discard(index) 
         
-        # if no more connections to this parent, remove it from list
-        if len(child.parents[self][0]) == 0:
-            child.parents.pop(self)
+        # if no more connections to this target, remove it from list
+        if len(source.targets[self][0]) == 0:
+            source.targets.pop(self)
 
         # recalculate everything
-        child.process()
-        child.propagate()
+        source.process()
+        source.propagate()
         self.process()
         self.propagate()
 
@@ -199,60 +199,60 @@ class Gate:
         self.output = Const.UNKNOWN
         self.book = [0, 0, 0, sum(self.book)]
         self.prev_output = Const.UNKNOWN
-        for infolist in self.parents.values():
+        for infolist in self.targets.values():
             infolist[1]=Const.UNKNOWN
 
     def hide(self):
-        # disconnect from parent
-        for parent, infolist in self.parents.items():
+        # disconnect from target
+        for target, infolist in self.targets.items():
             for i in infolist[0]:
-                parent.children[i] = Nothing
-                parent.book[infolist[1]] -= 1
-        # disconnect from child
-        for child in self.children:
-            if child != Nothing and self in child.parents:
-                child.parents.pop(self)
+                target.sources[i] = Nothing
+                target.book[infolist[1]] -= 1
+        # disconnect from source
+        for source in self.sources:
+            if source != Nothing and self in source.targets:
+                source.targets.pop(self)
 
-        for parent in self.parents.keys():
-            if parent!=self:
-                parent.process()
-                parent.propagate()
+        for target in self.targets.keys():
+            if target!=self:
+                target.process()
+                target.propagate()
 
     def reveal(self):
-        # connect to parents
+        # connect to targets
         if self.output==Const.ERROR:
-            for parent, infolist in self.parents.items():
+            for target, infolist in self.targets.items():
                 for i in infolist[0]:
-                    parent.children[i]=self
+                    target.sources[i]=self
             self.burn()
         else:
-            for parent, infolist in self.parents.items():
+            for target, infolist in self.targets.items():
                 for i in infolist[0]:
-                    parent.children[i]=self
-                    parent.book[infolist[1]]+=1
-                    parent.process()
+                    target.sources[i]=self
+                    target.book[infolist[1]]+=1
+                    target.process()
 
-            for parent in self.parents.keys():
-                if parent!=self:
-                    parent.propagate()
+            for target in self.targets.keys():
+                if target!=self:
+                    target.propagate()
 
-        # connect to children
-        for index, child in enumerate(self.children):
-            if self not in child.parents:
-                child.parents[self] = [set(), child.output]
-            child.parents[self][0].add(index)
+        # connect to sources
+        for index, source in enumerate(self.sources):
+            if self not in source.targets:
+                source.targets[self] = [set(), source.output]
+            source.targets[self][0].add(index)
 
     def setlimits(self,size):
         if size>self.inputlimit:
             for i in range(self.inputlimit,size):
-                self.children.append(Nothing)
+                self.sources.append(Nothing)
             self.inputlimit=size
             return True
         elif size<self.inputlimit:
             for i in range(size,self.inputlimit):
-                if self.children[i] != Nothing:
+                if self.sources[i] != Nothing:
                     return False
-            self.children = self.children[:size]
+            self.sources = self.sources[:size]
             self.inputlimit=size
             return True
         return False
@@ -270,8 +270,8 @@ class Gate:
             "custom_name": self.custom_name,
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "child": [child.code for child in self.children],
-            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
+            "source": [source.code for source in self.sources],
+            "target": [[target.code, list(infolist[0]), Const.UNKNOWN] for target, infolist in self.targets.items()],
             "book": [0,0,0,sum(self.book)],
         }
         return dictionary
@@ -282,7 +282,7 @@ class Gate:
             "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
+            "target": [[target.code, list(infolist[0]), Const.UNKNOWN] for target, infolist in self.targets.items() if target in cluster],
             "book": [0,0,0,sum(self.book)],
             }
         return dictionary
@@ -295,10 +295,10 @@ class Gate:
     def clone(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
         self.inputlimit = dictionary["inputlimit"]
-        for i in dictionary["parent"]:
-            parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = [set(i[1]), i[2]]
-        self.children = list(pseudo[self.decode(child)] for child in dictionary["child"])
+        for i in dictionary["target"]:
+            target = pseudo[self.decode(i[0])]
+            self.targets[target] = [set(i[1]), i[2]]
+        self.sources = list(pseudo[self.decode(source)] for source in dictionary["source"])
         self.book = dictionary["book"]
 
     def load_to_cluster(self, cluster: set):
@@ -307,14 +307,14 @@ class Gate:
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
         self.inputlimit = dictionary["inputlimit"]
-        self.children = list(Nothing for _ in range(self.inputlimit))
-        for i in dictionary["parent"]:
-            parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = [set(i[1]), i[2]]
-        # connect and propagate to parent
-        for parent, [index_set, output] in self.parents.items():
+        self.sources = list(Nothing for _ in range(self.inputlimit))
+        for i in dictionary["target"]:
+            target = pseudo[self.decode(i[0])]
+            self.targets[target] = [set(i[1]), i[2]]
+        # connect and propagate to target
+        for target, [index_set, output] in self.targets.items():
             for i in index_set:
-                parent.connect(self,i)
+                target.connect(self,i)
 
 
 class Variable(Gate):
@@ -323,22 +323,22 @@ class Variable(Gate):
     
     def __init__(self):
         super().__init__()
-        self.children = 0
+        self.sources = 0
         self.inputlimit = 1
     def setlimits(self,size):
         return False
-    def connect(self, child, index):
+    def connect(self, source, index):
         pass
 
-    def toggle(self, child: int):
-        if isinstance(child, int):
-            self.children = child
+    def toggle(self, source: int):
+        if isinstance(source, int):
+            self.sources = source
             self.process()
 
     def reset(self):
         self.output = Const.UNKNOWN
         self.prev_output = Const.UNKNOWN
-        for infolist in self.parents.values():
+        for infolist in self.targets.values():
             infolist[1]=Const.UNKNOWN
 
     def isready(self):
@@ -350,7 +350,7 @@ class Variable(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.children
+            self.output = self.sources
         else:
             self.output = Const.UNKNOWN
 
@@ -361,17 +361,17 @@ class Variable(Gate):
             "custom_name": self.custom_name,
             "inputlimit": self.inputlimit,
             "code": self.code,
-            "child": self.children,
-            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items()],
+            "source": self.sources,
+            "target": [[target.code, list(infolist[0]), Const.UNKNOWN] for target, infolist in self.targets.items()],
         }
         return dictionary
 
     def clone(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        for i in dictionary["parent"]:
-            parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = [set(i[1]), i[2]]
-        self.children = dictionary["child"]
+        for i in dictionary["target"]:
+            target = pseudo[self.decode(i[0])]
+            self.targets[target] = [set(i[1]), i[2]]
+        self.sources = dictionary["source"]
 
     def copy_data(self, cluster):
         dictionary = {
@@ -379,48 +379,48 @@ class Variable(Gate):
             "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "parent": [[parent.code, list(infolist[0]), Const.UNKNOWN] for parent, infolist in self.parents.items() if parent in cluster],
+            "target": [[target.code, list(infolist[0]), Const.UNKNOWN] for target, infolist in self.targets.items() if target in cluster],
             "book": [0,0,0,0],
             }
         return dictionary
 
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
-        self.children = 0
-        for i in dictionary["parent"]:
-            parent = pseudo[self.decode(i[0])]
-            self.parents[parent] = [set(i[1]), i[2]]
-        # connect and propagate to parent
-        for parent, [index_set, output] in self.parents.items():
+        self.sources = 0
+        for i in dictionary["target"]:
+            target = pseudo[self.decode(i[0])]
+            self.targets[target] = [set(i[1]), i[2]]
+        # connect and propagate to target
+        for target, [index_set, output] in self.targets.items():
             for i in index_set:
-                parent.connect(self,i)
+                target.connect(self,i)
                 
         
 
 
     def hide(self):
-        # disconnect from parent
-        for parent, infolist in self.parents.items():
+        # disconnect from target
+        for target, infolist in self.targets.items():
             for i in infolist[0]:
-                parent.children[i] = Nothing
-                parent.book[infolist[1]] -= 1
+                target.sources[i] = Nothing
+                target.book[infolist[1]] -= 1
 
-        for parent in self.parents.keys():
-            if parent!=self:
-                parent.process()
-                parent.propagate()
+        for target in self.targets.keys():
+            if target!=self:
+                target.process()
+                target.propagate()
 
     def reveal(self):
-        # connect to parents
-        for parent, infolist in self.parents.items():
+        # connect to targets
+        for target, infolist in self.targets.items():
             for i in infolist[0]:
-                parent.children[i]=self
-                parent.book[infolist[1]]+=1
-                parent.process()
+                target.sources[i]=self
+                target.book[infolist[1]]+=1
+                target.process()
 
-        for parent in self.parents.keys():
-            if parent!=self:
-                parent.propagate()
+        for target in self.targets.keys():
+            if target!=self:
+                target.propagate()
 
 class Probe(Gate):
     # this can be both an input or output(bulb)
@@ -428,14 +428,14 @@ class Probe(Gate):
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
-        self.children = [Nothing]
+        self.sources = [Nothing]
     def setlimits(self,size):
         return False
 
     def isready(self):
         if Const.MODE==Const.DESIGN:
             return False
-        elif self.children!=Nothing:
+        elif self.sources!=Nothing:
             return True
         else:
             return False
@@ -479,7 +479,7 @@ class NOT(Gate):
     def __init__(self):
         super().__init__()
         self.inputlimit = 1
-        self.children=[Nothing]
+        self.sources=[Nothing]
 
     def process(self):
         self.prev_output = self.output

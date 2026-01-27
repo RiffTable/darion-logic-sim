@@ -87,87 +87,87 @@ def submenu_components():
         elif choice == '3':
             # Connect Components section
             base.circuit.listComponent()
-            gate_idx = input("Enter Parent Serial (Target): ")
+            gate_idx = input("Enter Target Serial (Target): ")
             if gate_idx == '': continue
             try:
-                parent_component = base.circuit.canvas[int(gate_idx)]
+                target_component = base.circuit.canvas[int(gate_idx)]
             except (ValueError, IndexError):
-                print("Invalid Parent.")
+                print("Invalid Target.")
                 input("Press Enter...")
                 continue
 
-            childlist_indices = list(map(int, input("Enter Child Serials (Source): ").split()))
+            sourcelist_indices = list(map(int, input("Enter Source Serials (Source): ").split()))
 
-            for child_idx in childlist_indices:
+            for source_idx in sourcelist_indices:
                 try:
-                    child_component = base.circuit.canvas[child_idx]
+                    source_component = base.circuit.canvas[source_idx]
                 except IndexError:
                     continue
 
-                # Handle Child Selection (Source)
-                actual_child = child_component
-                if isinstance(child_component, IC):
-                    print(f"\nSelect Output Pin for Child IC '{child_component.name}':")
-                    for k, pin in enumerate(child_component.outputs):
+                # Handle Source Selection (Source)
+                actual_source = source_component
+                if isinstance(source_component, IC):
+                    print(f"\nSelect Output Pin for Source IC '{source_component.name}':")
+                    for k, pin in enumerate(source_component.outputs):
                         print(f"{k}: {pin.name}")
                     try:
-                        pin_idx = int(input(f"Select Pin (0-{len(child_component.outputs)-1}): "))
-                        actual_child = child_component.outputs[pin_idx]
+                        pin_idx = int(input(f"Select Pin (0-{len(source_component.outputs)-1}): "))
+                        actual_source = source_component.outputs[pin_idx]
                     except (ValueError, IndexError):
                         print("Invalid Pin. Skipping.")
                         continue
 
-                # Handle Parent Selection (Target)
-                actual_parent = parent_component
+                # Handle Target Selection (Target)
+                actual_target = target_component
                 target_index = 0
 
-                if isinstance(parent_component, IC):
-                    print(f"\nSelect Input Pin for Parent IC '{parent_component.name}':")
-                    for k, pin in enumerate(parent_component.inputs):
-                        current_child = pin.children[0] if pin.children and str(pin.children[0]) != 'Empty' else "Empty"
-                        print(f"{k}: {pin.name} (Current: {current_child})")
+                if isinstance(target_component, IC):
+                    print(f"\nSelect Input Pin for Target IC '{target_component.name}':")
+                    for k, pin in enumerate(target_component.inputs):
+                        current_source = pin.sources[0] if pin.sources and str(pin.sources[0]) != 'Empty' else "Empty"
+                        print(f"{k}: {pin.name} (Current: {current_source})")
                     try:
-                        pin_idx = int(input(f"Select Pin (0-{len(parent_component.inputs)-1}): "))
-                        actual_parent = parent_component.inputs[pin_idx]
+                        pin_idx = int(input(f"Select Pin (0-{len(target_component.inputs)-1}): "))
+                        actual_target = target_component.inputs[pin_idx]
                         target_index = 0
                     except (ValueError, IndexError):
                         print("Invalid Pin. Skipping.")
                         continue
                 else:
-                    print(f"\nParent Gate '{parent_component.name}' Inputs:")
-                    for k, c in enumerate(parent_component.children):
+                    print(f"\nTarget Gate '{target_component.name}' Inputs:")
+                    for k, c in enumerate(target_component.sources):
                         print(f"Index {k}: {c}")
                     try:
-                        target_index = int(input(f"Enter input index for {actual_child} -> {parent_component}: "))
+                        target_index = int(input(f"Enter input index for {actual_source} -> {target_component}: "))
                     except ValueError:
                         print("Invalid index. Skipping.")
                         continue
 
-                if base.connect(actual_parent, actual_child, target_index):
-                    print(f"Connected {actual_child} to {actual_parent}.")
+                if base.connect(actual_target, actual_source, target_index):
+                    print(f"Connected {actual_source} to {actual_target}.")
                 else:
                     print('Not connected')
             input('Press Enter to continue....')
 
         elif choice == '4':
             base.circuit.listComponent()
-            gate_idx = input("Enter Parent Serial to Disconnect: ")
+            gate_idx = input("Enter Target Serial to Disconnect: ")
             if gate_idx == '': continue
             try:
-                parent = base.circuit.canvas[int(gate_idx)]
+                target = base.circuit.canvas[int(gate_idx)]
             except (ValueError, IndexError):
                 print("Invalid serial.")
                 input("Press Enter...")
                 continue
 
-            if isinstance(parent, IC):
-                print(f"\n=== IC '{parent.name}' - Input Pins ===")
+            if isinstance(target, IC):
+                print(f"\n=== IC '{target.name}' - Input Pins ===")
                 has_connections = False
-                for i, pin in enumerate(parent.inputs):
-                    child = pin.children[0]
-                    conn_str = str(child) if str(child) != 'Empty' else "Empty"
+                for i, pin in enumerate(target.inputs):
+                    source = pin.sources[0]
+                    conn_str = str(source) if str(source) != 'Empty' else "Empty"
                     print(f"[{i}] {pin.name} <-- {conn_str}")
-                    if str(child) != 'Empty':
+                    if str(source) != 'Empty':
                         has_connections = True
                 
                 if not has_connections:
@@ -180,20 +180,20 @@ def submenu_components():
                 try:
                     indices = list(map(int, indices_input.split()))
                     for index in indices:
-                        if index < 0 or index >= len(parent.inputs): continue
-                        target_pin = parent.inputs[index]
-                        if str(target_pin.children[0]) == 'Empty': continue
-                        child_name = str(target_pin.children[0])
+                        if index < 0 or index >= len(target.inputs): continue
+                        target_pin = target.inputs[index]
+                        if str(target_pin.sources[0]) == 'Empty': continue
+                        source_name = str(target_pin.sources[0])
                         base.disconnect(target_pin, 0)
-                        print(f"Disconnected {child_name} from Pin {index}.")
+                        print(f"Disconnected {source_name} from Pin {index}.")
                 except ValueError: pass
 
             else:
-                print(f"\n=== {parent} - Input Pins ===")
+                print(f"\n=== {target} - Input Pins ===")
                 has_connections = False
-                for i, child in enumerate(parent.children):
-                    print(f"[{i}] -> {child}")
-                    if str(child) != 'Empty': has_connections = True
+                for i, source in enumerate(target.sources):
+                    print(f"[{i}] -> {source}")
+                    if str(source) != 'Empty': has_connections = True
                 
                 if not has_connections:
                     print("No connections.")
@@ -205,9 +205,9 @@ def submenu_components():
                 try:
                     indices = list(map(int, indices_input.split()))
                     for index in indices:
-                        if index < 0 or index >= len(parent.children): continue
-                        if str(parent.children[index]) == 'Empty': continue
-                        base.disconnect(parent, index)
+                        if index < 0 or index >= len(target.sources): continue
+                        if str(target.sources[index]) == 'Empty': continue
+                        base.disconnect(target, index)
                         print(f"Disconnected index {index}.")
                 except ValueError: pass
             input('Press Enter to continue....')
@@ -274,8 +274,8 @@ def submenu_components():
                 else:
                     print(f"\nCurrent input limit: {comp.inputlimit}")
                     print("Current inputs:")
-                    for i, child in enumerate(comp.children):
-                        print(f"  [{i}] -> {child}")
+                    for i, source in enumerate(comp.sources):
+                        print(f"  [{i}] -> {source}")
                     new_limit = input("Enter new input limit: ")
                     if new_limit:
                         try:

@@ -67,22 +67,22 @@ class Circuit:
     def setlimits(self,gate:Gate,size:int):
         return gate.setlimits(size)
 
-    # connects a parent gate to a child (input)
-    def connect(self, parent: Gate, child: Gate, index):
-        parent.connect(child,index)
+    # connects a target gate to a source (input)
+    def connect(self, target: Gate, source: Gate, index):
+        target.connect(source,index)
         # if the connection changed something, let everyone know
-        if parent.prev_output != parent.output:
-            parent.propagate()
+        if target.prev_output != target.output:
+            target.propagate()
             
     # switches a variable on or off
-    def toggle(self, parent: Variable,value):
-        parent.toggle(value)
-        if parent.prev_output != parent.output:
-            parent.propagate()
+    def toggle(self, target: Variable,value):
+        target.toggle(value)
+        if target.prev_output != target.output:
+            target.propagate()
 
-    # identify parent/child
-    def disconnect(self, parent: Gate, index):
-        parent.disconnect(index)
+    # identify target/source
+    def disconnect(self, target: Gate, index):
+        target.disconnect(index)
 
     # removes a component from view (soft delete)
     def hideComponent(self, gate: Gate | IC):
@@ -177,9 +177,9 @@ class Circuit:
         if gates:
             columns = [
                 ("Component", 14),
-                ("Children", 28),
+                ("Sources", 28),
                 ("Book[L,H,E,U]", 15),
-                ("Parents", 25),
+                ("Targets", 25),
                 ("Out", 6)
             ]
             total_width = sum(w for _, w in columns)
@@ -189,25 +189,25 @@ class Circuit:
             print("-" * total_width)
 
             for comp in gates:
-                # Children (inputs) - list with indices
-                if isinstance(comp.children, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.children) if str(c) != 'Empty']
+                # Sources (inputs) - list with indices
+                if isinstance(comp.sources, list):
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
-                    ch_str = f"val:{comp.children}"
+                    ch_str = f"val:{comp.sources}"
 
                 # Book counts
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
-                # Parents (outputs to)
-                par = [f"{p} ({list(v[0])})" for p, v in comp.parents.items()]
-                par_str = ", ".join(par) if par else "None"
+                # Targets (outputs to)
+                tgt = [f"{p} ({list(v[0])})" for p, v in comp.targets.items()]
+                tgt_str = ", ".join(tgt) if tgt else "None"
 
                 # Truncate long strings
                 ch_str = ch_str[:26] + ".." if len(ch_str) > 28 else ch_str
-                par_str = par_str[:23] + ".." if len(par_str) > 25 else par_str
+                tgt_str = tgt_str[:23] + ".." if len(tgt_str) > 25 else tgt_str
 
-                print(fmt.format(str(comp), ch_str, book, par_str, str(comp.getoutput())))
+                print(fmt.format(str(comp), ch_str, book, tgt_str, str(comp.getoutput())))
 
             print("-" * total_width)
 
@@ -224,14 +224,14 @@ class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        parents = [f"{p} ({list(v[0])})" for p, v in pin.parents.items()]
-                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(parents) if parents else 'None'}")
+                        targets = [f"{p} ({list(v[0])})" for p, v in pin.targets.items()]
+                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
                 # Output pins
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.children if str(c) != 'Empty'] if isinstance(pin.children, list) else []
+                        ch = [f"{c}" for c in pin.sources if str(c) != 'Empty'] if isinstance(pin.sources, list) else []
                         print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
@@ -354,10 +354,10 @@ class Circuit:
         for i in self.varlist:
             i.process()
         for i in self.varlist:
-            for parent,infolist in i.parents.items():
-                i.update(parent,infolist)
-                if parent.output != Const.UNKNOWN:
-                    parent.propagate()
+            for target,infolist in i.targets.items():
+                i.update(target,infolist)
+                if target.output != Const.UNKNOWN:
+                    target.propagate()
 
     def reset(self):
         Const.MODE = Const.DESIGN
