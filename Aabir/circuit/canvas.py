@@ -6,9 +6,6 @@ from QtCore import *
 from styles import Color, Font
 from Enums import Facing, Rotation, EditorState
 
-if TYPE_CHECKING:
-	from CircuitScene import CircuitScene
-
 
 
 
@@ -20,7 +17,9 @@ def snapToGrid(x: float, y:float) -> tuple[int, int]:
 		round(y/SIZE)*SIZE
 	)
 
-###======= COMPONENT ITEM =======###
+
+
+# region: ###======= COMPONENT ITEM =======###
 class CompItem(QGraphicsRectItem):
 	def __init__(self, pos: QPointF, size: QPoint, padding: QPointF):
 		x, y = snapToGrid(*pos.toTuple())
@@ -41,6 +40,7 @@ class CompItem(QGraphicsRectItem):
 		# Properties
 		self.state = False
 		self.facing = Facing.East
+		self.labelText = "COMP"
 		self.outputPins : list[OutputPinItem] = []    # Facing.East
 		self.inputPins  : list[InputPinItem] = []    # Facing.West
 		self.topPins    : list[PinItem] = []    # Facing.North
@@ -59,9 +59,9 @@ class CompItem(QGraphicsRectItem):
 
 
 		# Label
-		self.label = QGraphicsTextItem("XOR", self)
-		self.label.setFont(Font.default)
-		self.label.setPos(5, 10)
+		self.labelItem = QGraphicsTextItem(self.labelText, self)
+		self.labelItem.setFont(Font.default)
+		self.labelItem.setPos(5, 10)
 
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
@@ -74,15 +74,14 @@ class CompItem(QGraphicsRectItem):
 	
 	def mouseReleaseEvent(self, event):
 		return super().mouseReleaseEvent(event)
+# endregion
 
 
 
-
-
-###======= PIN ITEM =======###
+# region: ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
-	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
-		super().__init__(-SIZE/2, -SIZE/2, SIZE, SIZE, parent)
+	def __init__(self, parentComp: CompItem, relpos: tuple[float, float], facing: int):
+		super().__init__(-SIZE/2, -SIZE/2, SIZE, SIZE, parentComp)
 		self.setFlags(
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
 			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
@@ -204,10 +203,11 @@ class OutputPinItem(PinItem):
 			scene.wireSource = self
 		
 		super().mousePressEvent(event)
+# endregion
 
 
 
-###======= WIRE ITEM =======###
+# region: ###======= WIRE ITEM =======###
 class WireItem(QGraphicsPathItem):
 	MINWALK = 2
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
@@ -281,3 +281,23 @@ class WireItem(QGraphicsPathItem):
 		if event.button() == Qt.RightButton:
 			self.manager.remove_wire(self)
 		super().mousePressEvent(event)
+# endregion
+
+
+
+# region: ###======= CIRCUIT SCENE =======###
+class CircuitScene(QGraphicsScene):
+	def __init__(self):
+		super().__init__()
+
+		self.SIZE = 12
+		self.gates: list[CompItem] = []
+		self.wires: list[WireItem] = []
+		self.state = EditorState.NORMAL
+		self.wireSource: OutputPinItem = None
+
+	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
+		comp = comp_type(QPointF(x, y), QPoint(5, 4), QPointF(0, 3))
+		self.addItem(comp)
+		self.gates.append(comp)
+# endregion

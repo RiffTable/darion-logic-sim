@@ -4,8 +4,8 @@ from functools import partial
 from QtCore import *
 
 from styles import Color
-from CircuitView import CircuitView
-from Items import CompItem
+from circuit.viewport import CircuitView
+from circuit.canvas import CompItem
 
 
 

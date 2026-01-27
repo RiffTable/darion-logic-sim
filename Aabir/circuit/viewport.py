@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 
 from QtCore import *
-from CircuitScene import CircuitScene
+from circuit.canvas import CircuitScene
 
 
 

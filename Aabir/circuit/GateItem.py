@@ -3,7 +3,7 @@ from typing import cast
 from QtCore import *
 
 from styles import (Color, Font)
-from Items import (CompItem)
+from circuit.canvas import (CompItem)
 
 
 
