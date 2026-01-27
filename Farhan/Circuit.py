@@ -1,6 +1,6 @@
 import json
 from Gates import Gate, Variable, Nothing
-from Const import Const
+from Const import Const, GateType
 from IC import IC
 from Store import Components
 
@@ -12,7 +12,7 @@ class Circuit:
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [
-            [] for i in range(0, 12)]  # holds the objects with code name
+            [] for i in range(GateType.TOTAL)]  # holds the objects with code name
         # list of everything visible on the board
         self.canvas: list[Gate | IC] = []  # displays the components
         # special list for input/output variables (0/1 switches)
@@ -278,7 +278,7 @@ class Circuit:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
-        myIC = self.getcomponent(12)
+        myIC = self.getcomponent(GateType.IC)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
@@ -287,7 +287,7 @@ class Circuit:
             json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
-        myIC = self.getcomponent(12)
+        myIC = self.getcomponent(GateType.IC)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
@@ -297,7 +297,7 @@ class Circuit:
                 return
 
     def rank_reset(self):
-        for i in range(12):
+        for i in range(GateType.TOTAL):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 

@@ -46,11 +46,7 @@ class Gate:
     # calculates the output based on inputs
     def process(self):
         pass
-    
-    # checks if we have enough inputs to function
-    def turnon(self):
-        return self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR] >= self.inputlimit
-    
+       
     def rename(self, name):
         self.name = name
 
@@ -66,7 +62,7 @@ class Gate:
             # if we are designing, nothing works yet
             return False
         else:
-            realchild = self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR]
+            realchild = sum(self.book[:3])
             if Const.MODE == Const.SIMULATE:
                 # in simulation, we need all inputs connected
                 return realchild == self.inputlimit
@@ -100,7 +96,11 @@ class Gate:
         if self.output==infolist[1]:
             # if nothing changed, relax
             return False
-            
+        if isinstance(parent,Probe):
+            infolist[1]=self.output
+            parent.output=self.output
+            parent.bypass()
+            return False
         # update the parent's records
         count=len(infolist[0])
         parent.book[infolist[1]] -= count
@@ -108,8 +108,8 @@ class Gate:
         
         if self.output==Const.ERROR:
             # error propagation
-            if self.isready():
-                self.output=Const.ERROR
+            if parent.isready():
+                parent.output=Const.ERROR
         else:
             # let the parent recalculate
             parent.process()
@@ -117,6 +117,11 @@ class Gate:
         # update what the parent thinks our output is
         infolist[1]=self.output
         return parent.prev_output != parent.output
+    
+    def bypass(self):
+        for parent,infolist in self.parents.items():
+            if self.update(parent,infolist):
+                parent.propagate()  
 
     # protect against weird loops by resetting counts
     def sync(self):
@@ -426,6 +431,15 @@ class Probe(Gate):
         self.children = [Nothing]
     def setlimits(self,size):
         return False
+
+    def isready(self):
+        if Const.MODE==Const.DESIGN:
+            return False
+        elif self.children!=Nothing:
+            return True
+        else:
+            return False
+
     def process(self):
         self.prev_output = self.output
         if self.isready():

@@ -33,3 +33,4 @@ class GateType:
     INPUT_PIN = 9
     OUTPUT_PIN = 10
     IC = 11
+    TOTAL=12
