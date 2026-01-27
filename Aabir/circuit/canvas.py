@@ -4,7 +4,7 @@ from enum import IntEnum
 from QtCore import *
 
 from styles import Color, Font
-from Enums import Facing, Rotation, EditorState
+from Enums import Facing, CompEdge, Rotation, EditorState
 
 
 
@@ -25,7 +25,7 @@ class CompItem(QGraphicsRectItem):
 			self,
 			pos: QPointF | tuple[float, float],
 			size: QPoint | tuple[int, int],
-			padding: QPointF | tuple[float, float]
+			padding: QPointF | tuple[float, float] = QPointF(0, 3)
 		):
 		x, y = snapToGrid(*pos.toTuple())
 		w, h = size.toTuple()
@@ -43,22 +43,28 @@ class CompItem(QGraphicsRectItem):
 		)
 
 		# Properties
+		self.size = size if isinstance(size, tuple) else size.toTuple()
+		self.padding = padding if isinstance(padding, tuple) else padding.toTuple()
 		self.state = False
-		self.facing = Facing.East
+		self.facing = Facing.EAST
 		self.labelText = "COMP"
-		self.outputPins : list[PinItem] = []    # Facing.East
-		self.inputPins  : list[PinItem] = []    # Facing.West
-		self.topPins    : list[PinItem] = []    # Facing.North
-		self.bottomPins : list[PinItem] = []    # Facing.South
+		self._pinslist: dict[CompEdge, list[PinItem]] = {
+			CompEdge.INPUT  : [],
+			CompEdge.OUTPUT : [],
+			CompEdge.TOP    : [],
+			CompEdge.BOTTOM : [],
+		}
 
 		# Visual
 		self.setPen(QPen(Color.outline, 2))
 		self.setBrush(Color.gate)
 
 		# fuck
-		self.inputPins.append(InputPinItem(self, (0, 1*SIZE), Facing.West))
-		self.inputPins.append(InputPinItem(self, (0, 3*SIZE), Facing.West))
-		self.outputPins.append(OutputPinItem(self, (w*SIZE, 2*SIZE), Facing.East))
+		self.addPins([
+			(1, CompEdge.INPUT, InputPinItem),
+			(3, CompEdge.INPUT, InputPinItem),
+			(2, CompEdge.OUTPUT, OutputPinItem)
+		])
 
 
 		# Label
@@ -66,25 +72,45 @@ class CompItem(QGraphicsRectItem):
 		self.labelItem.setFont(Font.default)
 		self.labelItem.setPos(5, 10)
 	
-	# def addInputPin(self, index: int, edge: Facing) -> InputPinItem:
-	# 	facing = {
-	# 		Facing.East: self.outputPins,
-	# 		Facing.West: self.inputPins,
-	# 		Facing.North: self.topPins,
-	# 		Facing.South: self.bottomPins
-	# 	}[edge]
-	# 	...
+	def edgeFacing(self, edge: CompEdge) -> Facing:
+		# fuck
+		return {
+			CompEdge.INPUT : Facing.WEST,
+			CompEdge.OUTPUT: Facing.EAST,
+			CompEdge.TOP   : Facing.NORTH,
+			CompEdge.BOTTOM: Facing.SOUTH
+		}[edge]
 	
-	# def addOutputPin(self, index: int, edge: Facing) -> OutputPinItem:
-	# 	...
+	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
+		pinslist = self._pinslist[edge]
+		pin_facing = self.edgeFacing(edge)
+
+		w, h = self.size
+		pos = {
+			Facing.WEST: (0, index*SIZE),
+			Facing.EAST: (w*SIZE, index*SIZE),
+			Facing.NORTH: (index*SIZE, 0),
+			Facing.SOUTH: (index*SIZE, h*SIZE)
+		}[pin_facing]
+		newpin = type(self, pos, pin_facing)
+		pinslist.append(newpin)
+		return newpin
+	
+	def addPins(self, index_edge_type: list[tuple[int, CompEdge, InputPinItem | OutputPinItem]]) -> None:
+		for index, edge, type in index_edge_type:
+			self.addPin(index, edge, type)
 	
 	def allPins(self):
-		pins = self.outputPins + self.inputPins + self.topPins + self.bottomPins
+		list_of_pinlists = self._pinslist.values()
+		pins = [pin for pinlist in list_of_pinlists for pin in pinlist]    # Funniest line ever
 		return pins
 	
 	def cutConnections(self):
 		for p in self.allPins():
 			p.disconnect()
+	
+	def pinUpdate(self, pin: PinItem):
+		...    # ABSTRACT METHOD
 
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
@@ -97,13 +123,28 @@ class CompItem(QGraphicsRectItem):
 	
 	def mouseReleaseEvent(self, event):
 		return super().mouseReleaseEvent(event)
+
+
+### Gate Item
+class GateItem(CompItem):
+	def __init__(
+			self,
+			pos: QPointF | tuple[float, float],
+			size: QPoint | tuple[int, int]
+		):
+		super().__init__(pos, size)
+		self.addPins([
+			(1, CompEdge.INPUT, InputPinItem),
+			(3, CompEdge.INPUT, InputPinItem),
+			(2, CompEdge.OUTPUT, OutputPinItem),
+		])
 # endregion
 
 
 
 # region: ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
-	def __init__(self, parentComp: CompItem, relpos: tuple[float, float], facing: int):
+	def __init__(self, parentComp: CompItem, relpos: tuple[float, float], facing: Facing):
 		super().__init__(-SIZE/2, -SIZE/2, SIZE, SIZE, parentComp)
 		self.setFlags(
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
@@ -136,12 +177,14 @@ class PinItem(QGraphicsRectItem):
 	def setWire(self, wire: WireItem):
 		self._wire = wire
 		self.updateVisual()
+		parent: CompItem = self.parentItem()
+		parent.pinUpdate(self)
 
 	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
 	
 	def paint(self, painter: QPainter, option, widget):
-		r = 3
+		r = 4
 
 		painter.setBrush(self.brush())
 		painter.setPen(self.pen())
@@ -274,13 +317,15 @@ class WireItem(QGraphicsPathItem):
 	def updatePath(self):
 		path = QPainterPath()
 		p1 = self.source.scenePos()
+		dx1, dy1 = self.source.facing.toTuple(50)
 
 		for out in self.supplies:
 			p2 = out.scenePos()
+			dx2, dy2 = out.facing.toTuple(50)
 			path.moveTo(p1)
 			path.cubicTo(
-				p1.x() + 50, p1.y(),
-				p2.x() - 50, p2.y(),
+				p1.x() + dx1, p1.y() + dy1,
+				p2.x() + dx2, p2.y() + dy2,
 				p2.x(), p2.y()
 			)
 			path.lineTo(p2)
@@ -297,6 +342,34 @@ class WireItem(QGraphicsPathItem):
 
 
 
+###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
+COMPONENT_LOOKUP: list[tuple[str, int, type[CompItem]]] = [
+	("NOT Gate", 0, CompItem),
+	("AND Gate", 1, CompItem),
+	("NAND Gate", 2, CompItem),
+	("OR Gate", 3, CompItem),
+	("NOR Gate", 4, CompItem),
+	("XOR Gate", 5, CompItem),
+	("XNOR Gate", 6, CompItem),
+]
+
+Name_to_ID    : dict[str, int] = {}
+ID_to_Name    : dict[int, str] = {}
+ID_to_Class   : dict[int, type[CompItem]] = {}
+Class_to_ID   : dict[type[CompItem], int] = {}
+Name_to_Class : dict[str, type[CompItem]] = {}
+Class_to_Name : dict[type[CompItem], str] = {}
+
+for name_, id_, class_ in COMPONENT_LOOKUP:
+	Name_to_ID[name_]     = {id_}
+	ID_to_Name[id_]       = {name_}
+	ID_to_Class[id_]      = {class_}
+	Class_to_ID[class_]   = {id_}
+	Name_to_Class[name_]  = {class_}
+	Class_to_Name[class_] = {name_}
+
+
+
 # region: ###======= CIRCUIT SCENE =======###
 class CircuitScene(QGraphicsScene):
 	def __init__(self):
@@ -309,7 +382,7 @@ class CircuitScene(QGraphicsScene):
 		self.wireSource: OutputPinItem = None
 
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
-		comp = comp_type(QPointF(x, y), QPoint(5, 4), QPointF(0, 3))
+		comp = comp_type(QPointF(x, y), QPoint(5, 4))
 		self.addItem(comp)
 		self.comps.append(comp)
 		# run_logic()
