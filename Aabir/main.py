@@ -5,7 +5,7 @@ from QtCore import *
 
 from styles import Color
 from circuit.viewport import CircuitView
-from circuit.canvas import CompItem
+from circuit.canvas import GateItem
 
 
 
@@ -28,11 +28,11 @@ class AppWindow(QMainWindow):
 		self.dragbar = QVBoxLayout()
 		self.dragbar.setSpacing(10)
 		gatelists = {
-			"AND": CompItem,
-			"OR": CompItem,
-			"NOT": CompItem,
-			"IN": CompItem,
-			"BULB": CompItem,
+			"AND": GateItem,
+			"OR": GateItem,
+			"NOT": GateItem,
+			"IN": GateItem,
+			"BULB": GateItem,
 		}
 		for text, item in gatelists.items():
 			btn = QPushButton(text)
@@ -77,6 +77,6 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.view.scene.addComp(100, 100, CompItem)
+	window.view.scene.addComp(100, 100, GateItem)
 
 	sys.exit(app.exec())

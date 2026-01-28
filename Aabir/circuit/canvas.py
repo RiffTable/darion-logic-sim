@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import cast, TYPE_CHECKING
-from enum import IntEnum
 from QtCore import *
 
 from styles import Color, Font
@@ -37,8 +36,8 @@ class CompItem(QGraphicsRectItem):
 	def __init__(
 			self,
 			pos: QPointF | tuple[float, float],
-			size: QPoint | tuple[int, int],
-			padding: QPointF | tuple[float, float] = QPointF(0, 3)
+			size: QPoint,
+			padding: QPointF = QPointF(0, 7)
 		):
 		x, y = GRID.snapF(pos).toTuple()
 		w, h = size.toTuple()
@@ -56,8 +55,8 @@ class CompItem(QGraphicsRectItem):
 		)
 
 		# Properties
-		self.size = size if isinstance(size, tuple) else size.toTuple()
-		self.padding = padding if isinstance(padding, tuple) else padding.toTuple()
+		self.size = size.toTuple()
+		self.padding = padding.toTuple()
 		self.state = False
 		self.facing = Facing.EAST
 		self.labelText = "COMP"
@@ -72,19 +71,12 @@ class CompItem(QGraphicsRectItem):
 		self.setPen(QPen(Color.outline, 2))
 		self.setBrush(Color.gate)
 
-		# fuck
-		self.addPins([
-			(1, CompEdge.INPUT, InputPinItem),
-			(3, CompEdge.INPUT, InputPinItem),
-			(2, CompEdge.OUTPUT, OutputPinItem)
-		])
-
-
 		# Label
 		self.labelItem = QGraphicsTextItem(self.labelText, self)
 		self.labelItem.setFont(Font.default)
-		self.labelItem.setPos(5, 10)
+		self.labelItem.setPos(5, 5)
 	
+
 	def edgeFacing(self, edge: CompEdge) -> Facing:
 		# fuck
 		return {
@@ -98,16 +90,22 @@ class CompItem(QGraphicsRectItem):
 		pinslist = self._pinslist[edge]
 		pin_facing = self.edgeFacing(edge)
 
-		w, h = self.size
-		pos = {
-			Facing.WEST:  (0, index*GRID.SIZE),
-			Facing.EAST:  (w*GRID.SIZE, index*GRID.SIZE),
-			Facing.NORTH: (index*GRID.SIZE, 0),
-			Facing.SOUTH: (index*GRID.SIZE, h*GRID.SIZE)
-		}[pin_facing]
+		pos = self.getPinPos(pin_facing, index)
 		newpin = type(self, pos, pin_facing)
 		pinslist.append(newpin)
 		return newpin
+	
+	def getPinPos(self, pinFacing: Facing, index: int):
+		w, h = self.size
+		return {
+			Facing.WEST:  QPointF(0, index*GRID.SIZE),
+			Facing.EAST:  QPointF(w*GRID.SIZE, index*GRID.SIZE),
+			Facing.NORTH: QPointF(index*GRID.SIZE, 0),
+			Facing.SOUTH: QPointF(index*GRID.SIZE, h*GRID.SIZE)
+		}[pinFacing]
+	
+	def setPinPos(self, pin: PinItem, index: int):
+		pin.setPos(self.getPinPos(pin.facing, index))
 	
 	def addPins(self, index_edge_type: list[tuple[int, CompEdge, InputPinItem | OutputPinItem]]) -> None:
 		for index, edge, type in index_edge_type:
@@ -132,32 +130,53 @@ class CompItem(QGraphicsRectItem):
 		return super().itemChange(change, value)
 	
 	def updateVisual(self):
-		...
-	
-	# def mouseReleaseEvent(self, event):
-	# 	return super().mouseReleaseEvent(event)
+		w, h = self.size
+		dx, dy = self.padding
+
+		self.prepareGeometryChange()
+		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 
 
 ### Gate Item
 class GateItem(CompItem):
-	def __init__(
-			self,
-			pos: QPointF | tuple[float, float],
-			size: QPoint | tuple[int, int]
-		):
-		super().__init__(pos, size)
-		self.addPins([
-			(1, CompEdge.INPUT, InputPinItem),
-			(3, CompEdge.INPUT, InputPinItem),
-			(2, CompEdge.OUTPUT, OutputPinItem),
-		])
+	def __init__(self, pos: QPointF | tuple[float, float]):
+		super().__init__(
+			pos,
+			QPoint(4, 2)
+		)
+		
+		# Behavior
+		self.inputPins: list[InputPinItem] = []
+		self.inputPins.append(self.addPin(0, CompEdge.INPUT, InputPinItem))
+		self.inputPins.append(self.addPin(2, CompEdge.INPUT, InputPinItem))
+		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
+
+		# Properties
+		self.breadth: int = self.size[0]
+	
+	def updateVisual(self):
+		n = len(self.inputPins)
+		self.size = (self.breadth, (n//2) * 2)
+
+		i = y = 0
+		while i < n//2:
+			self.setPinPos(self.inputPins[i], y)
+			i += 1; y += 1
+		if n%2 == 0: y += 1
+		while i < n:
+			self.setPinPos(self.inputPins[i], y)
+			i += 1; y += 1
+		
+		self.setPinPos(self.outputPin, n//2)
+		
+		super().updateVisual()
 # endregion
 
 
 
 # region: ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
-	def __init__(self, parentComp: CompItem, relpos: tuple[float, float], facing: Facing):
+	def __init__(self, parentComp: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(
 			-GRID.SIZE/2, -GRID.SIZE/2,
 			GRID.SIZE, GRID.SIZE,
@@ -178,7 +197,7 @@ class PinItem(QGraphicsRectItem):
 		self.label = ""
 
 		self.updateVisual()
-		self.setPos(*relpos)
+		self.setPos(relpos)
 	
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemScenePositionHasChanged:
@@ -239,7 +258,7 @@ class InputPinItem(PinItem):
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
-		self.isHighlighted = isHovered and scene.checkState(EditorState.WIRING)
+		self.isHighlighted = isHovered and scene.checkState(EditorState.WIRING) and (not self._wire)
 		self.updateVisual()
 
 
@@ -337,13 +356,13 @@ class WireItem(QGraphicsPathItem):
 
 ###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
 COMPONENT_LOOKUP: list[tuple[str, int, type[CompItem]]] = [
-	("NOT Gate", 0, CompItem),
-	("AND Gate", 1, CompItem),
-	("NAND Gate", 2, CompItem),
-	("OR Gate", 3, CompItem),
-	("NOR Gate", 4, CompItem),
-	("XOR Gate", 5, CompItem),
-	("XNOR Gate", 6, CompItem),
+	("NOT Gate", 0, GateItem),
+	("AND Gate", 1, GateItem),
+	("NAND Gate", 2, GateItem),
+	("OR Gate", 3, GateItem),
+	("NOR Gate", 4, GateItem),
+	("XOR Gate", 5, GateItem),
+	("XNOR Gate", 6, GateItem),
 ]
 
 Name_to_ID    : dict[str, int] = {}
@@ -377,7 +396,7 @@ class CircuitScene(QGraphicsScene):
 
 		# Wiring logic
 		self.ghostWire: WireItem = None
-		self.ghostPin = InputPinItem(None, (0, 0), Facing.WEST)
+		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 		self.ghostPin.hide()
 		self.ghostPin.setEnabled(False)
 		self.ghostPin.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -413,7 +432,7 @@ class CircuitScene(QGraphicsScene):
 
 	# Adding & Removing Components
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
-		comp = comp_type(QPointF(x, y), QPoint(5, 4))
+		comp = comp_type(QPointF(x, y))
 		self.addItem(comp)
 		self.comps.append(comp)
 		# run_logic()
