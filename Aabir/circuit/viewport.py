@@ -41,7 +41,7 @@ class CircuitView(QGraphicsView):
 		self.zoomlvl = 1
 	
 
-	###======= MOUTH CONTROLS =======###
+	###======= MOUSE CONTROLS =======###
 	def mousePressEvent(self, event: QMouseEvent):
 		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
 		# if event.button() == Qt.MouseButton.MiddleButton or event.button() == Qt.MouseButton.RightButton:
