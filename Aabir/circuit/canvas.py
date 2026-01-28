@@ -10,12 +10,25 @@ from Enums import Facing, CompEdge, Rotation, EditorState
 
 
 
-SIZE = 12
-def snapToGrid(x: float, y:float) -> tuple[int, int]:
-	return (
-		round(x/SIZE)*SIZE,
-		round(y/SIZE)*SIZE
-	)
+# Grid size and snapping
+class GRID:
+	SIZE = 12
+
+	@staticmethod
+	def snapF(point: QPointF) -> QPointF:
+		s = GRID.SIZE
+		return QPointF(
+			round(point.x()/s)*s,
+			round(point.y()/s)*s
+		)
+	
+	@staticmethod
+	def snapT(tup: tuple[float, float]) -> tuple[float, float]:
+		s = GRID.SIZE
+		return (
+			round(tup[0]/s)*s,
+			round(tup[1]/s)*s
+		)
 
 
 
@@ -27,10 +40,10 @@ class CompItem(QGraphicsRectItem):
 			size: QPoint | tuple[int, int],
 			padding: QPointF | tuple[float, float] = QPointF(0, 3)
 		):
-		x, y = snapToGrid(*pos.toTuple())
+		x, y = GRID.snapF(pos).toTuple()
 		w, h = size.toTuple()
 		dx, dy = padding.toTuple()
-		super().__init__(-dx, -dy, w*SIZE + 2*dx, h*SIZE + 2*dy)
+		super().__init__(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		
 		# Behavior
 		self.setPos(x, y)
@@ -87,10 +100,10 @@ class CompItem(QGraphicsRectItem):
 
 		w, h = self.size
 		pos = {
-			Facing.WEST: (0, index*SIZE),
-			Facing.EAST: (w*SIZE, index*SIZE),
-			Facing.NORTH: (index*SIZE, 0),
-			Facing.SOUTH: (index*SIZE, h*SIZE)
+			Facing.WEST:  (0, index*GRID.SIZE),
+			Facing.EAST:  (w*GRID.SIZE, index*GRID.SIZE),
+			Facing.NORTH: (index*GRID.SIZE, 0),
+			Facing.SOUTH: (index*GRID.SIZE, h*GRID.SIZE)
 		}[pin_facing]
 		newpin = type(self, pos, pin_facing)
 		pinslist.append(newpin)
@@ -114,7 +127,7 @@ class CompItem(QGraphicsRectItem):
 
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
-			return QPointF(*snapToGrid(*value.toTuple()))
+			return GRID.snapF(value)
 
 		return super().itemChange(change, value)
 	
@@ -145,7 +158,11 @@ class GateItem(CompItem):
 # region: ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
 	def __init__(self, parentComp: CompItem, relpos: tuple[float, float], facing: Facing):
-		super().__init__(-SIZE/2, -SIZE/2, SIZE, SIZE, parentComp)
+		super().__init__(
+			-GRID.SIZE/2, -GRID.SIZE/2,
+			GRID.SIZE, GRID.SIZE,
+			parentComp
+		)
 		self.setFlags(
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
 			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
@@ -178,7 +195,7 @@ class PinItem(QGraphicsRectItem):
 		self._wire = wire
 		self.updateVisual()
 		parent: CompItem = self.parentItem()
-		parent.pinUpdate(self)
+		if parent: parent.pinUpdate(self)
 
 	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
@@ -222,26 +239,8 @@ class InputPinItem(PinItem):
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
-		self.isHighlighted = isHovered and scene._state == EditorState.WIRING
+		self.isHighlighted = isHovered and scene.checkState(EditorState.WIRING)
 		self.updateVisual()
-	
-	# def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-	# 	scene: CircuitScene = self.scene()
-	# 	if scene.state == EditorState.WIRING:
-	# 		source = scene.wireSource
-	# 		if not self._wire:
-	# 			if not source._wire:
-	# 				w = WireItem(source, self)
-	# 				scene.wires.append(w)
-	# 				scene.addItem(w)
-	# 			else:
-	# 				source._wire.addSupply(self)
-			
-	# 		# self.run_logic()
-	# 		scene.state = EditorState.NORMAL
-	# 		scene.wireSource = None
-		
-	# 	super().mouseReleaseEvent(event)
 
 
 ### Output Pin
@@ -257,16 +256,8 @@ class OutputPinItem(PinItem):
 	
 	def highlight(self, isHovered: bool) -> None:
 		scene: CircuitScene = self.scene()
-		self.isHighlighted = isHovered and scene._state == EditorState.NORMAL
+		self.isHighlighted = isHovered and scene.checkState(EditorState.NORMAL)
 		self.updateVisual()
-	
-	# def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-	# 	if event.button() == Qt.LeftButton:
-	# 		scene: CircuitScene = self.scene()
-	# 		scene.state = EditorState.WIRING
-	# 		scene.wireSource = self
-		
-	# 	super().mousePressEvent(event)
 # endregion
 
 
@@ -309,6 +300,13 @@ class WireItem(QGraphicsPathItem):
 			scene.removeWire(self)
 		else:
 			self.updatePath()
+		
+	def _disconnect(self):
+		"""Don't forget to use `scene.removeItem` afterwards"""
+
+		self.source.setWire(None)
+		for supply in self.supplies:
+			supply.setWire(None)
 	
 	def updateVisual(self):
 		color = Color.signal_on if self.state else Color.signal_off
@@ -376,19 +374,41 @@ class CircuitScene(QGraphicsScene):
 		self._state = EditorState.NORMAL
 
 		# Wiring logic
-		self.wireSource: OutputPinItem = None
-		# self.ghostPin = InputPinItem(None, (0, 0), Facing.WEST)
-		# self.ghostPin.hide()
-		# # self.ghostPin.setEnabled(False)
-		# self.addItem(self.ghostPin)
-	
-	def getState(self): return self._state
+		self.ghostWire: WireItem = None
+		self.ghostPin = InputPinItem(None, (0, 0), Facing.WEST)
+		self.ghostPin.hide()
+		self.ghostPin.setEnabled(False)
+		self.addItem(self.ghostPin)
+
+
+	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
-		return (self._state == st)
+		return self.getState() == st
+	
+	def getState(self):
+		return self._state
+		# if self.ghostWire: return EditorState.WIRING
+		# return EditorState.NORMAL
+	
 	def setState(self, st: EditorState):
 		self._state = st
 		...
+	
+	def skipWiring(self):
+		self.setState(EditorState.NORMAL)
+		gwire = self.ghostWire
+		self.ghostWire = None
+		if gwire:
+			if len(gwire.supplies) == 1:
+				gwire._disconnect()
+				self.removeItem(gwire)
+			else:
+				gwire.supplies.remove(self.ghostPin)
+				self.ghostPin.setWire(None)
+				gwire.updatePath()
 
+
+	# Adding & Removing Components
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
 		comp = comp_type(QPointF(x, y), QPoint(5, 4))
 		self.addItem(comp)
@@ -403,14 +423,15 @@ class CircuitScene(QGraphicsScene):
 		self.removeItem(comp)
 		# run_logic()
 	
+	# ~~Adding~~ Removing Wires	
 	def removeWire(self, wire: WireItem):
-		if wire not in self.wires: return
+		# Works for both ghost wires and regular wires
+		if (wire not in self.wires) and wire is self.ghostWire:
+			return
 		
-		wire.source.setWire(None)
-		for supply in wire.supplies:
-			supply.setWire(None)
+		wire._disconnect()
 
-		self.wires.remove(wire)
+		if not (wire is self.ghostWire): self.wires.remove(wire)
 		self.removeItem(wire)
 		# run_logic()
 
@@ -419,43 +440,55 @@ class CircuitScene(QGraphicsScene):
 		item = self.itemAt(event.scenePos(), QTransform())
 
 		if self.checkState(EditorState.WIRING) and event.button() == Qt.MouseButton.RightButton:
-			self.setState(EditorState.NORMAL)
-			self.wireSource = None
+			self.skipWiring()
 		
+		# Wiring: Start!
 		if isinstance(item, OutputPinItem):
 			if event.button() == Qt.LeftButton:
 				self.setState(EditorState.WIRING)
-				self.wireSource = item
+				if not item._wire:
+					self.ghostWire = WireItem(item, self.ghostPin)
+					self.addItem(self.ghostWire)
+				else:
+					self.ghostWire = item._wire
+					self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
 
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-		item = self.itemAt(event.scenePos(), QTransform())
+		
+		# Wiring: Finish?!
 		if self.checkState(EditorState.WIRING):
-			source = self.wireSource
 
-			empty_space = (item is None)
-			can_connect = False
+			item = self.itemAt(event.scenePos(), QTransform())
+			skipping = (item is None)
+			connecting = False
 			if isinstance(item, InputPinItem):
-				if not item._wire: can_connect = True
+				if not item._wire: connecting = True
 
-			if can_connect:
-				if not source._wire:
-					w = WireItem(source, item)
-					self.wires.append(w)
-					self.addItem(w)
-				else:
-					source._wire.addSupply(item)
+			if connecting:
+				wire = self.ghostWire
+
+				# Swap supply pins
+				wire.supplies.remove(self.ghostPin)
+				self.ghostPin.setWire(None)
+				wire.supplies.append(item)
+				item.setWire(wire)
+
+				wire.updatePath()
+				
+				if len(wire.supplies) == 1: self.wires.append(wire)
+				
+				self.setState(EditorState.NORMAL)
+				self.ghostWire = None
 				# self.run_logic()
 			
-			if can_connect or empty_space:
-				self.setState(EditorState.NORMAL)
-				self.wireSource = None
+			if skipping: self.skipWiring()
 		
 		super().mouseReleaseEvent(event)
 
 	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-		# self.ghostPin.setPos(event.scenePos())
+		self.ghostPin.setPos(GRID.snapF(event.scenePos()))
 		return super().mouseMoveEvent(event)
 	
 	def keyPressEvent(self, event: QKeyEvent):
@@ -469,9 +502,8 @@ class CircuitScene(QGraphicsScene):
 			
 			# self.run_logic()
 		
-		if self.checkState(EditorState.WIRING) and (event.key() in (Qt.Key.Key_Escape)):
-			self.setState(EditorState.NORMAL)
-			self.wireSource = None
+		if self.checkState(EditorState.WIRING) and (event.key() == Qt.Key.Key_Escape):
+			self.skipWiring()
 			
 		super().keyPressEvent(event)
 # endregion
