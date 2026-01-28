@@ -373,11 +373,14 @@ class CircuitScene(QGraphicsScene):
 		self.wires: list[WireItem] = []
 		self._state = EditorState.NORMAL
 
+		self._rmb_last_pos = QPointF()
+
 		# Wiring logic
 		self.ghostWire: WireItem = None
 		self.ghostPin = InputPinItem(None, (0, 0), Facing.WEST)
 		self.ghostPin.hide()
 		self.ghostPin.setEnabled(False)
+		self.ghostPin.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
 		self.addItem(self.ghostPin)
 
 
@@ -439,51 +442,46 @@ class CircuitScene(QGraphicsScene):
 	def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
 		item = self.itemAt(event.scenePos(), QTransform())
 
-		if self.checkState(EditorState.WIRING) and event.button() == Qt.MouseButton.RightButton:
-			self.skipWiring()
-		
 		# Wiring: Start!
-		if isinstance(item, OutputPinItem):
-			if event.button() == Qt.LeftButton:
-				self.setState(EditorState.WIRING)
-				if not item._wire:
-					self.ghostWire = WireItem(item, self.ghostPin)
-					self.addItem(self.ghostWire)
-				else:
-					self.ghostWire = item._wire
-					self.ghostWire.addSupply(self.ghostPin)
+		if self.checkState(EditorState.NORMAL):
+			if isinstance(item, OutputPinItem) and event.button() == Qt.MouseButton.LeftButton:
+				if event.button() == Qt.LeftButton:
+					self.setState(EditorState.WIRING)
+					if not item._wire:
+						self.ghostWire = WireItem(item, self.ghostPin)
+						# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
+						self.addItem(self.ghostWire)
+					else:
+						self.ghostWire = item._wire
+						self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
 
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-		
-		# Wiring: Finish?!
 		if self.checkState(EditorState.WIRING):
+			if event.button() == Qt.MouseButton.LeftButton:
+				endPin = self.itemAt(event.scenePos(), QTransform())
 
-			item = self.itemAt(event.scenePos(), QTransform())
-			skipping = (item is None)
-			connecting = False
-			if isinstance(item, InputPinItem):
-				if not item._wire: connecting = True
+				if isinstance(endPin, InputPinItem) and not endPin._wire:
+					# Wiring: Finish!
+					wire = self.ghostWire
 
-			if connecting:
-				wire = self.ghostWire
+					# Swap supply pins
+					wire.supplies.remove(self.ghostPin)
+					self.ghostPin.setWire(None)
+					wire.supplies.append(endPin)
+					endPin.setWire(wire)
 
-				# Swap supply pins
-				wire.supplies.remove(self.ghostPin)
-				self.ghostPin.setWire(None)
-				wire.supplies.append(item)
-				item.setWire(wire)
+					wire.updatePath()
+					# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
-				wire.updatePath()
-				
-				if len(wire.supplies) == 1: self.wires.append(wire)
-				
-				self.setState(EditorState.NORMAL)
-				self.ghostWire = None
-				# self.run_logic()
-			
-			if skipping: self.skipWiring()
+					if len(wire.supplies) == 1: self.wires.append(wire)
+					# self.clearSelection()
+					# wire.setSelected(True)  # Solo select the finished wire
+					
+					self.setState(EditorState.NORMAL)
+					self.ghostWire = None
+					# self.run_logic()
 		
 		super().mouseReleaseEvent(event)
 

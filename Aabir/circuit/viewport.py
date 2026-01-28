@@ -3,6 +3,7 @@ from typing import cast
 
 from QtCore import *
 from circuit.canvas import CircuitScene
+from Enums import EditorState
 
 
 
@@ -34,7 +35,9 @@ class CircuitView(QGraphicsView):
 		self.setOptimizationFlag(QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing)
 		self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
 
-		self.lastMousePos = QPointF(0, 0)
+		# Panning
+		self._pan_last_pos = QPointF(0, 0)
+		self._pan_1stpress = QPointF(0, 0)
 
 		# Zooming
 		self.viewScale = 1
@@ -44,15 +47,14 @@ class CircuitView(QGraphicsView):
 	###======= MOUSE CONTROLS =======###
 	def mousePressEvent(self, event: QMouseEvent):
 		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
-		# if event.button() == Qt.MouseButton.MiddleButton or event.button() == Qt.MouseButton.RightButton:
-			self.lastMousePos = event.position()
+			self._pan_1stpress = self._pan_last_pos = event.position()
 		
 		super().mousePressEvent(event)
 	
 	def mouseMoveEvent(self, event: QMouseEvent):
 		mousepos = event.position()
 		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
-			delta = mousepos - self.lastMousePos
+			delta = mousepos - self._pan_last_pos
 			
 			self.translate(
 				delta.x()/self.viewScale,
@@ -61,7 +63,16 @@ class CircuitView(QGraphicsView):
 		else:
 			super().mouseMoveEvent(event)
 		
-		self.lastMousePos = mousepos
+		self._pan_last_pos = mousepos
+	
+	def mouseReleaseEvent(self, event: QMouseEvent):
+		if event.button() == Qt.MouseButton.RightButton and \
+			self._pan_1stpress.manhattanLength() < QApplication.startDragDistance():
+			# Wiring: Skip!
+			if self.scene.checkState(EditorState.WIRING):
+				self.scene.skipWiring()
+		
+		return super().mouseReleaseEvent(event)
 	
 	def wheelEvent(self, event: QWheelEvent):
 		pixelDelta = event.pixelDelta()
