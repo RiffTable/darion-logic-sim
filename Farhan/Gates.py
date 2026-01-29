@@ -239,6 +239,8 @@ class Gate:
 
         # connect to sources
         for index, source in enumerate(self.sources):
+            if source==Nothing:
+                continue
             if self not in source.targets:
                 source.targets[self] = [set(), source.output]
             source.targets[self][0].add(index)

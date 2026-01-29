@@ -36,8 +36,13 @@ class Circuit:
             name = gt.__class__.__name__
             
             # give it a nice name like A1, B2 or AND-1
+            # give it a nice name like A1, B2 or AND-1
             if name == 'Variable':
                 gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+            elif name == 'InputPin':
+                gt.name = 'IN-' + str(len(self.objlist[choice]))
+            elif name == 'OutputPin':
+                gt.name = 'OUT-' + str(len(self.objlist[choice]))
             else:
                 gt.name = name+'-'+str(len(self.objlist[choice]))
 
