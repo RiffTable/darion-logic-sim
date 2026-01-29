@@ -12,12 +12,12 @@ class Color:
 	signal_on      = QColor("#37D431")
 	signal_off     = QColor("#3c3f41")
 	pin_on         = QColor("#37D431")
-	pin_off        = QColor("#cccccc")
-	pin_hover      = QColor("#656a6d")
+	pin_off        = QColor("#656a6d")
+	pin_hover      = QColor("#cccccc")
 	LED_on         = QColor("#f1c40f")
 	LED_off        = QColor("#e74c3c")
 
 	outline        = QColor("#000000")
 
 class Font:
-	default        = QFont("Arial", 10, QFont.Weight.Bold)
+	default        = QFont("Arial", 8, QFont.Weight.Bold)
