@@ -9,10 +9,10 @@ class Color:
 	tooltip_bg     = QColor("#ffffff")
 	button         = QColor("#3c3f41")
 	gate           = QColor("#47494b")
-	signal_on      = QColor("#37D431")
-	signal_off     = QColor("#3c3f41")
-	pin_on         = QColor("#37D431")
-	pin_off        = QColor("#656a6d")
+	signal_on      = QColor("#2fc51b")
+	signal_off     = QColor("#5f6468")
+	pin_on         = QColor("#2fc51b")
+	pin_off        = QColor("#c5591b")
 	pin_hover      = QColor("#cccccc")
 	LED_on         = QColor("#f1c40f")
 	LED_off        = QColor("#e74c3c")
@@ -20,4 +20,4 @@ class Color:
 	outline        = QColor("#000000")
 
 class Font:
-	default        = QFont("Arial", 8, QFont.Weight.Bold)
+	default        = QFont("Arial", 12, QFont.Weight.Bold)

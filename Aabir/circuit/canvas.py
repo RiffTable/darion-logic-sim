@@ -11,7 +11,7 @@ from Enums import Facing, CompEdge, Rotation, EditorState
 
 # Grid size and snapping
 class GRID:
-	SIZE = 12
+	SIZE = 24
 
 	@staticmethod
 	def snapF(point: QPointF) -> QPointF:
@@ -37,7 +37,7 @@ class CompItem(QGraphicsRectItem):
 			self,
 			pos: QPointF | tuple[float, float],
 			size: QPoint,
-			padding: QPointF = QPointF(0, 7)
+			padding: QPointF = QPointF(0, 9)
 		):
 		x, y = GRID.snapF(pos).toTuple()
 		w, h = size.toTuple()
@@ -215,13 +215,16 @@ class PinItem(QGraphicsRectItem):
 		self.updateVisual()
 		parent: CompItem = self.parentItem()
 		if parent: parent.pinUpdate(self)
+	
+	def getWire(self): return self._wire
+	def hasWire(self): return self._wire != None
 
 	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
 	
 	def paint(self, painter: QPainter, option, widget):
 		# The HITBOX of the pin is larger (half of SIZE) than the visible radius
-		r = 4
+		r = 5
 
 		painter.setBrush(self.brush())
 		painter.setPen(self.pen())
@@ -231,15 +234,12 @@ class PinItem(QGraphicsRectItem):
 	
 	def updateVisual(self):
 		if self.isHighlighted:
-			self.setPen(QPen(Color.outline, 2))
 			self.setBrush(QBrush(Color.pin_hover))
 		
 		elif self._wire:
-			self.setPen(Qt.PenStyle.NoPen)
 			self.setBrush(Qt.BrushStyle.NoBrush)
 		
 		else:
-			self.setPen(QPen(Color.outline, 2))
 			if self.state:
 				self.setBrush(QBrush(Color.pin_on))
 			else:
@@ -466,12 +466,12 @@ class CircuitScene(QGraphicsScene):
 			if isinstance(item, OutputPinItem) and event.button() == Qt.MouseButton.LeftButton:
 				if event.button() == Qt.LeftButton:
 					self.setState(EditorState.WIRING)
-					if not item._wire:
+					if not item.hasWire():
 						self.ghostWire = WireItem(item, self.ghostPin)
 						# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
 						self.addItem(self.ghostWire)
 					else:
-						self.ghostWire = item._wire
+						self.ghostWire = item.getWire()
 						self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
@@ -481,7 +481,7 @@ class CircuitScene(QGraphicsScene):
 			if event.button() == Qt.MouseButton.LeftButton:
 				endPin = self.itemAt(event.scenePos(), QTransform())
 
-				if isinstance(endPin, InputPinItem) and not endPin._wire:
+				if isinstance(endPin, InputPinItem) and not endPin.hasWire():
 					# Wiring: Finish!
 					wire = self.ghostWire
 

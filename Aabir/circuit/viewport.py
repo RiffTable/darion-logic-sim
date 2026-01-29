@@ -66,10 +66,11 @@ class CircuitView(QGraphicsView):
 		self._pan_last_pos = mousepos
 	
 	def mouseReleaseEvent(self, event: QMouseEvent):
-		if event.button() == Qt.MouseButton.RightButton and \
-			self._pan_1stpress.manhattanLength() < QApplication.startDragDistance():
+
+		if event.button() == Qt.MouseButton.RightButton and self.scene.checkState(EditorState.WIRING):
 			# Wiring: Skip!
-			if self.scene.checkState(EditorState.WIRING):
+			dragDisplacement = event.position() - self._pan_1stpress
+			if dragDisplacement.manhattanLength() < QApplication.startDragDistance():
 				self.scene.skipWiring()
 		
 		return super().mouseReleaseEvent(event)
