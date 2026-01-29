@@ -350,14 +350,21 @@ class Circuit:
 
     # runs the simulation
     def simulate(self, Mode):
+        if Const.MODE!= Const.DESIGN:
+            self.reset()
         Const.MODE = Mode
         for i in self.varlist:
             i.process()
         for i in self.varlist:
             for target,infolist in i.targets.items():
-                i.update(target,infolist)
-                if target.output != Const.UNKNOWN:
+                if target.output==Const.ERROR:
+                    i.update(target,infolist)
+                    target.sync()
+                    target.process()
                     target.propagate()
+                elif i.update(target,infolist):
+                    target.propagate()
+
 
     def reset(self):
         Const.MODE = Const.DESIGN

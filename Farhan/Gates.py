@@ -127,7 +127,8 @@ class Gate:
     def sync(self):
         self.book=[0,0,0,0]
         for source in self.sources:
-            self.book[source.output]+=1
+            if source!=Nothing:
+                self.book[source.output]+=1
 
     # handles error states and spreads the error
     def burn(self):
