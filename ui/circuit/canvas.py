@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import cast, TYPE_CHECKING
-from QtCore import *
+from common.QtCore import *
+from common.Enums import Facing, CompEdge, Rotation, EditorState
 
-from styles import Color, Font
-from Enums import Facing, CompEdge, Rotation, EditorState
+from ui.styles import Color, Font
 
 
 
