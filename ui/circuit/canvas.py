@@ -45,6 +45,7 @@ class CompItem(QGraphicsRectItem):
 		super().__init__(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		
 		# Behavior
+		self._dirty = True
 		self.setPos(x, y)
 		self.setZValue(0)
 		self.setFlags(
@@ -123,7 +124,7 @@ class CompItem(QGraphicsRectItem):
 		for p in self.allPins():
 			p.disconnect()
 	
-	def pinUpdate(self, pin: PinItem):
+	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		...    # ABSTRACT METHOD
 
 	def itemChange(self, change: GraphicsItemChange, value):
@@ -132,11 +133,17 @@ class CompItem(QGraphicsRectItem):
 
 		return super().itemChange(change, value)
 	
-	def updateVisual(self):
+	def updateShape(self):
+		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
+	def paint(self, painter, option, widget):
+		if self._dirty: self._updateShape(); self._dirty = False
+		return super().paint(painter, option, widget)
+	
+	def _updateShape(self):
+		"""DO NOT set _dirty to False before call this"""
 		w, h = self.size
 		dx, dy = self.padding
 
-		self.prepareGeometryChange()
 		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 
 
@@ -163,10 +170,17 @@ class GateItem(CompItem):
 
 	def addInput(self):
 		pin = self.addPin(0, CompEdge.INPUT, InputPinItem)
-		self.updateVisual()
+		self.updateShape()
 		return pin
-	
-	def updateVisual(self):
+
+	def updateShape(self):
+		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
+	def paint(self, painter, option, widget):
+		if self._dirty: self._updateShape(); self._dirty = False
+		return super().paint(painter, option, widget)
+
+	def _updateShape(self):
+		"""DO NOT set _dirty to False before call this"""
 		n = len(self.inputPins)
 		self.size = (self.breadth, (n//2) * 2)
 
@@ -176,7 +190,9 @@ class GateItem(CompItem):
 		while i < n:     self.setPinPos(self.inputPins[i], y); i += 1; y += 1
 		
 		self.setPinPos(self.outputPin, n//2)
-		super().updateVisual()
+		super()._updateShape()
+	
+	
 
 
 class InputItem(CompItem):
@@ -214,7 +230,7 @@ class PinItem(QGraphicsRectItem):
 	
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemScenePositionHasChanged:
-			if self._wire: self._wire.updatePath()
+			if self._wire: self._wire.updateShape()
 		
 		return super().itemChange(change, value)
 	
@@ -224,16 +240,21 @@ class PinItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 	
 	def setWire(self, wire: WireItem):
-		self._wire = wire
-		self.updateVisual()
-		parent: CompItem = self.parentItem()
-		if parent: parent.pinUpdate(self)
+		if self._wire != wire:
+			apcc = (1 if wire else 0) - (1 if self._wire else 0)
+			self._wire = wire
+			self.updateVisual()
+
+			if self.parentComp:
+				self.parentComp.pinUpdate(self, apcc)
 	
 	def getWire(self): return self._wire
 	def hasWire(self): return self._wire != None
 
 	@property
 	def cscene(self) -> CircuitScene: return self.scene()
+	@property
+	def parentComp(self) -> CompItem: return self.parentItem()
 
 	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
@@ -303,6 +324,7 @@ class WireItem(QGraphicsPathItem):
 		# Behavior
 		self.setFlags(QGraphicsItem.ItemIsSelectable)
 		self.setZValue(-1)
+		self._dirty = False
 
 		beg.setWire(self)
 		end.setWire(self)
@@ -312,7 +334,7 @@ class WireItem(QGraphicsPathItem):
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
-		self.updatePath()
+		self.updateShape()
 	
 	@property
 	def cscene(self) -> CircuitScene: return self.scene()
@@ -321,7 +343,7 @@ class WireItem(QGraphicsPathItem):
 		if pin in self.supplies: return
 		self.supplies.append(pin)
 		pin.setWire(self)
-		self.updatePath()
+		self.updateShape()
 	
 	def cutSupply(self, pin: InputPinItem):
 		if not pin in self.supplies: return
@@ -333,7 +355,7 @@ class WireItem(QGraphicsPathItem):
 		if len(self.supplies) == 0:
 			self.cscene.removeWire(self)
 		else:
-			self.updatePath()
+			self.updateShape()
 		
 	def _disconnect(self):
 		"""Don't forget to use `scene.removeItem` afterwards"""
@@ -347,7 +369,14 @@ class WireItem(QGraphicsPathItem):
 		# if self.isSelected(): color = QColor("#f39c12")
 		self.setPen(QPen(color, 3))
 	
-	def updatePath(self):
+	def updateShape(self):
+		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
+	def paint(self, painter, option, widget):
+		if self._dirty: self._updateShape(); self._dirty = False
+		return super().paint(painter, option, widget)
+
+	def _updateShape(self):
+		"""DO NOT set _dirty to False before call this"""
 		path = QPainterPath()
 		p1 = self.source.scenePos()
 		dx1, dy1 = self.source.facing.toTuple(50)
@@ -442,7 +471,7 @@ class CircuitScene(QGraphicsScene):
 			else:
 				gwire.supplies.remove(self.ghostPin)
 				self.ghostPin.setWire(None)
-				gwire.updatePath()
+				gwire.updateShape()
 
 
 	# Adding & Removing Components
@@ -505,7 +534,7 @@ class CircuitScene(QGraphicsScene):
 				wire.supplies.append(target)
 				target.setWire(wire)
 
-				wire.updatePath()
+				wire.updateShape()
 				# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
 				if len(wire.supplies) == 1: self.wires.append(wire)
