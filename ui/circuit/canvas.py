@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import cast, TYPE_CHECKING
+from functools import partial
 from common.QtCore import *
 from common.Enums import Facing, Rotation, CompEdge, EditorState
 
@@ -54,6 +55,9 @@ class CompItem(QGraphicsRectItem):
 			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges |
 			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
+		self._cached_hitbox = QPainterPath()
+		self._cached_hitbox.addRect(self.rect())
+		self._hover_count = 0
 
 		# Properties
 		self.size = size.toTuple()
@@ -81,7 +85,8 @@ class CompItem(QGraphicsRectItem):
 	def cscene(self) -> CircuitScene: return self.scene()
 	
 
-	def edgeFacing(self, edge: CompEdge) -> Facing:
+	# Pin configuration
+	def edgeToFacing(self, edge: CompEdge) -> Facing:
 		# fuck
 		return {
 			CompEdge.INPUT : Facing.WEST,
@@ -89,10 +94,18 @@ class CompItem(QGraphicsRectItem):
 			CompEdge.TOP   : Facing.NORTH,
 			CompEdge.BOTTOM: Facing.SOUTH
 		}[edge]
+	def facingToEdge(self, facing: Facing) -> CompEdge:
+		# fuck
+		return {
+			Facing.WEST : CompEdge.INPUT,
+			Facing.EAST : CompEdge.OUTPUT,
+			Facing.NORTH: CompEdge.TOP,
+			Facing.SOUTH: CompEdge.BOTTOM
+		}[facing]
 	
 	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
 		pinslist = self._pinslist[edge]
-		pin_facing = self.edgeFacing(edge)
+		pin_facing = self.edgeToFacing(edge)
 
 		pos = self.getPinPos(pin_facing, index)
 		newpin = type(self, pos, pin_facing)
@@ -127,6 +140,42 @@ class CompItem(QGraphicsRectItem):
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		...    # ABSTRACT METHOD
 
+	def setHitbox(self):
+		"""Always call this after adding pins. Edges without any pins will not have any \"hitbox\""""
+		# fucked up inefficient algorithm. and yes I mark my incomplete code with fuck
+		self.prepareGeometryChange()
+		path = QPainterPath()
+
+		girth = GRID.SIZE/2
+		rect = self.rect().adjusted(
+			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
+			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
+		)
+		
+		path.addRect(rect)
+		self._cached_hitbox = path
+
+	# Events
+	def hoverEnterEvent(self, event): self._updateHoverStatus(True);  return super().hoverEnterEvent(event)
+	def hoverLeaveEvent(self, event): self._updateHoverStatus(False); return super().hoverLeaveEvent(event)
+	def _updateHoverStatus(self, hoverStatus: bool):
+		if hoverStatus: self._hover_count += 1
+		else:           self._hover_count -= 1
+
+		if self._hover_count > 0:
+			print("Hovering")
+			...
+		else:
+			print("Not hovering")
+			...
+	
+	def shape(self) -> QPainterPath:
+		return self._cached_hitbox
+	def boundingRect(self) -> QRectF:
+		return self._cached_hitbox.boundingRect()
+	
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
 			return GRID.snapF(value)
@@ -160,6 +209,7 @@ class GateItem(CompItem):
 		self.addPin(2, CompEdge.INPUT, InputPinItem)
 		self.inputPins: list[InputPinItem] = self._pinslist[CompEdge.INPUT]
 		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
+		self.setHitbox()
 
 		self.hoverPin: InputPinItem = None
 		self.activePinCount = 0
@@ -168,11 +218,13 @@ class GateItem(CompItem):
 		self.breadth: int = self.size[0]
 
 
+	# Input feedback
 	def addInput(self):
 		pin = self.addPin(0, CompEdge.INPUT, InputPinItem)
 		self.updateShape()
 		return pin
 
+	# Events
 	def updateShape(self):
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
 	def paint(self, painter, option, widget):
@@ -228,17 +280,18 @@ class PinItem(QGraphicsRectItem):
 		self.updateVisual()
 		self.setPos(relpos)
 	
-	def itemChange(self, change: GraphicsItemChange, value):
-		if change == GraphicsItemChange.ItemScenePositionHasChanged:
-			if self._wire: self._wire.updateShape()
-		
-		return super().itemChange(change, value)
+	@property
+	def cscene(self) -> CircuitScene: return self.scene()
+	@property
+	def parentComp(self) -> CompItem: return self.parentItem()
 	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
 	def disconnect(self):
 		...    # ABSTRACT METHOD
 	
+	
+	# Wire configuration
 	def setWire(self, wire: WireItem):
 		if self._wire != wire:
 			apcc = (1 if wire else 0) - (1 if self._wire else 0)
@@ -251,13 +304,20 @@ class PinItem(QGraphicsRectItem):
 	def getWire(self): return self._wire
 	def hasWire(self): return self._wire != None
 
-	@property
-	def cscene(self) -> CircuitScene: return self.scene()
-	@property
-	def parentComp(self) -> CompItem: return self.parentItem()
 
-	def hoverEnterEvent(self, event): self.highlight(True);  super().hoverEnterEvent(event)
-	def hoverLeaveEvent(self, event): self.highlight(False); super().hoverLeaveEvent(event)
+	# Events
+	def itemChange(self, change: GraphicsItemChange, value):
+		if change == GraphicsItemChange.ItemScenePositionHasChanged:
+			if self._wire: self._wire.updateShape()
+		
+		return super().itemChange(change, value)
+
+	def hoverEnterEvent(self, event):
+		self.highlight(True);  self.parentComp._updateHoverStatus(True)
+		super().hoverEnterEvent(event)
+	def hoverLeaveEvent(self, event):
+		self.highlight(False); self.parentComp._updateHoverStatus(False)
+		super().hoverLeaveEvent(event)
 	
 	def paint(self, painter: QPainter, option, widget):
 		# The HITBOX of the pin is larger (half of SIZE) than the visible radius
@@ -339,6 +399,7 @@ class WireItem(QGraphicsPathItem):
 	@property
 	def cscene(self) -> CircuitScene: return self.scene()
 
+	# Connection configuration
 	def addSupply(self, pin: InputPinItem):
 		if pin in self.supplies: return
 		self.supplies.append(pin)
@@ -364,6 +425,7 @@ class WireItem(QGraphicsPathItem):
 		for supply in self.supplies:
 			supply.setWire(None)
 	
+	# Events
 	def updateVisual(self):
 		color = Color.signal_on if self.state else Color.signal_off
 		# if self.isSelected(): color = QColor("#f39c12")

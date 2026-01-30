@@ -9,8 +9,7 @@ from PySide6.QtWidgets import (
 	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
 )
 from PySide6.QtCore import (
-	Qt, QObject,
-	QEvent, 
+	Qt, QObject, QEvent, QTimer,
 	QPoint, QPointF, QLineF, QRectF,
 )
 from PySide6.QtGui import (
