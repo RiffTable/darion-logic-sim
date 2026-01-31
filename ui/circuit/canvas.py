@@ -104,6 +104,7 @@ class CompItem(QGraphicsRectItem):
 		}[facing]
 	
 	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
+		"""Don't forget to call updateShape() afterwards."""
 		pinslist = self._pinslist[edge]
 		pin_facing = self.edgeToFacing(edge)
 
@@ -123,6 +124,8 @@ class CompItem(QGraphicsRectItem):
 	
 	def setPinPos(self, pin: PinItem, index: int):
 		pin.setPos(self.getPinPos(pin.facing, index))
+		w = pin.getWire()
+		if w: w.updateShape()
 	
 	def addPins(self, index_edge_type: list[tuple[int, CompEdge, InputPinItem | OutputPinItem]]) -> None:
 		for index, edge, type in index_edge_type:
@@ -146,7 +149,7 @@ class CompItem(QGraphicsRectItem):
 		self.prepareGeometryChange()
 		path = QPainterPath()
 
-		girth = GRID.SIZE/2
+		girth = GRID.SIZE
 		rect = self.rect().adjusted(
 			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
 			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
@@ -160,16 +163,8 @@ class CompItem(QGraphicsRectItem):
 	# Events
 	def hoverEnterEvent(self, event): self._updateHoverStatus(True);  return super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self._updateHoverStatus(False); return super().hoverLeaveEvent(event)
-	def _updateHoverStatus(self, hoverStatus: bool):
-		if hoverStatus: self._hover_count += 1
-		else:           self._hover_count -= 1
-
-		if self._hover_count > 0:
-			print("Hovering")
-			...
-		else:
-			print("Not hovering")
-			...
+	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
+		...    # ABSTRACT METHOD
 	
 	def shape(self) -> QPainterPath:
 		return self._cached_hitbox
@@ -194,6 +189,7 @@ class CompItem(QGraphicsRectItem):
 		dx, dy = self.padding
 
 		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
+		self.setHitbox()
 
 
 ### Gate Item
@@ -211,18 +207,40 @@ class GateItem(CompItem):
 		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
 		self.setHitbox()
 
-		self.hoverPin: InputPinItem = None
-		self.activePinCount = 0
+		self.peekOffTimer = QTimer()
+		self.peekOffTimer.setSingleShot(True)
+		self.peekOffTimer.timeout.connect(self.peekOff)
+		self.peekOffTimer.setInterval(30)
+
+		self.activePin: int = 0
 
 		# Properties
 		self.breadth: int = self.size[0]
 
 
 	# Input feedback
-	def addInput(self):
-		pin = self.addPin(0, CompEdge.INPUT, InputPinItem)
-		self.updateShape()
-		return pin
+	def peekOut(self):
+		# Peeks out the "Peeking Pin"
+		# print(f"actPin = {self.activePin}")
+		# print(f"pinNum = {len(self.inputPins)}")
+		if self.activePin == len(self.inputPins) \
+		and self.cscene.checkState(EditorState.WIRING):
+			self.addPin(0, CompEdge.INPUT, InputPinItem)
+			self.updateShape()
+	
+	def peekOff(self):
+		# Removes the "Peeking Pin" if it has been created
+		if self.activePin < len(self.inputPins) \
+		and len(self.inputPins) > 2 \
+		and self.cscene.checkState(EditorState.WIRING):
+			peekingPin = self.inputPins.pop()
+			self.cscene.removeItem(peekingPin)
+			self.updateShape()
+		# print("Hover Exit")
+	
+	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
+		if isinstance(pin, InputPinItem):
+			self.activePin += activePinCountChange
 
 	# Events
 	def updateShape(self):
@@ -230,6 +248,27 @@ class GateItem(CompItem):
 	def paint(self, painter, option, widget):
 		if self._dirty: self._updateShape(); self._dirty = False
 		return super().paint(painter, option, widget)
+	
+	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
+		self._hover_count += (+1 if hoverStatus else -1)
+
+		if self._hover_count == 1 and hoverStatus:
+			if not self.peekOffTimer.isActive():
+				# Hover Enter
+				self.peekOut()
+				# print("Hover Enter")
+			self.peekOffTimer.stop()
+		
+		elif self._hover_count == 0 and not hoverStatus:
+			# Hover Exit
+			self.peekOffTimer.start()
+		
+		# Enable proxyHighlight if only the gate is being hovered, not its pins
+		print(f"S: {1 if hoverStatus else 0}, P: {"N" if hoveredPin == None else "P"}")
+		pin = self.inputPins[self.activePin]
+		pin.proxyHighlight = True if (hoverStatus and (hoveredPin == None)) else False
+		pin.highlight(False)
+	
 
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
@@ -243,8 +282,7 @@ class GateItem(CompItem):
 		
 		self.setPinPos(self.outputPin, n//2)
 		super()._updateShape()
-	
-	
+
 
 
 class InputItem(CompItem):
@@ -274,6 +312,7 @@ class PinItem(QGraphicsRectItem):
 		self.state = False
 		self._wire: WireItem = None
 		self.isHighlighted = False
+		self.proxyHighlight = False
 		self.facing = facing
 		self.label = ""
 
@@ -313,10 +352,10 @@ class PinItem(QGraphicsRectItem):
 		return super().itemChange(change, value)
 
 	def hoverEnterEvent(self, event):
-		self.highlight(True);  self.parentComp._updateHoverStatus(True)
+		self.highlight(True);  self.parentComp._updateHoverStatus(True, self)
 		super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event):
-		self.highlight(False); self.parentComp._updateHoverStatus(False)
+		self.highlight(False); self.parentComp._updateHoverStatus(False, self)
 		super().hoverLeaveEvent(event)
 	
 	def paint(self, painter: QPainter, option, widget):
@@ -354,7 +393,11 @@ class InputPinItem(PinItem):
 		self._wire.cutSupply(self)
 	
 	def highlight(self, isHovered: bool) -> None:
-		self.isHighlighted = isHovered and self.cscene.checkState(EditorState.WIRING) and (not self._wire)
+		self.isHighlighted = (
+			(isHovered or self.proxyHighlight)
+			and (not self._wire)
+			and self.cscene.checkState(EditorState.WIRING)
+		)
 		self.updateVisual()
 
 
@@ -369,7 +412,10 @@ class OutputPinItem(PinItem):
 		self.cscene.removeWire(self._wire)
 	
 	def highlight(self, isHovered: bool) -> None:
-		self.isHighlighted = isHovered and self.cscene.checkState(EditorState.NORMAL)
+		self.isHighlighted = (
+			(isHovered or self.proxyHighlight)
+			and self.cscene.checkState(EditorState.NORMAL)
+		)
 		self.updateVisual()
 # endregion
 
