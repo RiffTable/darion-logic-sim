@@ -212,7 +212,7 @@ class GateItem(CompItem):
 		self.peekOffTimer.timeout.connect(self.peekOff)
 		self.peekOffTimer.setInterval(30)
 
-		self.activePin: int = 0
+		self.activeZone: int = 0
 
 		# Properties
 		self.breadth: int = self.size[0]
@@ -221,26 +221,31 @@ class GateItem(CompItem):
 	# Input feedback
 	def peekOut(self):
 		# Peeks out the "Peeking Pin"
-		# print(f"actPin = {self.activePin}")
-		# print(f"pinNum = {len(self.inputPins)}")
-		if self.activePin == len(self.inputPins) \
+		if self.activeZone == len(self.inputPins) \
 		and self.cscene.checkState(EditorState.WIRING):
 			self.addPin(0, CompEdge.INPUT, InputPinItem)
 			self.updateShape()
 	
 	def peekOff(self):
 		# Removes the "Peeking Pin" if it has been created
-		if self.activePin < len(self.inputPins) \
+		# print("Hover Exit")
+		if self.activeZone < len(self.inputPins) \
 		and len(self.inputPins) > 2 \
 		and self.cscene.checkState(EditorState.WIRING):
 			peekingPin = self.inputPins.pop()
 			self.cscene.removeItem(peekingPin)
 			self.updateShape()
-		# print("Hover Exit")
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if isinstance(pin, InputPinItem):
-			self.activePin += activePinCountChange
+			self.activeZone += activePinCountChange
+			if activePinCountChange < 0:
+				# Bubble disconnection (rearrangement)
+				emptyPin = self.inputPins.pop(self.inputPins.index(pin))
+				
+				if len(self.inputPins) < 2: self.inputPins.append(emptyPin)
+				else:                       self.cscene.removeItem(emptyPin)
+				self.updateShape()
 
 	# Events
 	def updateShape(self):
@@ -254,9 +259,8 @@ class GateItem(CompItem):
 
 		if self._hover_count == 1 and hoverStatus:
 			if not self.peekOffTimer.isActive():
-				# Hover Enter
+				# Hover Enter | print("Hover Enter")
 				self.peekOut()
-				# print("Hover Enter")
 			self.peekOffTimer.stop()
 		
 		elif self._hover_count == 0 and not hoverStatus:
@@ -264,10 +268,10 @@ class GateItem(CompItem):
 			self.peekOffTimer.start()
 		
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
-		print(f"S: {1 if hoverStatus else 0}, P: {"N" if hoveredPin == None else "P"}")
-		pin = self.inputPins[self.activePin]
-		pin.proxyHighlight = True if (hoverStatus and (hoveredPin == None)) else False
-		pin.highlight(False)
+		if self.activeZone < len(self.inputPins):
+			pin = self.inputPins[self.activeZone]
+			pin.proxyHighlight = True if (hoverStatus and (hoveredPin == None)) else False
+			pin.highlight(False)
 	
 
 	def _updateShape(self):
@@ -463,6 +467,11 @@ class WireItem(QGraphicsPathItem):
 			self.cscene.removeWire(self)
 		else:
 			self.updateShape()
+	
+	def _swapSupply(self, old: InputPinItem, new: InputPinItem):
+		"""Don't forget to call `updateShape()` afterwards"""
+		self.supplies.remove(old); old.setWire(None)
+		self.supplies.append(new); new.setWire(self)
 		
 	def _disconnect(self):
 		"""Don't forget to use `scene.removeItem` afterwards"""
@@ -582,7 +591,7 @@ class CircuitScene(QGraphicsScene):
 				gwire.updateShape()
 
 
-	# Adding & Removing Components
+	# Components Management
 	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
 		comp = comp_type(QPointF(x, y))
 		self.addItem(comp)
@@ -597,7 +606,10 @@ class CircuitScene(QGraphicsScene):
 		self.removeItem(comp)
 		# run_logic()
 	
-	# ~~Adding~~ Removing Wires	
+	# Wires	Management
+	def finishWiring(self):
+		...
+
 	def removeWire(self, wire: WireItem):
 		# Works for both ghost wires and regular wires
 		if (wire not in self.wires) and wire is self.ghostWire:
@@ -632,19 +644,43 @@ class CircuitScene(QGraphicsScene):
 		if self.checkState(EditorState.WIRING) and event.button() == Qt.MouseButton.LeftButton:
 			target = self.itemAt(event.scenePos(), QTransform())
 			
-			if isinstance(target, InputPinItem) and not target.hasWire():
-				# Wiring: Finish!
-				wire = self.ghostWire
+			wire = self.ghostWire
+			finishing = False
 
-				# Swap supply pins
-				wire.supplies.remove(self.ghostPin)
-				self.ghostPin.setWire(None)
-				wire.supplies.append(target)
-				target.setWire(wire)
+			# Wiring: Finish!
+			if isinstance(target, InputPinItem):
+				if isinstance(target.parentComp, GateItem):
+					gate = target.parentComp
+					pinslist = gate.inputPins
+					index = pinslist.index(target)
+					if index < gate.activeZone:
+						# Bubble Gate Connection
+						activePin = pinslist.pop(gate.activeZone)
+						wire._swapSupply(self.ghostPin, activePin)
+						pinslist.insert(index, activePin)
+						gate.updateShape()
+					else:
+						# Connect at activezone
+						wire._swapSupply(self.ghostPin, gate.inputPins[gate.activeZone])
+						wire.updateShape()
+					
+					finishing = True
+				
+				elif not target.hasWire():
+					wire._swapSupply(self.ghostPin, target)
+					wire.updateShape()
+					finishing = True
 
+			elif isinstance(target, GateItem):
+				# Default Gate Connection (via proxy)
+				activePin = target.inputPins[target.activeZone]
+				wire._swapSupply(self.ghostPin, activePin)
 				wire.updateShape()
+				activePin.highlight(False)
+				finishing = True
+			
+			if finishing:
 				# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
-
 				if len(wire.supplies) == 1: self.wires.append(wire)
 				# self.clearSelection()
 				# wire.setSelected(True)  # Solo select the finished wire
