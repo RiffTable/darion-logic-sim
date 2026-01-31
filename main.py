@@ -5,7 +5,7 @@ from common.QtCore import *
 
 from ui.styles import Color
 from ui.circuit.viewport import CircuitView
-from ui.circuit.canvas import GateItem
+from ui.circuit.canvas import GateItem, InputItem
 
 
 
@@ -78,5 +78,6 @@ if __name__ == "__main__":
 	window.show()
 
 	window.view.scene.addComp(100, 100, GateItem)
+	window.view.scene.addComp(100, 200, InputItem)
 
 	sys.exit(app.exec())
