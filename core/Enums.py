@@ -1,5 +1,5 @@
 from enum import IntEnum
-from common.QtCore import *
+from core.QtCore import *
 
 
 

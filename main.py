@@ -1,11 +1,11 @@
 import sys
 from functools import partial
 
-from common.QtCore import *
+from core.QtCore import *
 
-from ui.styles import Color
-from ui.circuit.viewport import CircuitView
-from ui.circuit.canvas import GateItem, InputItem
+from editor.styles import Color
+from editor.circuit.viewport import CircuitView
+from editor.circuit.canvas import GateItem, InputItem
 
 
 

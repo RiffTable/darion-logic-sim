@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import cast
 
-from common.QtCore import *
-from common.Enums import EditorState
-from ui.circuit.canvas import CircuitScene
+from core.QtCore import *
+from core.Enums import EditorState
+from editor.circuit.canvas import CircuitScene
 
 
 
