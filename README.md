@@ -15,7 +15,7 @@ A Python-based Digital Logic Simulator made in PySide6 (Python binding for Qt).
 ### CLI Version
 Currently the GUI editor is **in development**. Run the simulator using its command-line interface:
 ```bash
-python Farhan/CLI.py
+python engine/CLI.py
 ```
 
 ### GUI Version
