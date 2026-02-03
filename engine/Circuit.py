@@ -342,6 +342,8 @@ class Circuit:
                 gate.custom_name=i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
+            else:
+                gate.setlimits(i["inputlimit"])
             pseudo[code] = gate
 
         for gate_dict in circuit:  # connect components or build the circuit

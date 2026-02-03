@@ -310,7 +310,6 @@ class Gate:
     def implement(self, dictionary, pseudo):
         self.custom_name = dictionary["custom_name"]
         self.inputlimit = dictionary["inputlimit"]
-        self.sources = list(Nothing for _ in range(self.inputlimit))
         for i in dictionary["target"]:
             target = pseudo[self.decode(i[0])]
             self.targets[target] = [set(i[1]), i[2]]
