@@ -7,3 +7,4 @@ __pycache__
 Farhan/test.py
 file.json/
 temp.json/
+build/
