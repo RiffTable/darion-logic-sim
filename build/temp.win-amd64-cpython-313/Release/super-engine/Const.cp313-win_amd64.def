@@ -1,3 +1,0 @@
-LIBRARY Const.cp313-win_amd64.pyd
-EXPORTS
-PyInit_Const
