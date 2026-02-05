@@ -1,16 +1,16 @@
-from Gates import *
+import Const
+import Gates
 from IC import IC
-from Const import GateType
 
 
 class Components:
     # A shelf where we keep all the component blueprints
     # This helps us create new gates by just asking for them by name
-    gateobjects = {GateType.NOT: NOT, GateType.AND: AND, GateType.NAND: NAND, GateType.OR: OR, GateType.NOR: NOR, GateType.XOR: XOR,
-                   GateType.XNOR: XNOR, GateType.VARIABLE: Variable, GateType.PROBE: Probe, GateType.INPUT_PIN: InputPin, GateType.OUTPUT_PIN: OutputPin, GateType.IC: IC}
+    gateobjects = {Const.NOT: Gates.NOT, Const.AND: Gates.AND, Const.NAND: Gates.NAND, Const.OR: Gates.OR, Const.NOR: Gates.NOR, Const.XOR: Gates.XOR,
+                   Const.XNOR: Gates.XNOR, Const.VARIABLE: Gates.Variable, Const.PROBE: Gates.Probe, Const.INPUT_PIN: Gates.InputPin, Const.OUTPUT_PIN: Gates.OutputPin, Const.IC: IC}
 
     @classmethod
-    def get(cls, choice) -> Gate | IC:
+    def get(cls, choice) -> Gates.Gate | IC:
         if choice not in cls.gateobjects:
             return None
         return cls.gateobjects[choice]()

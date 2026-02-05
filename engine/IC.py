@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Nothing
+from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del
 
 
 class IC:
@@ -135,38 +135,48 @@ class IC:
                 gate.load_components(i, pseudo)
                 gate.implement(pseudo)
             else:
-                gate.implement(i, pseudo)
+                gate.clone(i, pseudo)
 
     # disconnects internal logic (used when deleting)
     def hide(self):
+        # Disconnect output pins from their targets
         for pin in self.outputs:
-            for target, infolist in pin.targets.items():
-                for i in infolist[0]:
-                    target.sources[i]=Nothing
-                    target.book[infolist[1]]-=1
+            for profile in pin.hitlist:
+                profile.hide()
+            for target in pin.targets.keys():
+                if target != self:
                     target.process()
-            for target, infolist in pin.targets.items():
-                target.propagate()
+                    target.propagate()
+        
+        # Disconnect input pins from their sources
         for pin in self.inputs:
             for source in pin.sources:
-                source.targets.pop(pin)
+                if source != Nothing and pin in source.targets:
+                    loc = source.targets.pop(pin)
+                    hitlist_del(source.hitlist, loc, source.targets)
+
 
     # reconnects internal logic
     def reveal(self):
+        # Reconnect output pins to their targets
         for pin in self.outputs:
-            for target, infolist in pin.targets.items():
-                for i in infolist[0]:
-                    target.sources[i]=pin
-                    target.book[infolist[1]]+=1
-                    target.process()
-
-            for target, infolist in pin.targets.items():
-                target.propagate()
+            for profile in pin.hitlist:
+                profile.reveal()
+            pin.propagate()
+        
+        # Reconnect input pins to their sources
         for pin in self.inputs:
             for index, source in enumerate(pin.sources):
-                if pin not in source.targets:
-                    source.targets[pin] = [set(), source.output]
-                source.targets[pin][0].add(index)
+                if source != Nothing:
+                    # Re-register with the source's hitlist
+                    if pin in source.targets:
+                        loc = source.targets[pin]
+                        source.hitlist[loc].add(index)
+                    else:
+                        from Gates import Profile
+                        source.hitlist.append(Profile(source, pin, index, source.output))
+                        source.targets[pin] = len(source.hitlist) - 1   
+
 
     def reset(self):
         for i in self.inputs+self.internal+self.outputs:

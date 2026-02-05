@@ -1,6 +1,6 @@
 import json
 from Gates import Gate, Variable, Nothing
-from Const import Const, GateType
+import Const
 from IC import IC
 from Store import Components
 
@@ -12,7 +12,7 @@ class Circuit:
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [
-            [] for i in range(GateType.TOTAL)]  # holds the objects with code name
+            [] for i in range(Const.TOTAL)]  # holds the objects with code name
         # list of everything visible on the board
         self.canvas: list[Gate | IC] = []  # displays the components
         # special list for input/output variables (0/1 switches)
@@ -204,8 +204,8 @@ class Circuit:
                 # Book counts
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
-                # Targets (outputs to)
-                tgt = [f"{p} ({list(v[0])})" for p, v in comp.targets.items()]
+                # Targets (outputs to) - using hitlist with Profile objects
+                tgt = [f"{profile.target} ({profile.index})" for profile in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
                 # Truncate long strings
@@ -229,7 +229,7 @@ class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        targets = [f"{p} ({list(v[0])})" for p, v in pin.targets.items()]
+                        targets = [f"{profile.target} ({profile.index})" for profile in pin.hitlist]
                         print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
                 # Output pins
@@ -283,7 +283,7 @@ class Circuit:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
-        myIC = self.getcomponent(GateType.IC)
+        myIC = self.getcomponent(Const.IC)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
@@ -292,17 +292,18 @@ class Circuit:
             json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
-        myIC = self.getcomponent(GateType.IC)
+        myIC = self.getcomponent(Const.IC)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
                 myIC.configure(crct)
+                return myIC
             else:
                 print('Cannot Convert to IC')
-                return
+                return None
 
     def rank_reset(self):
-        for i in range(GateType.TOTAL):
+        for i in range(Const.TOTAL):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 
@@ -342,8 +343,6 @@ class Circuit:
                 gate.custom_name=i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
-            else:
-                gate.setlimits(i["inputlimit"])
             pseudo[code] = gate
 
         for gate_dict in circuit:  # connect components or build the circuit
@@ -351,8 +350,8 @@ class Circuit:
             gate = pseudo[code]
             if isinstance(gate, IC):
                 gate.implement(pseudo)
-            else:
-                gate.implement(gate_dict, pseudo)
+            elif gate !=Nothing:
+                gate.clone(gate_dict, pseudo)
         return new_items
 
     # runs the simulation
@@ -363,14 +362,14 @@ class Circuit:
         for i in self.varlist:
             i.process()
         for i in self.varlist:
-            for target,infolist in i.targets.items():
-                if target.output==Const.ERROR:
-                    i.update(target,infolist)
-                    target.sync()
-                    target.process()
-                    target.propagate()
-                elif i.update(target,infolist):
-                    target.propagate()
+            for profile in i.hitlist:
+                if profile.target.output==Const.ERROR:
+                    profile.update()
+                    profile.target.sync()
+                    profile.target.process()
+                    profile.target.propagate()
+                elif profile.update():
+                    profile.target.propagate()
 
 
     def reset(self):

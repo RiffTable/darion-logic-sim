@@ -1,5 +1,7 @@
+# distutils: language = c++
 from __future__ import annotations
 from collections import deque
+from libcpp.vector cimport vector
 import Const
 
 cpdef listdel(lst, index):
@@ -16,8 +18,6 @@ cpdef hitlist_del(list hitlist,int index, dict targets_dict):
             targets_dict[last_target]=index
         hitlist.pop()
 cdef class Empty:
-    cdef public tuple code
-    cdef public dict targets
     def __init__(self):
         self.code = ('X', 'X')
         self.targets={}
@@ -28,72 +28,69 @@ cdef class Empty:
         return 'Empty'
 
 Nothing = Empty()
-cdef class Gate
-cdef class Probe
 
 cdef class Profile:
-    cdef public Gate source
-    cdef public Gate target
-    cdef public set index
-    cdef public int weight
-    cdef public int output
     def __init__(self, Gate source, Gate target, int index, int output):
-        self.source:Gate=source
-        self.target:Gate=target
+        self.source = source
+        self.target = target
         target.book[output] += 1
-        self.index:set[int]={index}
-        self.weight:int=1
-        self.output:int=output
+        self.index.push_back(index)
+        self.output = output
 
     def __repr__(self):
-        return f"{self.target} {self.index} {self.weight} {self.output}"
+        return f"{self.target} {self.index} {self.output}"
     
     def __str__(self):
-        return f"{self.target} {self.index} {self.weight} {self.output}"
+        return f"{self.target} {self.index} {self.output}"
     
-    cpdef add(self, int index):
-        self.index.add(index)
+    cpdef add(self, int pin_index):
+        self.index.push_back(pin_index)
         self.target.book[self.output] += 1
-        self.weight+=1
     
-    cpdef remove(self, int index):
-        target=self.target
-        target.sources[index] = Nothing
+    cpdef bint remove(self, int pin_index):
+        cdef Gate target=self.target
+        target.sources[pin_index] = Nothing
         # Find the position of this index in our index list, then remove it
-        self.index.discard(index)
+        cdef size_t i=0
+        while i<self.index.size():
+            if self.index[i]==pin_index:
+                self.index[i]=self.index.back()
+                self.index.pop_back()
+                break
+            i+=1
+
         target.book[self.output] -= 1
-        self.weight-=1
-        if self.weight==0:
+        if self.index.empty():
             return True
         else:
             return False
 
     cpdef hide(self):
-        target=self.target
-        target.book[self.output] -= self.weight
+        cdef Gate target=self.target
+        target.book[self.output] -= self.index.size()
         for index in self.index:
             target.sources[index] = Nothing
         self.output=Const.UNKNOWN
 
     cpdef reveal(self):
-        target=self.target
-        target.book[Const.UNKNOWN] += self.weight
+        cdef Gate target=self.target
+        target.book[Const.UNKNOWN] += self.index.size()
         for index in self.index:
             target.sources[index] = self.source
         
     cpdef bint update(self):
-        new_output=self.source.output
+        cdef int new_output=self.source.output
         if self.output==new_output:
             # if nothing changed, relax
             return False
-        target=self.target
+        cdef Gate target=self.target
         if isinstance(target,Probe):
             self.output=new_output
             target.output=self.output
             target.bypass()
             return False
         # update the target's records
-        count=self.weight
+        count=self.index.size()
         target.book[self.output] -= count
         target.book[new_output] += count
         
@@ -110,22 +107,12 @@ cdef class Profile:
         return target.prev_output != target.output
 
     cpdef burn(self):
-        target=self.target
+        cdef Gate target=self.target
         target.sync()
         self.output=Const.ERROR
         return target.output!=Const.ERROR
 
 cdef class Gate:
-    cdef public object sources
-    cdef public dict targets
-    cdef public list hitlist
-    cdef public int inputlimit
-    cdef public int[4] book
-    cdef public int output
-    cdef public int prev_output
-    cdef public tuple code
-    cdef public str name
-    cdef public str custom_name
     # the blueprint for all logical gates
     # it handles inputs, outputs, and processing logic
 
@@ -179,9 +166,10 @@ cdef class Gate:
 
     # connect a source gate (input) to this gate
     cpdef connect(self, Gate source, int index):
+        cdef int loc
         if self in source.targets:
             loc=source.targets[self]
-            self.hitlist[loc].add(index)
+            source.hitlist[loc].add(index)
         else:
             source.hitlist.append(Profile(source,self,index,source.output))
             source.targets[self]=len(source.hitlist)-1            
@@ -210,6 +198,7 @@ cdef class Gate:
 
     # handles error states and spreads the error
     cpdef burn(self):
+        cdef Gate gate
         queue: deque[Gate] = deque()
         queue.append(self)
         while len(queue):
@@ -224,6 +213,8 @@ cdef class Gate:
 
     # spread the signal change to all connected gates
     cpdef propagate(self):
+        cdef Gate gate
+        cdef Gate target
         if Const.MODE==Const.FLIPFLOP:
             fuse = set()
             queue: deque[Gate] = deque()
@@ -485,9 +476,6 @@ cdef class Probe(Gate):
             self.output = self.sources[0].output
         else:
             self.output = Const.UNKNOWN
-
-
-
 
 cdef class InputPin(Probe):
     def __init__(self):
