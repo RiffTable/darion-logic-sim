@@ -312,7 +312,6 @@ class InputItem(CompItem):
 		if event.button() == Qt.MouseButton.LeftButton:
 			self.state = not self.state
 			self.updateVisual()
-		print(event.button())
 		return super().mouseReleaseEvent(event)
 	
 	def updateVisual(self):
@@ -567,14 +566,27 @@ class WireItem(QGraphicsPathItem):
 
 
 ###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
-COMPONENT_LOOKUP: list[tuple[str, int, type[CompItem]]] = [
-	("NOT Gate", 0, GateItem),
-	("AND Gate", 1, GateItem),
-	("NAND Gate", 2, GateItem),
-	("OR Gate", 3, GateItem),
-	("NOR Gate", 4, GateItem),
-	("XOR Gate", 5, GateItem),
-	("XNOR Gate", 6, GateItem),
+COMPONENT_LOOKUP: list[tuple[int, type[CompItem], str]] = [
+	(0,  GateItem,   "NOT Gate"),
+	(1,  GateItem,   "AND Gate"),
+	(2,  GateItem,   "NAND Gate"),
+	(3,  GateItem,   "OR Gate"),
+	(4,  GateItem,   "NOR Gate"),
+	(5,  GateItem,   "XOR Gate"),
+	(6,  GateItem,   "XNOR Gate"),
+
+	(7,  InputItem,  "Toggle Switch"),
+	(51, InputItem,  "Hold Button"),
+	(52, InputItem,  "Rotary Switch"),
+	(53, InputItem,  "Clock"),
+	(54, InputItem,  "Constant Source"),
+
+	(61, OutputItem, "LED"),
+	(62, OutputItem, "Oscilloscope"),
+	(63, OutputItem, "7-Segment Display"),
+	(64, OutputItem, "Hex Display"),
+	# (8,  "PROBE",     ????),
+	# (11, "IC",        CompItem),
 ]
 
 Name_to_ID    : dict[str, int] = {}
@@ -584,7 +596,7 @@ Class_to_ID   : dict[type[CompItem], int] = {}
 Name_to_Class : dict[str, type[CompItem]] = {}
 Class_to_Name : dict[type[CompItem], str] = {}
 
-for name_, id_, class_ in COMPONENT_LOOKUP:
+for id_, class_, name_ in COMPONENT_LOOKUP:
 	Name_to_ID[name_]     = {id_}
 	ID_to_Name[id_]       = {name_}
 	ID_to_Class[id_]      = {class_}
@@ -609,9 +621,11 @@ class CircuitScene(QGraphicsScene):
 		# Wiring logic
 		self.ghostWire: WireItem = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
-		self.ghostPin.hide()
-		self.ghostPin.setEnabled(False)
+
+		self.ghostPin.hide()    # These three lines does the same thing but still...
+		self.ghostPin.setEnabled(False)    # You can never be too sure
 		self.ghostPin.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+
 		self.addItem(self.ghostPin)
 
 
