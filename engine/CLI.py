@@ -2,7 +2,7 @@ from Event_Manager import Event
 from Circuit import Circuit
 from Gates import Variable, Probe
 import os
-from Const import Const
+import Const
 from IC import IC
 
 
@@ -188,7 +188,7 @@ def submenu_components():
                         print(f"Disconnected {source_name} from Pin {index}.")
                 except ValueError: pass
 
-            else:
+            elif isinstance(target, Variable)==False:
                 print(f"\n=== {target} - Input Pins ===")
                 has_connections = False
                 for i, source in enumerate(target.sources):

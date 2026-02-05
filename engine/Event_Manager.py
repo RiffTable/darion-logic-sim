@@ -1,5 +1,5 @@
 from Circuit import Circuit
-from Const import Const
+import Const
 from Gates import Gate,Nothing
 from collections import deque
 
@@ -20,14 +20,10 @@ class Event:
         if len(self.undolist) > Const.LIMIT:
             event=self.undolist.popleft()
             if event[0]==Const.DELETE:
-                gate= event[1]
-                row=gate.code[0]
-                col=gate.code[1]
-                lastgate=self.circuit.objlist[row][-1]
-                self.circuit.objlist[row][col]=lastgate
-                lastgate.code=(row,col)
-                lastgate.name=gate.name
-                self.circuit.objlist[row].pop()
+                gate = event[1]
+                row = gate.code[0]
+                col = gate.code[1]
+                self.circuit.objlist[row][col] = None
 
 
     def popfromundo(self):
@@ -91,7 +87,7 @@ class Event:
             self.circuit.disconnect(event[1], event[3])
 
         elif command == Const.PASTE:
-            gates = [self.getobj(code) for code in event[1]]
+            gates = [self.circuit.getobj(code) for code in event[1]]
             self.circuit.copy(gates)
             self.circuit.paste()
 
