@@ -5,7 +5,7 @@ from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
-from editor.circuit.canvas import GateItem, InputItem
+from editor.circuit.canvas import GateItem, InputItem, Name_to_ID, ID_to_Name
 
 
 
@@ -22,22 +22,28 @@ class AppWindow(QMainWindow):
 		
 		###======= CIRCUIT VIEW =======###
 		self.view = CircuitView()
+		self.scene = self.view.scene
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
 		self.dragbar = QVBoxLayout()
 		self.dragbar.setSpacing(10)
 		gatelists = {
-			"AND": GateItem,
-			"OR": GateItem,
-			"NOT": GateItem,
-			"IN": GateItem,
-			"BULB": GateItem,
+			"NOT Gate": 0,
+			"AND Gate": 1,
+			"NAND Gate": 2,
+			"OR Gate": 3,
+			"NOR Gate": 4,
+			"XOR Gate": 5,
+			"XNOR Gate": 6,
+			"Input (Toggle)": 7,
+			"LED": 8,
 		}
-		for text, item in gatelists.items():
+
+		for text, comp_id in gatelists.items():
 			btn = QPushButton(text)
 			btn.setMinimumHeight(50)
-			btn.clicked.connect(partial(self.view.scene.addComp, 0, 0, item))
+			btn.clicked.connect(partial(self.scene.addComp, 0, 0, comp_id))
 			self.dragbar.addWidget(btn)
 		self.dragbar.addStretch()
 		
@@ -77,7 +83,7 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.view.scene.addComp(100, 100, GateItem)
-	window.view.scene.addComp(100, 200, InputItem)
+	window.scene.addComp(100, 100, Name_to_ID["XOR Gate"])
+	window.scene.addComp(100, 200, Name_to_ID["Toggle Switch"])
 
 	sys.exit(app.exec())

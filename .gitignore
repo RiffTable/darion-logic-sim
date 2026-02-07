@@ -8,3 +8,4 @@ Farhan/test.py
 file.json/
 temp.json/
 build/
+engine/*.pyd

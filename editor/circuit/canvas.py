@@ -292,6 +292,27 @@ class GateItem(CompItem):
 
 
 
+### Gate Item
+class UnaryGateItem(CompItem):
+	def __init__(self, pos: QPointF | tuple[float, float]):
+		super().__init__(pos, QPoint(3, 0), QPointF(0, 16))
+		
+		# Behavior
+		self.setAcceptHoverEvents(True)
+		self.labelText = "NOT"
+		self.labelItem.setPlainText(self.labelText)
+		self.labelItem.setPos(5, -10)
+
+		# Pins
+		self.inputPin: InputPinItem   = self.addPin(0, CompEdge.INPUT, InputPinItem)
+		self.outputPin: OutputPinItem = self.addPin(0, CompEdge.OUTPUT, OutputPinItem)
+		self.setHitbox()
+
+		# Properties
+		self.breadth: int = self.size[0]
+
+
+
 class InputItem(CompItem):
 	def __init__(self, pos: QPointF | tuple[float, float]):
 		super().__init__(pos, QPoint(3, 0), QPointF(0, 16))
@@ -494,7 +515,8 @@ class WireItem(QGraphicsPathItem):
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
-		self.updateShape()
+		# self.updateVisual()
+		# self.updateShape()
 	
 	@property
 	def cscene(self) -> CircuitScene: return self.scene()
@@ -567,25 +589,24 @@ class WireItem(QGraphicsPathItem):
 
 ###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
 COMPONENT_LOOKUP: list[tuple[int, type[CompItem], str]] = [
-	(0,  GateItem,   "NOT Gate"),
-	(1,  GateItem,   "AND Gate"),
-	(2,  GateItem,   "NAND Gate"),
-	(3,  GateItem,   "OR Gate"),
-	(4,  GateItem,   "NOR Gate"),
-	(5,  GateItem,   "XOR Gate"),
-	(6,  GateItem,   "XNOR Gate"),
+	(0,  UnaryGateItem, "NOT Gate"),
+	(1,  GateItem,      "AND Gate"),
+	(2,  GateItem,      "NAND Gate"),
+	(3,  GateItem,      "OR Gate"),
+	(4,  GateItem,      "NOR Gate"),
+	(5,  GateItem,      "XOR Gate"),
+	(6,  GateItem,      "XNOR Gate"),
+	(7,  InputItem,     "Input (Toggle)"),
+	(8,  OutputItem,    "LED"),
 
-	(7,  InputItem,  "Toggle Switch"),
-	(51, InputItem,  "Hold Button"),
-	(52, InputItem,  "Rotary Switch"),
-	(53, InputItem,  "Clock"),
-	(54, InputItem,  "Constant Source"),
+	(51, InputItem,     "Input (Hold)"),
+	(52, InputItem,     "Rotary Switch"),
+	(53, InputItem,     "Clock"),
+	(54, InputItem,     "Constant Source"),
 
-	(61, OutputItem, "LED"),
-	(62, OutputItem, "Oscilloscope"),
-	(63, OutputItem, "7-Segment Display"),
-	(64, OutputItem, "Hex Display"),
-	# (8,  "PROBE",     ????),
+	(62, OutputItem,    "Oscilloscope"),
+	(63, OutputItem,    "7-Segment Display"),
+	(64, OutputItem,    "Hex Display"),
 	# (11, "IC",        CompItem),
 ]
 
@@ -597,12 +618,12 @@ Name_to_Class : dict[str, type[CompItem]] = {}
 Class_to_Name : dict[type[CompItem], str] = {}
 
 for id_, class_, name_ in COMPONENT_LOOKUP:
-	Name_to_ID[name_]     = {id_}
-	ID_to_Name[id_]       = {name_}
-	ID_to_Class[id_]      = {class_}
-	Class_to_ID[class_]   = {id_}
-	Name_to_Class[name_]  = {class_}
-	Class_to_Name[class_] = {name_}
+	Name_to_ID[name_]     = id_
+	ID_to_Name[id_]       = name_
+	ID_to_Class[id_]      = class_
+	Class_to_ID[class_]   = id_
+	Name_to_Class[name_]  = class_
+	Class_to_Name[class_] = name_
 
 
 
@@ -657,7 +678,8 @@ class CircuitScene(QGraphicsScene):
 
 
 	# Components Management
-	def addComp(self, x: float, y:float, comp_type: type[CompItem]):
+	def addComp(self, x: float, y:float, comp_id: int):
+		comp_type = ID_to_Class[comp_id]
 		comp = comp_type(QPointF(x, y))
 		self.addItem(comp)
 		self.comps.append(comp)
