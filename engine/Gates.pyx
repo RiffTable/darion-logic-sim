@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from libcpp.vector cimport vector
 from libcpp.deque cimport deque
+from libcpp.unordered_set cimport unordered_set
 import Const
 
 cpdef listdel(lst, index):
@@ -235,10 +236,10 @@ cdef class Gate:
         cdef Gate target
         cdef deque[void*] q
         cdef Profile profile
+        cdef unordered_set[void*] fuse
         cdef int i
         cdef int n
         if Const.MODE==Const.FLIPFLOP:
-            fuse = set()
             # notify all targets
             q.push_back(<void*>self)
             # keep propagating until everything settles
@@ -255,10 +256,10 @@ cdef class Gate:
                         if gate==target: 
                             gate.burn()
                             return
-                        if profile in fuse: 
+                        if fuse.count(<void*>profile): 
                             gate.burn()
                             return
-                        fuse.add(profile)
+                        fuse.insert(<void*>profile)
                         q.push_back(<void*>target)
                     i+=1
         elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
