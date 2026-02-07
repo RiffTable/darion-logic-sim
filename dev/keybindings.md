@@ -19,13 +19,13 @@
 
 ### Project
 
-|    Action    | Mouse | Keybinds |
-| :----------: | ----- | :------: |
-| New Project  |       |  Ctrl N  |
-| Open Project |       |  Ctrl O  |
-|  Save file   |       |  Ctrl S  |
-|     Undo     |       |  Ctrl Z  |
-|     Redo     |       |  Ctrl Y  |
+|    Action    | Mouse | Keybinds               |
+| :----------: | ----- | :--------------------: |
+| New Project  |       |  Ctrl N                |
+| Open Project |       |  Ctrl O                |
+|  Save file   |       |  Ctrl S                |
+|     Undo     |       |  Ctrl Z                |
+|     Redo     |       |  Ctrl Y / Ctrl Shift Z |
 
 ### Gate Shortcut
 
@@ -33,8 +33,8 @@
 | :----: | :------: |
 |  NOT   |    1     |
 |   OR   |    2     |
-|  AND   |    3     |
 |  NOR   | Shift 2  |
+|  AND   |    3     |
 |  NAND  | Shift 3  |
 |  XOR   |    4     |
 |  XNOR  | Shift 4  |
