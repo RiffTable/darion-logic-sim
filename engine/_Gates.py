@@ -1,264 +1,267 @@
-# distutils: language = c++
+# Pure Python version of Gates.pyx with type annotations
 from __future__ import annotations
 from collections import deque
-from libcpp.vector cimport vector
-from libcpp.deque cimport deque
+from typing import Any
 import Const
 
-cpdef listdel(lst, index):
+
+def listdel(lst: list[Any], index: int):
     if lst:
         lst[index] = lst[-1]
         lst.pop()
 
-cpdef hitlist_del(list hitlist,int index, dict targets_dict):
+
+def hitlist_del(hitlist: list[Profile], index: int, targets_dict: dict[Gate, int]):
     if hitlist:
-        last_idx = len(hitlist) - 1
+        last_idx: int = len(hitlist) - 1
         if index != last_idx:
-            last_target=hitlist[-1].target
-            hitlist[index]=hitlist[-1]
-            targets_dict[last_target]=index
+            last_target: Gate = hitlist[-1].target
+            hitlist[index] = hitlist[-1]
+            targets_dict[last_target] = index
         hitlist.pop()
-cdef class Empty:
+
+
+class Empty:
     def __init__(self):
-        self.code = ('X', 'X')
-        self.targets={}
-    def __repr__(self):
+        self.code: tuple[str, str] = ('X', 'X')
+        self.targets: dict[Gate, int] = {}
+
+    def __repr__(self) -> str:
         return 'Empty'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'Empty'
 
-Nothing = Empty()
 
-cdef class Profile:
-    def __init__(self, Gate source, Gate target, int index, int output):
-        self.source = source
-        self.target = target
+Nothing: Empty = Empty()
+
+
+class Profile:
+    def __init__(self, source: Gate, target: Gate, index: int, output: int):
+        self.source: Gate = source
+        self.target: Gate = target
+        self.index: list[int] = []  # Using Python list instead of C++ vector
         target.book[output] += 1
-        self.index.push_back(index)
-        self.output = output
+        self.index.append(index)
+        self.output: int = output
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.target} {self.index} {self.output}"
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.target} {self.index} {self.output}"
     
-    cpdef add(self, int pin_index):
-        self.index.push_back(pin_index)
+    def add(self, pin_index: int):
+        self.index.append(pin_index)
         self.target.book[self.output] += 1
     
-    cpdef bint remove(self, int pin_index):
-        cdef Gate target=self.target
+    def remove(self, pin_index: int) -> bool:
+        target: Gate = self.target
         target.sources[pin_index] = Nothing
         # Find the position of this index in our index list, then remove it
-        cdef size_t i=0
-        while i<self.index.size():
-            if self.index[i]==pin_index:
-                self.index[i]=self.index.back()
-                self.index.pop_back()
+        i: int = 0
+        while i < len(self.index):
+            if self.index[i] == pin_index:
+                self.index[i] = self.index[-1]
+                self.index.pop()
                 break
-            i+=1
+            i += 1
 
         target.book[self.output] -= 1
-        if self.index.empty():
+        if not self.index:
             return True
         else:
             return False
 
-    cpdef hide(self):
-        cdef Gate target=self.target
-        target.book[self.output] -= self.index.size()
+    def hide(self):
+        target: Gate = self.target
+        target.book[self.output] -= len(self.index)
         for index in self.index:
             target.sources[index] = Nothing
-        self.output=Const.UNKNOWN
+        self.output = Const.UNKNOWN
 
-    cpdef reveal(self):
-        cdef Gate target=self.target
-        target.book[Const.UNKNOWN] += self.index.size()
+    def reveal(self):
+        target: Gate = self.target
+        target.book[Const.UNKNOWN] += len(self.index)
         for index in self.index:
             target.sources[index] = self.source
         
-    cpdef bint update(self):
-        cdef int new_output=self.source.output
-        if self.output==new_output:
+    def update(self) -> bool:
+        new_output: int = self.source.output
+        if self.output == new_output:
             # if nothing changed, relax
             return False
-        cdef Gate target=self.target
-        if isinstance(target,Probe):
-            self.output=new_output
-            target.output=self.output
+        target: Gate = self.target
+        if isinstance(target, Probe):
+            self.output = new_output
+            target.output = self.output
             target.bypass()
             return False
         # update the target's records
-        count=self.index.size()
+        count: int = len(self.index)
         target.book[self.output] -= count
         target.book[new_output] += count
         
-        if new_output==Const.ERROR:
+        if new_output == Const.ERROR:
             # error propagation
             if target.isready():
-                target.output=Const.ERROR
+                target.output = Const.ERROR
         else:
             # let the target recalculate
             target.process()
             
         # update what the target thinks our output is
-        self.output=new_output
+        self.output = new_output
         return target.prev_output != target.output
 
-    cpdef burn(self):
-        cdef Gate target=self.target
+    def burn(self) -> bool:
+        target: Gate = self.target
         target.sync()
-        self.output=Const.ERROR
-        return target.output!=Const.ERROR
+        self.output = Const.ERROR
+        return target.output != Const.ERROR
 
-cdef class Gate:
-    # the blueprint for all logical gates
-    # it handles inputs, outputs, and processing logic
+
+class Gate:
+    """The blueprint for all logical gates.
+    It handles inputs, outputs, and processing logic."""
 
     def __init__(self):
         # who feeds into this gate? (inputs)
-        self.sources: list = [Nothing, Nothing]
+        self.sources: list[Gate | Empty] = [Nothing, Nothing]
         # who does this gate feed into? (outputs)
-        self.targets: dict = {}
-        self.hitlist:list= []
+        self.targets: dict[Gate, int] = {}
+        self.hitlist: list[Profile] = []
         # how many inputs do we need?
-        self.inputlimit = 2
+        self.inputlimit: int = 2
         # keeps track of what kind of inputs we have (high, low, etc)
-        self.book[:]= [0, 0, 0, 0]
+        self.book: list[int] = [0, 0, 0, 0]
         
         # current and previous state
-        self.output = Const.UNKNOWN
-        self.prev_output = Const.UNKNOWN
+        self.output: int = Const.UNKNOWN
+        self.prev_output: int = Const.UNKNOWN
         
         # identity details
-        self.code = ()
-        self.name = ''
-        self.custom_name = ''
+        self.code: tuple[Any, ...] = ()
+        self.name: str = ''
+        self.custom_name: str = ''
 
-    # calculates the output based on inputs
-    cpdef process(self):
+    def process(self):
+        """Calculates the output based on inputs."""
         pass
        
-    cpdef rename(self,str name):
+    def rename(self, name: str):
         self.name = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.name if self.custom_name == '' else self.custom_name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name if self.custom_name == '' else self.custom_name
 
-    # checks if the gate is ready to calculate an output
-    cpdef bint isready(self):
-        cdef int realsource
+    def isready(self) -> bool:
+        """Checks if the gate is ready to calculate an output."""
         if Const.MODE == Const.DESIGN:
             # if we are designing, nothing works yet
             return False
         else:
-            realsource = self.book[Const.HIGH]+self.book[Const.LOW]+self.book[Const.ERROR]
+            realsource: int = self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR]
             if Const.MODE == Const.SIMULATE:
                 # in simulation, we need all inputs connected
                 return realsource == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return realsource and realsource+self.book[Const.UNKNOWN] == self.inputlimit
+                return bool(realsource and realsource + self.book[Const.UNKNOWN] == self.inputlimit)
 
-    # connect a source gate (input) to this gate
-    cpdef connect(self, Gate source, int index):
-        cdef int loc
+    def connect(self, source: Gate, index: int):
+        """Connect a source gate (input) to this gate."""
+        loc: int
         if self in source.targets:
-            loc=source.targets[self]
+            loc = source.targets[self]
             source.hitlist[loc].add(index)
         else:
-            source.hitlist.append(Profile(source,self,index,source.output))
-            source.targets[self]=len(source.hitlist)-1            
+            source.hitlist.append(Profile(source, self, index, source.output))
+            source.targets[self] = len(source.hitlist) - 1            
         # actually plug it in
         self.sources[index] = source
         
         # if something is wrong with the input, react
-        if source.output==Const.ERROR:
+        if source.output == Const.ERROR:
             if self.isready():
                 self.burn()
         else:
             # otherwise, recalculate our output
             self.process()
 
-    cpdef bypass(self):
+    def bypass(self):
         for profile in self.hitlist:
             if profile.update():
                 profile.target.propagate()  
 
-    # protect against weird loops by resetting counts
-    cpdef sync(self):
-        self.book[:]=[0,0,0,0]
+    def sync(self):
+        """Protect against weird loops by resetting counts."""
+        self.book[:] = [0, 0, 0, 0]
         for source in self.sources:
-            if source!=Nothing:
-                self.book[source.output]+=1
+            if source != Nothing:
+                self.book[source.output] += 1
 
-    # handles error states and spreads the error
-    cpdef burn(self):
-        cdef Gate gate
-        cdef deque[void*] q
-        q.push_back(<void*>self)
-        while q.size():
-            gate = <Gate>q.front()
-            q.pop_front()
+    def burn(self):
+        """Handles error states and spreads the error."""
+        queue: deque[Gate] = deque()
+        queue.append(self)
+        while len(queue):
+            gate: Gate = queue.popleft()
             gate.prev_output = gate.output
             # mark as error
             gate.output = Const.ERROR 
             for profile in gate.hitlist:
                 # update target's knowledge
                 if profile.burn() and profile.target.isready():
-                    q.push_back(<void*>profile.target)
+                    queue.append(profile.target)
 
-    # spread the signal change to all connected gates
-    cpdef propagate(self):
-        cdef Gate gate
-        cdef Gate target
-        cdef deque[void*] q
-        if Const.MODE==Const.FLIPFLOP:
-            fuse = set()
-
+    def propagate(self):
+        """Spread the signal change to all connected gates."""
+        gate: Gate
+        target: Gate
+        if Const.MODE == Const.FLIPFLOP:
+            fuse: set[Profile] = set()
+            queue: deque[Gate] = deque()
             # notify all targets
-            q.push_back(<void*>self)
+            queue.append(self)
             # keep propagating until everything settles
-            while q.size():
-                gate = <Gate>q.front()
-                q.pop_front()
+            while queue:
+                gate = queue.popleft()
                 for profile in gate.hitlist:
-                    target=profile.target
+                    target = profile.target
                     if profile.update():
                         # check for loops or inconsistencies
-                        if gate==target: 
+                        if gate == target: 
                             gate.burn()
                             return
                         if profile in fuse: 
                             gate.burn()
                             return
                         fuse.add(profile)
-                        q.push_back(<void*>target)
+                        queue.append(target)
 
-        elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
-            q.push_back(<void*>self)                       
+        elif Const.MODE == Const.SIMULATE:  # don't need fuse, the logic itself is loop-proof
+            queue: deque[Gate] = deque()            
+            queue.append(self)                       
             # keep propagating until everything settles
-            while q.size():
-                gate = <Gate>q.front()
-                q.pop_front()
+            while queue:
+                gate = queue.popleft()
                 for profile in gate.hitlist:
-                    target=profile.target
+                    target = profile.target
                     if profile.update():
-                        q.push_back(<void*>target)
+                        queue.append(target)
 
         else:
             pass
 
-    # remove a connection at a specific index
-    cpdef disconnect(self,int index):
-        cdef Gate source = self.sources[index]
-        cdef int loc=source.targets[self]
-        cdef Profile profile=source.hitlist[loc]
+    def disconnect(self, index: int):
+        """Remove a connection at a specific index."""
+        source: Gate = self.sources[index]  # type: ignore
+        loc: int = source.targets[self]
+        profile: Profile = source.hitlist[loc]
         if profile.remove(index):
             hitlist_del(source.hitlist, loc, source.targets)
             source.targets.pop(self)
@@ -269,18 +272,17 @@ cdef class Gate:
         self.process()
         self.propagate()
 
-    cpdef reset(self):
+    def reset(self):
         self.output = Const.UNKNOWN
-        cdef int sums
-        sums=0
+        sums: int = 0
         for i in self.book:
-            sums+=i
-        self.book[:]=[0, 0, 0, sums]
+            sums += i
+        self.book[:] = [0, 0, 0, sums]
         self.prev_output = Const.UNKNOWN
         for profile in self.hitlist:
-            profile.output=Const.UNKNOWN
+            profile.output = Const.UNKNOWN
 
-    cpdef hide(self):
+    def hide(self):
         # disconnect from targets (this gate's outputs)
         for profile in self.hitlist:
             profile.hide()
@@ -288,8 +290,8 @@ cdef class Gate:
         # disconnect from sources (this gate's inputs)
         for source in self.sources:
             if source != Nothing and self in source.targets:
-                loc = source.targets.pop(self)
-                hitlist_del(source.hitlist, loc, source.targets)
+                loc: int = source.targets.pop(self)
+                hitlist_del(source.hitlist, loc, source.targets)  # type: ignore
         
         # recalculate targets
         for target in self.targets.keys():
@@ -301,18 +303,18 @@ cdef class Gate:
         self.output = Const.UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
-    cpdef reveal(self):
+    def reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
         for index, source in enumerate(self.sources):
             if source != Nothing:
                 # Re-register with the source's hitlist
                 if self in source.targets:
                     # Profile already exists, just add the index
-                    loc = source.targets[self]
+                    loc: int = source.targets[self]
                     source.hitlist[loc].add(index)
                 else:
                     # Create new profile
-                    source.hitlist.append(Profile(source, self, index, source.output))
+                    source.hitlist.append(Profile(source, self, index, source.output))  # type: ignore
                     source.targets[self] = len(source.hitlist) - 1
         
         self.process()
@@ -323,30 +325,30 @@ cdef class Gate:
         
         self.propagate()
 
-    cpdef bint setlimits(self,int size):
-        if size>self.inputlimit:
-            for i in range(self.inputlimit,size):
+    def setlimits(self, size: int) -> bool:
+        if size > self.inputlimit:
+            for i in range(self.inputlimit, size):
                 self.sources.append(Nothing)
-            self.inputlimit=size
+            self.inputlimit = size
             return True
-        elif size<self.inputlimit:
-            for i in range(size,self.inputlimit):
+        elif size < self.inputlimit:
+            for i in range(size, self.inputlimit):
                 if self.sources[i] != Nothing:
                     return False
             self.sources = self.sources[:size]
-            self.inputlimit=size
+            self.inputlimit = size
             return True
         return False
 
-    cpdef str getoutput(self):
+    def getoutput(self) -> str:
         if self.output == Const.ERROR:
             return '1/0'
         if self.output == Const.UNKNOWN:
             return 'X'
         return 'T' if self.output == Const.HIGH else 'F'
 
-    cpdef json_data(self):
-        dictionary = {
+    def json_data(self) -> dict[str, Any]:
+        dictionary: dict[str, Any] = {
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
@@ -355,71 +357,72 @@ cdef class Gate:
         }
         return dictionary
 
-    cpdef copy_data(self, set cluster):
-        dictionary = {
+    def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
+        dictionary: dict[str, Any] = {
             "name": self.name,
-            "custom_name": "", # Do not copy custom name for gates
+            "custom_name": "",  # Do not copy custom name for gates
             "code": self.code,
             "inputlimit": self.inputlimit,
             "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
-            }
+        }
         return dictionary
 
-    cpdef decode(self,list code):
+    def decode(self, code: list[Any]) -> tuple[Any, ...]:
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    cpdef clone(self, dict dictionary,dict pseudo):
+    def clone(self, dictionary: dict[str, Any], pseudo: dict[tuple[Any, ...], Gate]):
         self.custom_name = dictionary["custom_name"]
         self.setlimits(dictionary["inputlimit"])
-        for index,source in enumerate(dictionary["source"]):
-            if source[0]!='X':
-                self.connect(pseudo[self.decode(source)],index)
+        for index, source in enumerate(dictionary["source"]):
+            if source[0] != 'X':
+                self.connect(pseudo[self.decode(source)], index)
 
-    cpdef load_to_cluster(self,set cluster):
+    def load_to_cluster(self, cluster: set[Gate]):
         cluster.add(self)
 
 
-
-
-cdef class Variable(Gate):
+class Variable(Gate):
     def __init__(self):
         Gate.__init__(self)
-        self.sources = 0
-        self.inputlimit = 1
-    cpdef bint setlimits(self,int size):
+        self.sources: int = 0  # type: ignore
+        self.inputlimit: int = 1
+
+    def setlimits(self, size: int) -> bool:
         return False
-    cpdef connect(self, Gate source, int index):
+
+    def connect(self, source: Gate, index: int):
         pass
-    cpdef disconnect(self, int index):
+
+    def disconnect(self, index: int):
         pass
-    cpdef toggle(self, int source):
-        self.sources = source
+
+    def toggle(self, source: int):
+        self.sources = source  # type: ignore
         self.process()
 
-    cpdef reset(self):
+    def reset(self):
         self.output = Const.UNKNOWN
         self.prev_output = Const.UNKNOWN
         for profile in self.hitlist:
-            profile.output=Const.UNKNOWN
+            profile.output = Const.UNKNOWN
 
-    cpdef bint isready(self):
-        if Const.MODE==Const.DESIGN:
+    def isready(self) -> bool:
+        if Const.MODE == Const.DESIGN:
             return False
         else:
             return True
     
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.sources
+            self.output = self.sources  # type: ignore
         else:
             self.output = Const.UNKNOWN
 
-    cpdef json_data(self):
-
-        dictionary = {
+    def json_data(self) -> dict[str, Any]:
+        dictionary: dict[str, Any] = {
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
@@ -427,102 +430,107 @@ cdef class Variable(Gate):
         }
         return dictionary
 
-    cpdef clone(self,dict dictionary, dict pseudo):
+    def clone(self, dictionary: dict[str, Any], pseudo: dict[tuple[Any, ...], Gate]):
         self.custom_name = dictionary["custom_name"]
-        self.sources = dictionary["source"]
+        self.sources = dictionary["source"]  # type: ignore
 
-    cpdef copy_data(self,set cluster):
-        dictionary = {
+    def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
+        dictionary: dict[str, Any] = {
             "name": self.name,
-            "custom_name": "", # Do not copy custom name for gates
+            "custom_name": "",  # Do not copy custom name for gates
             "code": self.code,
             "source": self.sources,
-            }
+        }
         return dictionary
 
-    cpdef hide(self):
+    def hide(self):
         # disconnect from target
         for hits in self.hitlist:
             hits.hide()
 
         for target in self.targets.keys():
-            if target!=self:
+            if target != self:
                 target.process()
                 target.propagate()
 
-    cpdef reveal(self):
+    def reveal(self):
         # connect to targets
         for profile in self.hitlist:
             profile.reveal()
 
         self.propagate()
 
-cdef class Probe(Gate):
+
+class Probe(Gate):
     def __init__(self):
         Gate.__init__(self)
-        self.inputlimit = 1
-        self.sources = [Nothing]
+        self.inputlimit: int = 1
+        self.sources: list[Gate | Empty] = [Nothing]
 
-    cpdef bint setlimits(self,int size):
+    def setlimits(self, size: int) -> bool:
         return False
 
-    cpdef bint isready(self):
-        if Const.MODE==Const.DESIGN:
+    def isready(self) -> bool:
+        if Const.MODE == Const.DESIGN:
             return False
-        elif self.sources[0]!=Nothing:
+        elif self.sources[0] != Nothing:
             return True
         else:
             return False
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.sources[0].output
         else:
             self.output = Const.UNKNOWN
 
-cdef class InputPin(Probe):
+
+class InputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
-        self.inputlimit = 1
+        self.inputlimit: int = 1
 
-    cpdef copy_data(self, set cluster):
-        d = super().copy_data(cluster)
+    def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
+        d: dict[str, Any] = super().copy_data(cluster)
         d["custom_name"] = self.custom_name
         return d
 
-cdef class OutputPin(Probe):
+
+class OutputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
-        self.inputlimit = 1
+        self.inputlimit: int = 1
 
-    cpdef copy_data(self,set cluster):
-        d = super().copy_data(cluster)
+    def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
+        d: dict[str, Any] = super().copy_data(cluster)
         d["custom_name"] = self.custom_name
-        return d 
+        return d
 
-cdef class NOT(Gate):
+
+class NOT(Gate):
     """NOT gate - inverts the input"""
     
     def __init__(self):
         Gate.__init__(self)
-        self.inputlimit = 1
-        self.sources = [Nothing]
+        self.inputlimit: int = 1
+        self.sources: list[Gate | Empty] = [Nothing]
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.book[Const.LOW]
         else:
             self.output = Const.UNKNOWN
 
-cdef class AND(Gate):
+
+class AND(Gate):
     """AND gate - outputs 1 only if all inputs are 1"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 0 if self.book[Const.LOW] else 1
@@ -530,68 +538,71 @@ cdef class AND(Gate):
             self.output = Const.UNKNOWN
 
 
-cdef class NAND(Gate):
+class NAND(Gate):
     """NAND gate - NOT AND"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 1 if self.book[Const.LOW] else 0
         else:
             self.output = Const.UNKNOWN
 
-cdef class OR(Gate):
+
+class OR(Gate):
     """OR gate - outputs 1 if any input is 1"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 1 if self.book[Const.HIGH] else 0
         else:
             self.output = Const.UNKNOWN
 
-cdef class NOR(Gate):
+
+class NOR(Gate):
     """NOR gate - NOT OR"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 0 if self.book[Const.HIGH] else 1
         else:
             self.output = Const.UNKNOWN
 
-cdef class XOR(Gate):
+
+class XOR(Gate):
     """XOR gate - outputs 1 if odd number of inputs are 1"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.book[Const.HIGH] % 2
         else:
             self.output = Const.UNKNOWN
 
-cdef class XNOR(Gate):
+
+class XNOR(Gate):
     """XNOR gate - NOT XOR"""
     
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    def process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = (self.book[Const.HIGH] % 2) ^ 1
         else:
             self.output = Const.UNKNOWN
-
