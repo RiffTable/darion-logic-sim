@@ -10,16 +10,8 @@ A Python-based Digital Logic Simulator made in PySide6 (Python binding for Qt).
 - Stack-based undo/redo feature.
 - Save/load feature using JSON.
 
-## Usage
-
-### CLI Version
-Currently the GUI editor is **in development**. Run the simulator using its command-line interface:
-```bash
-python engine/CLI.py
-```
-
-### GUI Version
-To run the GUI version, first create an python virtual environment:
+## Build
+The project requires the pip package manager to run. To build and run the project, first create an python virtual environment:
 ```bash
 python -m venv env
 ```
@@ -30,9 +22,30 @@ source env/bin/activate    # Linux and MacOS
 env\Scripts\activate.bat   # Windows
 ```
 
-Now install `PySide6` using pip (hopefully you have pip installed), and then run the project:
+Now install the required modules using pip (hopefully you have pip installed):
 ```bash
-pip install pyside6
+pip install pyside6 setuptools cython
+```
+
+Finally, run the build script. After building, you can read usage to run the project.
+```bash
+bash build.sh    # Linux and MacOS
+build.bat        # Windows
+```
+
+## Usage
+
+### CLI Version
+Run the simulator using its command-line interface (CLI):
+```bash
+python engine/CLI.py
+```
+
+### GUI Version
+
+
+Run the simulator (with the GUI editor):
+```bash
 python main.py
 ```
 

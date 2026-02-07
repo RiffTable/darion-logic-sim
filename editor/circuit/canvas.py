@@ -602,7 +602,7 @@ COMPONENT_LOOKUP: list[tuple[int, type[CompItem], str]] = [
 	(51, InputItem,     "Input (Hold)"),
 	(52, InputItem,     "Rotary Switch"),
 	(53, InputItem,     "Clock"),
-	(54, InputItem,     "Constant Source"),
+	(54, InputItem,     "Constant"),
 
 	(62, OutputItem,    "Oscilloscope"),
 	(63, OutputItem,    "7-Segment Display"),
