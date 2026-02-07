@@ -393,8 +393,8 @@ cdef class Gate:
             self.inputlimit=size
             return True
         elif size<self.inputlimit:
-            i=0
-            n=self.inputlimit-size
+            i=size
+            n=self.inputlimit
             while i<n:
                 if self.sources[i] != Nothing:
                     return False
