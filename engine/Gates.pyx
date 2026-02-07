@@ -81,10 +81,12 @@ cdef class Profile:
         
     cpdef bint update(self):
         cdef int new_output=self.source.output
+        cdef Gate target
+        cdef int count
         if self.output==new_output:
             # if nothing changed, relax
             return False
-        cdef Gate target=self.target
+        target=self.target
         if isinstance(target,Probe):
             self.output=new_output
             target.output=self.output
@@ -186,21 +188,31 @@ cdef class Gate:
             self.process()
 
     cpdef bypass(self):
-        for profile in self.hitlist:
+        cdef int i=0
+        cdef int n=len(self.hitlist)
+        while i<n:
+            profile=<Profile>self.hitlist[i]
             if profile.update():
                 profile.target.propagate()  
+            i+=1
 
     # protect against weird loops by resetting counts
     cpdef sync(self):
         self.book[:]=[0,0,0,0]
-        for source in self.sources:
+        cdef int i=0
+        cdef int n=len(self.sources)
+        while i<n:
+            source=self.sources[i]
             if source!=Nothing:
                 self.book[source.output]+=1
+            i+=1
 
     # handles error states and spreads the error
     cpdef burn(self):
         cdef Gate gate
         cdef deque[void*] q
+        cdef int i
+        cdef int n
         q.push_back(<void*>self)
         while q.size():
             gate = <Gate>q.front()
@@ -208,27 +220,36 @@ cdef class Gate:
             gate.prev_output = gate.output
             # mark as error
             gate.output = Const.ERROR 
-            for profile in gate.hitlist:
+            i=0
+            n=len(gate.hitlist)
+            while i<n:
+                profile=<Profile>gate.hitlist[i]
                 # update target's knowledge
                 if profile.burn() and profile.target.isready():
                     q.push_back(<void*>profile.target)
+                i+=1
 
     # spread the signal change to all connected gates
     cpdef propagate(self):
         cdef Gate gate
         cdef Gate target
         cdef deque[void*] q
+        cdef Profile profile
+        cdef int i
+        cdef int n
         if Const.MODE==Const.FLIPFLOP:
             fuse = set()
-
             # notify all targets
             q.push_back(<void*>self)
             # keep propagating until everything settles
             while q.size():
                 gate = <Gate>q.front()
                 q.pop_front()
-                for profile in gate.hitlist:
-                    target=profile.target
+                i=0
+                n=len(gate.hitlist)
+                while i<n:
+                    profile=<Profile>gate.hitlist[i]
+                    target=<Gate>profile.target
                     if profile.update():
                         # check for loops or inconsistencies
                         if gate==target: 
@@ -239,17 +260,21 @@ cdef class Gate:
                             return
                         fuse.add(profile)
                         q.push_back(<void*>target)
-
+                    i+=1
         elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
             q.push_back(<void*>self)                       
             # keep propagating until everything settles
             while q.size():
                 gate = <Gate>q.front()
                 q.pop_front()
-                for profile in gate.hitlist:
-                    target=profile.target
+                i=0
+                n=len(gate.hitlist)
+                while i<n:
+                    profile=<Profile>gate.hitlist[i]
+                    target=<Gate>profile.target
                     if profile.update():
                         q.push_back(<void*>target)
+                    i+=1
 
         else:
             pass
@@ -271,31 +296,53 @@ cdef class Gate:
 
     cpdef reset(self):
         self.output = Const.UNKNOWN
-        cdef int sums
+        cdef int i
+        cdef int n
         sums=0
-        for i in self.book:
-            sums+=i
+        i=0
+        n=len(self.book)
+        while i<n:
+            sums+=self.book[i]
+            i+=1
         self.book[:]=[0, 0, 0, sums]
         self.prev_output = Const.UNKNOWN
-        for profile in self.hitlist:
+        i=0
+        n=len(self.hitlist)
+        while i<n:
+            profile=<Profile>self.hitlist[i]
             profile.output=Const.UNKNOWN
+            i+=1
 
     cpdef hide(self):
         # disconnect from targets (this gate's outputs)
-        for profile in self.hitlist:
+        cdef int i
+        cdef int n
+        i=0
+        n=len(self.hitlist)
+        while i<n:
+            profile=<Profile>self.hitlist[i]
             profile.hide()
+            i+=1
         
         # disconnect from sources (this gate's inputs)
-        for source in self.sources:
+        i=0
+        n=len(self.sources)
+        while i<n:
+            source=self.sources[i]
             if source != Nothing and self in source.targets:
                 loc = source.targets.pop(self)
                 hitlist_del(source.hitlist, loc, source.targets)
+            i+=1
         
         # recalculate targets
-        for target in self.targets.keys():
+        i=0
+        n=len(self.targets)
+        while i<n:
+            target=<Gate>self.targets[i]
             if target != self:
                 target.process()
                 target.propagate()
+            i+=1
 
         self.prev_output = Const.UNKNOWN
         self.output = Const.UNKNOWN
@@ -303,36 +350,54 @@ cdef class Gate:
 
     cpdef reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
-        for index, source in enumerate(self.sources):
+        cdef int i
+        cdef int n
+        i=0
+        n=len(self.sources)
+        while i<n:
+            source=self.sources[i]
             if source != Nothing:
                 # Re-register with the source's hitlist
                 if self in source.targets:
                     # Profile already exists, just add the index
                     loc = source.targets[self]
-                    source.hitlist[loc].add(index)
+                    source.hitlist[loc].add(i)
                 else:
                     # Create new profile
-                    source.hitlist.append(Profile(source, self, index, source.output))
+                    source.hitlist.append(Profile(source, self, i, source.output))
                     source.targets[self] = len(source.hitlist) - 1
         
         self.process()
         
         # reconnect to targets (this gate's outputs)
-        for profile in self.hitlist:
+        i=0
+        n=len(self.hitlist)
+        while i<n:
+            profile=<Profile>self.hitlist[i]
             profile.reveal()
+            i+=1
         
         self.propagate()
 
     cpdef bint setlimits(self,int size):
+        cdef int i
+        cdef int n
+
         if size>self.inputlimit:
-            for i in range(self.inputlimit,size):
+            i=0
+            n=size-self.inputlimit
+            while i<n:
                 self.sources.append(Nothing)
+                i+=1
             self.inputlimit=size
             return True
         elif size<self.inputlimit:
-            for i in range(size,self.inputlimit):
+            i=0
+            n=self.inputlimit-size
+            while i<n:
                 if self.sources[i] != Nothing:
                     return False
+                i+=1
             self.sources = self.sources[:size]
             self.inputlimit=size
             return True
@@ -401,8 +466,11 @@ cdef class Variable(Gate):
     cpdef reset(self):
         self.output = Const.UNKNOWN
         self.prev_output = Const.UNKNOWN
-        for profile in self.hitlist:
-            profile.output=Const.UNKNOWN
+        cdef int i=0
+        cdef int n=len(self.hitlist)
+        while i<n:
+            self.hitlist[i].output=Const.UNKNOWN
+            i+=1
 
     cpdef bint isready(self):
         if Const.MODE==Const.DESIGN:
