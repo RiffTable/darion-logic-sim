@@ -7,10 +7,15 @@ from core.QtCore import *
 
 ###======= ROTATION =======###
 class Rotation(IntEnum):
-	FORWARD  = 0
-	RIGHT    = 1
-	REVERESE = 2
-	LEFT     = 3
+	FORWARD       = 0
+	CLOCKWISE     = 1
+	REVERESE      = 2
+	ANTICLOCKWISE = 3
+
+	@classmethod
+	def _missing_(cls, value: int):
+		if isinstance(value, int): return cls(value % 4)
+		return super()._missing_(value)
 
 
 
@@ -20,16 +25,11 @@ class Facing(IntEnum):
 	SOUTH    = 1
 	WEST     = 2
 	NORTH    = 3
-	NOTHING  = 4
-	
-	def opposite(self) -> 'Facing':
-		return Facing((self.value + Rotation.REVERESE) % 4)
-	
-	def addRotation(self, rot: Rotation) -> 'Facing':
-		return Facing((self.value + rot.value) % 4)
-	
-	def getRotation(self, other: 'Facing') -> Rotation:
-		return Rotation((other.value - self.value) % 4)
+
+	@classmethod
+	def _missing_(cls, value: int):
+		if isinstance(value, int): return cls(value % 4)
+		return super()._missing_(value)	
 	
 	def toTuple(self, scale: float = 1) -> tuple[int, int]:
 		return {
@@ -49,10 +49,15 @@ class Facing(IntEnum):
 
 ###======= COMP EDGE =======###
 class CompEdge(IntEnum):
-	INPUT    = 0
-	OUTPUT   = 1
-	TOP      = 2
-	BOTTOM   = 3
+	OUTPUT   = 0
+	BOTTOM   = 1
+	INPUT    = 2
+	TOP      = 3
+
+	@classmethod
+	def _missing_(cls, value: int):
+		if isinstance(value, int): return cls(value % 4)
+		return super()._missing_(value)
 
 
 

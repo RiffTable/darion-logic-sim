@@ -83,7 +83,7 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.scene.addComp(100, 100, Name_to_ID["XOR Gate"])
-	window.scene.addComp(100, 200, Name_to_ID["Toggle Switch"])
+	window.scene.addComp(100, 100, 5)
+	window.scene.addComp(100, 200, 7)
 
 	sys.exit(app.exec())

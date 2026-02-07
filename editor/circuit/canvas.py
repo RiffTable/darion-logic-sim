@@ -64,6 +64,7 @@ class CompItem(QGraphicsRectItem):
 		self.padding = padding.toTuple()
 		self.state = False
 		self.facing = Facing.EAST
+		self.isMirrored = False
 		self.labelText = "COMP"
 		self._pinslist: dict[CompEdge, list[PinItem]] = {
 			CompEdge.INPUT  : [],
@@ -85,23 +86,42 @@ class CompItem(QGraphicsRectItem):
 	def cscene(self) -> CircuitScene: return self.scene()
 	
 
+	# Actions
+	def rotate(self, clockwise: bool = True):
+		self.setFacing(self.facing + (1 if clockwise else -1))
+	def setFacing(self, facing: Facing):
+		# fuck
+		...
+	def flip(self):
+		# fuck
+		...
+	
 	# Pin configuration
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
-		# fuck
-		return {
-			CompEdge.INPUT : Facing.WEST,
-			CompEdge.OUTPUT: Facing.EAST,
-			CompEdge.TOP   : Facing.NORTH,
-			CompEdge.BOTTOM: Facing.SOUTH
-		}[edge]
+		mirrored = (edge.value%2 == 1) and self.isMirrored
+		return Facing(edge.value + self.facing.value + (2 if mirrored else 0))
+
+		# # fuck
+		# return {
+		# 	CompEdge.INPUT : Facing.WEST,
+		# 	CompEdge.OUTPUT: Facing.EAST,
+		# 	CompEdge.TOP   : Facing.NORTH,
+		# 	CompEdge.BOTTOM: Facing.SOUTH
+		# }[edge]
+
 	def facingToEdge(self, facing: Facing) -> CompEdge:
-		# fuck
-		return {
-			Facing.WEST : CompEdge.INPUT,
-			Facing.EAST : CompEdge.OUTPUT,
-			Facing.NORTH: CompEdge.TOP,
-			Facing.SOUTH: CompEdge.BOTTOM
-		}[facing]
+		res = self.facing.value - facing.value
+		mirrored = (res%2 == 1) and self.isMirrored
+		
+		return CompEdge(res + (2 if mirrored else 0))
+
+		# # fuck
+		# return {
+		# 	Facing.WEST : CompEdge.INPUT,
+		# 	Facing.EAST : CompEdge.OUTPUT,
+		# 	Facing.NORTH: CompEdge.TOP,
+		# 	Facing.SOUTH: CompEdge.BOTTOM
+		# }[facing]
 	
 	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
 		"""Don't forget to call updateShape() afterwards."""
@@ -801,6 +821,12 @@ class CircuitScene(QGraphicsScene):
 		
 		if self.checkState(EditorState.WIRING) and (event.key() == Qt.Key.Key_Escape):
 			self.skipWiring()
-			
+		
+		# if event.key() == Qt.Key.Key_R:
+		# 	for item in self.selectedItems:
+		# 		if isinstance(item, CompItem):
+		# 			item.rotate(True)
+
 		super().keyPressEvent(event)
+	
 # endregion
