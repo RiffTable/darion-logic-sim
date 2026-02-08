@@ -171,25 +171,39 @@ class ComprehensiveTestSuite:
         self.log(f"  PERFORMANCE RESULTS")
         self.log(f"  {'-'*60}")
         
+        total_gates = 0
+        total_time_ms = 0
+        
         if 'marathon' in self.perf_metrics:
             m = self.perf_metrics['marathon']
             self.log(f"  Marathon (Serial):    {m['time']:.2f} ms | {m['latency']:.2f} ns/gate")
+            total_gates += m['gates']
+            total_time_ms += m['time']
         
         if 'avalanche' in self.perf_metrics:
             a = self.perf_metrics['avalanche']
             self.log(f"  Avalanche (Fanout):   {a['time']:.2f} ms | {a['rate']:,.0f} events/sec")
+            total_gates += a['gates']
+            total_time_ms += a['time']
         
         if 'gridlock' in self.perf_metrics:
             g = self.perf_metrics['gridlock']
             self.log(f"  Gridlock (Mesh):      {g['time']:.2f} ms | {g['gates']:,} gates")
+            total_gates += g['gates']
+            total_time_ms += g['time']
         
         if 'echo_chamber' in self.perf_metrics:
             e = self.perf_metrics['echo_chamber']
+            gates_in_latches = e['latches'] * 2  # 2 NOR gates per latch
             self.log(f"  Echo Chamber (FF):    {e['time']:.2f} ms | {e['latches']:,} latches")
+            total_gates += gates_in_latches
+            total_time_ms += e['time']
         
         if 'black_hole' in self.perf_metrics:
             b = self.perf_metrics['black_hole']
             self.log(f"  Black Hole (Fan-in):  {b['time']:.4f} ms | {b['inputs']:,} inputs")
+            total_gates += b['inputs']  # Count inputs as events
+            total_time_ms += b['time']
         
         if 'paradox' in self.perf_metrics:
             p = self.perf_metrics['paradox']
@@ -200,6 +214,18 @@ class ComprehensiveTestSuite:
             self.log(f"  Warehouse (Memory):   {w['allocated']:.1f} MB | {w['bytes_per_gate']:.1f} Bytes/Gate")
         
         self.log(f"  {'-'*60}")
+        
+        # Overall Performance Score
+        if total_time_ms > 0:
+            overall_rate = total_gates / (total_time_ms / 1000)  # gates per second
+            self.log(f"\n  {'='*60}")
+            self.log(f"  OVERALL PERFORMANCE SCORE")
+            self.log(f"  {'='*60}")
+            self.log(f"  Total Gates Processed:  {total_gates:,}")
+            self.log(f"  Total Time:             {total_time_ms:.2f} ms")
+            self.log(f"  Average Throughput:     {overall_rate:,.0f} gates/sec")
+            self.log(f"  Average Throughput:     {overall_rate/1_000_000:.2f} M gates/sec")
+            self.log(f"  {'='*60}")
         
         if self.failed == 0:
             self.log(f"\n  {'='*50}")

@@ -3,7 +3,7 @@
    DARION LOGIC SIM - COMPREHENSIVE TEST SUITE
 ======================================================================
 System: Windows 11 | Python 3.13.12
-Initial RAM: 32.12 MB
+Initial RAM: 32.66 MB
 ----------------------------------------------------------------------
 
 ======================================================================
@@ -190,33 +190,33 @@ Initial RAM: 32.12 MB
 ======================================================================
 
   [Marathon: 100,000 NOT Gates (Serial Latency)]
-    Time: 13.8492 ms | Latency: 138.49 ns/gate
+    Time: 13.5144 ms | Latency: 135.14 ns/gate
     [PASS] Output correct (T)
 
   [Avalanche: 18 Layers (262,143 Gates)]
-    Time: 77.3054 ms | Rate: 3,391,005 events/sec
+    Time: 75.9945 ms | Rate: 3,449,500 events/sec
     [PASS] Avalanche completed
 
   [Gridlock: 250x250 Mesh (62,500 Gates)]
-    Time: 23.1399 ms
+    Time: 23.3847 ms
     [PASS] Signal reached corner
 
   [Echo Chamber: 10,000 SR Latches (FLIPFLOP mode)]
-    Time: 5.2026 ms
+    Time: 5.1673 ms
     [PASS] All latches set correctly
 
   [Black Hole: 100,000 Inputs -> 1 AND Gate]
-    Time: 0.0018 ms
+    Time: 0.0022 ms
     [PASS] AND gate output is HIGH
 
   [Paradox: XOR Feedback Loop (Oscillation Test)]
-    Time: 0.0042 ms (Engine halted safely)
+    Time: 0.0045 ms (Engine halted safely)
     [PASS] XOR burns to ERROR state
 
   [Warehouse: 500,000 Disconnected NOT Gates (Memory Test)]
-    Baseline RAM: 45.87 MB
-    Allocated: 239.53 MB | 502.33 Bytes/Gate
-    Post-Cleanup: -1.22 MB difference
+    Baseline RAM: 45.88 MB
+    Allocated: 239.48 MB | 502.23 Bytes/Gate
+    Post-Cleanup: -1.27 MB difference
     [PASS] Memory returned to baseline (no major leak)
 
 ======================================================================
@@ -230,14 +230,23 @@ Initial RAM: 32.12 MB
   ------------------------------------------------------------
   PERFORMANCE RESULTS
   ------------------------------------------------------------
-  Marathon (Serial):    13.85 ms | 138.49 ns/gate
-  Avalanche (Fanout):   77.31 ms | 3,391,005 events/sec
-  Gridlock (Mesh):      23.14 ms | 62,500 gates
-  Echo Chamber (FF):    5.20 ms | 10,000 latches
-  Black Hole (Fan-in):  0.0018 ms | 100,000 inputs
-  Paradox (Loop):       0.0042 ms | Burn detection
-  Warehouse (Memory):   239.5 MB | 502.3 Bytes/Gate
+  Marathon (Serial):    13.51 ms | 135.14 ns/gate
+  Avalanche (Fanout):   75.99 ms | 3,449,500 events/sec
+  Gridlock (Mesh):      23.38 ms | 62,500 gates
+  Echo Chamber (FF):    5.17 ms | 10,000 latches
+  Black Hole (Fan-in):  0.0022 ms | 100,000 inputs
+  Paradox (Loop):       0.0045 ms | Burn detection
+  Warehouse (Memory):   239.5 MB | 502.2 Bytes/Gate
   ------------------------------------------------------------
+
+  ============================================================
+  OVERALL PERFORMANCE SCORE
+  ============================================================
+  Total Gates Processed:  544,643
+  Total Time:             118.06 ms
+  Average Throughput:     4,613,152 gates/sec
+  Average Throughput:     4.61 M gates/sec
+  ============================================================
 
   ==================================================
   [SUCCESS] ALL TESTS PASSED
