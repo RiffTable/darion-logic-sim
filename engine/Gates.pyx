@@ -5,7 +5,31 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE
-
+cpdef run(list varlist):
+    cdef int i
+    cdef Profile profile
+    cdef int idx
+    cdef int size
+    cdef int n=len(varlist)
+    i=0
+    while i<n:
+        varlist[i].process()
+        i+=1
+    i=0
+    while i<n:
+        idx=0
+        size=len(varlist[i].hitlist)
+        while idx<size:
+            profile=varlist[i].hitlist[idx]
+            if profile.target.output==ERROR:
+                update(profile)
+                profile.target.sync()
+                profile.target.process()
+                profile.target.propagate()
+            elif update(profile):
+                profile.target.propagate()
+            idx+=1
+        i+=1
 cpdef listdel(lst, index):
     if lst:
         lst[index] = lst[-1]

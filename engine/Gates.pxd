@@ -19,6 +19,7 @@ cdef class XOR
 cdef class XNOR
 
 # Helper functions
+cpdef run(list varlist)
 cpdef listdel(lst, index)
 cpdef hitlist_del(list hitlist, int index, dict targets_dict)
 
