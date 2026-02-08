@@ -560,10 +560,10 @@ class WireItem(QGraphicsPathItem):
 		else:
 			self.updateShape()
 	
-	def _swapSupply(self, old: InputPinItem, new: InputPinItem):
-		"""Don't forget to call `updateShape()` afterwards"""
-		self.supplies.remove(old); old.setWire(None)
-		self.supplies.append(new); new.setWire(self)
+	# def _swapSupply(self, old: InputPinItem, new: InputPinItem):
+	# 	"""Don't forget to call `updateShape()` afterwards"""
+	# 	self.supplies.remove(old); old.setWire(None)
+	# 	self.supplies.append(new); new.setWire(self)
 		
 	def _disconnect(self):
 		"""Don't forget to use `scene.removeItem` afterwards"""
@@ -723,6 +723,7 @@ class CircuitScene(QGraphicsScene):
 	def finishWiring(self, target: QGraphicsItem):
 		wire = self.ghostWire
 		finishing = False
+		targetPin: InputPinItem = None
 
 		# Wiring: Finish!
 		if isinstance(target, InputPinItem):
@@ -733,30 +734,31 @@ class CircuitScene(QGraphicsScene):
 				if index < gate.activeZone:
 					# Bubble Gate Connection
 					activePin = pinslist.pop(gate.activeZone)
-					wire._swapSupply(self.ghostPin, activePin)
 					pinslist.insert(index, activePin)
 					gate.updateShape()
+					targetPin = activePin
 				else:
 					# Connect at activezone
-					wire._swapSupply(self.ghostPin, gate.inputPins[gate.activeZone])
-					wire.updateShape()
+					targetPin = gate.inputPins[gate.activeZone]
 				
 				finishing = True
 			
 			elif not target.hasWire():
-				wire._swapSupply(self.ghostPin, target)
-				wire.updateShape()
+				targetPin = target
 				finishing = True
 
 		elif isinstance(target, GateItem):
 			# Default Gate Connection (via proxy)
 			activePin = target.inputPins[target.activeZone]
-			wire._swapSupply(self.ghostPin, activePin)
-			wire.updateShape()
 			activePin.highlight(False)
+			targetPin = activePin
 			finishing = True
 		
 		if finishing:
+			wire.supplies.remove(self.ghostPin); self.ghostPin.setWire(None)
+			wire.supplies.append(targetPin);     targetPin.setWire(wire)
+			wire.updateShape()
+			
 			# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
 			if len(wire.supplies) == 1: self.wires.append(wire)
 			# self.clearSelection()
