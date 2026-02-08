@@ -32,6 +32,14 @@ class GRID:
 
 
 
+class LabelItem(QGraphicsTextItem):
+	def __init__(self, text: str, parent: CompItem):
+		super().__init__(text, parent)
+		self.setFont(Font.default)
+		
+
+
+
 # region: ###======= COMPONENT ITEM =======###
 class CompItem(QGraphicsRectItem):
 	def __init__(
@@ -78,8 +86,7 @@ class CompItem(QGraphicsRectItem):
 		self.setBrush(Color.comp_body)
 
 		# Label
-		self.labelItem = QGraphicsTextItem(self.labelText, self)
-		self.labelItem.setFont(Font.default)
+		self.labelItem = LabelItem(self.labelText, self)
 		self.labelItem.setPos(5, 5)
 	
 	@property
@@ -157,7 +164,11 @@ class CompItem(QGraphicsRectItem):
 		return pins
 	
 	def removePin(self, edge: CompEdge, index: int):
-		pin = self._pinslist[edge].pop(index)
+		pinlist = self._pinslist[edge]
+		pin = pinlist[index]
+		pin.disconnect()
+		
+		pinlist.pop(index)
 		self.updateShape()
 		pin.setParentItem(None)
 		self.cscene.removeItem(pin)
@@ -237,31 +248,37 @@ class GateItem(CompItem):
 
 		self.hoverLeaveTimer = QTimer()
 		self.hoverLeaveTimer.setSingleShot(True)
-		self.hoverLeaveTimer.timeout.connect(self.peekOff)
+		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
 		self.activePins: int = 0
 		self.peeking = False
+		self.minInput = 2
+		self.maxInput = 5000
 
 		# Properties
 		self.breadth: int = self.size[0]
 
 
+	def setInputCount(self, size: int) -> bool:
+		... # FUCK
+
 	# Input feedback
-	def peekOut(self):
+	def betterHoverEnter(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.activePins == len(self.inputPins) \
+		and len(self.inputPins) < self.maxInput \
+		and not self.peeking \
 		and self.cscene.checkState(EditorState.WIRING):
 			self.peeking = True
 			self.addPin(0, CompEdge.INPUT, InputPinItem)
 			self.updateShape()
 	
-	def peekOff(self):
-		# print("Hover Exit")
+	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
-		if self.peeking:
-			self.peeking = False
-			self.cscene.removePin(CompEdge.INPUT, self.activePins)
+		if self.peeking and self.activePins < len(self.inputPins):
+			self.removePin(CompEdge.INPUT, self.activePins)
+		self.peeking = False
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if isinstance(pin, InputPinItem):
@@ -276,12 +293,11 @@ class GateItem(CompItem):
 	
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
 		self._hover_count += (+1 if hoverStatus else -1)
-		print(self._hover_count)
+		# print(self._hover_count)
 
 		if self._hover_count == 1 and hoverStatus:
 			if not self.hoverLeaveTimer.isActive():
-				# Hover Enter | print("Hover Enter")
-				self.peekOut()
+				self.betterHoverEnter()
 			self.hoverLeaveTimer.stop()
 		
 		elif self._hover_count == 0 and not hoverStatus:
@@ -328,6 +344,8 @@ class UnaryGateItem(CompItem):
 
 		# Properties
 		self.breadth: int = self.size[0]
+		self.minInput = 1
+		self.maxInput = 1
 
 
 
@@ -425,13 +443,15 @@ class PinItem(QGraphicsRectItem):
 	
 	# Wire configuration
 	def setWire(self, wire: WireItem):
-		if self._wire != wire:
-			apcc = (1 if wire else 0) - (1 if self._wire else 0)
-			self._wire = wire
-			self.updateVisual()
+		"""Doesn't remove its reference from its wire. Use disconnect() then"""
+		if self._wire == wire: return
 
-			if self.parentComp:
-				self.parentComp.pinUpdate(self, apcc)
+		apcc = (1 if wire else 0) - (1 if self._wire else 0)
+		self._wire = wire
+		self.updateVisual()
+
+		if self.parentComp:
+			self.parentComp.pinUpdate(self, apcc)
 	
 	def getWire(self): return self._wire
 	def hasWire(self): return self._wire != None
@@ -558,11 +578,6 @@ class WireItem(QGraphicsPathItem):
 		else:
 			self.updateShape()
 	
-	# def _swapSupply(self, old: InputPinItem, new: InputPinItem):
-	# 	"""Don't forget to call `updateShape()` afterwards"""
-	# 	self.supplies.remove(old); old.setWire(None)
-	# 	self.supplies.append(new); new.setWire(self)
-		
 	def _disconnect(self):
 		"""Don't forget to use `scene.removeItem` afterwards"""
 
@@ -713,7 +728,8 @@ class CircuitScene(QGraphicsScene):
 	
 	# Wires	Management
 	def finishWiring(self, target: QGraphicsItem):
-		wire = self.ghostWire
+		g_wire = self.ghostWire
+		g_pin = self.ghostPin
 		finishing = False
 		targetPin: InputPinItem = None
 
@@ -747,12 +763,12 @@ class CircuitScene(QGraphicsScene):
 			finishing = True
 		
 		if finishing:
-			wire.supplies.remove(self.ghostPin); self.ghostPin.setWire(None)
-			wire.supplies.append(targetPin);     targetPin.setWire(wire)
-			wire.updateShape()
+			g_wire.supplies.remove(g_pin);     g_pin.setWire(None)
+			g_wire.supplies.append(targetPin); targetPin.setWire(g_wire)
+			g_wire.updateShape()
 			
 			# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
-			if len(wire.supplies) == 1: self.wires.append(wire)
+			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 			# self.clearSelection()
 			# wire.setSelected(True)  # Solo select the finished wire
 			
