@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del
+from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal
 
 
 class IC:
@@ -142,7 +142,7 @@ class IC:
         # Disconnect output pins from their targets
         for pin in self.outputs:
             for profile in pin.hitlist:
-                profile.hide()
+                hide(profile)
             for target in pin.targets.keys():
                 if target != self:
                     target.process()
@@ -161,7 +161,7 @@ class IC:
         # Reconnect output pins to their targets
         for pin in self.outputs:
             for profile in pin.hitlist:
-                profile.reveal()
+                reveal(profile)
             pin.propagate()
         
         # Reconnect input pins to their sources
@@ -171,9 +171,8 @@ class IC:
                     # Re-register with the source's hitlist
                     if pin in source.targets:
                         loc = source.targets[pin]
-                        source.hitlist[loc].add(index)
+                        add(source.hitlist[loc], index)
                     else:
-                        from Gates import Profile
                         source.hitlist.append(Profile(source, pin, index, source.output))
                         source.targets[pin] = len(source.hitlist) - 1   
 

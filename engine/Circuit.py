@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Variable, Nothing
+from Gates import Gate, Variable, Nothing, update
 import Const
 from IC import IC
 from Store import Components
@@ -364,11 +364,11 @@ class Circuit:
         for i in self.varlist:
             for profile in i.hitlist:
                 if profile.target.output==Const.ERROR:
-                    profile.update()
+                    update(profile)
                     profile.target.sync()
                     profile.target.process()
                     profile.target.propagate()
-                elif profile.update():
+                elif update(profile):
                     profile.target.propagate()
 
 

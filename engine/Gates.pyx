@@ -31,6 +31,84 @@ cdef class Empty:
 
 Nothing = Empty()
 
+
+cpdef add(Profile profile, int pin_index):
+    profile.index.push_back(pin_index)
+    profile.target.book[profile.output] += 1
+
+
+cpdef bint remove(Profile profile, int pin_index):
+    cdef Gate target = profile.target
+    target.sources[pin_index] = Nothing
+    # Find the position of this index in our index list, then remove it
+    cdef size_t i = 0
+    while i < profile.index.size():
+        if profile.index[i] == pin_index:
+            profile.index[i] = profile.index.back()
+            profile.index.pop_back()
+            break
+        i += 1
+
+    target.book[profile.output] -= 1
+    if profile.index.empty():
+        return True
+    else:
+        return False
+
+
+cpdef hide(Profile profile):
+    cdef Gate target = profile.target
+    target.book[profile.output] -= profile.index.size()
+    for index in profile.index:
+        target.sources[index] = Nothing
+    profile.output = Const.UNKNOWN
+
+
+cpdef reveal(Profile profile):
+    cdef Gate target = profile.target
+    target.book[Const.UNKNOWN] += profile.index.size()
+    for index in profile.index:
+        target.sources[index] = profile.source
+
+
+cpdef bint update(Profile profile):
+    cdef int new_output = profile.source.output
+    cdef Gate target
+    cdef int count
+    if profile.output == new_output:
+        # if nothing changed, relax
+        return False
+    target = profile.target
+    if isinstance(target, Probe):
+        profile.output = new_output
+        target.output = profile.output
+        target.bypass()
+        return False
+    # update the target's records
+    count = profile.index.size()
+    target.book[profile.output] -= count
+    target.book[new_output] += count
+    
+    if new_output == Const.ERROR:
+        # error propagation
+        if target.isready():
+            target.output = Const.ERROR
+    else:
+        # let the target recalculate
+        target.process()
+        
+    # update what the target thinks our output is
+    profile.output = new_output
+    return target.prev_output != target.output
+
+
+cpdef bint burn(Profile profile):
+    cdef Gate target = profile.target
+    target.sync()
+    profile.output = Const.ERROR
+    return target.output != Const.ERROR
+
+
 cdef class Profile:
     def __init__(self, Gate source, Gate target, int index, int output):
         self.source = source
@@ -44,77 +122,6 @@ cdef class Profile:
     
     def __str__(self):
         return f"{self.target} {self.index} {self.output}"
-    
-    cpdef add(self, int pin_index):
-        self.index.push_back(pin_index)
-        self.target.book[self.output] += 1
-    
-    cpdef bint remove(self, int pin_index):
-        cdef Gate target=self.target
-        target.sources[pin_index] = Nothing
-        # Find the position of this index in our index list, then remove it
-        cdef size_t i=0
-        while i<self.index.size():
-            if self.index[i]==pin_index:
-                self.index[i]=self.index.back()
-                self.index.pop_back()
-                break
-            i+=1
-
-        target.book[self.output] -= 1
-        if self.index.empty():
-            return True
-        else:
-            return False
-
-    cpdef hide(self):
-        cdef Gate target=self.target
-        target.book[self.output] -= self.index.size()
-        for index in self.index:
-            target.sources[index] = Nothing
-        self.output=Const.UNKNOWN
-
-    cpdef reveal(self):
-        cdef Gate target=self.target
-        target.book[Const.UNKNOWN] += self.index.size()
-        for index in self.index:
-            target.sources[index] = self.source
-        
-    cpdef bint update(self):
-        cdef int new_output=self.source.output
-        cdef Gate target
-        cdef int count
-        if self.output==new_output:
-            # if nothing changed, relax
-            return False
-        target=self.target
-        if isinstance(target,Probe):
-            self.output=new_output
-            target.output=self.output
-            target.bypass()
-            return False
-        # update the target's records
-        count=self.index.size()
-        target.book[self.output] -= count
-        target.book[new_output] += count
-        
-        if new_output==Const.ERROR:
-            # error propagation
-            if target.isready():
-                target.output=Const.ERROR
-        else:
-            # let the target recalculate
-            target.process()
-            
-        # update what the target thinks our output is
-        self.output=new_output
-        return target.prev_output != target.output
-
-    cpdef burn(self):
-        cdef Gate target=self.target
-        target.sync()
-        self.output=Const.ERROR
-        return target.output!=Const.ERROR
 
 cdef class Gate:
     # the blueprint for all logical gates
@@ -173,7 +180,7 @@ cdef class Gate:
         cdef int loc
         if self in source.targets:
             loc=source.targets[self]
-            source.hitlist[loc].add(index)
+            add(source.hitlist[loc], index)
         else:
             source.hitlist.append(Profile(source,self,index,source.output))
             source.targets[self]=len(source.hitlist)-1            
@@ -193,7 +200,7 @@ cdef class Gate:
         cdef int n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            if profile.update():
+            if update(profile):
                 profile.target.propagate()  
             i+=1
 
@@ -226,7 +233,7 @@ cdef class Gate:
             while i<n:
                 profile=<Profile>gate.hitlist[i]
                 # update target's knowledge
-                if profile.burn() and profile.target.isready():
+                if burn(profile) and profile.target.isready():
                     q.push_back(<void*>profile.target)
                 i+=1
 
@@ -251,7 +258,7 @@ cdef class Gate:
                 while i<n:
                     profile=<Profile>gate.hitlist[i]
                     target=<Gate>profile.target
-                    if profile.update():
+                    if update(profile):
                         # check for loops or inconsistencies
                         if gate==target: 
                             gate.burn()
@@ -273,7 +280,7 @@ cdef class Gate:
                 while i<n:
                     profile=<Profile>gate.hitlist[i]
                     target=<Gate>profile.target
-                    if profile.update():
+                    if update(profile):
                         q.push_back(<void*>target)
                     i+=1
 
@@ -285,7 +292,7 @@ cdef class Gate:
         cdef Gate source = self.sources[index]
         cdef int loc=source.targets[self]
         cdef Profile profile=source.hitlist[loc]
-        if profile.remove(index):
+        if remove(profile, index):
             hitlist_del(source.hitlist, loc, source.targets)
             source.targets.pop(self)
         
@@ -322,7 +329,7 @@ cdef class Gate:
         n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            profile.hide()
+            hide(profile)
             i+=1
         
         # disconnect from sources (this gate's inputs)
@@ -371,7 +378,7 @@ cdef class Gate:
         n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            profile.reveal()
+            reveal(profile)
             i+=1
         
         self.propagate()
@@ -508,7 +515,7 @@ cdef class Variable(Gate):
     cpdef hide(self):
         # disconnect from target
         for hits in self.hitlist:
-            hits.hide()
+            hide(hits)
 
         for target in self.targets.keys():
             if target!=self:
@@ -518,7 +525,7 @@ cdef class Variable(Gate):
     cpdef reveal(self):
         # connect to targets
         for profile in self.hitlist:
-            profile.reveal()
+            reveal(profile)
 
         self.propagate()
 
