@@ -22,6 +22,14 @@ cdef class XNOR
 cpdef listdel(lst, index)
 cpdef hitlist_del(list hitlist, int index, dict targets_dict)
 
+# Profile helper functions (globalized)
+cpdef add(Profile profile, int pin_index)
+cpdef bint remove(Profile profile, int pin_index)
+cpdef hide(Profile profile)
+cpdef reveal(Profile profile)
+cpdef bint update(Profile profile)
+cpdef bint burn(Profile profile)
+
 cdef class Empty:
     cdef public tuple code
     cdef public dict targets
@@ -31,13 +39,6 @@ cdef class Profile:
     cdef public Gate target
     cdef public vector[int] index
     cdef public int output
-    
-    cpdef add(self, int pin_index)
-    cpdef bint remove(self, int pin_index)
-    cpdef hide(self)
-    cpdef reveal(self)
-    cpdef bint update(self)
-    cpdef burn(self)
 
 cdef class Gate:
     cdef public object sources

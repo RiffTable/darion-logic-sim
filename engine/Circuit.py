@@ -1,6 +1,6 @@
 import json
-from Gates import Gate, Variable, Nothing
-import Const
+from Gates import Gate, Variable, Nothing, update
+from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
 from Store import Components
 
@@ -12,7 +12,7 @@ class Circuit:
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [
-            [] for i in range(Const.TOTAL)]  # holds the objects with code name
+            [] for i in range(TOTAL)]  # holds the objects with code name
         # list of everything visible on the board
         self.canvas: list[Gate | IC] = []  # displays the components
         # special list for input/output variables (0/1 switches)
@@ -283,7 +283,7 @@ class Circuit:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
-        myIC = self.getcomponent(Const.IC)
+        myIC = self.getcomponent(IC_TYPE)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
@@ -292,7 +292,7 @@ class Circuit:
             json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
-        myIC = self.getcomponent(Const.IC)
+        myIC = self.getcomponent(IC_TYPE)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
@@ -303,7 +303,7 @@ class Circuit:
                 return None
 
     def rank_reset(self):
-        for i in range(Const.TOTAL):
+        for i in range(TOTAL):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 
@@ -356,23 +356,23 @@ class Circuit:
 
     # runs the simulation
     def simulate(self, Mode):
-        if Const.MODE!= Const.DESIGN:
+        if get_MODE() != DESIGN:
             self.reset()
-        Const.MODE = Mode
+        set_MODE(Mode)
         for i in self.varlist:
             i.process()
         for i in self.varlist:
             for profile in i.hitlist:
-                if profile.target.output==Const.ERROR:
-                    profile.update()
+                if profile.target.output==ERROR:
+                    update(profile)
                     profile.target.sync()
                     profile.target.process()
                     profile.target.propagate()
-                elif profile.update():
+                elif update(profile):
                     profile.target.propagate()
 
 
     def reset(self):
-        Const.MODE = Const.DESIGN
+        set_MODE(DESIGN)
         for i in self.canvas:
             i.reset()

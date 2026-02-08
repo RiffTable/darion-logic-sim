@@ -4,7 +4,7 @@ from collections import deque
 from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
-import Const
+from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE
 
 cpdef listdel(lst, index):
     if lst:
@@ -31,6 +31,84 @@ cdef class Empty:
 
 Nothing = Empty()
 
+
+cpdef add(Profile profile, int pin_index):
+    profile.index.push_back(pin_index)
+    profile.target.book[profile.output] += 1
+
+
+cpdef bint remove(Profile profile, int pin_index):
+    cdef Gate target = profile.target
+    target.sources[pin_index] = Nothing
+    # Find the position of this index in our index list, then remove it
+    cdef size_t i = 0
+    while i < profile.index.size():
+        if profile.index[i] == pin_index:
+            profile.index[i] = profile.index.back()
+            profile.index.pop_back()
+            break
+        i += 1
+
+    target.book[profile.output] -= 1
+    if profile.index.empty():
+        return True
+    else:
+        return False
+
+
+cpdef hide(Profile profile):
+    cdef Gate target = profile.target
+    target.book[profile.output] -= profile.index.size()
+    for index in profile.index:
+        target.sources[index] = Nothing
+    profile.output = UNKNOWN
+
+
+cpdef reveal(Profile profile):
+    cdef Gate target = profile.target
+    target.book[UNKNOWN] += profile.index.size()
+    for index in profile.index:
+        target.sources[index] = profile.source
+
+
+cpdef bint update(Profile profile):
+    cdef int new_output = profile.source.output
+    cdef Gate target
+    cdef int count
+    if profile.output == new_output:
+        # if nothing changed, relax
+        return False
+    target = profile.target
+    if isinstance(target, Probe):
+        profile.output = new_output
+        target.output = profile.output
+        target.bypass()
+        return False
+    # update the target's records
+    count = profile.index.size()
+    target.book[profile.output] -= count
+    target.book[new_output] += count
+    
+    if new_output == ERROR:
+        # error propagation
+        if target.isready():
+            target.output = ERROR
+    else:
+        # let the target recalculate
+        target.process()
+        
+    # update what the target thinks our output is
+    profile.output = new_output
+    return target.prev_output != target.output
+
+
+cpdef bint burn(Profile profile):
+    cdef Gate target = profile.target
+    target.sync()
+    profile.output = ERROR
+    return target.output != ERROR
+
+
 cdef class Profile:
     def __init__(self, Gate source, Gate target, int index, int output):
         self.source = source
@@ -44,77 +122,6 @@ cdef class Profile:
     
     def __str__(self):
         return f"{self.target} {self.index} {self.output}"
-    
-    cpdef add(self, int pin_index):
-        self.index.push_back(pin_index)
-        self.target.book[self.output] += 1
-    
-    cpdef bint remove(self, int pin_index):
-        cdef Gate target=self.target
-        target.sources[pin_index] = Nothing
-        # Find the position of this index in our index list, then remove it
-        cdef size_t i=0
-        while i<self.index.size():
-            if self.index[i]==pin_index:
-                self.index[i]=self.index.back()
-                self.index.pop_back()
-                break
-            i+=1
-
-        target.book[self.output] -= 1
-        if self.index.empty():
-            return True
-        else:
-            return False
-
-    cpdef hide(self):
-        cdef Gate target=self.target
-        target.book[self.output] -= self.index.size()
-        for index in self.index:
-            target.sources[index] = Nothing
-        self.output=Const.UNKNOWN
-
-    cpdef reveal(self):
-        cdef Gate target=self.target
-        target.book[Const.UNKNOWN] += self.index.size()
-        for index in self.index:
-            target.sources[index] = self.source
-        
-    cpdef bint update(self):
-        cdef int new_output=self.source.output
-        cdef Gate target
-        cdef int count
-        if self.output==new_output:
-            # if nothing changed, relax
-            return False
-        target=self.target
-        if isinstance(target,Probe):
-            self.output=new_output
-            target.output=self.output
-            target.bypass()
-            return False
-        # update the target's records
-        count=self.index.size()
-        target.book[self.output] -= count
-        target.book[new_output] += count
-        
-        if new_output==Const.ERROR:
-            # error propagation
-            if target.isready():
-                target.output=Const.ERROR
-        else:
-            # let the target recalculate
-            target.process()
-            
-        # update what the target thinks our output is
-        self.output=new_output
-        return target.prev_output != target.output
-
-    cpdef burn(self):
-        cdef Gate target=self.target
-        target.sync()
-        self.output=Const.ERROR
-        return target.output!=Const.ERROR
 
 cdef class Gate:
     # the blueprint for all logical gates
@@ -132,8 +139,8 @@ cdef class Gate:
         self.book[:]= [0, 0, 0, 0]
         
         # current and previous state
-        self.output = Const.UNKNOWN
-        self.prev_output = Const.UNKNOWN
+        self.output = UNKNOWN
+        self.prev_output = UNKNOWN
         
         # identity details
         self.code = ()
@@ -156,24 +163,24 @@ cdef class Gate:
     # checks if the gate is ready to calculate an output
     cpdef bint isready(self):
         cdef int realsource
-        if Const.MODE == Const.DESIGN:
+        if get_MODE() == DESIGN:
             # if we are designing, nothing works yet
             return False
         else:
-            realsource = self.book[Const.HIGH]+self.book[Const.LOW]+self.book[Const.ERROR]
-            if Const.MODE == Const.SIMULATE:
+            realsource = self.book[HIGH]+self.book[LOW]+self.book[ERROR]
+            if get_MODE() == SIMULATE:
                 # in simulation, we need all inputs connected
                 return realsource == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return realsource and realsource+self.book[Const.UNKNOWN] == self.inputlimit
+                return realsource and realsource+self.book[UNKNOWN] == self.inputlimit
 
     # connect a source gate (input) to this gate
     cpdef connect(self, Gate source, int index):
         cdef int loc
         if self in source.targets:
             loc=source.targets[self]
-            source.hitlist[loc].add(index)
+            add(source.hitlist[loc], index)
         else:
             source.hitlist.append(Profile(source,self,index,source.output))
             source.targets[self]=len(source.hitlist)-1            
@@ -181,7 +188,7 @@ cdef class Gate:
         self.sources[index] = source
         
         # if something is wrong with the input, react
-        if source.output==Const.ERROR:
+        if source.output==ERROR:
             if self.isready():
                 self.burn()
         else:
@@ -193,7 +200,7 @@ cdef class Gate:
         cdef int n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            if profile.update():
+            if update(profile):
                 profile.target.propagate()  
             i+=1
 
@@ -220,13 +227,13 @@ cdef class Gate:
             q.pop_front()
             gate.prev_output = gate.output
             # mark as error
-            gate.output = Const.ERROR 
+            gate.output = ERROR 
             i=0
             n=len(gate.hitlist)
             while i<n:
                 profile=<Profile>gate.hitlist[i]
                 # update target's knowledge
-                if profile.burn() and profile.target.isready():
+                if burn(profile) and profile.target.isready():
                     q.push_back(<void*>profile.target)
                 i+=1
 
@@ -239,7 +246,7 @@ cdef class Gate:
         cdef unordered_set[void*] fuse
         cdef int i
         cdef int n
-        if Const.MODE==Const.FLIPFLOP:
+        if get_MODE()==FLIPFLOP:
             # notify all targets
             q.push_back(<void*>self)
             # keep propagating until everything settles
@@ -251,7 +258,7 @@ cdef class Gate:
                 while i<n:
                     profile=<Profile>gate.hitlist[i]
                     target=<Gate>profile.target
-                    if profile.update():
+                    if update(profile):
                         # check for loops or inconsistencies
                         if gate==target: 
                             gate.burn()
@@ -262,7 +269,7 @@ cdef class Gate:
                         fuse.insert(<void*>profile)
                         q.push_back(<void*>target)
                     i+=1
-        elif Const.MODE==Const.SIMULATE:# don't need fuse, the logic itself is loop-proof
+        elif get_MODE()==SIMULATE:# don't need fuse, the logic itself is loop-proof
             q.push_back(<void*>self)                       
             # keep propagating until everything settles
             while q.size():
@@ -273,7 +280,7 @@ cdef class Gate:
                 while i<n:
                     profile=<Profile>gate.hitlist[i]
                     target=<Gate>profile.target
-                    if profile.update():
+                    if update(profile):
                         q.push_back(<void*>target)
                     i+=1
 
@@ -285,7 +292,7 @@ cdef class Gate:
         cdef Gate source = self.sources[index]
         cdef int loc=source.targets[self]
         cdef Profile profile=source.hitlist[loc]
-        if profile.remove(index):
+        if remove(profile, index):
             hitlist_del(source.hitlist, loc, source.targets)
             source.targets.pop(self)
         
@@ -296,7 +303,7 @@ cdef class Gate:
         self.propagate()
 
     cpdef reset(self):
-        self.output = Const.UNKNOWN
+        self.output = UNKNOWN
         cdef int i
         cdef int n
         sums=0
@@ -306,12 +313,12 @@ cdef class Gate:
             sums+=self.book[i]
             i+=1
         self.book[:]=[0, 0, 0, sums]
-        self.prev_output = Const.UNKNOWN
+        self.prev_output = UNKNOWN
         i=0
         n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            profile.output=Const.UNKNOWN
+            profile.output=UNKNOWN
             i+=1
 
     cpdef hide(self):
@@ -322,7 +329,7 @@ cdef class Gate:
         n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            profile.hide()
+            hide(profile)
             i+=1
         
         # disconnect from sources (this gate's inputs)
@@ -341,8 +348,8 @@ cdef class Gate:
                 target.process()
                 target.propagate()
 
-        self.prev_output = Const.UNKNOWN
-        self.output = Const.UNKNOWN
+        self.prev_output = UNKNOWN
+        self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
     cpdef reveal(self):
@@ -371,7 +378,7 @@ cdef class Gate:
         n=len(self.hitlist)
         while i<n:
             profile=<Profile>self.hitlist[i]
-            profile.reveal()
+            reveal(profile)
             i+=1
         
         self.propagate()
@@ -401,11 +408,11 @@ cdef class Gate:
         return False
 
     cpdef str getoutput(self):
-        if self.output == Const.ERROR:
+        if self.output == ERROR:
             return '1/0'
-        if self.output == Const.UNKNOWN:
+        if self.output == UNKNOWN:
             return 'X'
-        return 'T' if self.output == Const.HIGH else 'F'
+        return 'T' if self.output == HIGH else 'F'
 
     cpdef json_data(self):
         dictionary = {
@@ -461,16 +468,16 @@ cdef class Variable(Gate):
         self.process()
 
     cpdef reset(self):
-        self.output = Const.UNKNOWN
-        self.prev_output = Const.UNKNOWN
+        self.output = UNKNOWN
+        self.prev_output = UNKNOWN
         cdef int i=0
         cdef int n=len(self.hitlist)
         while i<n:
-            self.hitlist[i].output=Const.UNKNOWN
+            self.hitlist[i].output=UNKNOWN
             i+=1
 
     cpdef bint isready(self):
-        if Const.MODE==Const.DESIGN:
+        if get_MODE()==DESIGN:
             return False
         else:
             return True
@@ -480,7 +487,7 @@ cdef class Variable(Gate):
         if self.isready():
             self.output = self.sources
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
     cpdef json_data(self):
 
@@ -508,7 +515,7 @@ cdef class Variable(Gate):
     cpdef hide(self):
         # disconnect from target
         for hits in self.hitlist:
-            hits.hide()
+            hide(hits)
 
         for target in self.targets.keys():
             if target!=self:
@@ -518,7 +525,7 @@ cdef class Variable(Gate):
     cpdef reveal(self):
         # connect to targets
         for profile in self.hitlist:
-            profile.reveal()
+            reveal(profile)
 
         self.propagate()
 
@@ -532,7 +539,7 @@ cdef class Probe(Gate):
         return False
 
     cpdef bint isready(self):
-        if Const.MODE==Const.DESIGN:
+        if get_MODE()==DESIGN:
             return False
         elif self.sources[0]!=Nothing:
             return True
@@ -544,7 +551,7 @@ cdef class Probe(Gate):
         if self.isready():
             self.output = self.sources[0].output
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class InputPin(Probe):
     def __init__(self):
@@ -577,9 +584,9 @@ cdef class NOT(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.book[Const.LOW]
+            self.output = self.book[LOW]
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class AND(Gate):
     """AND gate - outputs 1 only if all inputs are 1"""
@@ -590,9 +597,9 @@ cdef class AND(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if self.book[Const.LOW] else 1
+            self.output = 0 if self.book[LOW] else 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 cdef class NAND(Gate):
@@ -604,9 +611,9 @@ cdef class NAND(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if self.book[Const.LOW] else 0
+            self.output = 1 if self.book[LOW] else 0
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class OR(Gate):
     """OR gate - outputs 1 if any input is 1"""
@@ -617,9 +624,9 @@ cdef class OR(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if self.book[Const.HIGH] else 0
+            self.output = 1 if self.book[HIGH] else 0
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class NOR(Gate):
     """NOR gate - NOT OR"""
@@ -630,9 +637,9 @@ cdef class NOR(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if self.book[Const.HIGH] else 1
+            self.output = 0 if self.book[HIGH] else 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class XOR(Gate):
     """XOR gate - outputs 1 if odd number of inputs are 1"""
@@ -643,9 +650,9 @@ cdef class XOR(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.book[Const.HIGH] % 2
+            self.output = self.book[HIGH] % 2
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 cdef class XNOR(Gate):
     """XNOR gate - NOT XOR"""
@@ -656,7 +663,7 @@ cdef class XNOR(Gate):
     cpdef process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = (self.book[Const.HIGH] % 2) ^ 1
+            self.output = (self.book[HIGH] % 2) ^ 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 

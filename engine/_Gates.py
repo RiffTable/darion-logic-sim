@@ -36,6 +36,81 @@ class Empty:
 Nothing: Empty = Empty()
 
 
+def add(profile: Profile, pin_index: int):
+    profile.index.append(pin_index)
+    profile.target.book[profile.output] += 1
+
+
+def remove(profile: Profile, pin_index: int) -> bool:
+    target: Gate = profile.target
+    target.sources[pin_index] = Nothing
+    # Find the position of this index in our index list, then remove it
+    i: int = 0
+    while i < len(profile.index):
+        if profile.index[i] == pin_index:
+            profile.index[i] = profile.index[-1]
+            profile.index.pop()
+            break
+        i += 1
+
+    target.book[profile.output] -= 1
+    if not profile.index:
+        return True
+    else:
+        return False
+
+
+def hide(profile: Profile):
+    target: Gate = profile.target
+    target.book[profile.output] -= len(profile.index)
+    for index in profile.index:
+        target.sources[index] = Nothing
+    profile.output = Const.UNKNOWN
+
+
+def reveal(profile: Profile):
+    target: Gate = profile.target
+    target.book[Const.UNKNOWN] += len(profile.index)
+    for index in profile.index:
+        target.sources[index] = profile.source
+
+
+def update(profile: Profile) -> bool:
+    new_output: int = profile.source.output
+    if profile.output == new_output:
+        # if nothing changed, relax
+        return False
+    target: Gate = profile.target
+    if isinstance(target, Probe):
+        profile.output = new_output
+        target.output = profile.output
+        target.bypass()
+        return False
+    # update the target's records
+    count: int = len(profile.index)
+    target.book[profile.output] -= count
+    target.book[new_output] += count
+    
+    if new_output == Const.ERROR:
+        # error propagation
+        if target.isready():
+            target.output = Const.ERROR
+    else:
+        # let the target recalculate
+        target.process()
+        
+    # update what the target thinks our output is
+    profile.output = new_output
+    return target.prev_output != target.output
+
+
+def burn(profile: Profile) -> bool:
+    target: Gate = profile.target
+    target.sync()
+    profile.output = Const.ERROR
+    return target.output != Const.ERROR
+
+
 class Profile:
     def __init__(self, source: Gate, target: Gate, index: int, output: int):
         self.source: Gate = source
@@ -50,75 +125,6 @@ class Profile:
     
     def __str__(self) -> str:
         return f"{self.target} {self.index} {self.output}"
-    
-    def add(self, pin_index: int):
-        self.index.append(pin_index)
-        self.target.book[self.output] += 1
-    
-    def remove(self, pin_index: int) -> bool:
-        target: Gate = self.target
-        target.sources[pin_index] = Nothing
-        # Find the position of this index in our index list, then remove it
-        i: int = 0
-        while i < len(self.index):
-            if self.index[i] == pin_index:
-                self.index[i] = self.index[-1]
-                self.index.pop()
-                break
-            i += 1
-
-        target.book[self.output] -= 1
-        if not self.index:
-            return True
-        else:
-            return False
-
-    def hide(self):
-        target: Gate = self.target
-        target.book[self.output] -= len(self.index)
-        for index in self.index:
-            target.sources[index] = Nothing
-        self.output = Const.UNKNOWN
-
-    def reveal(self):
-        target: Gate = self.target
-        target.book[Const.UNKNOWN] += len(self.index)
-        for index in self.index:
-            target.sources[index] = self.source
-        
-    def update(self) -> bool:
-        new_output: int = self.source.output
-        if self.output == new_output:
-            # if nothing changed, relax
-            return False
-        target: Gate = self.target
-        if isinstance(target, Probe):
-            self.output = new_output
-            target.output = self.output
-            target.bypass()
-            return False
-        # update the target's records
-        count: int = len(self.index)
-        target.book[self.output] -= count
-        target.book[new_output] += count
-        
-        if new_output == Const.ERROR:
-            # error propagation
-            if target.isready():
-                target.output = Const.ERROR
-        else:
-            # let the target recalculate
-            target.process()
-            
-        # update what the target thinks our output is
-        self.output = new_output
-        return target.prev_output != target.output
-
-    def burn(self) -> bool:
-        target: Gate = self.target
-        target.sync()
-        self.output = Const.ERROR
-        return target.output != Const.ERROR
 
 
 class Gate:
@@ -177,7 +183,7 @@ class Gate:
         loc: int
         if self in source.targets:
             loc = source.targets[self]
-            source.hitlist[loc].add(index)
+            add(source.hitlist[loc], index)
         else:
             source.hitlist.append(Profile(source, self, index, source.output))
             source.targets[self] = len(source.hitlist) - 1            
@@ -194,7 +200,7 @@ class Gate:
 
     def bypass(self):
         for profile in self.hitlist:
-            if profile.update():
+            if update(profile):
                 profile.target.propagate()  
 
     def sync(self):
@@ -215,7 +221,7 @@ class Gate:
             gate.output = Const.ERROR 
             for profile in gate.hitlist:
                 # update target's knowledge
-                if profile.burn() and profile.target.isready():
+                if burn(profile) and profile.target.isready():
                     queue.append(profile.target)
 
     def propagate(self):
@@ -232,7 +238,7 @@ class Gate:
                 gate = queue.popleft()
                 for profile in gate.hitlist:
                     target = profile.target
-                    if profile.update():
+                    if update(profile):
                         # check for loops or inconsistencies
                         if gate == target: 
                             gate.burn()
@@ -251,7 +257,7 @@ class Gate:
                 gate = queue.popleft()
                 for profile in gate.hitlist:
                     target = profile.target
-                    if profile.update():
+                    if update(profile):
                         queue.append(target)
 
         else:
@@ -262,7 +268,7 @@ class Gate:
         source: Gate = self.sources[index]  # type: ignore
         loc: int = source.targets[self]
         profile: Profile = source.hitlist[loc]
-        if profile.remove(index):
+        if remove(profile, index):
             hitlist_del(source.hitlist, loc, source.targets)
             source.targets.pop(self)
         
@@ -285,7 +291,7 @@ class Gate:
     def hide(self):
         # disconnect from targets (this gate's outputs)
         for profile in self.hitlist:
-            profile.hide()
+            hide(profile)
         
         # disconnect from sources (this gate's inputs)
         for source in self.sources:
@@ -311,7 +317,7 @@ class Gate:
                 if self in source.targets:
                     # Profile already exists, just add the index
                     loc: int = source.targets[self]
-                    source.hitlist[loc].add(index)
+                    add(source.hitlist[loc], index)
                 else:
                     # Create new profile
                     source.hitlist.append(Profile(source, self, index, source.output))  # type: ignore
@@ -321,7 +327,7 @@ class Gate:
         
         # reconnect to targets (this gate's outputs)
         for profile in self.hitlist:
-            profile.reveal()
+            reveal(profile)
         
         self.propagate()
 
@@ -446,7 +452,7 @@ class Variable(Gate):
     def hide(self):
         # disconnect from target
         for hits in self.hitlist:
-            hits.hide()
+            hide(hits)
 
         for target in self.targets.keys():
             if target != self:
@@ -456,7 +462,7 @@ class Variable(Gate):
     def reveal(self):
         # connect to targets
         for profile in self.hitlist:
-            profile.reveal()
+            reveal(profile)
 
         self.propagate()
 
