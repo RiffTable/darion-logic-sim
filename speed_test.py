@@ -600,7 +600,7 @@ class ComprehensiveTestSuite:
         
         c.reset()
         
-        self.assert_test(Const.MODE == Const.DESIGN, "Mode is DESIGN after reset")
+        self.assert_test(Const.get_MODE() == Const.DESIGN, "Mode is DESIGN after reset")
         self.assert_test(g.output == Const.UNKNOWN, "Output is UNKNOWN after reset")
 
     # =========================================================================
