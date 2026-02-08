@@ -156,6 +156,12 @@ class CompItem(QGraphicsRectItem):
 		pins = [pin for pinlist in list_of_pinlists for pin in pinlist]    # Funniest line ever
 		return pins
 	
+	def removePin(self, edge: CompEdge, index: int):
+		pin = self._pinslist[edge].pop(index)
+		self.updateShape()
+		pin.setParentItem(None)
+		self.cscene.removeItem(pin)
+	
 	def cutConnections(self):
 		for p in self.allPins():
 			p.disconnect()
@@ -234,7 +240,8 @@ class GateItem(CompItem):
 		self.hoverLeaveTimer.timeout.connect(self.peekOff)
 		self.hoverLeaveTimer.setInterval(30)
 
-		self.activeZone: int = 0
+		self.activePins: int = 0
+		self.peeking = False
 
 		# Properties
 		self.breadth: int = self.size[0]
@@ -242,33 +249,23 @@ class GateItem(CompItem):
 
 	# Input feedback
 	def peekOut(self):
-		# Peeks out the "Peeking Pin"
-		if self.activeZone == len(self.inputPins) \
+		# "Peek Out": Peeks out the "Peeking Pin"
+		if self.activePins == len(self.inputPins) \
 		and self.cscene.checkState(EditorState.WIRING):
+			self.peeking = True
 			self.addPin(0, CompEdge.INPUT, InputPinItem)
 			self.updateShape()
 	
 	def peekOff(self):
-		# Removes the "Peeking Pin" if it has been created
 		# print("Hover Exit")
-		if self.activeZone < len(self.inputPins) \
-		and len(self.inputPins) > 2 \
-		and self.cscene.checkState(EditorState.WIRING):
-			peekingPin = self.inputPins.pop()
-			self.cscene.removePin(peekingPin)
+		# "Peek Off": Removes the "Peeking Pin" if it has been created
+		if self.peeking:
+			self.peeking = False
+			self.cscene.removePin(CompEdge.INPUT, self.activePins)
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if isinstance(pin, InputPinItem):
-			self.activeZone += activePinCountChange
-			if activePinCountChange < 0:
-				# Bubble disconnection (rearrangement)
-				emptyPin = self.inputPins.pop(self.inputPins.index(pin))
-				
-				if len(self.inputPins) < 2:
-					self.inputPins.append(emptyPin)
-					self.updateShape()
-				else:
-					self.cscene.removePin(emptyPin)
+			self.activePins += activePinCountChange
 
 	# Events
 	def updateShape(self):
@@ -279,6 +276,7 @@ class GateItem(CompItem):
 	
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
 		self._hover_count += (+1 if hoverStatus else -1)
+		print(self._hover_count)
 
 		if self._hover_count == 1 and hoverStatus:
 			if not self.hoverLeaveTimer.isActive():
@@ -291,8 +289,8 @@ class GateItem(CompItem):
 			self.hoverLeaveTimer.start()
 		
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
-		if self.activeZone < len(self.inputPins):
-			pin = self.inputPins[self.activeZone]
+		if self.activePins < len(self.inputPins):
+			pin = self.inputPins[self.activePins]
 			pin.proxyHighlight = True if (hoverStatus and (hoveredPin == None)) else False
 			pin.highlight(False)
 	
@@ -713,12 +711,6 @@ class CircuitScene(QGraphicsScene):
 		self.removeItem(comp)
 		# run_logic()
 	
-	def removePin(self, pin: PinItem):
-		"""Remove pin from its parent CompItem's pin list first"""
-		pin.parentComp.updateShape()
-		pin.setParentItem(None)
-		self.removeItem(pin)
-	
 	# Wires	Management
 	def finishWiring(self, target: QGraphicsItem):
 		wire = self.ghostWire
@@ -731,15 +723,15 @@ class CircuitScene(QGraphicsScene):
 				gate = target.parentComp
 				pinslist = gate.inputPins
 				index = pinslist.index(target)
-				if index < gate.activeZone:
+				if index < gate.activePins:
 					# Bubble Gate Connection
-					activePin = pinslist.pop(gate.activeZone)
+					activePin = pinslist.pop(gate.activePins)
 					pinslist.insert(index, activePin)
 					gate.updateShape()
 					targetPin = activePin
 				else:
 					# Connect at activezone
-					targetPin = gate.inputPins[gate.activeZone]
+					targetPin = gate.inputPins[gate.activePins]
 				
 				finishing = True
 			
@@ -749,7 +741,7 @@ class CircuitScene(QGraphicsScene):
 
 		elif isinstance(target, GateItem):
 			# Default Gate Connection (via proxy)
-			activePin = target.inputPins[target.activeZone]
+			activePin = target.inputPins[target.activePins]
 			activePin.highlight(False)
 			targetPin = activePin
 			finishing = True
