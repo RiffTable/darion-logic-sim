@@ -336,14 +336,10 @@ cdef class Gate:
             i+=1
         
         # recalculate targets
-        i=0
-        n=len(self.targets)
-        while i<n:
-            target=<Gate>self.targets[i]
+        for target in self.targets.keys():
             if target != self:
                 target.process()
                 target.propagate()
-            i+=1
 
         self.prev_output = Const.UNKNOWN
         self.output = Const.UNKNOWN
@@ -367,7 +363,7 @@ cdef class Gate:
                     # Create new profile
                     source.hitlist.append(Profile(source, self, i, source.output))
                     source.targets[self] = len(source.hitlist) - 1
-        
+            i+=1
         self.process()
         
         # reconnect to targets (this gate's outputs)
