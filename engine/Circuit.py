@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Variable, Nothing, update
+from Gates import Gate, Variable, Nothing, update,run
 from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
 from Store import Components
@@ -359,17 +359,7 @@ class Circuit:
         if get_MODE() != DESIGN:
             self.reset()
         set_MODE(Mode)
-        for i in self.varlist:
-            i.process()
-        for i in self.varlist:
-            for profile in i.hitlist:
-                if profile.target.output==ERROR:
-                    update(profile)
-                    profile.target.sync()
-                    profile.target.process()
-                    profile.target.propagate()
-                elif update(profile):
-                    profile.target.propagate()
+        run(self.varlist)
 
 
     def reset(self):
