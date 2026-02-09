@@ -12,7 +12,8 @@ from editor.styles import Color, Font
 
 # Grid size and snapping
 class GRID:
-	SIZE = 24
+	SIZE = 12
+	DSIZE = 2*SIZE
 
 	@staticmethod
 	def snapF(point: QPointF) -> QPointF:
@@ -232,7 +233,7 @@ class CompItem(QGraphicsRectItem):
 ### Gate Item
 class GateItem(CompItem):
 	def __init__(self, pos: QPointF | tuple[float, float]):
-		super().__init__(pos, QPoint(4, 2))
+		super().__init__(pos, QPoint(6, 4))
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
@@ -255,10 +256,7 @@ class GateItem(CompItem):
 		self.proxyPin = self.inputPins[0]
 		self.peekingPin: PinItem = None
 		self.minInput = 2
-		self.maxInput = 5000
-
-		# Properties
-		self.breadth: int = self.size[0]
+		self.maxInput = 69
 
 
 	# Proxying
@@ -295,7 +293,7 @@ class GateItem(CompItem):
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
-		if self.peekingPin and self.activePins < len(self.inputPins):
+		if self.peekingPin and not self.peekingPin.hasWire():
 			self.removePin(CompEdge.INPUT, self.activePins)
 			self.updateShape()
 			self.updateProxyPin(None)
@@ -329,6 +327,7 @@ class GateItem(CompItem):
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
 		if self.proxyPin:
 			pin = self.proxyPin
+			# print(pin.cscene)
 			pin.proxyHighlight = True if (self._hover_count == 1) else False
 			# if pin.proxyHighlight: print(f"lit at pin {self.inputPins.index(pin)}")
 			pin.highlight(self.proxyPin == hoveredPin)
@@ -337,14 +336,18 @@ class GateItem(CompItem):
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
 		n = len(self.inputPins)
-		self.size = (self.breadth, (n//2) * 2)
+		b = 0
+		if   n < 5:  b = 6
+		elif n < 10: b = 8
+		else:        b = 10
+		g = 2*(n-1) if n > 3 else 4
+		m = g/(n-1)
+		self.size = (b, g)
 
-		i = y = 0
-		while i < n//2:  self.setPinPos(self.inputPins[i], y); i += 1; y += 1
-		if n%2 == 0: y += 1
-		while i < n:     self.setPinPos(self.inputPins[i], y); i += 1; y += 1
+		for i, p in enumerate(self.inputPins):
+			self.setPinPos(p, m*i)
 		
-		self.setPinPos(self.outputPin, n//2)
+		self.setPinPos(self.outputPin, g/2)
 		super()._updateShape()
 
 
@@ -352,7 +355,7 @@ class GateItem(CompItem):
 ### Gate Item
 class UnaryGateItem(CompItem):
 	def __init__(self, pos: QPointF | tuple[float, float]):
-		super().__init__(pos, QPoint(3, 0), QPointF(0, 16))
+		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
@@ -361,12 +364,11 @@ class UnaryGateItem(CompItem):
 		self.labelItem.setPos(5, -10)
 
 		# Pins
-		self.inputPin: InputPinItem   = self.addPin(0, CompEdge.INPUT, InputPinItem)
-		self.outputPin: OutputPinItem = self.addPin(0, CompEdge.OUTPUT, OutputPinItem)
+		self.inputPin: InputPinItem   = self.addPin(1, CompEdge.INPUT, InputPinItem)
+		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
 		self.setHitbox()
 
 		# Properties
-		self.breadth: int = self.size[0]
 		self.minInput = 1
 		self.maxInput = 1
 
@@ -374,16 +376,16 @@ class UnaryGateItem(CompItem):
 
 class InputItem(CompItem):
 	def __init__(self, pos: QPointF | tuple[float, float]):
-		super().__init__(pos, QPoint(3, 0), QPointF(0, 16))
+		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
 		self.labelText = "IN"
 		self.labelItem.setPlainText(self.labelText)
-		self.labelItem.setPos(5, -10)
+		self.labelItem.setPos(5, -5)
 		
 		# Pins
-		self.outputPin: OutputPinItem = self.addPin(0, CompEdge.OUTPUT, OutputPinItem)
+		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
 		self.setHitbox()
 
 		# Properties
@@ -403,7 +405,7 @@ class InputItem(CompItem):
 
 class OutputItem(CompItem):
 	def __init__(self, pos: QPointF | tuple[float, float]):
-		super().__init__(pos, QPoint(3, 0), QPointF(0, 16))
+		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
@@ -412,7 +414,7 @@ class OutputItem(CompItem):
 		self.labelItem.setPos(5, -10)
 		
 		# Pins
-		self.inputPin: InputPinItem = self.addPin(0, CompEdge.INPUT, InputPinItem)
+		self.inputPin: InputPinItem = self.addPin(1, CompEdge.INPUT, InputPinItem)
 		self.setHitbox()
 
 		# Properties
@@ -431,8 +433,8 @@ class OutputItem(CompItem):
 class PinItem(QGraphicsRectItem):
 	def __init__(self, parentComp: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(
-			-GRID.SIZE/2, -GRID.SIZE/2,
-			GRID.SIZE, GRID.SIZE,
+			-GRID.SIZE, -GRID.SIZE,
+			GRID.DSIZE, GRID.DSIZE,
 			parentComp
 		)
 		self.setFlags(
