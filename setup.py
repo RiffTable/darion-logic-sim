@@ -4,6 +4,8 @@ import glob
 from setuptools import setup, Extension
 from Cython.Build import cythonize
 
+import sysconfig
+
 # --- CONFIGURATION ---
 source_dir = "engine"
 source_files = glob.glob(os.path.join(source_dir, "*.pyx"))
@@ -18,7 +20,10 @@ for source in source_files:
     # Determine settings
     if "Gates" in module_name:
         language = "c++"
-        link_args = ["-static"] # Bundle C++ DLLs
+        if sys.platform == "win32":
+            link_args = ["-static"] # Bundle C++ DLLs
+        else:
+            link_args = []
     else:
         # Const.pyx and test.pyx can be C or C++
         language = "c"
@@ -41,7 +46,10 @@ setup(
 
 # --- BULK RENAME & CLEANUP ---
 print("\n--- Cleaning up ---")
-ext_suffix = ".pyd" if sys.platform == "win32" else ".so"
+# Get the extension suffix used by the build system
+generated_suffix = sysconfig.get_config_var("EXT_SUFFIX") or (".pyd" if sys.platform == "win32" else ".so")
+# Define the target short suffix
+target_suffix = ".pyd" if sys.platform == "win32" else ".so"
 target_folder = "engine"
 
 # Ensure target directory exists
@@ -49,13 +57,13 @@ if not os.path.exists(target_folder):
     os.makedirs(target_folder)
 
 # Move the built files into engine/
-for file in glob.glob(f"*{ext_suffix}"):
+for file in glob.glob(f"*{generated_suffix}"):
     basename = os.path.basename(file)
     name_parts = basename.split(".")
     
     if len(name_parts) >= 2:
-        # Construct simple name: Gates.pyd
-        clean_name = f"{name_parts[0]}{ext_suffix}"
+        # Construct simple name: Gates.pyd / Gates.so
+        clean_name = f"{name_parts[0]}{target_suffix}"
         dest = os.path.join(target_folder, clean_name)
         
         if os.path.exists(dest):

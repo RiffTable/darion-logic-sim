@@ -238,3 +238,51 @@ Initial RAM: 34.41 MB
   TOTAL: 2399/2399 tests (100.0%)
   [SUCCESS] ALL TESTS PASSED
 ======================================================================
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:31:56
+======================================================================
+DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+System: Linux 6.18.9-2-cachyos | Python 3.14.2
+Initial RAM: 24.59 MB
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1027      42 ms    +0.7 MB     PASS
+  CIRCUIT STRESS             11     301 ms    +2.4 MB     PASS
+  EVENT MANAGER            1300       9 ms      ~0 MB     PASS
+  IC TESTS                   34      16 ms      ~0 MB     PASS
+  SERIALIZATION               5      42 ms    +0.2 MB     PASS
+  TRUTH TABLE                10      13 ms      ~0 MB     PASS
+  SPEED BENCHMARKS           12   43436 ms  +561.5 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        95.34 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   355.03 ms
+  Throughput:       4.88 M gates/sec
+  Memory/Gate:      398.0 B/gate
+
+  Key Benchmarks:
+    Marathon (100K chain):     94.5 ns/gate
+    Avalanche (262K tree):     4.95 M gates/sec
+    Gridlock (200x200 mesh):   10.72 ms
+    Echo Chamber (10K latch):  6.43 ms
+    Black Hole (100K inputs):  5.2 us
+    Paradox (XOR loop):        11.8 us
+    Rapid Toggle (100K):       942 K/sec
+    Connect/Disconnect (50K):  831 K/sec
+    Mixed Gates (10K):         518 K/sec
+    Mega Chain (1M):           83.4 ns/gate
+    Extreme Fanout (50K):      6.40 ms
+
+======================================================================
+  TOTAL: 2399/2399 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================

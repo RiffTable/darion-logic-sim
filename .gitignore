@@ -10,3 +10,4 @@ temp.json/
 build/
 engine/*.pyd
 *.json
+engine/*.so
