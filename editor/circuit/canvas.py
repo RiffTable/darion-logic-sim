@@ -61,8 +61,8 @@ class CompItem(QGraphicsRectItem):
 		self.setFlags(
 			QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
 			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges |
-			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
+			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+			# QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self._cached_hitbox = QPainterPath()
 		self._cached_hitbox.addRect(self.rect())
@@ -281,6 +281,11 @@ class GateItem(CompItem):
 		... # FUCK
 
 	# Input feedback
+	# All events regarding "pin peeking":
+	# 1. Peek Out (betterHoverEnter)
+	# 2. Peek Off (betterHoverLeave)
+	# 3. Default/Proxy Connection
+
 	def betterHoverEnter(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.activePins == len(self.inputPins) \
@@ -392,9 +397,11 @@ class InputItem(CompItem):
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		if event.button() == Qt.MouseButton.LeftButton:
-			self.state = not self.state
-			self.updateVisual()
-		return super().mouseReleaseEvent(event)
+			delta = event.scenePos() - event.buttonDownScenePos(Qt.MouseButton.LeftButton)
+			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
+				self.state = not self.state
+				self.updateVisual()
+			return super().mouseReleaseEvent(event)
 	
 	def updateVisual(self):
 		self.setPen(QPen(Color.outline, 2))
@@ -758,7 +765,6 @@ class CircuitScene(QGraphicsScene):
 		finishing = False
 
 		# Wiring: Finish!
-		if isinstance(target, LabelItem): target = target.parentItem()
 		if isinstance(target, CompItem) and hasattr(target, "proxyPin"):
 			# Proxying: Wire is connected to the gate's *favorite* pin
 			target = target.proxyPin
@@ -824,10 +830,20 @@ class CircuitScene(QGraphicsScene):
 		return super().mousePressEvent(event)
 
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-		if self.checkState(EditorState.WIRING) and event.button() == Qt.MouseButton.LeftButton:
-			target = self.itemAt(event.scenePos(), QTransform())
-			
-			self.finishWiring(target)
+		# This event only takes place after the CircuitView handles its!
+		# RMB drag has been handled
+		btn = event.button()
+		target = self.itemAt(event.scenePos(), QTransform())
+		if isinstance(target, LabelItem): target = target.parentItem()
+
+		if self.checkState(EditorState.WIRING):
+			# Wiring: Finish?
+			if btn == Qt.MouseButton.LeftButton:
+				self.finishWiring(target)
+
+			# Wiring: Skip!
+			if btn == Qt.MouseButton.RightButton:   # RMB click
+				self.skipWiring()
 		
 		super().mouseReleaseEvent(event)
 
