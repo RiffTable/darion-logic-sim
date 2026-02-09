@@ -1,23 +1,44 @@
 ### Circuit Design
 
-**1. View Panning**
-- 🖱️ `RMB` Drag / `MMB` Drag
-- ⌨️ `↑` / `→` / `↓` / `←`
-- 🖐️ Touchpad Two-finger Swipe
+- **View Panning**
+	- 🖱️ `RMB` Drag / `MMB` Drag
+	- ⌨️ `↑` / `→` / `↓` / `←`
+	- 🖐️ Touchpad Two-finger Swipe
 
-**2. Zooming**
-- 🖱️ Mouse Scroll  (Can be inverted)
-- ⌨️ `Ctrl` `+` / `Ctrl` `-`
-- 🖐️ Touchpad Two-finger pinch
+- **Zooming**
+	- 🖱️ Mouse Scroll  (Can be inverted)
+	- ⌨️ `Ctrl` `+` / `Ctrl` `-`
+	- 🖐️ Touchpad Two-finger pinch
 
-**3. Rotate Component**
-- ⌨️ `Ctrl` `↑` / `→` / `↓` / `←`
-- ⌨️ `R`  (clockwise)
-- ⌨️ `Shift` `R`  (counter-clockwise)
+- **Delete Wire/Component**
+	- ⌨️ `Del` / `Backspace` / `X`
 
-**4. Delete Wire/Component**
-- ⌨️ `Del` / `Backspace` / `X`
+- **Rotate Component**
+	- ⌨️ `Ctrl` `↑` / `→` / `↓` / `←`
+	- ⌨️ `R`  (clockwise)
+	- ⌨️ `Shift` `R`  (counter-clockwise)
 
+- **Increase No. of Input**: `+`
+- **Decrease No. of Input**: `-`
+
+
+### Circuit Design
+
+- **Toggle Input State**
+	- 🖱️ `LMB`
+	- ⌨️ `Space`
+
+### Wiring
+
+- **Skip Wiring**
+	- 🖱️ `RMB`
+	- ⌨️ `Escape`
+
+- **Finish Wiring**
+	- 🖱️ `LMB` on Input Pin
+	- 🖱️ `LMB` on an already wired Input Pin (Swap Connection)
+	- 🖱️ `LMB` on Gate (Proxy Connection)
+	- 🖱️ `Shift` `LMB` (Multi-wiring: keep wiring with the same wire)
 
 
 ### Selection
@@ -26,7 +47,7 @@
 - **Copy Selection**:  `Ctrl` `C`
 - **Cut Selected**:  `Ctrl` `X`
 - **Paste**:  `Ctrl` `V`
-	
+
 
 ### Project Management
 

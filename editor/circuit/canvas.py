@@ -350,7 +350,7 @@ class GateItem(CompItem):
 		proxy = self.proxyPin()
 		if proxy:
 			proxy.proxyHighlight = True if (self._hover_count == 1) else False
-			proxy.highlight(proxy == hoveredPin)
+			proxy.highlight(proxy is hoveredPin)
 	
 
 	def _updateShape(self):
@@ -491,7 +491,7 @@ class PinItem(QGraphicsRectItem):
 	# Wire configuration
 	def setWire(self, wire: WireItem):
 		"""Doesn't remove its reference from its wire. Use disconnect() then"""
-		if self._wire == wire: return
+		if self._wire is wire: return
 
 		apcc = (1 if wire else 0) - (1 if self._wire else 0)
 		self._wire = wire
@@ -774,7 +774,7 @@ class CircuitScene(QGraphicsScene):
 		# run_logic()
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem):
+	def finishWiring(self, target: QGraphicsItem, modifiers: Qt.KeyboardModifier):
 		g_wire = self.ghostWire
 		g_pin = self.ghostPin
 		finishing = False
@@ -783,10 +783,11 @@ class CircuitScene(QGraphicsScene):
 		if isinstance(target, CompItem) and hasattr(target, "proxyPin"):
 			# Proxying: Wire is connected to the gate's *favorite* pin
 			target = target.proxyPin()
-			if target == None: return
+			if target is None: return
 		
 		if isinstance(target, InputPinItem):
 			if target.hasWire():
+				# Swap Connections
 				t_wire = target.getWire()
 				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
 				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
@@ -801,7 +802,11 @@ class CircuitScene(QGraphicsScene):
 				finishing = True
 		
 		if finishing:
-			g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
+			if not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
+				self.setState(EditorState.NORMAL)
+				self.ghostWire = None
+			
 			g_wire.supplies.append(target); target.setWire(g_wire)
 			g_wire.updateShape()
 			target.highlight(False)
@@ -810,9 +815,6 @@ class CircuitScene(QGraphicsScene):
 			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 			# self.clearSelection()
 			# wire.setSelected(True)  # Solo select the finished wire
-			
-			self.setState(EditorState.NORMAL)
-			self.ghostWire = None
 			# self.run_logic()
 
 	def removeWire(self, wire: WireItem):
@@ -855,7 +857,7 @@ class CircuitScene(QGraphicsScene):
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
 			if btn == Qt.MouseButton.LeftButton:
-				self.finishWiring(target)
+				self.finishWiring(target, event.modifiers())
 
 			# Wiring: Skip!
 			if btn == Qt.MouseButton.RightButton:   # RMB click
