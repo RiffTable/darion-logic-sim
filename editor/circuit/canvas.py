@@ -252,7 +252,7 @@ class GateItem(CompItem):
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
-		self.proxyIndex = 0
+		self.proxyIndex = 0    # Always the first unconnected pin or the peeking pin
 		self.peekingPin: PinItem = None
 		self.minInput = 2
 		self.maxInput = 69
@@ -265,7 +265,30 @@ class GateItem(CompItem):
 		else: return None
 	
 	def setInputCount(self, size: int) -> bool:
-		... # FUCK
+		if size > self.maxInput or size < self.minInput:
+			return False
+		n = len(self.inputPins)
+		if size >= n:
+			for _ in range(size-n):
+				self.addPin(0, CompEdge.INPUT, InputPinItem)
+		else:
+			left = n - size
+
+			for i in range(n-1, -1, -1):
+				if left == 0: break
+				pin = self.inputPins[i]
+
+				# Only attempt to delete if not connected to a wire
+				if not pin.hasWire():
+					self.removePin(CompEdge.INPUT, i)
+					left -= 1
+
+					# Check the special "Proxy" constraint
+					if i <= self.proxyIndex:
+						self.proxyIndex = size + left
+						break
+		self.updateShape()
+		return True
 
 	# Input feedback
 	# All events regarding "pin peeking":
@@ -310,6 +333,9 @@ class GateItem(CompItem):
 	
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
 		self._hover_count += (+1 if hoverStatus else -1)
+		# _hover_count = 0:    Not hovering component
+		# _hover_count = 1:    Hovering the component
+		# _hover_count = 2:    Hovering its pins
 		# print(self._hover_count)
 
 		if self._hover_count == 1 and hoverStatus:
@@ -318,15 +344,12 @@ class GateItem(CompItem):
 			self.hoverLeaveTimer.stop()
 		
 		elif self._hover_count == 0 and not hoverStatus:
-			# Hover Exit
 			self.hoverLeaveTimer.start()
 		
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
 		proxy = self.proxyPin()
 		if proxy:
-			# print(pin.cscene)
 			proxy.proxyHighlight = True if (self._hover_count == 1) else False
-			# if pin.proxyHighlight: print(f"lit at pin {self.inputPins.index(pin)}")
 			proxy.highlight(proxy == hoveredPin)
 	
 
@@ -845,7 +868,8 @@ class CircuitScene(QGraphicsScene):
 		return super().mouseMoveEvent(event)
 	
 	def keyPressEvent(self, event: QKeyEvent):
-		if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_X):
+		key = event.key()
+		if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_X):
 			for item in self.selectedItems():
 				if isinstance(item, WireItem):
 					if item in self.wires: self.removeWire(item)
@@ -857,6 +881,13 @@ class CircuitScene(QGraphicsScene):
 		
 		if self.checkState(EditorState.WIRING) and (event.key() == Qt.Key.Key_Escape):
 			self.skipWiring()
+		
+		if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal, Qt.Key.Key_Minus, Qt.Key.Key_Underscore):
+			for item in self.selectedItems():
+				if isinstance(item, GateItem):
+					is_plus = event.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Equal)
+					new_size = len(item.inputPins) + (1 if is_plus else -1)
+					item.setInputCount(new_size)
 		
 		# if event.key() == Qt.Key.Key_R:
 		# 	for item in self.selectedItems:
