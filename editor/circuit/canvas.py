@@ -252,30 +252,17 @@ class GateItem(CompItem):
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
-		self.activePins: int = 0
-		self.proxyPin = self.inputPins[0]
+		self.proxyIndex = 0
 		self.peekingPin: PinItem = None
 		self.minInput = 2
 		self.maxInput = 69
 
 
 	# Proxying
-	def updateProxyPin(self, pin: PinItem = None):
-		done = False
-		newPin = None
-		if pin and not pin.hasWire:
-			newPin = pin; done = True
-		elif self.activePins == len(self.inputPins): return
-		else:
-			for p in self.inputPins:
-				if not p.hasWire():
-					newPin = p; done = True
-		
-		if done and self.proxyPin != newPin:
-			self.proxyPin.proxyHighlight = False
-			self.proxyPin.highlight(False)
-			self.proxyPin = newPin
-			print(f"Proxy now at {self.inputPins.index(p)}")
+	def proxyPin(self):
+		if self.proxyIndex < len(self.inputPins):
+			return self.inputPins[self.proxyIndex]
+		else: return None
 	
 	def setInputCount(self, size: int) -> bool:
 		... # FUCK
@@ -288,26 +275,31 @@ class GateItem(CompItem):
 
 	def betterHoverEnter(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
-		if self.activePins == len(self.inputPins) \
+		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
-		and not self.peekingPin \
-		and self.cscene.checkState(EditorState.WIRING) :
+		and self.cscene.checkState(EditorState.WIRING):
 			self.peekingPin = self.addPin(0, CompEdge.INPUT, InputPinItem)
-			self.updateProxyPin(self.peekingPin)
 			self.updateShape()
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
 		if self.peekingPin and not self.peekingPin.hasWire():
-			self.removePin(CompEdge.INPUT, self.activePins)
+			self.removePin(CompEdge.INPUT, self.proxyIndex)
 			self.updateShape()
-			self.updateProxyPin(None)
 		self.peekingPin = None
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
-		if isinstance(pin, InputPinItem):
-			self.activePins += activePinCountChange
-			self.updateProxyPin()
+		if (activePinCountChange == +1) and pin is self.proxyPin():
+			for i, p in enumerate(self.inputPins):
+				if not p.hasWire():
+					self.proxyIndex = i
+					break
+			else:
+				self.proxyIndex = len(self.inputPins)
+		
+		if (activePinCountChange == -1) and pin in self.inputPins:
+			index = self.inputPins.index(pin)
+			self.proxyIndex = min(self.proxyIndex, index)
 
 	# Events
 	def updateShape(self):
@@ -330,12 +322,12 @@ class GateItem(CompItem):
 			self.hoverLeaveTimer.start()
 		
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
-		if self.proxyPin:
-			pin = self.proxyPin
+		proxy = self.proxyPin()
+		if proxy:
 			# print(pin.cscene)
-			pin.proxyHighlight = True if (self._hover_count == 1) else False
+			proxy.proxyHighlight = True if (self._hover_count == 1) else False
 			# if pin.proxyHighlight: print(f"lit at pin {self.inputPins.index(pin)}")
-			pin.highlight(self.proxyPin == hoveredPin)
+			proxy.highlight(proxy == hoveredPin)
 	
 
 	def _updateShape(self):
@@ -366,7 +358,7 @@ class UnaryGateItem(CompItem):
 		self.setAcceptHoverEvents(True)
 		self.labelText = "NOT"
 		self.labelItem.setPlainText(self.labelText)
-		self.labelItem.setPos(5, -10)
+		self.labelItem.setPos(5, -5)
 
 		# Pins
 		self.inputPin: InputPinItem   = self.addPin(1, CompEdge.INPUT, InputPinItem)
@@ -418,7 +410,7 @@ class OutputItem(CompItem):
 		self.setAcceptHoverEvents(True)
 		self.labelText = "OUT"
 		self.labelItem.setPlainText(self.labelText)
-		self.labelItem.setPos(5, -10)
+		self.labelItem.setPos(5, -5)
 		
 		# Pins
 		self.inputPin: InputPinItem = self.addPin(1, CompEdge.INPUT, InputPinItem)
@@ -767,7 +759,8 @@ class CircuitScene(QGraphicsScene):
 		# Wiring: Finish!
 		if isinstance(target, CompItem) and hasattr(target, "proxyPin"):
 			# Proxying: Wire is connected to the gate's *favorite* pin
-			target = target.proxyPin
+			target = target.proxyPin()
+			if target == None: return
 		
 		if isinstance(target, InputPinItem):
 			if target.hasWire():
