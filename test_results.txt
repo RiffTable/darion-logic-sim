@@ -1,39 +1,39 @@
 DARION LOGIC SIM - AGGRESSIVE TEST SUITE
 System: Windows 11 | Python 3.13.12
-Initial RAM: 32.73 MB
+Initial RAM: 32.84 MB
 
 ======================================================================
   SECTION RESULTS
 ======================================================================
   Section                 Tests       Time     Memory   Status
   -------------------- -------- ---------- ---------- --------
-  UNIT TESTS               1024       6 ms    +1.1 MB     PASS
-  CIRCUIT STRESS             11      10 ms    +3.6 MB     PASS
+  UNIT TESTS               1024       6 ms    +1.0 MB     PASS
+  CIRCUIT STRESS             11       9 ms    +3.6 MB     PASS
   EVENT MANAGER            1300       2 ms      ~0 MB     PASS
-  IC TESTS                    2     666 us      ~0 MB     PASS
-  SERIALIZATION               2      14 ms    +0.4 MB     PASS
-  TRUTH TABLE                10       3 ms    +0.2 MB     PASS
-  SPEED BENCHMARKS           10   11504 ms    +8.5 MB     PASS
+  IC TESTS                    2     620 us      ~0 MB     PASS
+  SERIALIZATION               2      13 ms    +0.6 MB     PASS
+  TRUTH TABLE                10       3 ms    +0.1 MB     PASS
+  SPEED BENCHMARKS           10   11452 ms    +9.5 MB     PASS
 
 ======================================================================
   PERFORMANCE SUMMARY
 ======================================================================
-  RAM Usage:        46.47 MB
+  RAM Usage:        47.70 MB
   Gates Processed:  1,738,572
-  Benchmark Time:   140.99 ms
-  Throughput:       12.33 M gates/sec
+  Benchmark Time:   139.21 ms
+  Throughput:       12.49 M gates/sec
   Memory/Gate:      465.2 B/gate
 
   Key Benchmarks:
-    Marathon (200K chain):     22.8 ns/gate
-    Avalanche (1M+ tree):      17.73 M gates/sec
-    Gridlock (90K mesh):       10.15 ms
-    Echo Chamber (20K latch):  2.55 ms
-    Black Hole (200K inputs):  1.8 us
-    Paradox (XOR loop):        4.4 us
-    Rapid Toggle (100K):       3199 K/sec
-    Connect/Disconnect (50K):  1816 K/sec
-    Mixed Gates (10K):         1730 K/sec
+    Marathon (200K chain):     21.0 ns/gate
+    Avalanche (1M+ tree):      18.05 M gates/sec
+    Gridlock (90K mesh):       10.02 ms
+    Echo Chamber (20K latch):  2.48 ms
+    Black Hole (200K inputs):  1.9 us
+    Paradox (XOR loop):        4.3 us
+    Rapid Toggle (100K):       3160 K/sec
+    Connect/Disconnect (50K):  1820 K/sec
+    Mixed Gates (10K):         1890 K/sec
 
 ======================================================================
   TOTAL: 2359/2359 tests (100.0%)

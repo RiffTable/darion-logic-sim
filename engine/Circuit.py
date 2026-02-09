@@ -2,7 +2,7 @@ import json
 from Gates import Gate, Variable, Nothing, update,run,table
 from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
-from Store import Components
+from Store import get
 
 
 class Circuit:
@@ -28,7 +28,7 @@ class Circuit:
 
     # creates and adds a new component to the circuit
     def getcomponent(self, choice) -> Gate | IC:
-        gt = Components.get(choice)
+        gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)

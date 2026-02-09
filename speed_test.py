@@ -38,7 +38,7 @@ try:
     from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
     from Gates import InputPin, OutputPin
     from IC import IC
-    from Store import Components
+    from Store import get
 except ImportError as e:
     print(f"FATAL ERROR: Could not import engine modules: {e}")
     print("Ensure you have built the project (build.bat/sh) and are running this from the root.")

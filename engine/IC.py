@@ -24,8 +24,8 @@ class IC:
 
     # helps created parts inside the IC
     def getcomponent(self, choice):
-        from Store import Components
-        gt = Components.get(choice)
+        from Store import get
+        gt = get(choice)
         if gt:
             if isinstance(gt, InputPin):
                 rank = len(self.inputs)
