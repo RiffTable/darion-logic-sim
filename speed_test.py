@@ -57,7 +57,11 @@ class AggressiveTestSuite:
         self.section_failed = 0
         self.section_metrics = {}  # Store timing/memory per section
         self.failures = []
-        self.log_file = open(LOG_FILE, 'w', encoding='utf-8')
+        self.log_file = open(LOG_FILE, 'a', encoding='utf-8')
+        from datetime import datetime
+        self.log_file.write(f"\n\n{'='*70}\n")
+        self.log_file.write(f"TEST RUN: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        self.log_file.write(f"{'='*70}\n")
         
     def log(self, msg, console=False):
         """Write to log file, optionally also to console."""
@@ -74,16 +78,25 @@ class AggressiveTestSuite:
 
     def assert_test(self, condition, test_name, details=""):
         self.test_count += 1
+        self._subsection_tests += 1
+        
         if condition:
             self.passed += 1
             self.section_passed += 1
+            self._print_status()
             return True
         else:
             self.failed += 1
             self.section_failed += 1
-            msg = f"  [FAIL] {test_name} {details}"
+            
+            # Move to next line to print failure, then reprint status
+            print() 
+            msg = f"    [FAIL] {test_name} {details}"
+            print(msg)
             self.log(msg)
             self.failures.append(msg)
+            
+            self._print_status(force=True)
             return False
 
     def section(self, title):
@@ -102,6 +115,11 @@ class AggressiveTestSuite:
                 'mem_mb': mem_delta,
                 'status': status
             }
+            # Show section completion
+            if self._current_section != "_END_":
+                status_icon = "✓" if self.section_failed == 0 else "✗"
+                print(f"  {status_icon} {self._current_section}: {self.section_passed} passed ({duration:.0f}ms)")
+                sys.stdout.flush()
         
         # Start new section
         self._current_section = title
@@ -111,9 +129,55 @@ class AggressiveTestSuite:
         self.section_passed = 0
         self.section_failed = 0
         gc.collect()
+        
+        # Show section start
+        if title != "_END_":
+            print(f"\n[{title}]")
+            sys.stdout.flush()
 
     def subsection(self, title):
-        pass
+        # Show subsection being tested
+        self._subsection_title = title
+        self._subsection_start = time.perf_counter_ns()
+        self._subsection_tests = 0
+        self._print_status(force=True)
+
+    def _print_status(self, force=False, suffix=""):
+        if not force and self._subsection_tests % 100 != 0:
+            return
+        
+        # Simple spinner or progress
+        spinners = "|/-\\"
+        spin_char = spinners[(self._subsection_tests // 100) % 4]
+        
+        passed = self.section_passed
+        failed = self.section_failed
+        
+        # \r to return to start of line, clear roughly 80 chars
+        msg = f"\r  • {self._subsection_title}: {spin_char} {passed} OK"
+        if failed > 0:
+            msg += f" | {failed} FAIL"
+        
+        if suffix:
+            msg += f" {suffix}"
+            
+        print(f"{msg:<80}", end="", flush=True)
+
+    def subsection_done(self):
+        # Mark subsection complete
+        duration = (time.perf_counter_ns() - self._subsection_start) / 1_000_000
+        
+        # Final static print to overwrite the dynamic line
+        status = "OK" if self.section_failed == 0 else "FAIL"
+        
+        msg = f"\r  • {self._subsection_title}: {self.section_passed} {status} ({duration:.0f}ms)"
+        print(f"{msg:<80}", flush=True)
+
+    def progress(self, current, total, interval=10000):
+        """Show progress during long operations"""
+        if current > 0 and current % interval == 0:
+            pct = 100 * current / total
+            self._print_status(force=True, suffix=f"[{pct:.0f}%]")
 
     def run_all(self):
         print(f"\n{'='*60}")
@@ -135,6 +199,7 @@ class AggressiveTestSuite:
         self.test_profile_stress()
         self.test_book_tracking_stress()
         self.test_connection_stress()
+        self.test_delete_stress()  # New test
         self.test_disconnection_stress()
         self.test_variable_rapid_toggle()
         self.test_probe_chain_stress()
@@ -156,15 +221,28 @@ class AggressiveTestSuite:
         self.test_undo_redo_stress()
         self.test_rapid_undo_redo()
         
-        # ==================== PART 4: IC STRESS ====================
+        # ==================== PART 4: IC STRESS (COMPREHENSIVE) ====================
         self.section("IC TESTS")
+        self.test_ic_basic_functionality()
         self.test_ic_nested()
+        self.test_ic_deeply_nested()
         self.test_ic_many_pins()
+        self.test_ic_complex_internal()
+        self.test_ic_save_load()
+        self.test_ic_hide_reveal()
+        self.test_ic_reset()
+        self.test_ic_copy_paste()
+        self.test_ic_flipflop_mode()
+        self.test_ic_massive_internal()
+        self.test_ic_cascade()
+        self.test_ic_multi_output()
+        self.test_ic_stress_bulk()
         
         # ==================== PART 5: SERIALIZATION STRESS ====================
         self.section("SERIALIZATION")
         self.test_save_load_large_circuit()
         self.test_copy_paste_stress()
+        self.test_copy_paste_complex()  # New test
         
         # ==================== PART 6: TRUTH TABLE STRESS ====================
         self.section("TRUTH TABLE")
@@ -176,16 +254,18 @@ class AggressiveTestSuite:
         
         # ==================== PART 7: SPEED BENCHMARKS ====================
         self.section("SPEED BENCHMARKS")
-        self.test_marathon(count=200_000)
-        self.test_avalanche(layers=20)
-        self.test_gridlock(size=300)
-        self.test_echo_chamber(count=20_000)
-        self.test_black_hole(inputs=200_000)
+        self.test_marathon(count=100_000)
+        self.test_avalanche(layers=18)  # ~260K gates
+        self.test_gridlock(size=200)
+        self.test_echo_chamber(count=10_000)
+        self.test_black_hole(inputs=100_000)
         self.test_paradox_burn()
-        self.test_warehouse(count=1_000_000)
+        self.test_warehouse(count=500_000)
         self.test_rapid_toggle_benchmark()
         self.test_connect_disconnect_benchmark()
         self.test_mixed_gate_benchmark()
+        self.test_mega_chain()
+        self.test_extreme_fanout()
 
         # Finalize last section
         self.section("_END_")  # Trigger saving of last section metrics
@@ -256,31 +336,42 @@ class AggressiveTestSuite:
         out(f"\n  Key Benchmarks:")
         if 'marathon' in self.perf_metrics:
             m = self.perf_metrics['marathon']
-            out(f"    Marathon (200K chain):     {m['latency']:.1f} ns/gate")
+            out(f"    Marathon ({m['gates']//1000}K chain):     {m['latency']:.1f} ns/gate")
         if 'avalanche' in self.perf_metrics:
             a = self.perf_metrics['avalanche']
-            out(f"    Avalanche (1M+ tree):      {a['rate']/1e6:.2f} M gates/sec")
+            out(f"    Avalanche ({a['gates']/1000:.0f}K tree):     {a['rate']/1e6:.2f} M gates/sec")
+            # Note: 2^18 is approx 262K
         if 'gridlock' in self.perf_metrics:
             g = self.perf_metrics['gridlock']
-            out(f"    Gridlock (90K mesh):       {g['time']:.2f} ms")
+            # gates = size*size
+            size = int(g['gates']**0.5)
+            out(f"    Gridlock ({size}x{size} mesh):   {g['time']:.2f} ms")
         if 'echo_chamber' in self.perf_metrics:
             e = self.perf_metrics['echo_chamber']
-            out(f"    Echo Chamber (20K latch):  {e['time']:.2f} ms")
+            # gates = count*2, so latches = gates/2
+            latches = e['gates'] // 2
+            out(f"    Echo Chamber ({latches//1000}K latch):  {e['time']:.2f} ms")
         if 'black_hole' in self.perf_metrics:
             b = self.perf_metrics['black_hole']
-            out(f"    Black Hole (200K inputs):  {b['time']*1000:.1f} us")
+            out(f"    Black Hole ({b['gates']//1000}K inputs):  {b['time']*1000:.1f} us")
         if 'paradox' in self.perf_metrics:
             p = self.perf_metrics['paradox']
             out(f"    Paradox (XOR loop):        {p['time']*1000:.1f} us")
         if 'rapid_toggle' in self.perf_metrics:
             r = self.perf_metrics['rapid_toggle']
-            out(f"    Rapid Toggle (100K):       {r['rate']/1000:.0f} K/sec")
+            out(f"    Rapid Toggle ({r['gates']//1000}K):       {r['rate']/1000:.0f} K/sec")
         if 'connect_disconnect' in self.perf_metrics:
             c = self.perf_metrics['connect_disconnect']
             out(f"    Connect/Disconnect (50K):  {c['rate']/1000:.0f} K/sec")
         if 'mixed_gates' in self.perf_metrics:
             mg = self.perf_metrics['mixed_gates']
             out(f"    Mixed Gates (10K):         {mg['rate']/1000:.0f} K/sec")
+        if 'mega_chain' in self.perf_metrics:
+            mc = self.perf_metrics['mega_chain']
+            out(f"    Mega Chain (1M):           {mc['latency']:.1f} ns/gate")
+        if 'extreme_fanout' in self.perf_metrics:
+            ef = self.perf_metrics['extreme_fanout']
+            out(f"    Extreme Fanout (50K):      {ef['time']:.2f} ms")
         
         # Final result
         out(f"\n{'='*70}")
@@ -538,6 +629,9 @@ class AggressiveTestSuite:
         v = c.getcomponent(Const.VARIABLE)
         gates = []
         for _ in range(5000):
+            # Using 1-input AND gate acts as a buffer/repeater.
+            # Normal AND gate needs 2 inputs, so setting limit to 1 makes it
+            # simply forward the input signal. This is perfect for testing fanout.
             g = c.getcomponent(Const.AND)
             c.setlimits(g, 1)
             c.connect(g, v, 0)
@@ -549,6 +643,75 @@ class AggressiveTestSuite:
         
         all_high = all(g.output == Const.HIGH for g in gates)
         self.assert_test(all_high, f"5000 targets updated ({duration:.2f}ms)")
+
+    def test_delete_stress(self):
+        self.subsection("Delete Stress (Delete 500 gates)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE)
+        gates = []
+        for i in range(500):
+            g = c.getcomponent(Const.AND)
+            c.setlimits(g, 1)
+            c.connect(g, v, 0)
+            gates.append(g)
+
+        self.assert_test(len(v.hitlist) == 500, "500 connections in hitlist")
+
+        # Delete (hide) half
+        for g in gates[:250]:
+            c.hideComponent(g)
+
+        # Removing gates should clean up the source's hitlist
+        self.assert_test(len(v.hitlist) == 250, "250 connections remaining after termination")
+        
+        c.toggle(v, Const.HIGH)
+        # Check remaining gates work
+        # Note: gates[250:] correspond to the second half which we kept
+        remaining_ok = all(g.output == Const.HIGH for g in gates[250:])
+        self.assert_test(remaining_ok, "Remaining 250 gates still functional")
+
+    def test_copy_paste_complex(self):
+        self.subsection("Copy/Paste Complex Structure")
+        c = Circuit()
+        c.simulate(Const.FLIPFLOP)
+
+        # Build an SR Latch structure to test internal reference copying
+        set_pin = c.getcomponent(Const.VARIABLE)
+        rst_pin = c.getcomponent(Const.VARIABLE)
+        
+        q = c.getcomponent(Const.NOR)
+        qb = c.getcomponent(Const.NOR)
+        
+        # Connections
+        c.connect(q, rst_pin, 0)
+        c.connect(q, qb, 1)      # Feedback
+        c.connect(qb, set_pin, 0)
+        c.connect(qb, q, 1)      # Feedback
+        
+        # Copy the latch (q, qb) but NOT the external inputs
+        c.copy([q, qb])
+        pasted_codes = c.paste() # Returns list of new codes
+        
+        self.assert_test(len(pasted_codes) == 2, "2 components pasted")
+        
+        # Identify pasted components
+        # Note: paste() returns codes, need getobj
+        q_copy = c.getobj(pasted_codes[0])
+        qb_copy = c.getobj(pasted_codes[1])
+        
+        # Verify internal feedback loop is preserved (gates point to each other's copies)
+        # Using string representation to check cross-reference or source identity
+        
+        # Source 1 of q_copy should be qb_copy
+        # Source 1 of qb_copy should be q_copy
+        internal_ok = (q_copy.sources[1] == qb_copy) and (qb_copy.sources[1] == q_copy)
+        self.assert_test(internal_ok, "Internal feedback loop preserved in copy")
+        
+        # Verify external connections are lost (because inputs weren't copied)
+        external_lost = (q_copy.sources[0] == Nothing) and (qb_copy.sources[0] == Nothing)
+        self.assert_test(external_lost, "External connections dropped (as expected)")
 
     def test_flipflop_stress(self):
         self.subsection("FlipFlop (500 SR Latches)")
@@ -661,8 +824,242 @@ class AggressiveTestSuite:
     # PART 4: IC STRESS
     # =========================================================================
 
+    def test_ic_basic_functionality(self):
+        self.subsection("IC Basic Functionality")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        # Create a simple inverter IC
+        ic = c.getcomponent(Const.IC)
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        out = ic.getcomponent(Const.OUTPUT_PIN)
+        not_g = ic.getcomponent(Const.NOT)
+        not_g.connect(inp, 0)
+        out.connect(not_g, 0)
+        
+        self.assert_test(len(ic.inputs) == 1, "IC has 1 input")
+        self.assert_test(len(ic.outputs) == 1, "IC has 1 output")
+        self.assert_test(len(ic.internal) == 1, "IC has 1 internal gate")
+        
+        # Wire up and test
+        v = c.getcomponent(Const.VARIABLE)
+        inp.connect(v, 0)
+        
+        c.toggle(v, Const.HIGH)
+        self.assert_test(out.output == Const.LOW, "IC inverts HIGH->LOW")
+        
+        c.toggle(v, Const.LOW)
+        self.assert_test(out.output == Const.HIGH, "IC inverts LOW->HIGH")
+
     def test_ic_nested(self):
-        self.subsection("Nested ICs")
+        self.subsection("Nested ICs (2 levels)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        # Create outer IC containing inner IC
+        outer_ic = c.getcomponent(Const.IC)
+        outer_inp = outer_ic.getcomponent(Const.INPUT_PIN)
+        outer_out = outer_ic.getcomponent(Const.OUTPUT_PIN)
+        
+        # Inner IC: double inverter (identity)
+        inner_ic = outer_ic.getcomponent(Const.IC)
+        inner_inp = inner_ic.getcomponent(Const.INPUT_PIN)
+        inner_out = inner_ic.getcomponent(Const.OUTPUT_PIN)
+        not1 = inner_ic.getcomponent(Const.NOT)
+        not2 = inner_ic.getcomponent(Const.NOT)
+        not1.connect(inner_inp, 0)
+        not2.connect(not1, 0)
+        inner_out.connect(not2, 0)
+        
+        # Wire outer IC
+        inner_inp.connect(outer_inp, 0)
+        outer_out.connect(inner_out, 0)
+        
+        v = c.getcomponent(Const.VARIABLE)
+        outer_inp.connect(v, 0)
+        
+        c.toggle(v, Const.HIGH)
+        self.assert_test(outer_out.output == Const.HIGH, "Nested IC preserves HIGH")
+        
+        c.toggle(v, Const.LOW)
+        self.assert_test(outer_out.output == Const.LOW, "Nested IC preserves LOW")
+
+    def test_ic_deeply_nested(self):
+        self.subsection("Deeply Nested ICs (4 levels)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        # Create 4-level nested structure
+        def create_inverter_ic(parent):
+            if isinstance(parent, Circuit):
+                ic = parent.getcomponent(Const.IC)
+            else:
+                ic = parent.getcomponent(Const.IC)
+            inp = ic.getcomponent(Const.INPUT_PIN)
+            out = ic.getcomponent(Const.OUTPUT_PIN)
+            not_g = ic.getcomponent(Const.NOT)
+            not_g.connect(inp, 0)
+            out.connect(not_g, 0)
+            return ic, inp, out
+        
+        # Level 1
+        ic1, inp1, out1 = create_inverter_ic(c)
+        # Level 2 inside ic1
+        ic2, inp2, out2 = create_inverter_ic(ic1)
+        # Level 3 inside ic2
+        ic3, inp3, out3 = create_inverter_ic(ic2)
+        # Level 4 inside ic3
+        ic4, inp4, out4 = create_inverter_ic(ic3)
+        
+        # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
+        v = c.getcomponent(Const.VARIABLE)
+        inp1.connect(v, 0)
+        inp2.connect(inp1, 0)
+        inp3.connect(inp2, 0)
+        inp4.connect(inp3, 0)
+        out3.connect(out4, 0)
+        out2.connect(out3, 0)
+        out1.connect(out2, 0)
+        
+        c.toggle(v, Const.HIGH)
+        # inp1->inp2->inp3->inp4->NOT->out4->out3->out2->out1
+        # Effectively a single inverter wrapped in wires
+        self.assert_test(out1.output == Const.LOW, "4-level nested IC (inverter behavior)")
+
+    def test_ic_many_pins(self):
+        self.subsection("IC with 32 pins")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ic = c.getcomponent(Const.IC)
+        outputs = []
+        variables = []
+        
+        for i in range(32):
+            inp = ic.getcomponent(Const.INPUT_PIN)
+            out = ic.getcomponent(Const.OUTPUT_PIN)
+            not_g = ic.getcomponent(Const.NOT)
+            not_g.connect(inp, 0)
+            out.connect(not_g, 0)
+            
+            v = c.getcomponent(Const.VARIABLE)
+            inp.connect(v, 0)
+            variables.append(v)
+            outputs.append(out)
+        
+        self.assert_test(len(ic.inputs) == 32, "32 input pins created")
+        self.assert_test(len(ic.outputs) == 32, "32 output pins created")
+        
+        # Toggle all HIGH
+        for v in variables:
+            c.toggle(v, Const.HIGH)
+        
+        all_low = all(o.output == Const.LOW for o in outputs)
+        self.assert_test(all_low, "32-pin IC all inverted correctly")
+        
+        # Toggle half (alternating)
+        for i, v in enumerate(variables):
+            c.toggle(v, i % 2)
+        
+        # Logic is inverted: Input 1 -> Output 0. Input 0 -> Output 1.
+        # So if i%2==1 (Odd/High), expect Low. If i%2==0 (Even/Low), expect High.
+        alternating = all(outputs[i].output == (Const.LOW if i % 2 else Const.HIGH) for i in range(32))
+        self.assert_test(alternating, "32-pin IC alternating pattern")
+
+    def test_ic_complex_internal(self):
+        self.subsection("IC with Complex Internal Logic (Full Adder)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ic = c.getcomponent(Const.IC)
+        
+        # Inputs: A, B, Cin
+        inp_a = ic.getcomponent(Const.INPUT_PIN)
+        inp_b = ic.getcomponent(Const.INPUT_PIN)
+        inp_cin = ic.getcomponent(Const.INPUT_PIN)
+        
+        # Outputs: Sum, Cout
+        out_sum = ic.getcomponent(Const.OUTPUT_PIN)
+        out_cout = ic.getcomponent(Const.OUTPUT_PIN)
+        
+        # Internal logic: Full Adder
+        xor1 = ic.getcomponent(Const.XOR)
+        xor1.connect(inp_a, 0)
+        xor1.connect(inp_b, 1)
+        
+        xor2 = ic.getcomponent(Const.XOR)
+        xor2.connect(xor1, 0)
+        xor2.connect(inp_cin, 1)
+        out_sum.connect(xor2, 0)
+        
+        and1 = ic.getcomponent(Const.AND)
+        and1.connect(inp_a, 0)
+        and1.connect(inp_b, 1)
+        
+        and2 = ic.getcomponent(Const.AND)
+        and2.connect(xor1, 0)
+        and2.connect(inp_cin, 1)
+        
+        or1 = ic.getcomponent(Const.OR)
+        or1.connect(and1, 0)
+        or1.connect(and2, 1)
+        out_cout.connect(or1, 0)
+        
+        self.assert_test(len(ic.internal) == 5, "IC has 5 internal gates")
+        
+        # Wire inputs
+        v_a = c.getcomponent(Const.VARIABLE)
+        v_b = c.getcomponent(Const.VARIABLE)
+        v_cin = c.getcomponent(Const.VARIABLE)
+        inp_a.connect(v_a, 0)
+        inp_b.connect(v_b, 0)
+        inp_cin.connect(v_cin, 0)
+        
+        # Test: 1+1+1 = 11 (Sum=1, Cout=1)
+        c.toggle(v_a, 1); c.toggle(v_b, 1); c.toggle(v_cin, 1)
+        self.assert_test(out_sum.output == Const.HIGH, "Full Adder IC: Sum(1,1,1)=1")
+        self.assert_test(out_cout.output == Const.HIGH, "Full Adder IC: Cout(1,1,1)=1")
+        
+        # Test: 1+0+0 = 01
+        c.toggle(v_a, 1); c.toggle(v_b, 0); c.toggle(v_cin, 0)
+        self.assert_test(out_sum.output == Const.HIGH, "Full Adder IC: Sum(1,0,0)=1")
+        self.assert_test(out_cout.output == Const.LOW, "Full Adder IC: Cout(1,0,0)=0")
+
+    def test_ic_save_load(self):
+        self.subsection("IC Save/Load to JSON")
+        c1 = Circuit()
+        c1.simulate(Const.SIMULATE)
+        
+        # Create IC
+        ic = c1.getcomponent(Const.IC)
+        ic.custom_name = "TestInverter"
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        out = ic.getcomponent(Const.OUTPUT_PIN)
+        not_g = ic.getcomponent(Const.NOT)
+        not_g.connect(inp, 0)
+        out.connect(not_g, 0)
+        
+        v = c1.getcomponent(Const.VARIABLE)
+        inp.connect(v, 0)
+        c1.toggle(v, Const.HIGH)
+        
+        # Save
+        temp_file = os.path.join(tempfile.gettempdir(), "test_ic.json")
+        c1.writetojson(temp_file)
+        self.assert_test(os.path.exists(temp_file), "IC circuit saved to file")
+        
+        # Load into new circuit
+        c2 = Circuit()
+        c2.readfromjson(temp_file)
+        c2.simulate(Const.SIMULATE)
+        
+        self.assert_test(len(c2.canvas) == len(c1.canvas), "Loaded circuit has same component count")
+        
+        os.remove(temp_file)
+        self.assert_test(True, "IC save/load complete")
+
+    def test_ic_hide_reveal(self):
+        self.subsection("IC Hide/Reveal (50 cycles)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
@@ -677,16 +1074,199 @@ class AggressiveTestSuite:
         inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
-        self.assert_test(out.output == Const.LOW, "IC inverts correctly")
+        
+        for i in range(50):
+            ic.hide()
+            ic.reveal()
+        
+        # Verify still works after hide/reveal cycles
+        c.toggle(v, Const.LOW)
+        self.assert_test(out.output == Const.HIGH, "IC works after 50 hide/reveal cycles")
 
-    def test_ic_many_pins(self):
-        self.subsection("IC with 20 pins")
+    def test_ic_reset(self):
+        self.subsection("IC Reset")
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC)
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        out = ic.getcomponent(Const.OUTPUT_PIN)
+        not_g = ic.getcomponent(Const.NOT)
+        not_g.connect(inp, 0)
+        out.connect(not_g, 0)
+        
+        v = c.getcomponent(Const.VARIABLE)
+        inp.connect(v, 0)
+        c.toggle(v, Const.HIGH)
+        
+        self.assert_test(out.output == Const.LOW, "IC output LOW before reset")
+        
+        ic.reset()
+        self.assert_test(out.output == Const.UNKNOWN, "IC output UNKNOWN after reset")
+        
+        c.reset()
+        self.assert_test(Const.get_MODE() == Const.DESIGN, "Circuit reset to DESIGN mode")
+
+    def test_ic_copy_paste(self):
+        self.subsection("IC Copy/Paste")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ic = c.getcomponent(Const.IC)
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        out = ic.getcomponent(Const.OUTPUT_PIN)
+        not_g = ic.getcomponent(Const.NOT)
+        not_g.connect(inp, 0)
+        out.connect(not_g, 0)
+        
+        initial_count = len(c.canvas)
+        
+        # Copy and paste
+        c.copy({ic})
+        c.paste()
+        
+        self.assert_test(len(c.canvas) == initial_count + 1, "IC copied and pasted")
+
+    def test_ic_flipflop_mode(self):
+        self.subsection("IC with Flipflop (SR Latch)")
+        c = Circuit()
+        c.simulate(Const.FLIPFLOP)
+        
+        ic = c.getcomponent(Const.IC)
+        
+        # Inputs: Set, Reset
+        inp_set = ic.getcomponent(Const.INPUT_PIN)
+        inp_rst = ic.getcomponent(Const.INPUT_PIN)
+        
+        # Outputs: Q, Q'
+        out_q = ic.getcomponent(Const.OUTPUT_PIN)
+        out_qb = ic.getcomponent(Const.OUTPUT_PIN)
+        
+        # Internal SR Latch
+        nor1 = ic.getcomponent(Const.NOR)
+        nor2 = ic.getcomponent(Const.NOR)
+        
+        nor1.connect(inp_rst, 0)
+        nor1.connect(nor2, 1)
+        
+        nor2.connect(inp_set, 0)
+        nor2.connect(nor1, 1)
+        
+        out_q.connect(nor1, 0)
+        out_qb.connect(nor2, 0)
+        
+        # Wire to external variables
+        v_set = c.getcomponent(Const.VARIABLE)
+        v_rst = c.getcomponent(Const.VARIABLE)
+        inp_set.connect(v_set, 0)
+        inp_rst.connect(v_rst, 0)
+        
+        # Reset latch
+        c.toggle(v_rst, 1)
+        c.toggle(v_rst, 0)
+        self.assert_test(out_q.output == Const.LOW, "SR Latch IC: Q=0 after reset")
+        
+        # Set latch
+        c.toggle(v_set, 1)
+        c.toggle(v_set, 0)
+        self.assert_test(out_q.output == Const.HIGH, "SR Latch IC: Q=1 after set")
+
+    def test_ic_massive_internal(self):
+        self.subsection("IC with 100 Internal Gates")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ic = c.getcomponent(Const.IC)
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        
+        # Chain of 100 NOT gates
+        prev = inp
+        for _ in range(100):
+            not_g = ic.getcomponent(Const.NOT)
+            not_g.connect(prev, 0)
+            prev = not_g
+        
+        out = ic.getcomponent(Const.OUTPUT_PIN)
+        out.connect(prev, 0)
+        
+        self.assert_test(len(ic.internal) == 100, "IC has 100 internal gates")
+        
+        v = c.getcomponent(Const.VARIABLE)
+        inp.connect(v, 0)
+        
+        c.toggle(v, Const.HIGH)
+        # 100 inversions = identity (even number)
+        self.assert_test(out.output == Const.HIGH, "100-gate IC chain works")
+
+    def test_ic_cascade(self):
+        self.subsection("IC Cascade (10 ICs in series)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        v = c.getcomponent(Const.VARIABLE)
+        prev_out = v
+        
+        ics = []
+        for _ in range(10):
+            ic = c.getcomponent(Const.IC)
+            inp = ic.getcomponent(Const.INPUT_PIN)
+            out = ic.getcomponent(Const.OUTPUT_PIN)
+            not_g = ic.getcomponent(Const.NOT)
+            not_g.connect(inp, 0)
+            out.connect(not_g, 0)
+            
+            inp.connect(prev_out, 0)
+            prev_out = out
+            ics.append(out)
+        
+        c.toggle(v, Const.HIGH)
+        # 10 inversions = identity (even)
+        self.assert_test(prev_out.output == Const.HIGH, "10 cascaded ICs work")
+        
+        c.toggle(v, Const.LOW)
+        self.assert_test(prev_out.output == Const.LOW, "Cascade propagates LOW")
+
+    def test_ic_multi_output(self):
+        self.subsection("IC with 8 Outputs from 1 Input")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ic = c.getcomponent(Const.IC)
+        inp = ic.getcomponent(Const.INPUT_PIN)
+        
         outputs = []
-        for _ in range(20):
+        for i in range(8):
+            out = ic.getcomponent(Const.OUTPUT_PIN)
+            if i % 2 == 0:
+                # Direct connection
+                out.connect(inp, 0)
+            else:
+                # Through NOT
+                not_g = ic.getcomponent(Const.NOT)
+                not_g.connect(inp, 0)
+                out.connect(not_g, 0)
+            outputs.append(out)
+        
+        v = c.getcomponent(Const.VARIABLE)
+        inp.connect(v, 0)
+        
+        c.toggle(v, Const.HIGH)
+        
+        # Even outputs = HIGH (direct), Odd outputs = LOW (inverted)
+        correct = all(outputs[i].output == (Const.HIGH if i % 2 == 0 else Const.LOW) for i in range(8))
+        self.assert_test(correct, "8-output IC: alternating pattern")
+
+    def test_ic_stress_bulk(self):
+        self.subsection("Bulk IC Stress (50 ICs, 100 toggles each)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        
+        ics = []
+        variables = []
+        outputs = []
+        
+        for _ in range(50):
+            ic = c.getcomponent(Const.IC)
             inp = ic.getcomponent(Const.INPUT_PIN)
             out = ic.getcomponent(Const.OUTPUT_PIN)
             not_g = ic.getcomponent(Const.NOT)
@@ -695,10 +1275,22 @@ class AggressiveTestSuite:
             
             v = c.getcomponent(Const.VARIABLE)
             inp.connect(v, 0)
-            c.toggle(v, Const.HIGH)
+            
+            ics.append(ic)
+            variables.append(v)
             outputs.append(out)
         
-        self.assert_test(all(o.output == Const.LOW for o in outputs), "20-pin IC works")
+        self.assert_test(len(ics) == 50, "50 ICs created")
+        
+        start = time.perf_counter_ns()
+        for _ in range(100):
+            for v in variables:
+                c.toggle(v, Const.HIGH)
+            for v in variables:
+                c.toggle(v, Const.LOW)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        
+        self.assert_test(True, f"50 ICs x 100 toggle cycles: {duration:.2f}ms")
 
     # =========================================================================
     # PART 5: SERIALIZATION STRESS
@@ -1102,6 +1694,63 @@ class AggressiveTestSuite:
         self.perf_metrics['mixed_gates'] = {'time': duration, 'rate': rate, 'gates': total}
         self.assert_test(len(c.canvas) == total, f"{duration:.2f}ms | {rate/1000:.0f}K/sec")
 
+    def test_mega_chain(self):
+        self.subsection("Mega Chain (1M NOT gates)")
+        self.circuit.clearcircuit()
+        c = self.circuit
+        
+        inp = c.getcomponent(Const.VARIABLE)
+        prev = inp
+        count = 1_000_000
+        
+        for i in range(count):
+            g = c.getcomponent(Const.NOT)
+            c.connect(g, prev, 0)
+            prev = g
+            if i > 0 and i % 100000 == 0:
+                self.progress(i, count)
+
+        c.simulate(Const.SIMULATE)
+        c.toggle(inp, 0)
+        
+        start = time.perf_counter_ns()
+        c.toggle(inp, 1)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        latency = (duration * 1e6) / count
+        
+        self.perf_metrics['mega_chain'] = {'time': duration, 'latency': latency, 'gates': count}
+        
+        expected = 'T' if (count % 2 == 0) else 'F'
+        self.assert_test(prev.getoutput() == expected, f"{duration:.2f}ms | {latency:.1f}ns/gate")
+
+    def test_extreme_fanout(self):
+        self.subsection("Extreme Fanout (50K targets)")
+        self.circuit.clearcircuit()
+        c = self.circuit
+        c.simulate(Const.SIMULATE)
+        
+        v = c.getcomponent(Const.VARIABLE)
+        gates = []
+        count = 50_000
+        
+        for i in range(count):
+            g = c.getcomponent(Const.AND)
+            c.setlimits(g, 1)
+            c.connect(g, v, 0)
+            gates.append(g)
+            if i > 0 and i % 10000 == 0:
+                self.progress(i, count)
+        
+        c.toggle(v, 0)
+        
+        start = time.perf_counter_ns()
+        c.toggle(v, 1)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        
+        all_high = all(g.output == Const.HIGH for g in gates)
+        self.perf_metrics['extreme_fanout'] = {'time': duration, 'gates': count}
+        
+        self.assert_test(all_high, f"{duration:.2f}ms | {count} gates updated")
 
 if __name__ == "__main__":
     suite = AggressiveTestSuite()

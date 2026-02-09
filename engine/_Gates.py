@@ -25,7 +25,12 @@ def run(varlist: list[Gate]):
                 profile.target.propagate()
             idx+=1
         i+=1
-        
+def locate(target:Gate,agent:Gate):
+    for i,j in enumerate(agent.hitlist):
+        if j.target==target:
+            return i
+    return -1
+
 def table(gate_list: list[Gate], varlist: list[Gate]):
     from IC import IC
     gate_list = [i for i in gate_list if i not in varlist and not isinstance(i, IC)]
@@ -79,20 +84,15 @@ def listdel(lst: list[Any], index: int):
         lst.pop()
 
 
-def hitlist_del(hitlist: list[Profile], index: int, targets_dict: dict[Gate, int]):
+def hitlist_del(hitlist: list[Profile], index: int):
     if hitlist:
-        last_idx: int = len(hitlist) - 1
-        if index != last_idx:
-            last_target: Gate = hitlist[-1].target
-            hitlist[index] = hitlist[-1]
-            targets_dict[last_target] = index
+        hitlist[index] = hitlist[-1]
         hitlist.pop()
 
 
 class Empty:
     def __init__(self):
         self.code: tuple[str, str] = ('X', 'X')
-        self.targets: dict[Gate, int] = {}
 
     def __repr__(self) -> str:
         return 'Empty'
@@ -201,7 +201,6 @@ class Gate:
         # who feeds into this gate? (inputs)
         self.sources: list[Gate | Empty] = [Nothing, Nothing]
         # who does this gate feed into? (outputs)
-        self.targets: dict[Gate, int] = {}
         self.hitlist: list[Profile] = []
         # how many inputs do we need?
         self.inputlimit: int = 2
@@ -246,13 +245,13 @@ class Gate:
 
     def connect(self, source: Gate, index: int):
         """Connect a source gate (input) to this gate."""
-        loc: int
-        if self in source.targets:
-            loc = source.targets[self]
-            add(source.hitlist[loc], index)
+        loc: int = locate(self,source)
+        if loc != -1:
+            profile=self.hitlist[loc]
+            add(profile.index, index)
         else:
-            source.hitlist.append(Profile(self, index, source.output))
-            source.targets[self] = len(source.hitlist) - 1            
+            profile=Profile(self, index, source.output)
+            source.hitlist.append(profile)
         # actually plug it in
         self.sources[index] = source
         
@@ -332,11 +331,12 @@ class Gate:
     def disconnect(self, index: int):
         """Remove a connection at a specific index."""
         source: Gate = self.sources[index]  # type: ignore
-        loc: int = source.targets[self]
-        profile: Profile = source.hitlist[loc]
-        if remove(profile, index):
-            hitlist_del(source.hitlist, loc, source.targets)
-            source.targets.pop(self)
+        loc: int = locate(self,source)
+        if loc != -1:
+            profile=source.hitlist[loc]
+            remove(profile, index)
+            if not profile.index:
+                hitlist_del(source.hitlist,loc)
         
         # recalculate everything
         source.process()
@@ -360,13 +360,19 @@ class Gate:
             hide(profile)
         
         # disconnect from sources (this gate's inputs)
-        for source in self.sources:
-            if source != Nothing and self in source.targets:
-                loc: int = source.targets.pop(self)
-                hitlist_del(source.hitlist, loc, source.targets)  # type: ignore
+        for index,source in enumerate(self.sources):
+            if source != Nothing:
+                loc: int = locate(self,source)
+                if loc != -1:
+                    profile=self.hitlist[loc]
+                    remove(profile, index)
+                    self.sources[index]=source
+                    if not profile.index:
+                        hitlist_del(source.hitlist, loc)
         
         # recalculate targets
-        for target in self.targets.keys():
+        for profile in self.hitlist:
+            target: Gate = profile.target
             if target != self:
                 target.process()
                 target.propagate()
@@ -380,14 +386,13 @@ class Gate:
         for index, source in enumerate(self.sources):
             if source != Nothing:
                 # Re-register with the source's hitlist
-                if self in source.targets:
+                loc: int = locate(self,source)
+                if loc != -1:
                     # Profile already exists, just add the index
-                    loc: int = source.targets[self]
                     add(source.hitlist[loc], index)
                 else:
                     # Create new profile
                     source.hitlist.append(Profile(self, index, source.output))
-                    source.targets[self] = len(source.hitlist) - 1
         
         self.process()
         
@@ -520,7 +525,8 @@ class Variable(Gate):
         for hits in self.hitlist:
             hide(hits)
 
-        for target in self.targets.keys():
+        for profile in self.hitlist:
+            target: Gate = profile.target
             if target != self:
                 target.process()
                 target.propagate()

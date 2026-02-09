@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal
+from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal, locate, remove
 class IC:
     # Integrated Circuit: a custom chip made of other gates
     # It acts like a black box with inputs and outputs
@@ -141,38 +141,48 @@ class IC:
         for pin in self.outputs:
             for profile in pin.hitlist:
                 hide(profile)
-            for target in pin.targets.keys():
+            for profile in pin.hitlist:
+                target = profile.target
                 if target != self:
                     target.process()
                     target.propagate()
         
         # Disconnect input pins from their sources
         for pin in self.inputs:
-            for source in pin.sources:
-                if source != Nothing and pin in source.targets:
-                    loc = source.targets.pop(pin)
-                    hitlist_del(source.hitlist, loc, source.targets)
+            for index, source in enumerate(pin.sources):
+                if source != Nothing:
+                    loc = locate(pin, source)
+                    if loc != -1:
+                        profile = source.hitlist[loc]
+                        remove(profile, index)
+                        pin.sources[index]=source
+                        if not profile.index:
+                            hitlist_del(source.hitlist, loc)
 
 
     # reconnects internal logic
     def reveal(self):
         # Reconnect output pins to their targets
-        for pin in self.outputs:
-            for profile in pin.hitlist:
-                reveal(profile)
-            pin.propagate()
-        
-        # Reconnect input pins to their sources
         for pin in self.inputs:
             for index, source in enumerate(pin.sources):
                 if source != Nothing:
                     # Re-register with the source's hitlist
-                    if pin in source.targets:
-                        loc = source.targets[pin]
+                    loc = locate(pin, source)
+                    if loc != -1:
                         add(source.hitlist[loc], index)
                     else:
                         source.hitlist.append(Profile(pin, index, source.output))
-                        source.targets[pin] = len(source.hitlist) - 1   
+            # Critical: Ensure input pin knows its value and notifies internal targets
+            pin.process()
+            pin.propagate()
+
+
+        for pin in self.outputs:
+            for profile in pin.hitlist:
+                reveal(profile, pin)
+            pin.propagate()
+        
+        # Reconnect input pins to their sources
 
 
     def reset(self):
@@ -196,7 +206,7 @@ class IC:
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
-                targets = [str(p) for p in pin.targets.keys()]
+                targets = [str(profile.target) for profile in pin.hitlist]
                 print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         # Show internal components
@@ -213,7 +223,7 @@ class IC:
                     else:
                         ch_str = f"val:{comp.sources}"
                     # Targets
-                    tgt = [str(p) for p in comp.targets.keys()]
+                    tgt = [str(profile.target) for profile in comp.hitlist]
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 

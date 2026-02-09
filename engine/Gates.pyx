@@ -105,18 +105,21 @@ cpdef listdel(lst, index):
         lst[index] = lst[-1]
         lst.pop()
 
-cpdef hitlist_del(list hitlist,int index, dict targets_dict):
+cpdef hitlist_del(list hitlist, int index):
     if hitlist:
-        last_idx = len(hitlist) - 1
-        if index != last_idx:
-            last_target=hitlist[-1].target
-            hitlist[index]=hitlist[-1]
-            targets_dict[last_target]=index
+        hitlist[index] = hitlist[-1]
         hitlist.pop()
+
+cpdef int locate(Gate target, Gate agent):
+    cdef int i
+    cdef Profile profile
+    for i, profile in enumerate(agent.hitlist):
+        if profile.target == target:
+            return i
+    return -1
 cdef class Empty:
     def __init__(self):
         self.code = ('X', 'X')
-        self.targets={}
     def __repr__(self):
         return 'Empty'
 
@@ -223,7 +226,6 @@ cdef class Gate:
         # who feeds into this gate? (inputs)
         self.sources: list = [Nothing, Nothing]
         # who does this gate feed into? (outputs)
-        self.targets: dict = {}
         self.hitlist:list= []
         # how many inputs do we need?
         self.inputlimit = 2
@@ -269,13 +271,14 @@ cdef class Gate:
 
     # connect a source gate (input) to this gate
     cpdef connect(self, Gate source, int index):
-        cdef int loc
-        if self in source.targets:
-            loc=source.targets[self]
-            add(source.hitlist[loc], index)
+        cdef int loc = locate(self, source)
+        cdef Profile profile
+        if loc != -1:
+            profile = source.hitlist[loc]
+            add(profile, index)
         else:
-            source.hitlist.append(Profile(self,index,source.output))
-            source.targets[self]=len(source.hitlist)-1            
+            profile = Profile(self, index, source.output)
+            source.hitlist.append(profile)
         # actually plug it in
         self.sources[index] = source
         
@@ -362,11 +365,13 @@ cdef class Gate:
     # remove a connection at a specific index
     cpdef disconnect(self,int index):
         cdef Gate source = self.sources[index]
-        cdef int loc=source.targets[self]
-        cdef Profile profile=source.hitlist[loc]
-        if remove(profile, index):
-            hitlist_del(source.hitlist, loc, source.targets)
-            source.targets.pop(self)
+        cdef int loc = locate(self, source)
+        cdef Profile profile
+        if loc != -1:
+            profile = source.hitlist[loc]
+            remove(profile, index)
+            if profile.index.empty():
+                hitlist_del(source.hitlist, loc)
         
         # recalculate everything
         source.process()
@@ -395,17 +400,25 @@ cdef class Gate:
         # disconnect from targets (this gate's outputs)
         cdef Profile profile
         cdef Gate target
+        cdef int loc
+        cdef int index
         for profile in self.hitlist:
             hide(profile)
         
         # disconnect from sources (this gate's inputs)
-        for source in self.sources:
-            if source != Nothing and self in source.targets:
-                loc = source.targets.pop(self)
-                hitlist_del(source.hitlist, loc, source.targets)
+        for index, source in enumerate(self.sources):
+            if source != Nothing:
+                loc = locate(self, source)
+                if loc != -1:
+                    profile = source.hitlist[loc]
+                    remove(profile, index)
+                    self.sources[index]=source
+                    if profile.index.empty():
+                        hitlist_del(source.hitlist, loc)
         
         # recalculate targets
-        for target in self.targets.keys():
+        for profile in self.hitlist:
+            target = profile.target
             if target != self:
                 target.process()
                 target.propagate()
@@ -416,23 +429,23 @@ cdef class Gate:
 
     cpdef reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
+        cdef int loc
+        cdef Profile profile
         for i, source in enumerate(self.sources):
             if source != Nothing:
                 # Re-register with the source's hitlist
-                if self in source.targets:
+                loc = locate(self, source)
+                if loc != -1:
                     # Profile already exists, just add the index
-                    loc = source.targets[self]
-                    source.hitlist[loc].add(i)
+                    add(source.hitlist[loc], i)
                 else:
                     # Create new profile
                     source.hitlist.append(Profile(self, i, source.output))
-                    source.targets[self] = len(source.hitlist) - 1
         self.process()
         
         # reconnect to targets (this gate's outputs)
-        cdef Profile profile
         for profile in self.hitlist:
-            reveal(profile,self)
+            reveal(profile, self)
         
         self.propagate()
 
@@ -559,11 +572,14 @@ cdef class Variable(Gate):
 
     cpdef hide(self):
         # disconnect from target
+        cdef Profile profile
+        cdef Gate target
         for hits in self.hitlist:
             hide(hits)
 
-        for target in self.targets.keys():
-            if target!=self:
+        for profile in self.hitlist:
+            target = profile.target
+            if target != self:
                 target.process()
                 target.propagate()
 
@@ -590,6 +606,22 @@ cdef class Probe(Gate):
             return True
         else:
             return False
+    cpdef copy_data(self, set cluster):
+        dictionary = {
+            "name": self.name,
+            "custom_name": self.custom_name, 
+            "code": self.code,
+            "inputlimit": self.inputlimit,
+            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+            }
+        return dictionary
+
+    cpdef clone(self, dict dictionary, dict pseudo):
+        self.custom_name = dictionary["custom_name"]
+        self.setlimits(dictionary["inputlimit"])
+        for index,source in enumerate(dictionary["source"]):
+            if source[0]!='X':
+                self.connect(pseudo[self.decode(source)],index)
 
     cpdef process(self):
         self.prev_output = self.output
@@ -601,22 +633,11 @@ cdef class Probe(Gate):
 cdef class InputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
-        self.inputlimit = 1
-
-    cpdef copy_data(self, set cluster):
-        d = super().copy_data(cluster)
-        d["custom_name"] = self.custom_name
-        return d
 
 cdef class OutputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
-        self.inputlimit = 1
 
-    cpdef copy_data(self,set cluster):
-        d = super().copy_data(cluster)
-        d["custom_name"] = self.custom_name
-        return d 
 
 cdef class NOT(Gate):
     """NOT gate - inverts the input"""

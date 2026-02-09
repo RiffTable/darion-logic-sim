@@ -1,41 +1,240 @@
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:02:35
+======================================================================
 DARION LOGIC SIM - AGGRESSIVE TEST SUITE
 System: Windows 11 | Python 3.13.12
-Initial RAM: 32.84 MB
+Initial RAM: 33.73 MB
 
 ======================================================================
   SECTION RESULTS
 ======================================================================
   Section                 Tests       Time     Memory   Status
   -------------------- -------- ---------- ---------- --------
-  UNIT TESTS               1024       6 ms    +1.0 MB     PASS
-  CIRCUIT STRESS             11       9 ms    +3.6 MB     PASS
-  EVENT MANAGER            1300       2 ms      ~0 MB     PASS
-  IC TESTS                    2     620 us      ~0 MB     PASS
-  SERIALIZATION               2      13 ms    +0.6 MB     PASS
+  UNIT TESTS               1027      26 ms    +1.3 MB     PASS
+  CIRCUIT STRESS             11      76 ms    +2.8 MB     PASS
+  EVENT MANAGER            1300      21 ms      ~0 MB     PASS
+  IC TESTS                   34       7 ms      ~0 MB     PASS
+  SERIALIZATION               5      13 ms    +0.7 MB     PASS
   TRUTH TABLE                10       3 ms    +0.1 MB     PASS
-  SPEED BENCHMARKS           10   11452 ms    +9.5 MB     PASS
+  SPEED BENCHMARKS           12   12498 ms   +25.0 MB     PASS
 
 ======================================================================
   PERFORMANCE SUMMARY
 ======================================================================
-  RAM Usage:        47.70 MB
-  Gates Processed:  1,738,572
-  Benchmark Time:   139.21 ms
-  Throughput:       12.49 M gates/sec
-  Memory/Gate:      465.2 B/gate
+  RAM Usage:        63.68 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   100.74 ms
+  Throughput:       17.19 M gates/sec
+  Memory/Gate:      415.8 B/gate
 
   Key Benchmarks:
-    Marathon (200K chain):     21.0 ns/gate
-    Avalanche (1M+ tree):      18.05 M gates/sec
-    Gridlock (90K mesh):       10.02 ms
-    Echo Chamber (20K latch):  2.48 ms
-    Black Hole (200K inputs):  1.9 us
-    Paradox (XOR loop):        4.3 us
-    Rapid Toggle (100K):       3160 K/sec
-    Connect/Disconnect (50K):  1820 K/sec
-    Mixed Gates (10K):         1890 K/sec
+    Marathon (500K chain):     18.7 ns/gate
+    Avalanche (4M+ tree):      18.75 M gates/sec
+    Gridlock (160K mesh):      1.71 ms
+    Echo Chamber (50K latch):  1.47 ms
+    Black Hole (500K inputs):  1.8 us
+    Paradox (XOR loop):        4.5 us
+    Rapid Toggle (100K):       3220 K/sec
+    Connect/Disconnect (50K):  2191 K/sec
+    Mixed Gates (10K):         1876 K/sec
+    Mega Chain (1M):           21.6 ns/gate
+    Extreme Fanout (50K):     0.88 ms
 
 ======================================================================
-  TOTAL: 2359/2359 tests (100.0%)
+  TOTAL: 2399/2399 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:05:45
+======================================================================
+DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+System: Windows 11 | Python 3.13.12
+Initial RAM: 34.30 MB
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1027      26 ms    +0.9 MB     PASS
+  CIRCUIT STRESS             11      80 ms    +2.7 MB     PASS
+  EVENT MANAGER            1300      20 ms      ~0 MB     PASS
+  IC TESTS                   34       7 ms      ~0 MB     PASS
+  SERIALIZATION               5      13 ms    +0.6 MB     PASS
+  TRUTH TABLE                10       3 ms    +0.2 MB     PASS
+  SPEED BENCHMARKS           12   12472 ms   +24.4 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        63.27 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   99.56 ms
+  Throughput:       17.40 M gates/sec
+  Memory/Gate:      415.3 B/gate
+
+  Key Benchmarks:
+    Marathon (100K chain):     17.3 ns/gate
+    Avalanche (262K tree):      18.10 M gates/sec
+    Gridlock (200x200 mesh):      1.65 ms
+    Echo Chamber (10K latch):  1.30 ms
+    Black Hole (100K inputs):  1.8 us
+    Paradox (XOR loop):        4.3 us
+    Rapid Toggle (100K):       3351 K/sec
+    Connect/Disconnect (50K):  2185 K/sec
+    Mixed Gates (10K):         1934 K/sec
+    Mega Chain (1M):           21.5 ns/gate
+    Extreme Fanout (50K):      1.00 ms
+
+======================================================================
+  TOTAL: 2399/2399 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:06:44
+======================================================================
+DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+System: Windows 11 | Python 3.13.12
+Initial RAM: 34.36 MB
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1027      25 ms    +1.0 MB     PASS
+  CIRCUIT STRESS             11      81 ms    +2.6 MB     PASS
+  EVENT MANAGER            1300      21 ms      ~0 MB     PASS
+  IC TESTS                   34       7 ms      ~0 MB     PASS
+  SERIALIZATION               5      13 ms    +0.8 MB     PASS
+  TRUTH TABLE                10       3 ms    +0.1 MB     PASS
+  SPEED BENCHMARKS           12   12506 ms   +24.4 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        63.32 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   99.63 ms
+  Throughput:       17.39 M gates/sec
+  Memory/Gate:      415.6 B/gate
+
+  Key Benchmarks:
+    Marathon (100K chain):     17.6 ns/gate
+    Avalanche (262K tree):     18.17 M gates/sec
+    Gridlock (200x200 mesh):   1.73 ms
+    Echo Chamber (10K latch):  1.25 ms
+    Black Hole (100K inputs):  1.6 us
+    Paradox (XOR loop):        4.3 us
+    Rapid Toggle (100K):       3313 K/sec
+    Connect/Disconnect (50K):  2201 K/sec
+    Mixed Gates (10K):         1947 K/sec
+    Mega Chain (1M):           21.5 ns/gate
+    Extreme Fanout (50K):      0.92 ms
+
+======================================================================
+  TOTAL: 2399/2399 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:13:38
+======================================================================
+DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+System: Windows 11 | Python 3.13.12
+Initial RAM: 34.23 MB
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1027      11 ms    +0.9 MB     PASS
+  CIRCUIT STRESS             11      80 ms    +2.7 MB     PASS
+  EVENT MANAGER            1300       3 ms      ~0 MB     PASS
+  IC TESTS                   34       6 ms      ~0 MB     PASS
+  SERIALIZATION               5      13 ms    +0.8 MB     PASS
+  TRUTH TABLE                10       3 ms    +0.1 MB     PASS
+  SPEED BENCHMARKS           12   12513 ms   +24.7 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        63.56 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   100.80 ms
+  Throughput:       17.18 M gates/sec
+  Memory/Gate:      416.9 B/gate
+
+  Key Benchmarks:
+    Marathon (100K chain):     17.0 ns/gate
+    Avalanche (262K tree):     17.77 M gates/sec
+    Gridlock (200x200 mesh):   1.92 ms
+    Echo Chamber (10K latch):  1.26 ms
+    Black Hole (100K inputs):  1.4 us
+    Paradox (XOR loop):        5.8 us
+    Rapid Toggle (100K):       3287 K/sec
+    Connect/Disconnect (50K):  2216 K/sec
+    Mixed Gates (10K):         1865 K/sec
+    Mega Chain (1M):           21.8 ns/gate
+    Extreme Fanout (50K):      1.02 ms
+
+======================================================================
+  TOTAL: 2399/2399 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================
+
+
+======================================================================
+TEST RUN: 2026-02-09 18:14:12
+======================================================================
+DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+System: Windows 11 | Python 3.13.12
+Initial RAM: 34.41 MB
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1027      11 ms    +0.9 MB     PASS
+  CIRCUIT STRESS             11      77 ms    +2.5 MB     PASS
+  EVENT MANAGER            1300       3 ms      ~0 MB     PASS
+  IC TESTS                   34       6 ms      ~0 MB     PASS
+  SERIALIZATION               5      12 ms    +0.7 MB     PASS
+  TRUTH TABLE                10       3 ms    +0.2 MB     PASS
+  SPEED BENCHMARKS           12   12498 ms   +25.5 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        64.31 MB
+  Gates Processed:  1,732,140
+  Benchmark Time:   100.29 ms
+  Throughput:       17.27 M gates/sec
+  Memory/Gate:      415.6 B/gate
+
+  Key Benchmarks:
+    Marathon (100K chain):     17.6 ns/gate
+    Avalanche (262K tree):     18.51 M gates/sec
+    Gridlock (200x200 mesh):   1.93 ms
+    Echo Chamber (10K latch):  1.25 ms
+    Black Hole (100K inputs):  1.4 us
+    Paradox (XOR loop):        5.1 us
+    Rapid Toggle (100K):       3293 K/sec
+    Connect/Disconnect (50K):  2184 K/sec
+    Mixed Gates (10K):         1863 K/sec
+    Mega Chain (1M):           21.6 ns/gate
+    Extreme Fanout (50K):      0.93 ms
+
+======================================================================
+  TOTAL: 2399/2399 tests (100.0%)
   [SUCCESS] ALL TESTS PASSED
 ======================================================================

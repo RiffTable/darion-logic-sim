@@ -22,7 +22,8 @@ cdef class XNOR
 cpdef str table(list gatelist, list varlist)
 cpdef run(list varlist)
 cpdef listdel(lst, index)
-cpdef hitlist_del(list hitlist, int index, dict targets_dict)
+cpdef hitlist_del(list hitlist, int index)
+cpdef int locate(Gate target, Gate agent)
 
 # Profile helper functions (globalized)
 cpdef add(Profile profile, int pin_index)
@@ -34,7 +35,6 @@ cpdef bint burn(Profile profile)
 
 cdef class Empty:
     cdef public tuple code
-    cdef public dict targets
 
 cdef class Profile:
     cdef public Gate target
@@ -43,7 +43,6 @@ cdef class Profile:
 
 cdef class Gate:
     cdef public object sources
-    cdef public dict targets
     cdef public list hitlist
     cdef public int inputlimit
     cdef public int[4] book
