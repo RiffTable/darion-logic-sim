@@ -272,6 +272,8 @@ cdef class Gate:
         if len(self.sources)<len(source.hitlist):
             if source in self.sources:
                 loc = locate(self, source)
+        else:
+            loc = locate(self, source)
         if loc != -1:
             profile = source.hitlist[loc]
             add(profile, index)
