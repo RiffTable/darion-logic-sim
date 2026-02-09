@@ -1,0 +1,47 @@
+
+============================================================
+  DARION LOGIC SIM - AGGRESSIVE TEST SUITE
+============================================================
+System: Windows | Python 3.13.12
+Log file: test_results.txt
+------------------------------------------------------------
+
+======================================================================
+  SECTION RESULTS
+======================================================================
+  Section                 Tests       Time     Memory   Status
+  -------------------- -------- ---------- ---------- --------
+  UNIT TESTS               1024       7 ms    +1.2 MB     PASS
+  CIRCUIT STRESS             11       9 ms    +3.7 MB     PASS
+  EVENT MANAGER            1300       2 ms      ~0 MB     PASS
+  IC TESTS                    2     624 us      ~0 MB     PASS
+  SERIALIZATION               2      13 ms    +0.6 MB     PASS
+  TRUTH TABLE                10       5 ms    +0.7 MB     PASS
+  SPEED BENCHMARKS           10   11718 ms    +8.0 MB     PASS
+
+======================================================================
+  PERFORMANCE SUMMARY
+======================================================================
+  RAM Usage:        46.82 MB
+  Gates Processed:  1,738,572
+  Benchmark Time:   150.11 ms
+  Throughput:       11.58 M gates/sec
+  Memory/Gate:      466.3 B/gate
+
+  Key Benchmarks:
+    Marathon (200K chain):     26.4 ns/gate
+    Avalanche (1M+ tree):      16.93 M gates/sec
+    Gridlock (90K mesh):       13.08 ms
+    Echo Chamber (20K latch):  2.81 ms
+    Black Hole (200K inputs):  1.8 us
+    Paradox (XOR loop):        4.8 us
+    Rapid Toggle (100K):       3086 K/sec
+    Connect/Disconnect (50K):  1743 K/sec
+    Mixed Gates (10K):         1691 K/sec
+
+======================================================================
+  TOTAL: 2359/2359 tests (100.0%)
+  [SUCCESS] ALL TESTS PASSED
+======================================================================
+
+Results saved to: test_results.txt

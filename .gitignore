@@ -9,3 +9,4 @@ file.json/
 temp.json/
 build/
 engine/*.pyd
+*.json
