@@ -13,6 +13,7 @@ class CircuitView(QGraphicsView):
 		self.scene = CircuitScene()
 		super().__init__(self.scene)
 
+		self.DRAG_THRESHOLD = QGuiApplication.styleHints().startDragDistance()
 		self.setSceneRect(-5000, -5000, 10000, 10000)
 		self.viewport().setMouseTracking(True)
 		self.setInteractive(True)
@@ -37,25 +38,43 @@ class CircuitView(QGraphicsView):
 
 		# Panning
 		self._pan_last_pos = QPointF(0, 0)
-		self._pan_1stpress = QPointF(0, 0)
+		self.dragStart: dict[Qt.MouseButton, QPointF] = {}
+		self._drag_motion: dict[Qt.MouseButton, QPointF] = {}
 
 		# Zooming
 		self.viewScale = 1
 		self.zoomlvl = 1
 	
 
-	###======= MOUSE CONTROLS =======###
+	###======= MOUSE CONTROLS =======###	
+	def isDragAction(self, delta: QPointF) -> bool:
+		return delta.manhattanLength() >= self.DRAG_THRESHOLD
+
 	def mousePressEvent(self, event: QMouseEvent):
+		mousepos = event.position()
+		btn = event.button()
+		
+		# Tracking mouse dragging
+		self.dragStart[btn]    = mousepos
+		self._drag_motion[btn] = QPointF(0, 0)
+
+		# Canvas Panning Last Position Tracking
 		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
-			self._pan_1stpress = self._pan_last_pos = event.position()
+			self._pan_last_pos = mousepos
 		
 		super().mousePressEvent(event)
 	
 	def mouseMoveEvent(self, event: QMouseEvent):
 		mousepos = event.position()
+
+		# Tracking mouse dragging
+		for dragbtn, start in self.dragStart.items():
+			self._drag_motion[dragbtn] = mousepos - start
+		# print(self.dragStart)
+
+		# Canvas Panning
 		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
 			delta = mousepos - self._pan_last_pos
-			
 			self.translate(
 				delta.x()/self.viewScale,
 				delta.y()/self.viewScale
@@ -66,12 +85,21 @@ class CircuitView(QGraphicsView):
 		self._pan_last_pos = mousepos
 	
 	def mouseReleaseEvent(self, event: QMouseEvent):
+		btn = event.button()
+		mousepos = event.position()
 
-		if event.button() == Qt.MouseButton.RightButton and self.scene.checkState(EditorState.WIRING):
-			# Wiring: Skip!
-			dragDisplacement = event.position() - self._pan_1stpress
-			if dragDisplacement.manhattanLength() < QApplication.startDragDistance():
-				self.scene.skipWiring()
+		# Tracking mouse dragging (Possible None value is assumed to be (0, 0))
+		# Double click can produce None
+		start_pos = self.dragStart.pop(btn, mousepos)
+		dragDelta = self._drag_motion.pop(btn, QPointF())
+		# print(f"{btn}: {dragDelta}")
+
+		if start_pos == None:
+			return super().mouseReleaseEvent(event)
+
+		# Don't let the SCENE see RMB release if it ended after dragging
+		if self.isDragAction(dragDelta) and btn == Qt.MouseButton.RightButton:
+			event.accept(); return
 		
 		return super().mouseReleaseEvent(event)
 	
