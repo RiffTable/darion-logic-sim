@@ -24,7 +24,7 @@ env\Scripts\activate.bat   # Windows
 
 Now install the required modules using pip (hopefully you have pip installed):
 ```bash
-pip install pyside6 setuptools cython
+pip install pyside6 setuptools cython psutil
 ```
 
 Finally, run the build script. After building, you can read usage to run the project.
