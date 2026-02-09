@@ -1122,7 +1122,7 @@ class AggressiveTestSuite:
         initial_count = len(c.canvas)
         
         # Copy and paste
-        c.copy({ic})
+        c.copy([ic])
         c.paste()
         
         self.assert_test(len(c.canvas) == initial_count + 1, "IC copied and pasted")

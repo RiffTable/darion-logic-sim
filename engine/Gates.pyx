@@ -23,10 +23,6 @@ cpdef run(list varlist):
             elif update(profile,variable.output):
                 profile.target.propagate()
 
-from libc.stdlib cimport malloc, free
-
-# You might need to import Variable and Gate depending on your setup
-# from LogicComponents import Variable, Gate 
 
 cpdef str table(list gatelist, list varlist):
     from IC import IC
@@ -271,8 +267,11 @@ cdef class Gate:
 
     # connect a source gate (input) to this gate
     cpdef connect(self, Gate source, int index):
-        cdef int loc = locate(self, source)
+        cdef int loc = -1        
         cdef Profile profile
+        if len(self.sources)<len(source.hitlist):
+            if source in self.sources:
+                loc = locate(self, source)
         if loc != -1:
             profile = source.hitlist[loc]
             add(profile, index)

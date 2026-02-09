@@ -1,24 +1,26 @@
+# distutils: language = c++
 import json
-from Gates import Gate, Variable, Nothing, update,run,table
-from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
+from Gates cimport Gate, Variable, run, table
+from Gates import Nothing
+from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
-from Store import get
+from Store cimport get
 
 
-class Circuit:
+cdef class Circuit:
     # the main circuit board that holds everything together
     # it knows about all gates, connections, and states
 
     def __init__(self):
         # lookup table for objects by code
-        self.objlist: list[list[Gate | IC]] = [
+        self.objlist = [
             [] for i in range(TOTAL)]  # holds the objects with code name
         # list of everything visible on the board
-        self.canvas: list[Gate | IC] = []  # displays the components
+        self.canvas = []  # displays the components
         # special list for input/output variables (0/1 switches)
-        self.varlist: list[Variable] = []  # holds variables with 0/1 input
+        self.varlist = []  # holds variables with 0/1 input
         # distinct list for Integrated Circuits
-        self.iclist: list[IC] = []
+        self.iclist = []
 
         # clipboard for copy/paste
         self.copydata = []
@@ -27,7 +29,7 @@ class Circuit:
         return 'Circuit'
 
     # creates and adds a new component to the circuit
-    def getcomponent(self, choice) -> Gate | IC:
+    cpdef getcomponent(self,int choice):
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -53,44 +55,46 @@ class Circuit:
             self.canvas.append(gt)
         return gt
 
-    def getobj(self, code) -> Gate:
+    cpdef getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
 
-    def delobj(self, code):
+    cpdef delobj(self, tuple code):
         self.objlist[code[0]][code[1]] = None
 
     # show component
-    def listComponent(self):
-        for i in range(len(self.canvas)):
-            print(f'{i}. {self.canvas[i]}')
+    cpdef listComponent(self):
+        cdef int i=0
+        for i,gate in enumerate(self.canvas):
+            print(f'{i}. {gate}')
 
     # show variables
-    def listVar(self):
-        for i in range(len(self.varlist)):
-            print(f'{i}. {self.varlist[i]}')
+    cpdef listVar(self):
+        cdef int i=0
+        for i,gate in enumerate(self.varlist):
+            print(f'{i}. {gate}')
 
-    def setlimits(self,gate:Gate,size:int):
+    cpdef setlimits(self,Gate gate,int size):
         return gate.setlimits(size)
 
     # connects a target gate to a source (input)
-    def connect(self, target: Gate, source: Gate, index):
+    cpdef connect(self, Gate target, Gate source,int index):
         target.connect(source,index)
         # if the connection changed something, let everyone know
         if target.prev_output != target.output:
             target.propagate()
             
     # switches a variable on or off
-    def toggle(self, target: Variable,value):
+    cpdef toggle(self, Variable target,int value):
         target.toggle(value)
         if target.prev_output != target.output:
             target.propagate()
 
     # identify target/source
-    def disconnect(self, target: Gate, index):
+    cpdef disconnect(self, Gate target,int index):
         target.disconnect(index)
 
     # removes a component from view (soft delete)
-    def hideComponent(self, gate: Gate | IC):
+    cpdef hideComponent(self, object gate):
         gate.hide()
         if gate in self.varlist:
             self.varlist.remove(gate)
@@ -99,8 +103,8 @@ class Circuit:
         self.canvas.remove(gate)
 
     # completely wipes a component from existence
-    def terminate(self, code):
-        gate = self.getobj(code)
+    cpdef terminate(self, code):
+        cdef Gate gate = self.getobj(code)
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
@@ -109,7 +113,7 @@ class Circuit:
             self.canvas.remove(gate)
         self.delobj(code)
 
-    def renewComponent(self, gate: Gate | IC):
+    cpdef renewComponent(self, object gate):
         gate.reveal()
         if isinstance(gate, Variable):
             self.varlist.append(gate)
@@ -118,11 +122,11 @@ class Circuit:
             self.iclist.append(gate)
 
     # Result
-    def output(self, gate: Gate):
+    cpdef output(self, Gate gate):
         print(f'{gate} output is {gate.getoutput()}')
 
     # generates a truth table for all possible inputs
-    def truthTable(self):
+    cpdef truthTable(self):
         if len(self.varlist) == 0:
             return
         return table(self.canvas, self.varlist)
@@ -204,7 +208,7 @@ class Circuit:
         with open(location, 'w') as file:
             json.dump(circuit, file)
 
-    def decode(self, code):
+    cpdef decode(self, code):
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
@@ -258,12 +262,12 @@ class Circuit:
                 print('Cannot Convert to IC')
                 return None
 
-    def rank_reset(self):
+    cpdef rank_reset(self):
         for i in range(TOTAL):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 
-    def clearcircuit(self):
+    cpdef clearcircuit(self):
         for i, _ in enumerate(self.objlist):
             self.objlist[i] = []
         self.varlist = []
@@ -311,14 +315,14 @@ class Circuit:
         return new_items
 
     # runs the simulation
-    def simulate(self, Mode):
+    cpdef simulate(self, int Mode):
         if get_MODE() != DESIGN:
             self.reset()
         set_MODE(Mode)
         run(self.varlist)
 
 
-    def reset(self):
+    cpdef reset(self):
         set_MODE(DESIGN)
         for i in self.canvas:
             i.reset()
