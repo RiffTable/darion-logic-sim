@@ -11,3 +11,4 @@ build/
 engine/*.pyd
 *.json
 engine/*.so
+*.txt
