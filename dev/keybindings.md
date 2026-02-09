@@ -1,42 +1,50 @@
 ### Circuit Design
 
-|        Action         |              Mouse               |    Keybinds    |
-| :-------------------: | :------------------------------: | :------------: |
-|     View Panning      | RMB/MMB Drag / Touchpad 2 finger |   Arrow Keys   |
-|        Zoom In        |           Mouse Scroll           |     Ctrl +     |
-|       Zoom Out        |           Mouse Scroll           |     Ctrl -     |
-|   Rotate component    |         Left Click on ↺          | Ctrl+Arrow Key |
-| Delete component/wire |    RMB (single wire deletion)    |      Del       |
+**1. View Panning**
+- 🖱️ `RMB` Drag / `MMB` Drag
+- ⌨️ `↑` / `→` / `↓` / `←`
+- 🖐️ Touchpad Two-finger Swipe
+
+**2. Zooming**
+- 🖱️ Mouse Scroll  (Can be inverted)
+- ⌨️ `Ctrl` `+` / `Ctrl` `-`
+- 🖐️ Touchpad Two-finger pinch
+
+**3. Rotate Component**
+- ⌨️ `Ctrl` `↑` / `→` / `↓` / `←`
+- ⌨️ `R`  (clockwise)
+- ⌨️ `Shift` `R`  (counter-clockwise)
+
+**4. Delete Wire/Component**
+- ⌨️ `Del` / `Backspace` / `X`
+
+
 
 ### Selection
 
-|        Action         | Mouse | Keybinds |
-| :-------------------: | :---: | :------: |
-| Select all components |       |  Ctrl A  |
-|    Copy selection     |       |  Ctrl C  |
-|     Cut selected      |       |  Ctrl X  |
-|         Paste         |       |  Ctrl V  |
+- **Select All**:  `Ctrl` `A`
+- **Copy Selection**:  `Ctrl` `C`
+- **Cut Selected**:  `Ctrl` `X`
+- **Paste**:  `Ctrl` `V`
+	
 
-### Project
+### Project Management
 
-|    Action    | Mouse | Keybinds               |
-| :----------: | ----- | :--------------------: |
-| New Project  |       |  Ctrl N                |
-| Open Project |       |  Ctrl O                |
-|  Save file   |       |  Ctrl S                |
-|     Undo     |       |  Ctrl Z                |
-|     Redo     |       |  Ctrl Y / Ctrl Shift Z |
+- **New Project**: `Ctrl` `N`
+- **Open Project**: `Ctrl` `O`
+- **Save File**: `Ctrl` `S`
+- **Undo**: `Ctrl` `Z`
+- **Redo**: `Ctrl` `Y`, or  `Ctrl` `Shift` `Z`
 
-### Gate Shortcut
 
-|  Gate  | Keybinds |
-| :----: | :------: |
-|  NOT   |    1     |
-|   OR   |    2     |
-|  NOR   | Shift 2  |
-|  AND   |    3     |
-|  NAND  | Shift 3  |
-|  XOR   |    4     |
-|  XNOR  | Shift 4  |
-| INPUT  |    I     |
-| OUTPUT |    O     |
+### Gate Shortcuts
+
+- **NOT**: `1`
+- **OR**: `2`
+- **NOR**: `Shift` `2`
+- **AND**: `3`
+- **NAND**: `Shift` `3`
+- **XOR**: `4`
+- **XNOR**: `Shift` `4`
+- **Input**: `I`
+- **Output**: `O`
