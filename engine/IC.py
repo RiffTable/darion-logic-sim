@@ -1,7 +1,5 @@
 from __future__ import annotations
 from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal
-
-
 class IC:
     # Integrated Circuit: a custom chip made of other gates
     # It acts like a black box with inputs and outputs
@@ -173,7 +171,7 @@ class IC:
                         loc = source.targets[pin]
                         add(source.hitlist[loc], index)
                     else:
-                        source.hitlist.append(Profile(source, pin, index, source.output))
+                        source.hitlist.append(Profile(pin, index, source.output))
                         source.targets[pin] = len(source.hitlist) - 1   
 
 

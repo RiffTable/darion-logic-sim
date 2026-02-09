@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Variable, Nothing, update,run
+from Gates import Gate, Variable, Nothing, update,run,table
 from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
 from Store import Components
@@ -125,51 +125,7 @@ class Circuit:
     def truthTable(self):
         if len(self.varlist) == 0:
             return
-
-        gate_list = [
-            i for i in self.canvas if i not in self.varlist and not isinstance(i, IC)]
-        
-        ic_outputs = []
-        for i in self.canvas:
-            if isinstance(i, IC):
-                for pin in i.outputs:
-                    ic_outputs.append((i, pin))
-
-        n = len(self.varlist)
-        rows = 1 << n
-        # Collect decoded variable names and the output gate name
-        var_names = [v.name for v in self.varlist]
-        gate_names = [v.name for v in gate_list]
-        ic_names = [f"{ic}:{pin.name}" for ic, pin in ic_outputs]
-        output_names = gate_names + ic_names
-
-        # Determine column widths for nice alignment
-        col_width = max(len(name) for name in var_names + output_names) + 2
-        header = " | ".join(name.center(col_width)
-                            for name in var_names + output_names)
-        separator = "─" * len(header)
-
-        # Print table header
-        Table = "\nTruth Table\n"
-        # add seperater header and seperator in Table
-        Table += separator+'\n'
-        Table += header+'\n'
-        Table += separator+'\n'
-        for i in range(rows):
-            inputs = []
-            for j in range(n):
-                var = self.varlist[j]
-                bit = 1 if (i & (1 << (n - j - 1))) else 0
-                self.toggle(var, bit)
-                inputs.append("1" if bit else "0")
-            
-            output_vals = [gate.getoutput() for gate in gate_list]
-            output_vals += [pin.getoutput() for _, pin in ic_outputs]
-            
-            row = " | ".join(val.center(col_width) for val in inputs + output_vals)
-            Table += row+'\n'
-        Table += separator+'\n'
-        return Table
+        return table(self.canvas, self.varlist)
 
     # prints a detailed report of everything going on
     def diagnose(self):

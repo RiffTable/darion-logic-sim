@@ -2,9 +2,77 @@
 from __future__ import annotations
 from collections import deque
 from typing import Any
-import Const
+from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE
 
+def run(varlist: list[Gate]):
+    i: int = 0
+    n: int = len(varlist)
+    while i<n:
+        varlist[i].process()
+        i+=1
+    i=0
+    while i<n:
+        idx=0
+        size=len(varlist[i].hitlist)
+        while idx<size:
+            profile=varlist[i].hitlist[idx]
+            if profile.target.output==ERROR:
+                update(profile,varlist[i].output)
+                profile.target.sync()
+                profile.target.process()
+                profile.target.propagate()
+            elif update(profile,varlist[i].output):
+                profile.target.propagate()
+            idx+=1
+        i+=1
+        
+def table(gate_list: list[Gate], varlist: list[Gate]):
+    from IC import IC
+    gate_list = [i for i in gate_list if i not in varlist and not isinstance(i, IC)]
+    ic_outputs= []
+    for i in gate_list:
+        if isinstance(i, IC):
+            for pin in i.outputs:
+                ic_outputs.append((i, pin))
 
+    n = len(varlist)
+    rows = 1 << n
+    # Collect decoded variable names and the output gate name
+    var_names = [v.name for v in varlist]
+    gate_names = [v.name for v in gate_list]
+    ic_names = [f"{ic}:{pin.name}" for ic, pin in ic_outputs]
+    output_names = gate_names + ic_names
+
+    # Determine column widths for nice alignment
+    col_width = max(len(name) for name in var_names + output_names) + 2
+    header = " | ".join(name.center(col_width)
+                        for name in var_names + output_names)
+    separator = "─" * len(header)
+
+    # Print table header
+    Table = "\nTruth Table\n"
+    # add seperater header and seperator in Table
+    Table += separator+'\n'
+    Table += header+'\n'
+    Table += separator+'\n'
+    for i in range(rows):
+        inputs = []
+        for j in range(n):
+            var = varlist[j]
+            bit = 1 if (i & (1 << (n - j - 1))) else 0
+            var.toggle(bit)
+            if var.prev_output != var.output:
+                var.propagate()
+            inputs.append("1" if bit else "0")
+        
+        output_vals = [gate.getoutput() for gate in gate_list]
+        output_vals += [pin.getoutput() for _, pin in ic_outputs]
+        
+        row = " | ".join(val.center(col_width) for val in inputs + output_vals)
+        Table += row+'\n'
+    Table += separator+'\n'
+    return Table
+    
 def listdel(lst: list[Any], index: int):
     if lst:
         lst[index] = lst[-1]
@@ -65,18 +133,17 @@ def hide(profile: Profile):
     target.book[profile.output] -= len(profile.index)
     for index in profile.index:
         target.sources[index] = Nothing
-    profile.output = Const.UNKNOWN
+    profile.output = UNKNOWN
 
 
-def reveal(profile: Profile):
+def reveal(profile: Profile,source:Gate):
     target: Gate = profile.target
-    target.book[Const.UNKNOWN] += len(profile.index)
+    target.book[UNKNOWN] += len(profile.index)
     for index in profile.index:
-        target.sources[index] = profile.source
+        target.sources[index] = source
 
 
-def update(profile: Profile) -> bool:
-    new_output: int = profile.source.output
+def update(profile: Profile,new_output: int) -> bool:
     if profile.output == new_output:
         # if nothing changed, relax
         return False
@@ -91,10 +158,10 @@ def update(profile: Profile) -> bool:
     target.book[profile.output] -= count
     target.book[new_output] += count
     
-    if new_output == Const.ERROR:
+    if new_output == ERROR:
         # error propagation
         if target.isready():
-            target.output = Const.ERROR
+            target.output = ERROR
     else:
         # let the target recalculate
         target.process()
@@ -107,13 +174,12 @@ def update(profile: Profile) -> bool:
 def burn(profile: Profile) -> bool:
     target: Gate = profile.target
     target.sync()
-    profile.output = Const.ERROR
-    return target.output != Const.ERROR
+    profile.output = ERROR
+    return target.output != ERROR
 
 
 class Profile:
-    def __init__(self, source: Gate, target: Gate, index: int, output: int):
-        self.source: Gate = source
+    def __init__(self, target: Gate, index: int, output: int):
         self.target: Gate = target
         self.index: list[int] = []  # Using Python list instead of C++ vector
         target.book[output] += 1
@@ -143,8 +209,8 @@ class Gate:
         self.book: list[int] = [0, 0, 0, 0]
         
         # current and previous state
-        self.output: int = Const.UNKNOWN
-        self.prev_output: int = Const.UNKNOWN
+        self.output: int = UNKNOWN
+        self.prev_output: int = UNKNOWN
         
         # identity details
         self.code: tuple[Any, ...] = ()
@@ -166,17 +232,17 @@ class Gate:
 
     def isready(self) -> bool:
         """Checks if the gate is ready to calculate an output."""
-        if Const.MODE == Const.DESIGN:
+        if get_MODE() == DESIGN:
             # if we are designing, nothing works yet
             return False
         else:
-            realsource: int = self.book[Const.HIGH] + self.book[Const.LOW] + self.book[Const.ERROR]
-            if Const.MODE == Const.SIMULATE:
+            realsource: int = self.book[HIGH] + self.book[LOW] + self.book[ERROR]
+            if get_MODE() == SIMULATE:
                 # in simulation, we need all inputs connected
                 return realsource == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return bool(realsource and realsource + self.book[Const.UNKNOWN] == self.inputlimit)
+                return bool(realsource and realsource + self.book[UNKNOWN] == self.inputlimit)
 
     def connect(self, source: Gate, index: int):
         """Connect a source gate (input) to this gate."""
@@ -185,13 +251,13 @@ class Gate:
             loc = source.targets[self]
             add(source.hitlist[loc], index)
         else:
-            source.hitlist.append(Profile(source, self, index, source.output))
+            source.hitlist.append(Profile(self, index, source.output))
             source.targets[self] = len(source.hitlist) - 1            
         # actually plug it in
         self.sources[index] = source
         
         # if something is wrong with the input, react
-        if source.output == Const.ERROR:
+        if source.output == ERROR:
             if self.isready():
                 self.burn()
         else:
@@ -200,7 +266,7 @@ class Gate:
 
     def bypass(self):
         for profile in self.hitlist:
-            if update(profile):
+            if update(profile,self.output):
                 profile.target.propagate()  
 
     def sync(self):
@@ -218,7 +284,7 @@ class Gate:
             gate: Gate = queue.popleft()
             gate.prev_output = gate.output
             # mark as error
-            gate.output = Const.ERROR 
+            gate.output = ERROR 
             for profile in gate.hitlist:
                 # update target's knowledge
                 if burn(profile) and profile.target.isready():
@@ -228,7 +294,7 @@ class Gate:
         """Spread the signal change to all connected gates."""
         gate: Gate
         target: Gate
-        if Const.MODE == Const.FLIPFLOP:
+        if get_MODE() == FLIPFLOP:
             fuse: set[Profile] = set()
             queue: deque[Gate] = deque()
             # notify all targets
@@ -238,7 +304,7 @@ class Gate:
                 gate = queue.popleft()
                 for profile in gate.hitlist:
                     target = profile.target
-                    if update(profile):
+                    if update(profile,gate.output):
                         # check for loops or inconsistencies
                         if gate == target: 
                             gate.burn()
@@ -249,7 +315,7 @@ class Gate:
                         fuse.add(profile)
                         queue.append(target)
 
-        elif Const.MODE == Const.SIMULATE:  # don't need fuse, the logic itself is loop-proof
+        elif get_MODE() == SIMULATE:  # don't need fuse, the logic itself is loop-proof
             queue: deque[Gate] = deque()            
             queue.append(self)                       
             # keep propagating until everything settles
@@ -257,7 +323,7 @@ class Gate:
                 gate = queue.popleft()
                 for profile in gate.hitlist:
                     target = profile.target
-                    if update(profile):
+                    if update(profile,gate.output):
                         queue.append(target)
 
         else:
@@ -279,14 +345,14 @@ class Gate:
         self.propagate()
 
     def reset(self):
-        self.output = Const.UNKNOWN
+        self.output = UNKNOWN
         sums: int = 0
         for i in self.book:
             sums += i
         self.book[:] = [0, 0, 0, sums]
-        self.prev_output = Const.UNKNOWN
+        self.prev_output = UNKNOWN
         for profile in self.hitlist:
-            profile.output = Const.UNKNOWN
+            profile.output = UNKNOWN
 
     def hide(self):
         # disconnect from targets (this gate's outputs)
@@ -305,8 +371,8 @@ class Gate:
                 target.process()
                 target.propagate()
 
-        self.prev_output = Const.UNKNOWN
-        self.output = Const.UNKNOWN
+        self.prev_output = UNKNOWN
+        self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
     def reveal(self):
@@ -320,14 +386,14 @@ class Gate:
                     add(source.hitlist[loc], index)
                 else:
                     # Create new profile
-                    source.hitlist.append(Profile(source, self, index, source.output))  # type: ignore
+                    source.hitlist.append(Profile(self, index, source.output))
                     source.targets[self] = len(source.hitlist) - 1
         
         self.process()
         
         # reconnect to targets (this gate's outputs)
         for profile in self.hitlist:
-            reveal(profile)
+            reveal(profile,self)
         
         self.propagate()
 
@@ -347,11 +413,11 @@ class Gate:
         return False
 
     def getoutput(self) -> str:
-        if self.output == Const.ERROR:
+        if self.output == ERROR:
             return '1/0'
-        if self.output == Const.UNKNOWN:
+        if self.output == UNKNOWN:
             return 'X'
-        return 'T' if self.output == Const.HIGH else 'F'
+        return 'T' if self.output == HIGH else 'F'
 
     def json_data(self) -> dict[str, Any]:
         dictionary: dict[str, Any] = {
@@ -409,13 +475,13 @@ class Variable(Gate):
         self.process()
 
     def reset(self):
-        self.output = Const.UNKNOWN
-        self.prev_output = Const.UNKNOWN
+        self.output = UNKNOWN
+        self.prev_output = UNKNOWN
         for profile in self.hitlist:
-            profile.output = Const.UNKNOWN
+            profile.output = UNKNOWN
 
     def isready(self) -> bool:
-        if Const.MODE == Const.DESIGN:
+        if get_MODE() == DESIGN:
             return False
         else:
             return True
@@ -425,7 +491,7 @@ class Variable(Gate):
         if self.isready():
             self.output = self.sources  # type: ignore
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
     def json_data(self) -> dict[str, Any]:
         dictionary: dict[str, Any] = {
@@ -477,7 +543,7 @@ class Probe(Gate):
         return False
 
     def isready(self) -> bool:
-        if Const.MODE == Const.DESIGN:
+        if get_MODE() == DESIGN:
             return False
         elif self.sources[0] != Nothing:
             return True
@@ -489,7 +555,7 @@ class Probe(Gate):
         if self.isready():
             self.output = self.sources[0].output
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class InputPin(Probe):
@@ -525,9 +591,9 @@ class NOT(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.book[Const.LOW]
+            self.output = self.book[LOW]
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class AND(Gate):
@@ -539,9 +605,9 @@ class AND(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if self.book[Const.LOW] else 1
+            self.output = 0 if self.book[LOW] else 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class NAND(Gate):
@@ -553,9 +619,9 @@ class NAND(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if self.book[Const.LOW] else 0
+            self.output = 1 if self.book[LOW] else 0
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class OR(Gate):
@@ -567,9 +633,9 @@ class OR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 1 if self.book[Const.HIGH] else 0
+            self.output = 1 if self.book[HIGH] else 0
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class NOR(Gate):
@@ -581,9 +647,9 @@ class NOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = 0 if self.book[Const.HIGH] else 1
+            self.output = 0 if self.book[HIGH] else 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class XOR(Gate):
@@ -595,9 +661,9 @@ class XOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.book[Const.HIGH] % 2
+            self.output = self.book[HIGH] % 2
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN
 
 
 class XNOR(Gate):
@@ -609,6 +675,6 @@ class XNOR(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = (self.book[Const.HIGH] % 2) ^ 1
+            self.output = (self.book[HIGH] % 2) ^ 1
         else:
-            self.output = Const.UNKNOWN
+            self.output = UNKNOWN

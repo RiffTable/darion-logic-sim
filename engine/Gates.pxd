@@ -19,6 +19,7 @@ cdef class XOR
 cdef class XNOR
 
 # Helper functions
+cpdef str table(list gatelist, list varlist)
 cpdef run(list varlist)
 cpdef listdel(lst, index)
 cpdef hitlist_del(list hitlist, int index, dict targets_dict)
@@ -27,8 +28,8 @@ cpdef hitlist_del(list hitlist, int index, dict targets_dict)
 cpdef add(Profile profile, int pin_index)
 cpdef bint remove(Profile profile, int pin_index)
 cpdef hide(Profile profile)
-cpdef reveal(Profile profile)
-cpdef bint update(Profile profile)
+cpdef reveal(Profile profile, Gate source)
+cpdef bint update(Profile profile, int new_output)
 cpdef bint burn(Profile profile)
 
 cdef class Empty:
@@ -36,7 +37,6 @@ cdef class Empty:
     cdef public dict targets
 
 cdef class Profile:
-    cdef public Gate source
     cdef public Gate target
     cdef public vector[int] index
     cdef public int output
