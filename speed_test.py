@@ -266,6 +266,8 @@ class AggressiveTestSuite:
         self.test_mixed_gate_benchmark()
         self.test_mega_chain()
         self.test_extreme_fanout()
+        self.test_extreme_fanin(count=50_000)
+        self.test_extreme_fanin_fanout(count=50_000)
 
         # Finalize last section
         self.section("_END_")  # Trigger saving of last section metrics
@@ -372,6 +374,12 @@ class AggressiveTestSuite:
         if 'extreme_fanout' in self.perf_metrics:
             ef = self.perf_metrics['extreme_fanout']
             out(f"    Extreme Fanout (50K):      {ef['time']:.2f} ms")
+        if 'extreme_fanin' in self.perf_metrics:
+            efi = self.perf_metrics['extreme_fanin']
+            out(f"    Extreme Fan-in ({efi['gates']//1000}K):      {efi['time']*1000:.1f} us")
+        if 'extreme_fanin_fanout' in self.perf_metrics:
+            eff = self.perf_metrics['extreme_fanin_fanout']
+            out(f"    Extreme Fan-in+Out ({(eff['gates']-1)//2000}K):  {eff['time']:.2f} ms")
         
         # Final result
         out(f"\n{'='*70}")
@@ -1751,6 +1759,71 @@ class AggressiveTestSuite:
         self.perf_metrics['extreme_fanout'] = {'time': duration, 'gates': count}
         
         self.assert_test(all_high, f"{duration:.2f}ms | {count} gates updated")
+
+    def test_extreme_fanin(self, count):
+        self.subsection(f"Extreme Fan-in ({count:,} inputs)")
+        self.circuit.clearcircuit()
+        c = self.circuit
+        c.simulate(Const.SIMULATE)
+        
+        g = c.getcomponent(Const.AND)
+        c.setlimits(g, count)
+        
+        vars_list = []
+        for i in range(count):
+            v = c.getcomponent(Const.VARIABLE)
+            c.connect(g, v, i)
+            vars_list.append(v)
+            if i > 0 and i % 10000 == 0:
+                self.progress(i, count)
+        
+        # Set all HIGH
+        for v in vars_list:
+            c.toggle(v, 1)
+            
+        start = time.perf_counter_ns()
+        c.toggle(vars_list[0], 0)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        
+        self.perf_metrics['extreme_fanin'] = {'time': duration, 'gates': count}
+        self.assert_test(g.output == Const.LOW, f"{duration:.2f}ms")
+
+    def test_extreme_fanin_fanout(self, count):
+        self.subsection(f"Extreme Fan-in+Fan-out ({count:,} in/out)")
+        self.circuit.clearcircuit()
+        c = self.circuit
+        c.simulate(Const.SIMULATE)
+        
+        central = c.getcomponent(Const.AND)
+        c.setlimits(central, count)
+        
+        inputs = []
+        for i in range(count):
+            v = c.getcomponent(Const.VARIABLE)
+            c.connect(central, v, i)
+            inputs.append(v)
+            if i > 0 and i % 10000 == 0:
+                self.progress(i, count)
+                
+        targets = []
+        for i in range(count):
+            g = c.getcomponent(Const.AND)
+            c.setlimits(g, 1)
+            c.connect(g, central, 0)
+            targets.append(g)
+            if i > 0 and i % 10000 == 0:
+                self.progress(i, count)
+        
+        for v in inputs:
+            c.toggle(v, 1)
+            
+        start = time.perf_counter_ns()
+        c.toggle(inputs[0], 0)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        
+        all_passed = all(g.output == Const.LOW for g in targets)
+        self.perf_metrics['extreme_fanin_fanout'] = {'time': duration, 'gates': count + count + 1}
+        self.assert_test(all_passed, f"{duration:.2f}ms")
 
 if __name__ == "__main__":
     suite = AggressiveTestSuite()

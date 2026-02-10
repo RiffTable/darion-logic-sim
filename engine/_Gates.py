@@ -245,7 +245,12 @@ class Gate:
 
     def connect(self, source: Gate, index: int):
         """Connect a source gate (input) to this gate."""
-        loc: int = locate(self,source)
+        loc:int = -1        
+        if len(self.sources)<len(source.hitlist):
+            if source in self.sources:
+                loc = locate(self, source)
+        else:
+            loc = locate(self, source)
         if loc != -1:
             profile=self.hitlist[loc]
             add(profile.index, index)
@@ -364,7 +369,7 @@ class Gate:
             if source != Nothing:
                 loc: int = locate(self,source)
                 if loc != -1:
-                    profile=self.hitlist[loc]
+                    profile=source.hitlist[loc]
                     remove(profile, index)
                     self.sources[index]=source
                     if not profile.index:
