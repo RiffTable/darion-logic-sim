@@ -58,10 +58,10 @@ class CompItem(QGraphicsRectItem):
 		self.setPos(x, y)
 		self.setZValue(0)
 		self.setFlags(
-			QGraphicsItem.GraphicsItemFlag.ItemIsMovable |
-			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-			QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
-			# QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
+			GraphicsItemFlag.ItemIsMovable |
+			GraphicsItemFlag.ItemIsSelectable |
+			GraphicsItemFlag.ItemSendsGeometryChanges
+			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self._cached_hitbox = QPainterPath()
 		self._cached_hitbox.addRect(self.rect())
@@ -163,29 +163,27 @@ class CompItem(QGraphicsRectItem):
 
 	def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
 		"""Set `facing` and `size` before calling"""
-		# fuck
 		# This was way too complicated then expected
 		w, h = self.getDimension()
-		g = GRID.SIZE
 		M = self.isMirrored
 
-		# Final Facing
+		# Final Facing (fa)
 		# A, B, C, D => E, S, W, N
 		# A* = Edge facing East COUNTER-CLOCKWISE
 		fa = Facing(self.facing + (-edge if M else edge))
 
-		# Final Direction: (False -> Default Rotation), (True -> Reverse Rotation)		
+		# Final Direction (fd): (False -> Clockwise), (True -> Counter-Clockwise)
 		fd = M ^ (edge in (1, 2))
 		# print((["A", "B", "C", "D", "A*", "B*", "C*", "D*"])[fa + (4 if fd else 0)])
 		match fa + (4 if fd else 0):
-			case 0: return (fa, lambda i: QPointF(w*g, i*g))      # A
-			case 1: return (fa, lambda i: QPointF((w-i)*g, h*g))  # B
-			case 2: return (fa, lambda i: QPointF(0, (h-i)*g))    # C
-			case 3: return (fa, lambda i: QPointF(i*g, 0))        # D
-			case 4: return (fa, lambda i: QPointF(w*g, (h-i)*g))  # A*
-			case 5: return (fa, lambda i: QPointF(i*g, h*g))      # B*
-			case 6: return (fa, lambda i: QPointF(0, i*g))        # C*
-			case 7: return (fa, lambda i: QPointF((w-i)*g, 0))    # D*
+			case 0: return ( fa, lambda i: QPointF(w  , i  ) * GRID.SIZE )    # A
+			case 1: return ( fa, lambda i: QPointF(w-i, h  ) * GRID.SIZE )    # B
+			case 2: return ( fa, lambda i: QPointF(0  , h-i) * GRID.SIZE )    # C
+			case 3: return ( fa, lambda i: QPointF(i  , 0  ) * GRID.SIZE )    # D
+			case 4: return ( fa, lambda i: QPointF(w  , h-i) * GRID.SIZE )    # A*
+			case 5: return ( fa, lambda i: QPointF(i  , h  ) * GRID.SIZE )    # B*
+			case 6: return ( fa, lambda i: QPointF(0  , i  ) * GRID.SIZE )    # C*
+			case 7: return ( fa, lambda i: QPointF(w-i, 0  ) * GRID.SIZE )    # D*
 
 	
 	def setPinPos(self, pin: PinItem, placement: QPointF):
@@ -460,8 +458,8 @@ class InputItem(CompItem):
 		# Properties
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-		if event.button() == Qt.MouseButton.LeftButton:
-			delta = event.scenePos() - event.buttonDownScenePos(Qt.MouseButton.LeftButton)
+		if event.button() == MouseBtn.LeftButton:
+			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
 			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
 				self.state = not self.state
 				self.updateVisual()
@@ -509,8 +507,8 @@ class PinItem(QGraphicsRectItem):
 			parentComp
 		)
 		self.setFlags(
-			QGraphicsItem.GraphicsItemFlag.ItemIsSelectable |
-			QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges
+			GraphicsItemFlag.ItemIsSelectable |
+			GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setPen(Qt.PenStyle.NoPen)
 		self.setAcceptHoverEvents(True)
@@ -774,7 +772,7 @@ class CircuitScene(QGraphicsScene):
 
 		self.ghostPin.hide()    # These three lines does the same thing but still...
 		self.ghostPin.setEnabled(False)    # You can never be too sure
-		self.ghostPin.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+		self.ghostPin.setAcceptedMouseButtons(MouseBtn.NoButton)
 
 		self.addItem(self.ghostPin)
 
@@ -823,7 +821,7 @@ class CircuitScene(QGraphicsScene):
 		# run_logic()
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem, modifiers: Qt.KeyboardModifier):
+	def finishWiring(self, target: QGraphicsItem, modifiers: KeyMod):
 		g_wire = self.ghostWire
 		g_pin = self.ghostPin
 		finishing = False
@@ -851,7 +849,7 @@ class CircuitScene(QGraphicsScene):
 				finishing = True
 		
 		if finishing:
-			if not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+			if not (modifiers & KeyMod.ShiftModifier):
 				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 				self.setState(EditorState.NORMAL)
 				self.ghostWire = None
@@ -883,7 +881,7 @@ class CircuitScene(QGraphicsScene):
 
 		# Wiring: Start!
 		if self.checkState(EditorState.NORMAL):
-			if isinstance(item, OutputPinItem) and event.button() == Qt.MouseButton.LeftButton:
+			if isinstance(item, OutputPinItem) and event.button() == MouseBtn.LeftButton:
 				if event.button() == Qt.LeftButton:
 					self.setState(EditorState.WIRING)
 					if not item.hasWire():
@@ -905,11 +903,11 @@ class CircuitScene(QGraphicsScene):
 
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
-			if btn == Qt.MouseButton.LeftButton:
+			if btn == MouseBtn.LeftButton:
 				self.finishWiring(target, event.modifiers())
 
 			# Wiring: Skip!
-			if btn == Qt.MouseButton.RightButton:   # RMB click
+			if btn == MouseBtn.RightButton:   # RMB click
 				self.skipWiring()
 		
 		super().mouseReleaseEvent(event)
@@ -920,7 +918,7 @@ class CircuitScene(QGraphicsScene):
 	
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
-		if key in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace, Qt.Key.Key_X):
+		if key in (Key.Key_Delete, Key.Key_Backspace, Key.Key_X):
 			for item in self.selectedItems():
 				if isinstance(item, WireItem):
 					if item in self.wires: self.removeWire(item)
@@ -930,43 +928,43 @@ class CircuitScene(QGraphicsScene):
 			
 			# self.run_logic()
 		
-		if self.checkState(EditorState.WIRING) and (event.key() == Qt.Key.Key_Escape):
+		if self.checkState(EditorState.WIRING) and (event.key() == Key.Key_Escape):
 			self.skipWiring()
 		
-		if key in (Qt.Key.Key_Plus, Qt.Key.Key_Equal, Qt.Key.Key_Minus, Qt.Key.Key_Underscore):
+		if key in (Key.Key_Plus, Key.Key_Equal, Key.Key_Minus, Key.Key_Underscore):
 			for item in self.selectedItems():
 				if isinstance(item, GateItem):
-					is_plus = event.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Equal)
+					is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
 		
-		# if key == Qt.Key.Key_M:
+		# if key == Key.Key_M:
 		# 	for item in self.selectedItems():
 		# 		if isinstance(item, CompItem):
 		# 			item.mirror()
 		# 			item.updateShape()
 		
-		if key == Qt.Key.Key_F:
+		if key == Key.Key_F:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					item.flip()
 					item.updateShape()
 		
-		if key == Qt.Key.Key_R:
+		if key == Key.Key_R:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
-					item.rotate(not event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+					item.rotate(not event.modifiers() & KeyMod.ShiftModifier)
 					item.updateShape()
 		
-		if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Up) \
-		and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
+		and event.modifiers() & KeyMod.ControlModifier:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					match key:
-						case Qt.Key.Key_Right: item.setFacing(Facing.EAST)
-						case Qt.Key.Key_Down:  item.setFacing(Facing.SOUTH)
-						case Qt.Key.Key_Left:  item.setFacing(Facing.WEST)
-						case Qt.Key.Key_Up:    item.setFacing(Facing.NORTH)
+						case Key.Key_Right: item.setFacing(Facing.EAST)
+						case Key.Key_Down:  item.setFacing(Facing.SOUTH)
+						case Key.Key_Left:  item.setFacing(Facing.WEST)
+						case Key.Key_Up:    item.setFacing(Facing.NORTH)
 					item.updateShape()
 
 		super().keyPressEvent(event)

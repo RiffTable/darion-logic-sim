@@ -38,8 +38,8 @@ class CircuitView(QGraphicsView):
 
 		# Panning
 		self._pan_last_pos = QPointF(0, 0)
-		self.dragStart: dict[Qt.MouseButton, QPointF] = {}
-		self._drag_motion: dict[Qt.MouseButton, QPointF] = {}
+		self.dragStart: dict[MouseBtn, QPointF] = {}
+		self._drag_motion: dict[MouseBtn, QPointF] = {}
 
 		# Zooming
 		self.viewScale = 1
@@ -59,7 +59,7 @@ class CircuitView(QGraphicsView):
 		self._drag_motion[btn] = QPointF(0, 0)
 
 		# Canvas Panning Last Position Tracking
-		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
+		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
 			self._pan_last_pos = mousepos
 		
 		super().mousePressEvent(event)
@@ -73,7 +73,7 @@ class CircuitView(QGraphicsView):
 		# print(self.dragStart)
 
 		# Canvas Panning
-		if event.buttons() & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
+		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
 			delta = mousepos - self._pan_last_pos
 			self.translate(
 				delta.x()/self.viewScale,
@@ -98,7 +98,7 @@ class CircuitView(QGraphicsView):
 			return super().mouseReleaseEvent(event)
 
 		# Don't let the SCENE see RMB release if it ended after dragging
-		if self.isDragAction(dragDelta) and btn == Qt.MouseButton.RightButton:
+		if self.isDragAction(dragDelta) and btn == MouseBtn.RightButton:
 			event.accept(); return
 		
 		return super().mouseReleaseEvent(event)
@@ -159,3 +159,16 @@ class CircuitView(QGraphicsView):
 		after = self.mapToScene(mousePos)
 		delta = after - before
 		self.translate(delta.x(), delta.y())
+	
+	def keyPressEvent(self, event):
+		key = event.key()
+		mods = event.modifiers()
+
+		if key in (Key.Key_Plus, Key.Key_Equal, Key.Key_Minus, Key.Key_Underscore) and (mods & KeyMod.ControlModifier):
+			is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
+			self.applyZoom(
+				self.rect().center(),
+				1.25 if is_plus else 0.8
+			)
+			event.accept(); return
+		return super().keyPressEvent(event)
