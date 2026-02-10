@@ -18,4 +18,8 @@ from PySide6.QtGui import (
 	QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent
 )
 
+# Just some Quality of Life
 GraphicsItemChange = QGraphicsItem.GraphicsItemChange
+# Key = Qt.Key
+# KeyMod = Qt.KeyboardModifier
+# MouseBtn = Qt.MouseButton

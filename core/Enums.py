@@ -9,7 +9,7 @@ from core.QtCore import *
 class Rotation(IntEnum):
 	FORWARD       = 0
 	CLOCKWISE     = 1
-	REVERESE      = 2
+	REVERSE      = 2
 	ANTICLOCKWISE = 3
 
 	@classmethod

@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import cast, TYPE_CHECKING
-from functools import partial
+from typing import Callable
 from core.QtCore import *
 from core.Enums import Facing, Rotation, CompEdge, EditorState
 
@@ -69,17 +68,22 @@ class CompItem(QGraphicsRectItem):
 		self._hover_count = 0
 
 		# Properties
-		self.size = size.toTuple()
+		self._size = size.toTuple()    # (Length, Width) independent of facing
 		self.padding = padding.toTuple()
 		self.state = False
 		self.facing = Facing.EAST
+		
+		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
+		# INPUT-OUTPUT edges, as doing so will make the component
+		# visually face the opposite way, ultimately making
+		# self.facing sound STUPID!
 		self.isMirrored = False
 		self.labelText = "COMP"
 		self._pinslist: dict[CompEdge, list[PinItem]] = {
-			CompEdge.INPUT  : [],
 			CompEdge.OUTPUT : [],
-			CompEdge.TOP    : [],
 			CompEdge.BOTTOM : [],
+			CompEdge.INPUT  : [],
+			CompEdge.TOP    : [],
 		}
 
 		# Visual
@@ -90,70 +94,104 @@ class CompItem(QGraphicsRectItem):
 		self.labelItem = LabelItem(self.labelText, self)
 		self.labelItem.setPos(5, 5)
 	
+
 	@property
 	def cscene(self) -> CircuitScene: return self.scene()
-	
+
+	def setDimension(self, width: int, height: int):
+		self._size = (width, height)
+	def getDimension(self) -> tuple[int, int]:
+		if self.facing%2 == 0:
+			# Horizontal
+			return self._size
+		else:
+			# Vertical
+			return self._size[::-1]
 
 	# Actions
 	def rotate(self, clockwise: bool = True):
-		self.setFacing(self.facing + (1 if clockwise else -1))
+		"""Don't forget to run updateShape() afterwards"""
+		self.setFacing(self.facing + (1 if clockwise else 3))
 	def setFacing(self, facing: Facing):
-		# fuck
-		...
+		"""Don't forget to run updateShape() afterwards"""
+		rot = Rotation(facing - self.facing)
+
+		if rot == Rotation.FORWARD:
+			return
+		
+		self.facing = facing
+		self.updateOrientation()
+
+	def mirror(self):
+		"""Don't forget to run updateShape() afterwards"""
+		self.isMirrored = not self.isMirrored
+		self.updateOrientation()
 	def flip(self):
-		# fuck
-		...
+		"""Don't forget to run updateShape() afterwards"""
+		self.isMirrored = not self.isMirrored
+		self.setFacing(Facing(self.facing+2))
+	
+	def updateOrientation(self):
+		"""Don't forget to run updateShape() afterwards"""
+		# print("---------------")
+		for edge, pins in self._pinslist.items():
+			# print(f"Edge {edge} facing to ", end="")
+			fa, gen = self.getPinPosGenerator(edge)
+			for i, pin in enumerate(pins):
+				pin.facing = fa
+				self.setPinPos(pin, gen(i))
 	
 	# Pin configuration
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
-		mirrored = (edge.value%2 == 1) and self.isMirrored
-		return Facing(edge.value + self.facing.value + (2 if mirrored else 0))
-
-		# # fuck
-		# return {
-		# 	CompEdge.INPUT : Facing.WEST,
-		# 	CompEdge.OUTPUT: Facing.EAST,
-		# 	CompEdge.TOP   : Facing.NORTH,
-		# 	CompEdge.BOTTOM: Facing.SOUTH
-		# }[edge]
+		mirrored = (edge%2 == 1) and self.isMirrored
+		return Facing(edge + self.facing + (2 if mirrored else 0))
 
 	def facingToEdge(self, facing: Facing) -> CompEdge:
-		res = self.facing.value - facing.value
+		res = self.facing - facing
 		mirrored = (res%2 == 1) and self.isMirrored
 		
 		return CompEdge(res + (2 if mirrored else 0))
-
-		# # fuck
-		# return {
-		# 	Facing.WEST : CompEdge.INPUT,
-		# 	Facing.EAST : CompEdge.OUTPUT,
-		# 	Facing.NORTH: CompEdge.TOP,
-		# 	Facing.SOUTH: CompEdge.BOTTOM
-		# }[facing]
 	
 	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
 		"""Don't forget to call updateShape() afterwards."""
 		pinslist = self._pinslist[edge]
-		pin_facing = self.edgeToFacing(edge)
 
-		pos = self.getPinPos(pin_facing, index)
-		newpin = type(self, pos, pin_facing)
+		fa, gen = self.getPinPosGenerator(edge)
+		newpin = type(self, gen(index), fa)
 		pinslist.append(newpin)
 		return newpin
+
+	def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
+		"""Set `facing` and `size` before calling"""
+		# fuck
+		# This was way too complicated then expected
+		w, h = self.getDimension()
+		g = GRID.SIZE
+		M = self.isMirrored
+
+		# Final Facing
+		# A, B, C, D => E, S, W, N
+		# A* = Edge facing East COUNTER-CLOCKWISE
+		fa = Facing(self.facing + (-edge if M else edge))
+
+		# Final Direction: (False -> Default Rotation), (True -> Reverse Rotation)		
+		fd = M ^ (edge in (1, 2))
+		# print((["A", "B", "C", "D", "A*", "B*", "C*", "D*"])[fa + (4 if fd else 0)])
+		match fa + (4 if fd else 0):
+			case 0: return (fa, lambda i: QPointF(w*g, i*g))      # A
+			case 1: return (fa, lambda i: QPointF((w-i)*g, h*g))  # B
+			case 2: return (fa, lambda i: QPointF(0, (h-i)*g))    # C
+			case 3: return (fa, lambda i: QPointF(i*g, 0))        # D
+			case 4: return (fa, lambda i: QPointF(w*g, (h-i)*g))  # A*
+			case 5: return (fa, lambda i: QPointF(i*g, h*g))      # B*
+			case 6: return (fa, lambda i: QPointF(0, i*g))        # C*
+			case 7: return (fa, lambda i: QPointF((w-i)*g, 0))    # D*
+
 	
-	def getPinPos(self, pinFacing: Facing, index: int):
-		w, h = self.size
-		return {
-			Facing.WEST:  QPointF(0, index*GRID.SIZE),
-			Facing.EAST:  QPointF(w*GRID.SIZE, index*GRID.SIZE),
-			Facing.NORTH: QPointF(index*GRID.SIZE, 0),
-			Facing.SOUTH: QPointF(index*GRID.SIZE, h*GRID.SIZE)
-		}[pinFacing]
-	
-	def setPinPos(self, pin: PinItem, index: int):
-		pin.setPos(self.getPinPos(pin.facing, index))
-		w = pin.getWire()
-		if w: w.updateShape()
+	def setPinPos(self, pin: PinItem, placement: QPointF):
+		"""Set `pin.facing` before calling"""
+		pin.setPos(placement)
+		if pin._wire: pin._wire.updateShape()
 	
 	def addPins(self, index_edge_type: list[tuple[int, CompEdge, InputPinItem | OutputPinItem]]) -> None:
 		for index, edge, type in index_edge_type:
@@ -223,8 +261,14 @@ class CompItem(QGraphicsRectItem):
 	
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
-		w, h = self.size
-		dx, dy = self.padding
+		if self.facing%2 == 0:
+			# Horizontal
+			w, h = self._size
+			dx, dy = self.padding
+		else:
+			# Vertical
+			h, w = self._size
+			dy, dx = self.padding
 
 		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		self.setHitbox()
@@ -356,18 +400,23 @@ class GateItem(CompItem):
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
 		n = len(self.inputPins)
-		b = 0
-		if   n < 5:  b = 6
-		elif n < 10: b = 8
-		else:        b = 10
-		g = 2*(n-1) if n > 3 else 4
-		m = g/(n-1)
-		self.size = (b, g)
+		w = 0
+		if   n < 5:  w = 6
+		elif n < 10: w = 8
+		else:        w = 10
+		h = 2*(n-1) if n > 3 else 4
+		m = h/(n-1)
+		self.setDimension(w, h)
 
+		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 		for i, p in enumerate(self.inputPins):
-			self.setPinPos(p, m*i)
+			p.facing = fa
+			self.setPinPos(p, gen(m*i))
 		
-		self.setPinPos(self.outputPin, g/2)
+		opin = self.outputPin
+		fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
+		opin.facing = fa
+		self.setPinPos(opin, gen(h/2))
 		super()._updateShape()
 
 
@@ -891,10 +940,34 @@ class CircuitScene(QGraphicsScene):
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
 		
-		# if event.key() == Qt.Key.Key_R:
-		# 	for item in self.selectedItems:
+		# if key == Qt.Key.Key_M:
+		# 	for item in self.selectedItems():
 		# 		if isinstance(item, CompItem):
-		# 			item.rotate(True)
+		# 			item.mirror()
+		# 			item.updateShape()
+		
+		if key == Qt.Key.Key_F:
+			for item in self.selectedItems():
+				if isinstance(item, CompItem):
+					item.flip()
+					item.updateShape()
+		
+		if key == Qt.Key.Key_R:
+			for item in self.selectedItems():
+				if isinstance(item, CompItem):
+					item.rotate(not event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+					item.updateShape()
+		
+		if key in (Qt.Key.Key_Right, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Up) \
+		and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+			for item in self.selectedItems():
+				if isinstance(item, CompItem):
+					match key:
+						case Qt.Key.Key_Right: item.setFacing(Facing.EAST)
+						case Qt.Key.Key_Down:  item.setFacing(Facing.SOUTH)
+						case Qt.Key.Key_Left:  item.setFacing(Facing.WEST)
+						case Qt.Key.Key_Up:    item.setFacing(Facing.NORTH)
+					item.updateShape()
 
 		super().keyPressEvent(event)
 	
