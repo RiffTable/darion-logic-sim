@@ -30,7 +30,7 @@ cpdef add(Profile profile, int pin_index)
 cpdef bint remove(Profile profile, int pin_index)
 cpdef hide(Profile profile)
 cpdef reveal(Profile profile, Gate source)
-cpdef bint update(Profile profile, int new_output)
+cdef bint update(Profile profile, int new_output)
 cpdef bint burn(Profile profile)
 
 cdef class Empty:
@@ -52,9 +52,9 @@ cdef class Gate:
     cdef public str name
     cdef public str custom_name
     
-    cpdef process(self)
+    cdef process(self)
     cpdef rename(self, str name)
-    cpdef bint isready(self)
+    cdef bint isready(self)
     cpdef connect(self, Gate source, int index)
     cpdef bypass(self)
     cpdef sync(self)
@@ -79,7 +79,7 @@ cdef class Variable(Gate):
     cpdef toggle(self, int source)
     cpdef reset(self)
     cpdef bint isready(self)
-    cpdef process(self)
+    cdef process(self)
     cpdef json_data(self)
     cpdef clone(self, dict dictionary, dict pseudo)
     cpdef copy_data(self, set cluster)
@@ -98,22 +98,22 @@ cdef class OutputPin(Probe):
     cpdef copy_data(self, set cluster)
 
 cdef class NOT(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class AND(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class NAND(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class OR(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class NOR(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class XOR(Gate):
-    cpdef process(self)
+    cdef process(self)
 
 cdef class XNOR(Gate):
-    cpdef process(self)
+    cdef process(self)

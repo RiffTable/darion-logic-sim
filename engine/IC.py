@@ -14,7 +14,7 @@ class IC:
         self.custom_name = ''
         self.code = ''
 
-        self.map = {}
+        self.map = []
 
     def __repr__(self):
         return self.name if self.custom_name == '' else self.custom_name

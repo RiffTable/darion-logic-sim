@@ -164,7 +164,7 @@ cpdef reveal(Profile profile,Gate source):
         target.sources[index] = source
 
 
-cpdef bint update(Profile profile, int new_output):
+cdef bint update(Profile profile, int new_output):
     cdef Gate target
     cdef int count
     if profile.output == new_output:
@@ -238,7 +238,7 @@ cdef class Gate:
         self.custom_name = ''
 
     # calculates the output based on inputs
-    cpdef process(self):
+    cdef process(self):
         pass
        
     cpdef rename(self,str name):
@@ -251,19 +251,19 @@ cdef class Gate:
         return self.name if self.custom_name == '' else self.custom_name
 
     # checks if the gate is ready to calculate an output
-    cpdef bint isready(self):
+    cdef bint isready(self):
         cdef int realsource
         if get_MODE() == DESIGN:
             # if we are designing, nothing works yet
             return False
         else:
-            realsource = self.book[HIGH]+self.book[LOW]+self.book[ERROR]
             if get_MODE() == SIMULATE:
                 # in simulation, we need all inputs connected
-                return realsource == self.inputlimit
+                return self.book[HIGH]+self.book[LOW] == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return realsource and realsource+self.book[UNKNOWN] == self.inputlimit
+                realsource = self.book[HIGH]+self.book[LOW]
+                return realsource and realsource+self.book[UNKNOWN]+self.book[ERROR] == self.inputlimit
 
     # connect a source gate (input) to this gate
     cpdef connect(self, Gate source, int index):
@@ -542,7 +542,7 @@ cdef class Variable(Gate):
         else:
             return True
     
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.sources
@@ -648,7 +648,7 @@ cdef class NOT(Gate):
         self.inputlimit = 1
         self.sources = [Nothing]
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.book[LOW]
@@ -661,7 +661,7 @@ cdef class AND(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 0 if self.book[LOW] else 1
@@ -675,7 +675,7 @@ cdef class NAND(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 1 if self.book[LOW] else 0
@@ -688,7 +688,7 @@ cdef class OR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 1 if self.book[HIGH] else 0
@@ -701,7 +701,7 @@ cdef class NOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = 0 if self.book[HIGH] else 1
@@ -714,7 +714,7 @@ cdef class XOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = self.book[HIGH] % 2
@@ -727,7 +727,7 @@ cdef class XNOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cpdef process(self):
+    cdef process(self):
         self.prev_output = self.output
         if self.isready():
             self.output = (self.book[HIGH] % 2) ^ 1
