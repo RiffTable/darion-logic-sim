@@ -603,8 +603,9 @@ cdef class Gate:
 cdef class Variable(Gate):
     def __init__(self):
         Gate.__init__(self)
-        self.sources = 0
+        self.value = 0
         self.inputlimit = 1
+        self.sources = [Nothing]
     cpdef bint setlimits(self,int size):
         return False
     cpdef void connect(self, Gate source, int index):
@@ -612,7 +613,7 @@ cdef class Variable(Gate):
     cpdef void disconnect(self, int index):
         pass
     cdef void toggle(self, int source):
-        self.sources = source
+        self.value = source
         self.process()
 
     cdef void reset(self):
@@ -627,7 +628,7 @@ cdef class Variable(Gate):
     cdef void process(self):
         self.prev_output = self.output
         if MODE != DESIGN:
-            self.output = self.sources
+            self.output = self.value
         else:
             self.output = UNKNOWN
 
@@ -636,20 +637,20 @@ cdef class Variable(Gate):
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "source": self.sources,
+            "value": self.value,
         }
         return dictionary
 
     cpdef void clone(self,dict dictionary, dict pseudo):
         self.custom_name = dictionary["custom_name"]
-        self.sources = dictionary["source"]
+        self.value = dictionary["value"]
 
     cpdef dict copy_data(self,set cluster):
         dictionary = {
             "name": self.name,
             "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
-            "source": self.sources,
+            "value": self.value,
             }
         return dictionary
 

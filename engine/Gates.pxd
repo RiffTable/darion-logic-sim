@@ -37,7 +37,7 @@ cdef class Profile:
 
 cdef class Gate:
     # Public attributes
-    cdef public object sources    # Generic object to handle list[Gate] or int (for Variable)
+    cdef public list sources    # Generic object to handle list[Gate] or int (for Variable)
     cdef public int inputlimit
     cdef public int book[4]              # Fixed-size array for signal counts
     cdef public int output
@@ -75,6 +75,7 @@ cdef class Gate:
     cpdef void load_to_cluster(self, set cluster)
 
 cdef class Variable(Gate):
+    cdef public int value
     cdef void toggle(self, int source)
 
 cdef class Probe(Gate):

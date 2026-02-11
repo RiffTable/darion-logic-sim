@@ -1,6 +1,6 @@
 # distutils: language = c++
 from libcpp.vector cimport vector
-from engine.Gates cimport Gate, InputPin, OutputPin, Profile
+from Gates cimport Gate, InputPin, OutputPin, Profile
 
 cdef class IC:
     cdef public list inputs
