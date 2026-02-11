@@ -9,6 +9,7 @@ file.json/
 temp.json/
 build/
 engine/*.pyd
+engine/*.h
 *.json
 engine/*.so
 *.txt
