@@ -275,7 +275,8 @@ cdef class Gate:
         for i in range(self.hitlist.size()):
             Py_XDECREF(<PyObject*>self.hitlist[i])
         self.hitlist.clear()
-    cdef purge(self):
+
+    cdef void purge(self):
         cdef size_t i
         # We must cast to PyObject* to decrease refcount
         cdef void** hitlist = self.hitlist.data()
@@ -294,10 +295,10 @@ cdef class Gate:
         return result
 
     # calculates the output based on inputs
-    cdef  process(self):
+    cdef void process(self):
         pass
        
-    cpdef rename(self,str name):
+    cpdef void rename(self,str name):
         self.name = name
 
     # checks if the gate is ready to calculate an output
@@ -318,7 +319,7 @@ cdef class Gate:
                 return realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit
 
     # connect a source gate (input) to this gate
-    cpdef connect(self, Gate source, int index):
+    cpdef void connect(self, Gate source, int index):
         cdef int loc = -1        
         cdef Profile profile
         if len(self.sources)<source.hitlist.size():
@@ -342,7 +343,7 @@ cdef class Gate:
             # otherwise, recalculate our output
             self.process()
 
-    cdef bypass(self):
+    cdef void bypass(self):
         cdef Profile profile
         cdef size_t i
         cdef int size = self.hitlist.size()
@@ -353,7 +354,7 @@ cdef class Gate:
                 profile.target.propagate()
 
     # protect against weird loops by resetting counts
-    cdef  sync(self):
+    cdef void sync(self):
         cdef int* book = self.book
         book[:]=[0,0,0,0]
         for source in self.sources:
@@ -361,7 +362,7 @@ cdef class Gate:
                 book[source.output]+=1
 
     # handles error states and spreads the error
-    cdef  burn(self):
+    cdef void burn(self):
         cdef Gate gate
         cdef deque[void*] q
         cdef Profile profile
@@ -388,7 +389,7 @@ cdef class Gate:
 
     # spread the signal change to all connected gates
 
-    cpdef propagate(self):
+    cpdef void propagate(self):
         cdef Gate gate
         cdef Gate target
         cdef Profile profile
@@ -439,7 +440,7 @@ cdef class Gate:
             pass
 
     # remove a connection at a specific index
-    cpdef disconnect(self,int index):
+    cpdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         cdef int loc = locate(self, source.hitlist)
         cdef Profile profile
@@ -455,7 +456,7 @@ cdef class Gate:
         self.process()
         self.propagate()
 
-    cdef  reset(self):
+    cdef void reset(self):
         self.output = UNKNOWN
         cdef int i
         cdef int n
@@ -474,7 +475,7 @@ cdef class Gate:
             profile = <Profile>hitlist[i]
             profile.output=UNKNOWN
 
-    cdef  hide(self):
+    cdef void hide(self):
         # disconnect from targets (this gate's outputs)
         cdef Profile profile
         cdef Gate target
@@ -509,7 +510,7 @@ cdef class Gate:
         self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
-    cdef  reveal(self):
+    cdef void reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
         cdef int loc
         cdef Profile profile
@@ -561,7 +562,7 @@ cdef class Gate:
             return 'X'
         return 'T' if self.output == HIGH else 'F'
 
-    cpdef json_data(self):
+    cpdef dict json_data(self):
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
@@ -571,7 +572,7 @@ cdef class Gate:
         }
         return dictionary
 
-    cpdef copy_data(self, set cluster):
+    cpdef dict copy_data(self, set cluster):
         dictionary = {
             "name": self.name,
             "custom_name": "", # Do not copy custom name for gates
@@ -581,19 +582,19 @@ cdef class Gate:
             }
         return dictionary
 
-    cdef decode(self,list code):
+    cdef tuple decode(self,list code):
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    cpdef clone(self, dict dictionary,dict pseudo):
+    cpdef void clone(self, dict dictionary,dict pseudo):
         self.custom_name = dictionary["custom_name"]
         self.setlimits(dictionary["inputlimit"])
         for index,source in enumerate(dictionary["source"]):
             if source[0]!='X':
                 self.connect(pseudo[self.decode(source)],index)
 
-    cpdef load_to_cluster(self,set cluster):
+    cpdef void load_to_cluster(self,set cluster):
         cluster.add(self)
 
 
@@ -606,15 +607,15 @@ cdef class Variable(Gate):
         self.inputlimit = 1
     cpdef bint setlimits(self,int size):
         return False
-    cpdef connect(self, Gate source, int index):
+    cpdef void connect(self, Gate source, int index):
         pass
-    cpdef disconnect(self, int index):
+    cpdef void disconnect(self, int index):
         pass
-    cdef  toggle(self, int source):
+    cdef void toggle(self, int source):
         self.sources = source
         self.process()
 
-    cdef  reset(self):
+    cdef void reset(self):
         self.output = UNKNOWN
         self.prev_output = UNKNOWN
         cdef Profile profile
@@ -623,14 +624,14 @@ cdef class Variable(Gate):
             profile = <Profile>hitlist[i]
             profile.output=UNKNOWN
     
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         if MODE != DESIGN:
             self.output = self.sources
         else:
             self.output = UNKNOWN
 
-    cpdef json_data(self):
+    cpdef dict json_data(self):
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
@@ -639,11 +640,11 @@ cdef class Variable(Gate):
         }
         return dictionary
 
-    cpdef clone(self,dict dictionary, dict pseudo):
+    cpdef void clone(self,dict dictionary, dict pseudo):
         self.custom_name = dictionary["custom_name"]
         self.sources = dictionary["source"]
 
-    cpdef copy_data(self,set cluster):
+    cpdef dict copy_data(self,set cluster):
         dictionary = {
             "name": self.name,
             "custom_name": "", # Do not copy custom name for gates
@@ -652,7 +653,7 @@ cdef class Variable(Gate):
             }
         return dictionary
 
-    cdef hide(self):
+    cdef void hide(self):
         # disconnect from target
         cdef Profile profile
         cdef Gate target
@@ -668,7 +669,7 @@ cdef class Variable(Gate):
                 target.process()
                 target.propagate()
 
-    cdef reveal(self):
+    cdef void reveal(self):
         # connect to targets
         cdef Profile profile
         cdef void** hitlist = self.hitlist.data()
@@ -693,7 +694,7 @@ cdef class Probe(Gate):
             return True
         else:
             return False
-    cpdef copy_data(self, set cluster):
+    cpdef dict copy_data(self, set cluster):
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name, 
@@ -703,14 +704,14 @@ cdef class Probe(Gate):
             }
         return dictionary
 
-    cpdef clone(self, dict dictionary, dict pseudo):
+    cpdef void clone(self, dict dictionary, dict pseudo):
         self.custom_name = dictionary["custom_name"]
         self.setlimits(dictionary["inputlimit"])
         for index,source in enumerate(dictionary["source"]):
             if source[0]!='X':
                 self.connect(pseudo[self.decode(source)],index)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         if MODE != DESIGN and self.sources[0] != Nothing:
             self.output = self.sources[0].output
@@ -734,7 +735,7 @@ cdef class NOT(Gate):
         self.inputlimit = 1
         self.sources = [Nothing]
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -750,7 +751,7 @@ cdef class AND(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -774,7 +775,7 @@ cdef class NAND(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -797,7 +798,7 @@ cdef class OR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -820,7 +821,7 @@ cdef class NOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -843,7 +844,7 @@ cdef class XOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 
@@ -866,7 +867,7 @@ cdef class XNOR(Gate):
     def __init__(self):
         Gate.__init__(self)
 
-    cdef  process(self):
+    cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
 

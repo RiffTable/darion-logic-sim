@@ -52,30 +52,30 @@ cdef class Gate:
     cdef vector[void*] hitlist
 
     # Methods
-    cdef process(self)
-    cpdef rename(self, str name)
+    cdef void process(self)
+    cpdef void rename(self, str name)
     cdef bint isready(self)
-    cpdef connect(self, Gate source, int index)
-    cdef bypass(self)
-    cdef sync(self)
-    cdef burn(self)
-    cpdef propagate(self)
-    cpdef disconnect(self, int index)
-    cdef reset(self)
-    cdef hide(self)
-    cdef reveal(self)
+    cpdef void connect(self, Gate source, int index)
+    cdef void bypass(self)
+    cdef void sync(self)
+    cdef void burn(self)
+    cpdef void propagate(self)
+    cpdef void disconnect(self, int index)
+    cdef void reset(self)
+    cdef void hide(self)
+    cdef void reveal(self)
     cpdef bint setlimits(self, int size)
     cpdef str getoutput(self)
-    cdef purge(self)
+    cdef void purge(self)
     # Serialization / Cloning
-    cpdef json_data(self)
-    cpdef copy_data(self, set cluster)
-    cdef decode(self, list code)
-    cpdef clone(self, dict dictionary, dict pseudo)
-    cpdef load_to_cluster(self, set cluster)
+    cpdef dict json_data(self)
+    cpdef dict copy_data(self, set cluster)
+    cdef tuple decode(self, list code)
+    cpdef void clone(self, dict dictionary, dict pseudo)
+    cpdef void load_to_cluster(self, set cluster)
 
 cdef class Variable(Gate):
-    cdef toggle(self, int source)
+    cdef void toggle(self, int source)
 
 cdef class Probe(Gate):
     pass

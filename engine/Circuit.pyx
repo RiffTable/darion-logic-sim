@@ -29,7 +29,7 @@ cdef class Circuit:
         return 'Circuit'
 
     # creates and adds a new component to the circuit
-    cpdef getcomponent(self,int choice):
+    cpdef object getcomponent(self,int choice):
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -55,46 +55,46 @@ cdef class Circuit:
             self.canvas.append(gt)
         return gt
 
-    cpdef getobj(self, tuple code):
+    cpdef object getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
 
-    cpdef delobj(self, tuple code):
+    cpdef void delobj(self, tuple code):
         self.objlist[code[0]][code[1]] = None
 
     # show component
-    cpdef listComponent(self):
+    cpdef void listComponent(self):
         cdef int i=0
         for i,gate in enumerate(self.canvas):
             print(f'{i}. {gate}')
 
     # show variables
-    cpdef listVar(self):
+    cpdef void listVar(self):
         cdef int i=0
         for i,gate in enumerate(self.varlist):
             print(f'{i}. {gate}')
 
-    cpdef setlimits(self,Gate gate,int size):
+    cpdef bint setlimits(self,Gate gate,int size):
         return gate.setlimits(size)
 
     # connects a target gate to a source (input)
-    cpdef connect(self, Gate target, Gate source,int index):
+    cpdef void connect(self, Gate target, Gate source,int index):
         target.connect(source,index)
         # if the connection changed something, let everyone know
         if target.prev_output != target.output:
             target.propagate()
             
     # switches a variable on or off
-    cpdef toggle(self, Variable target,int value):
+    cpdef void toggle(self, Variable target,int value):
         target.toggle(value)
         if target.prev_output != target.output:
             target.propagate()
 
     # identify target/source
-    cpdef disconnect(self, Gate target,int index):
+    cpdef void disconnect(self, Gate target,int index):
         target.disconnect(index)
 
     # removes a component from view (soft delete)
-    cpdef hideComponent(self, object gate):
+    cpdef void hideComponent(self, object gate):
         if isinstance(gate, Gate):
             (<Gate>gate).hide()
         elif isinstance(gate, IC):
@@ -107,7 +107,7 @@ cdef class Circuit:
         self.canvas.remove(gate)
 
     # completely wipes a component from existence
-    cpdef terminate(self, code):
+    cpdef void terminate(self, code):
         cdef object gate = self.getobj(code)
         if gate in self.varlist:
             self.varlist.remove(gate)
@@ -117,7 +117,7 @@ cdef class Circuit:
             self.canvas.remove(gate)
         self.delobj(code)
 
-    cpdef renewComponent(self, object gate):
+    cpdef void renewComponent(self, object gate):
         if isinstance(gate, Gate):
             (<Gate>gate).reveal()
         elif isinstance(gate, IC):
@@ -130,11 +130,11 @@ cdef class Circuit:
             self.iclist.append(gate)
 
     # Result
-    cpdef output(self, Gate gate):
+    cpdef void output(self, Gate gate):
         print(f'{gate} output is {gate.getoutput()}')
 
     # generates a truth table for all possible inputs
-    cpdef truthTable(self):
+    cpdef str truthTable(self):
         if len(self.varlist) == 0:
             return
         return table(self.canvas, self.varlist)
@@ -216,7 +216,7 @@ cdef class Circuit:
         with open(location, 'w') as file:
             json.dump(circuit, file)
 
-    cpdef decode(self, code):
+    cpdef tuple decode(self, code):
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
@@ -270,12 +270,12 @@ cdef class Circuit:
                 print('Cannot Convert to IC')
                 return None
 
-    cpdef rank_reset(self):
+    cpdef void rank_reset(self):
         for i in range(TOTAL):
             while self.objlist[i] and self.objlist[i][-1] == None:
                 self.objlist[i].pop()
 
-    cpdef clearcircuit(self):
+    cpdef void clearcircuit(self):
         cdef Gate gate
         cdef IC ic
         for i in range(IC_TYPE):
@@ -334,14 +334,13 @@ cdef class Circuit:
         return new_items
 
     # runs the simulation
-    cpdef simulate(self, int Mod):
+    cpdef void simulate(self, int Mod):
         if MODE != DESIGN:
             self.reset()
         set_MODE(Mod)
         run(self.varlist)
 
-
-    cpdef reset(self):
+    cpdef void reset(self):
         set_MODE(DESIGN)
         for i in self.canvas:
             if isinstance(i, Gate):
