@@ -21,20 +21,19 @@ cdef class XNOR
 # Helper functions
 cpdef str table(list gatelist, list varlist)
 cpdef run(list varlist)
-cpdef listdel(lst, index)
-cpdef hitlist_del(list hitlist, int index)
-cpdef int locate(Gate target, Gate agent)
-
+cdef hitlist_del(list hitlist, int index)
+cdef int locate(Gate target, list agent_hitlist)
 # Profile helper functions (globalized)
-cpdef add(Profile profile, int pin_index)
-cpdef bint remove(Profile profile, int pin_index)
-cpdef hide(Profile profile)
-cpdef reveal(Profile profile, Gate source)
+cdef add(Profile profile, int pin_index)
+cdef bint remove(Profile profile, int pin_index)
+cdef hide(Profile profile)
+cdef reveal(Profile profile, Gate source)
 cdef bint update(Profile profile, int new_output)
-cpdef bint burn(Profile profile)
+cdef bint burn(Profile profile)
 
 cdef class Empty:
     cdef public tuple code
+    cdef public int output
 
 cdef class Profile:
     cdef public Gate target
@@ -56,19 +55,19 @@ cdef class Gate:
     cpdef rename(self, str name)
     cdef bint isready(self)
     cpdef connect(self, Gate source, int index)
-    cpdef bypass(self)
-    cpdef sync(self)
-    cpdef burn(self)
+    cdef bypass(self)
+    cdef sync(self)
+    cdef burn(self)
     cpdef propagate(self)
     cpdef disconnect(self, int index)
-    cpdef reset(self)
-    cpdef hide(self)
-    cpdef reveal(self)
+    cdef reset(self)
+    cdef hide(self)
+    cdef reveal(self)
     cpdef bint setlimits(self, int size)
     cpdef str getoutput(self)
     cpdef json_data(self)
     cpdef copy_data(self, set cluster)
-    cpdef decode(self, list code)
+    cdef decode(self, list code)
     cpdef clone(self, dict dictionary, dict pseudo)
     cpdef load_to_cluster(self, set cluster)
 
@@ -76,20 +75,20 @@ cdef class Variable(Gate):
     cpdef bint setlimits(self, int size)
     cpdef connect(self, Gate source, int index)
     cpdef disconnect(self, int index)
-    cpdef toggle(self, int source)
-    cpdef reset(self)
-    cpdef bint isready(self)
+    cdef toggle(self, int source)
+    cdef reset(self)
+    cdef bint isready(self)
     cdef process(self)
     cpdef json_data(self)
     cpdef clone(self, dict dictionary, dict pseudo)
     cpdef copy_data(self, set cluster)
-    cpdef hide(self)
-    cpdef reveal(self)
+    cdef hide(self)
+    cdef reveal(self)
 
 cdef class Probe(Gate):
     cpdef bint setlimits(self, int size)
-    cpdef bint isready(self)
-    cpdef process(self)
+    cdef bint isready(self)
+    cdef process(self)
 
 cdef class InputPin(Probe):
     cpdef copy_data(self, set cluster)

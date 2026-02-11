@@ -3,20 +3,20 @@ from Gates cimport NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin
 from IC import IC
 
 # Define the map at the module level for efficiency
-cdef dict _gateobjects = {
-    NOT_ID        : NOT,
-    AND_ID        : AND,
-    NAND_ID       : NAND,
-    OR_ID         : OR,
-    NOR_ID        : NOR,
-    XOR_ID        : XOR,
-    XNOR_ID       : XNOR,
-    VARIABLE_ID   : Variable,
-    PROBE_ID      : Probe,
-    INPUT_PIN_ID  : InputPin,
-    OUTPUT_PIN_ID : OutputPin,
-    IC_ID         : IC
-}
+cdef list _gateobjects = [
+    NOT,
+    AND,
+    NAND,
+    OR,
+    NOR,
+    XOR,
+    XNOR,
+    Variable,
+    Probe,
+    InputPin,
+    OutputPin,
+    IC
+]
 
 cpdef object get(int choice):
-    return _gateobjects.get(choice)() if choice in _gateobjects else None
+    return _gateobjects[choice]()

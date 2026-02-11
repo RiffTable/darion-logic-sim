@@ -34,7 +34,7 @@ cpdef enum:
     IC = 11
     TOTAL = 12
 
-cdef int MODE 
+cdef public int MODE 
 cpdef void set_MODE(int mode)
 cpdef int get_MODE()
 

@@ -1,2 +1,2 @@
-cdef dict _gateobjects
+cdef list _gateobjects
 cpdef object get(int choice)

@@ -2,8 +2,8 @@
 import json
 from Gates cimport Gate, Variable, run, table
 from Gates import Nothing
-from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
-from IC import IC
+from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE,MODE,set_MODE
+from IC cimport IC
 from Store cimport get
 
 
@@ -95,7 +95,11 @@ cdef class Circuit:
 
     # removes a component from view (soft delete)
     cpdef hideComponent(self, object gate):
-        gate.hide()
+        if isinstance(gate, Gate):
+            (<Gate>gate).hide()
+        elif isinstance(gate, IC):
+            gate.hide()
+        
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
@@ -104,7 +108,7 @@ cdef class Circuit:
 
     # completely wipes a component from existence
     cpdef terminate(self, code):
-        cdef Gate gate = self.getobj(code)
+        cdef object gate = self.getobj(code)
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
@@ -114,7 +118,11 @@ cdef class Circuit:
         self.delobj(code)
 
     cpdef renewComponent(self, object gate):
-        gate.reveal()
+        if isinstance(gate, Gate):
+            (<Gate>gate).reveal()
+        elif isinstance(gate, IC):
+            gate.reveal()
+        
         if isinstance(gate, Variable):
             self.varlist.append(gate)
         self.canvas.append(gate)
@@ -315,14 +323,17 @@ cdef class Circuit:
         return new_items
 
     # runs the simulation
-    cpdef simulate(self, int Mode):
-        if get_MODE() != DESIGN:
+    cpdef simulate(self, int Mod):
+        if MODE != DESIGN:
             self.reset()
-        set_MODE(Mode)
+        set_MODE(Mod)
         run(self.varlist)
 
 
     cpdef reset(self):
         set_MODE(DESIGN)
         for i in self.canvas:
-            i.reset()
+            if isinstance(i, Gate):
+                (<Gate>i).reset()
+            elif isinstance(i, IC):
+                (<IC>i).reset()

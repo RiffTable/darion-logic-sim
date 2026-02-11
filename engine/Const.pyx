@@ -1,4 +1,3 @@
-MODE = DESIGN
 cpdef void set_MODE(int mode):
     global MODE
     MODE = mode 
