@@ -1,5 +1,5 @@
 # distutils: language = c++
-from Gates cimport Gate, InputPin, OutputPin, Profile, hitlist_del, add, hide, reveal, locate, remove
+from Gates cimport Gate, InputPin, OutputPin, Profile, hitlist_del,create, add, hide, reveal, locate, remove
 from Gates import Nothing
 from Store cimport get
 
@@ -155,14 +155,22 @@ cdef class IC:
         cdef InputPin pin_in
         cdef object target
         cdef Profile profile
+        cdef void** hitlist
         cdef int index
         cdef int loc
-        cdef Gate source
+        cdef size_t i
+        cdef size_t size
+        cdef Gate src
 
         for pin_out in self.outputs:
-            for profile in pin_out.hitlist:
+            hitlist = pin_out.hitlist.data()
+            size = pin_out.hitlist.size()
+            for i in range(size):
+                profile = <Profile>hitlist[i]
                 hide(profile)
-            for profile in pin_out.hitlist:
+            
+            for i in range(size):
+                profile = <Profile>hitlist[i]
                 target = profile.target
                 if target is not self: # Identity check
                    target.process()
@@ -172,37 +180,44 @@ cdef class IC:
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
                 if source is not Nothing:
-                    loc = locate(pin_in, source.hitlist)
+                    src = <Gate>source
+                    loc = locate(pin_in, src.hitlist)
                     if loc != -1:
-                        profile = source.hitlist[loc]
+                        profile = <Profile>src.hitlist[loc]
                         remove(profile, index)
-                        pin_in.sources[index] = source 
+                        pin_in.sources[index] = src 
                         if profile.index.empty():
-                            hitlist_del(source.hitlist, loc) # Helper from Gates
+                            hitlist_del(src.hitlist, loc) # Helper from Gates
 
     # reconnects internal logic
     cpdef reveal(self):
         cdef InputPin pin_in
         cdef OutputPin pin_out
         cdef int index
-        cdef Gate source
         cdef int loc
         cdef Profile profile
-
+        cdef void** hitlist
+        cdef size_t i
+        cdef size_t size
+        cdef Gate src
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
                 if source is not Nothing:
-                    loc = locate(pin_in, source.hitlist)
+                    src = <Gate>source
+                    loc = locate(pin_in, src.hitlist)
                     if loc != -1:
-                        add(source.hitlist[loc], index)
+                        add(<Profile>src.hitlist[loc], index)
                     else:
-                        source.hitlist.append(Profile(pin_in, index, source.output))
+                        create(src.hitlist, pin_in, index, src.output)
             pin_in.process()
             pin_in.propagate()
 
         # Original code line 180: iterate self.outputs
         for pin_out in self.outputs:
-            for profile in pin_out.hitlist:
+            hitlist = pin_out.hitlist.data()
+            size = pin_out.hitlist.size()
+            for i in range(size):
+                profile = <Profile>hitlist[i]
                 reveal(profile, pin_out)
             pin_out.propagate()
         
@@ -221,7 +236,9 @@ cdef class IC:
     cpdef showoutputpins(self):
         for i, gate in enumerate(self.outputs):
             print(f'{i}. {gate}')
-
+    cdef purge(self):
+        for i in self.inputs+self.internal+self.outputs:
+            i.purge()
     cpdef info(self):
         """Show all IC components in an organized way."""
         print(f"\n  IC: {self.name} (Code: {self.code})")
@@ -231,7 +248,9 @@ cdef class IC:
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
-                targets = [str(profile.target) for profile in pin.hitlist]
+                hitlist = pin.hitlist.data()
+                size = pin.hitlist.size()
+                targets = [str((<Profile>hitlist[i]).target) for i in range(size)]
                 print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         # Show internal components
@@ -248,7 +267,9 @@ cdef class IC:
                     else:
                         ch_str = f"val:{comp.sources}"
                     # Targets
-                    tgt = [str(profile.target) for profile in comp.hitlist]
+                    hitlist = comp.hitlist.data()
+                    size = comp.hitlist.size()
+                    tgt = [str((<Profile>hitlist[i]).target) for i in range(size)]
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 

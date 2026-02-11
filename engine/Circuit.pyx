@@ -276,8 +276,19 @@ cdef class Circuit:
                 self.objlist[i].pop()
 
     cpdef clearcircuit(self):
-        for i, _ in enumerate(self.objlist):
-            self.objlist[i] = []
+        cdef Gate gate
+        cdef IC ic
+        for i in range(IC_TYPE):
+            for j in self.objlist[i]:
+                if j:
+                    gate=j
+                    gate.purge()
+            self.objlist[i]=[]
+        for j in self.objlist[IC_TYPE]:
+            if j:
+                ic=j
+                ic.purge()
+        self.objlist[IC_TYPE]=[]
         self.varlist = []
         self.canvas = []
         self.iclist = []
