@@ -10,7 +10,7 @@ from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
 from cpython.ref cimport Py_XINCREF, Py_XDECREF, PyObject
 
 cdef deque[void*] q
-cdef unordered_set[void*] fuse
+cdef vector[void*] fuse
 
 cpdef run(list varlist):
     cdef Profile profile
@@ -35,7 +35,15 @@ cpdef run(list varlist):
                 target.propagate()
             elif update(profile,variable.output):
                 target.propagate()
-
+cdef void clear_fuse():
+    cdef Profile profile
+    cdef size_t i
+    cdef size_t size = fuse.size()
+    cdef void** data = fuse.data()
+    for i in range(size):
+        profile = <Profile>data[i]
+        profile.red_flag = False
+    fuse.clear()
 cpdef str table(list gatelist, list varlist):
     from IC import IC
     # Declarations
@@ -226,6 +234,7 @@ cdef class Profile:
         target.book[output] += 1
         self.index.push_back(index)
         self.output = output
+        self.red_flag = False
 
     def __repr__(self):
         return f"{self.target} {self.index} {self.output}"
@@ -378,6 +387,7 @@ cdef class Gate:
         q.clear()
 
     # spread the signal change to all connected gates
+
     cpdef propagate(self):
         cdef Gate gate
         cdef Gate target
@@ -402,13 +412,14 @@ cdef class Gate:
                         if gate==target: 
                             gate.burn()
                             break
-                        if fuse.count(<void*>profile): 
+                        if profile.red_flag: 
                             gate.burn()
                             break
-                        fuse.insert(<void*>profile)
+                        profile.red_flag = True
+                        fuse.push_back(<void*>profile)
                         q.push_back(<void*>target)
             q.clear()
-            fuse.clear()
+            clear_fuse()
         elif MODE==SIMULATE:# don't need fuse, the logic itself is loop-proof
             q.push_back(<void*>self)                       
             # keep propagating until everything settles

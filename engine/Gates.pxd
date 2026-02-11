@@ -22,6 +22,7 @@ cdef remove(Profile profile, int pin_index)
 cdef hide(Profile profile)
 cdef reveal(Profile profile,Gate source)
 cdef bint update(Profile profile, int new_output)
+cdef void clear_fuse()
 
 
 cdef class Empty:
@@ -32,6 +33,7 @@ cdef class Profile:
     cdef public Gate target
     cdef vector[int] index
     cdef public int output
+    cdef public bint red_flag
 
 cdef class Gate:
     # Public attributes
