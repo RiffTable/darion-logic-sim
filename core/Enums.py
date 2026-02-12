@@ -5,20 +5,6 @@ from core.QtCore import *
 
 
 
-###======= ROTATION =======###
-class Rotation(IntEnum):
-	FORWARD       = 0
-	CLOCKWISE     = 1
-	REVERSE      = 2
-	ANTICLOCKWISE = 3
-
-	@classmethod
-	def _missing_(cls, value: int):
-		if isinstance(value, int): return cls(value % 4)
-		return super()._missing_(value)
-
-
-
 ###======= FACING =======###
 class Facing(IntEnum):
 	EAST     = 0

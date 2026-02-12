@@ -1,13 +1,10 @@
 from __future__ import annotations
 from core.QtCore import *
-from core.Enums import Facing, Rotation, CompEdge, EditorState
+from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from .items import (
-	CompItem, GateItem, UnaryGateItem, InputItem, OutputItem,
-	InputPinItem, OutputPinItem, WireItem,
-	LabelItem
-)
+from .items import CompItem, InputPinItem, OutputPinItem, WireItem, LabelItem
+from .gates import GateItem, UnaryGateItem, InputItem, OutputItem
 
 
 
