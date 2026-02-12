@@ -2,33 +2,11 @@ from __future__ import annotations
 from typing import Callable
 from core.QtCore import *
 from core.Enums import Facing, Rotation, CompEdge, EditorState
+import core.grid as GRID
 
 from editor.styles import Color, Font
 
 
-
-
-
-# Grid size and snapping
-class GRID:
-	SIZE = 12
-	DSIZE = 2*SIZE
-
-	@staticmethod
-	def snapF(point: QPointF) -> QPointF:
-		s = GRID.SIZE
-		return QPointF(
-			round(point.x()/s)*s,
-			round(point.y()/s)*s
-		)
-	
-	@staticmethod
-	def snapT(tup: tuple[float, float]) -> tuple[float, float]:
-		s = GRID.SIZE
-		return (
-			round(tup[0]/s)*s,
-			round(tup[1]/s)*s
-		)
 
 
 
@@ -808,6 +786,19 @@ class CircuitScene(QGraphicsScene):
 	def addComp(self, x: float, y:float, comp_id: int):
 		comp_type = ID_to_Class[comp_id]
 		comp = comp_type(QPointF(x, y))
+
+		if comp_type == GateItem:
+			tags = {
+				0: "NOT",
+				1: "AND",
+				2: "NAND",
+				3: "OR",
+				4: "NOR",
+				5: "XOR",
+				6: "XNOR",
+			}
+			comp.labelItem.setPlainText(tags[comp_id])
+		
 		self.addItem(comp)
 		self.comps.append(comp)
 		# run_logic()
@@ -849,6 +840,8 @@ class CircuitScene(QGraphicsScene):
 				finishing = True
 		
 		if finishing:
+			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
+
 			if not (modifiers & KeyMod.ShiftModifier):
 				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 				self.setState(EditorState.NORMAL)
@@ -859,7 +852,6 @@ class CircuitScene(QGraphicsScene):
 			target.highlight(False)
 			
 			# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
-			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 			# self.clearSelection()
 			# wire.setSelected(True)  # Solo select the finished wire
 			# self.run_logic()

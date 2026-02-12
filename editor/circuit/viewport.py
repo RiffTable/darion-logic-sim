@@ -39,7 +39,6 @@ class CircuitView(QGraphicsView):
 		# Panning
 		self._pan_last_pos = QPointF(0, 0)
 		self.dragStart: dict[MouseBtn, QPointF] = {}
-		self._drag_motion: dict[MouseBtn, QPointF] = {}
 
 		# Zooming
 		self.viewScale = 1
@@ -56,7 +55,6 @@ class CircuitView(QGraphicsView):
 		
 		# Tracking mouse dragging
 		self.dragStart[btn]    = mousepos
-		self._drag_motion[btn] = QPointF(0, 0)
 
 		# Canvas Panning Last Position Tracking
 		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
@@ -66,11 +64,6 @@ class CircuitView(QGraphicsView):
 	
 	def mouseMoveEvent(self, event: QMouseEvent):
 		mousepos = event.position()
-
-		# Tracking mouse dragging
-		for dragbtn, start in self.dragStart.items():
-			self._drag_motion[dragbtn] = mousepos - start
-		# print(self.dragStart)
 
 		# Canvas Panning
 		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
@@ -91,14 +84,13 @@ class CircuitView(QGraphicsView):
 		# Tracking mouse dragging (Possible None value is assumed to be (0, 0))
 		# Double click can produce None
 		start_pos = self.dragStart.pop(btn, mousepos)
-		dragDelta = self._drag_motion.pop(btn, QPointF())
 		# print(f"{btn}: {dragDelta}")
 
 		if start_pos == None:
 			return super().mouseReleaseEvent(event)
 
 		# Don't let the SCENE see RMB release if it ended after dragging
-		if self.isDragAction(dragDelta) and btn == MouseBtn.RightButton:
+		if self.isDragAction(mousepos-start_pos) and btn == MouseBtn.RightButton:
 			event.accept(); return
 		
 		return super().mouseReleaseEvent(event)

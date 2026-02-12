@@ -5,7 +5,8 @@ from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
-from editor.circuit.canvas import GateItem, InputItem, Name_to_ID, ID_to_Name
+# from engine.Event_Manager import Event
+# from engine.Circuit import Circuit
 
 
 
@@ -23,6 +24,7 @@ class AppWindow(QMainWindow):
 		###======= CIRCUIT VIEW =======###
 		self.view = CircuitView()
 		self.scene = self.view.scene
+		# self.logic = Event(Circuit())
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
