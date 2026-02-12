@@ -1,13 +1,12 @@
 from __future__ import annotations
 from core.QtCore import *
-from core.Enums import Facing, Rotation, CompEdge, EditorState
+from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from .items import (
-	CompItem, GateItem, UnaryGateItem, InputItem, OutputItem,
-	InputPinItem, OutputPinItem, WireItem,
-	LabelItem
-)
+from .components import CompItem, LabelItem
+from .pins import InputPinItem, OutputPinItem
+from .wires import WireItem
+from .gates import GateItem, UnaryGateItem, InputItem, OutputItem
 
 
 
@@ -53,7 +52,6 @@ for id_, class_, name_ in COMPONENT_LOOKUP:
 
 
 
-# region: ###======= CIRCUIT SCENE =======###
 class CircuitScene(QGraphicsScene):
 	def __init__(self):
 		super().__init__()
@@ -281,5 +279,3 @@ class CircuitScene(QGraphicsScene):
 					item.updateShape()
 
 		super().keyPressEvent(event)
-	
-# endregion
