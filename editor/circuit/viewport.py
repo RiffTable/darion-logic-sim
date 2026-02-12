@@ -2,8 +2,7 @@ from __future__ import annotations
 from typing import cast
 
 from core.QtCore import *
-from core.Enums import EditorState
-from editor.circuit.canvas import CircuitScene
+from .canvas import CircuitScene
 
 
 
