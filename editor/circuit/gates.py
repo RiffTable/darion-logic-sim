@@ -2,8 +2,10 @@ from __future__ import annotations
 from core.QtCore import *
 from core.Enums import CompEdge, EditorState
 
-from editor.styles import Color, Font
-from .items import CompItem, PinItem, InputPinItem, OutputPinItem
+from editor.styles import Color
+
+from .components import CompItem
+from .pins import PinItem, InputPinItem, OutputPinItem
 
 
 
@@ -230,5 +232,3 @@ class OutputItem(CompItem):
 		self.setPen(QPen(Color.outline, 2))
 		if self.state: self.setBrush(Color.LED_on)
 		else:          self.setBrush(Color.LED_off)
-
-# endregion
