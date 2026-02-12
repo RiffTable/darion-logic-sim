@@ -153,25 +153,21 @@ cdef class IC:
         # Disconnect output pins from their targets
         cdef OutputPin pin_out
         cdef InputPin pin_in
-        cdef object target
-        cdef Profile profile
-        cdef void** hitlist
+        cdef Profile* hitlist
         cdef int index
         cdef int loc
         cdef size_t i
         cdef size_t size
         cdef Gate src
-
+        cdef Gate target
         for pin_out in self.outputs:
             hitlist = pin_out.hitlist.data()
             size = pin_out.hitlist.size()
             for i in range(size):
-                profile = <Profile>hitlist[i]
-                hide(profile)
+                hide(hitlist[i])
             
             for i in range(size):
-                profile = <Profile>hitlist[i]
-                target = profile.target
+                target = <Gate>hitlist[i].target
                 if target is not self: # Identity check
                    target.process()
                    target.propagate()
@@ -183,10 +179,9 @@ cdef class IC:
                     src = <Gate>source
                     loc = locate(pin_in, src.hitlist)
                     if loc != -1:
-                        profile = <Profile>src.hitlist[loc]
-                        remove(profile, index)
+                        remove(src.hitlist[loc], index)
                         pin_in.sources[index] = src 
-                        if profile.index.empty():
+                        if src.hitlist[loc].index.empty():
                             hitlist_del(src.hitlist, loc) # Helper from Gates
 
     # reconnects internal logic
@@ -195,8 +190,7 @@ cdef class IC:
         cdef OutputPin pin_out
         cdef int index
         cdef int loc
-        cdef Profile profile
-        cdef void** hitlist
+        cdef Profile* hitlist
         cdef size_t i
         cdef size_t size
         cdef Gate src
@@ -206,7 +200,7 @@ cdef class IC:
                     src = <Gate>source
                     loc = locate(pin_in, src.hitlist)
                     if loc != -1:
-                        add(<Profile>src.hitlist[loc], index)
+                        add(src.hitlist[loc], index)
                     else:
                         create(src.hitlist, pin_in, index, src.output)
             pin_in.process()
@@ -217,8 +211,7 @@ cdef class IC:
             hitlist = pin_out.hitlist.data()
             size = pin_out.hitlist.size()
             for i in range(size):
-                profile = <Profile>hitlist[i]
-                reveal(profile, pin_out)
+                reveal(hitlist[i], pin_out)
             pin_out.propagate()
         
 
@@ -236,9 +229,9 @@ cdef class IC:
     cpdef showoutputpins(self):
         for i, gate in enumerate(self.outputs):
             print(f'{i}. {gate}')
-    cdef purge(self):
-        for i in self.inputs+self.internal+self.outputs:
-            i.purge()
+    # cdef purge(self):
+    #     for i in self.inputs+self.internal+self.outputs:
+    #         i.purge()
     cpdef info(self):
         """Show all IC components in an organized way."""
         print(f"\n  IC: {self.name} (Code: {self.code})")
@@ -248,9 +241,7 @@ cdef class IC:
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
-                hitlist = pin.hitlist.data()
-                size = pin.hitlist.size()
-                targets = [str((<Profile>hitlist[i]).target) for i in range(size)]
+                targets = [str(target) for target in pin.hitlist]
                 print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         # Show internal components
@@ -267,9 +258,7 @@ cdef class IC:
                     else:
                         ch_str = f"val:{comp.sources}"
                     # Targets
-                    hitlist = comp.hitlist.data()
-                    size = comp.hitlist.size()
-                    tgt = [str((<Profile>hitlist[i]).target) for i in range(size)]
+                    tgt = [str(target) for target in comp.hitlist]
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 

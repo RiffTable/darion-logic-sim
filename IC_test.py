@@ -19,7 +19,7 @@ if engine_path not in sys.path:
 try:
     from Circuit import Circuit
     import Const
-    from Gates import Gate, Variable, Profile, Nothing
+    from Gates import Gate, Variable, Nothing
     from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
     from Gates import InputPin, OutputPin
     from IC import IC

@@ -34,7 +34,7 @@ try:
     from Circuit import Circuit
     from Event_Manager import Event
     import Const
-    from Gates import Gate, Variable, Probe, Nothing, Profile
+    from Gates import Gate, Variable, Probe, Nothing
     from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
     from Gates import InputPin, OutputPin
     from IC import IC
@@ -206,6 +206,15 @@ class AggressiveTestSuite:
         self.test_io_pins_stress()
         self.test_setlimits_stress()
         
+        # ==================== PART 1.5: COMPREHENSIVE COVERAGE ====================
+        self.section("COMPREHENSIVE COVERAGE")
+        self.test_every_gate_simulate()
+        self.test_every_gate_flipflop()
+        self.test_every_gate_multi_input()
+        self.test_all_gate_methods()
+        self.test_all_circuit_methods()
+        self.test_mixed_gate_circuit()
+        
         # ==================== PART 2: CIRCUIT STRESS ====================
         self.section("CIRCUIT STRESS")
         self.test_circuit_management_stress()
@@ -284,8 +293,8 @@ class AggressiveTestSuite:
         out(f"\n{'='*70}")
         out(f"  SECTION RESULTS")
         out(f"{'='*70}")
-        out(f"  {'Section':<20} {'Tests':>8} {'Time':>10} {'Memory':>10} {'Status':>8}")
-        out(f"  {'-'*20} {'-'*8} {'-'*10} {'-'*10} {'-'*8}")
+        out(f"  {'Section':<25} {'Tests':>8} {'Time':>10} {'Memory':>10} {'Status':>8}")
+        out(f"  {'-'*25} {'-'*8} {'-'*10} {'-'*10} {'-'*8}")
         
         for name, m in self.section_metrics.items():
             if name == "_END_":
@@ -296,7 +305,7 @@ class AggressiveTestSuite:
             time_str = f"{m['time_ms']:.0f} ms" if m['time_ms'] >= 1 else f"{m['time_ms']*1000:.0f} us"
             mem_str = f"+{m['mem_mb']:.1f} MB" if m['mem_mb'] >= 0.1 else "~0 MB"
             status = "PASS" if m['status'] == "PASS" else "FAIL"
-            out(f"  {name:<20} {tests:>8} {time_str:>10} {mem_str:>10} {status:>8}")
+            out(f"  {name:<25} {tests:>8} {time_str:>10} {mem_str:>10} {status:>8}")
         
         total = self.passed + self.failed
         
@@ -590,6 +599,677 @@ class AggressiveTestSuite:
                 passed = False
                 break
         self.assert_test(passed, "Expand/contract 2->1000->2")
+
+    # =========================================================================
+    # PART 1.5: COMPREHENSIVE COVERAGE
+    # =========================================================================
+
+    def test_every_gate_simulate(self):
+        """Test every gate type in SIMULATE mode with full truth table verification."""
+        self.subsection("Every Gate (SIMULATE mode)")
+
+        # --- NOT gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.NOT)
+        c.connect(g, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "NOT(1)=0")
+        c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.HIGH, "NOT(0)=1")
+
+        # --- AND gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.AND)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"AND({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- NAND gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.NAND)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"NAND({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- OR gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.OR)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"OR({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- NOR gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.NOR)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"NOR({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- XOR gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.XOR)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"XOR({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- XNOR gate ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.XNOR)
+        c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)]:
+            c.toggle(v1, a); c.toggle(v2, b)
+            self.assert_test(g.output == exp, f"XNOR({a},{b})={1 if exp==Const.HIGH else 0}")
+
+        # --- Variable ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        self.assert_test(v.output == Const.UNKNOWN, "Variable initial=UNKNOWN")
+        c.toggle(v, Const.HIGH)
+        self.assert_test(v.output == Const.HIGH, "Variable toggle HIGH")
+        c.toggle(v, Const.LOW)
+        self.assert_test(v.output == Const.LOW, "Variable toggle LOW")
+
+        # --- Probe ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        p = c.getcomponent(Const.PROBE)
+        c.connect(p, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(p.output == Const.HIGH, "Probe follows HIGH")
+        c.toggle(v, Const.LOW)
+        self.assert_test(p.output == Const.LOW, "Probe follows LOW")
+
+        # --- InputPin ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        inp = c.getcomponent(Const.INPUT_PIN)
+        c.connect(inp, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(inp.output == Const.HIGH, "InputPin follows HIGH")
+
+        # --- OutputPin ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        inp = c.getcomponent(Const.INPUT_PIN)
+        n = c.getcomponent(Const.NOT)
+        out = c.getcomponent(Const.OUTPUT_PIN)
+        c.connect(inp, v, 0)
+        c.connect(n, inp, 0)
+        c.connect(out, n, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(out.output == Const.LOW, "OutputPin chain: V->InPin->NOT->OutPin")
+
+    def test_every_gate_flipflop(self):
+        """Test every gate type in FLIPFLOP mode."""
+        self.subsection("Every Gate (FLIPFLOP mode)")
+
+        gate_truth = {
+            Const.AND:  [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
+            Const.NAND: [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
+            Const.OR:   [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)],
+            Const.NOR:  [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)],
+            Const.XOR:  [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
+            Const.XNOR: [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
+        }
+        gate_names = {
+            Const.AND: 'AND', Const.NAND: 'NAND', Const.OR: 'OR',
+            Const.NOR: 'NOR', Const.XOR: 'XOR', Const.XNOR: 'XNOR',
+        }
+
+        for gtype, table in gate_truth.items():
+            c = Circuit()
+            c.simulate(Const.FLIPFLOP)
+            v1 = c.getcomponent(Const.VARIABLE)
+            v2 = c.getcomponent(Const.VARIABLE)
+            g = c.getcomponent(gtype)
+            c.connect(g, v1, 0)
+            c.connect(g, v2, 1)
+            all_ok = True
+            for a, b, exp in table:
+                c.toggle(v1, a); c.toggle(v2, b)
+                if g.output != exp:
+                    all_ok = False
+                    break
+            self.assert_test(all_ok, f"FF {gate_names[gtype]} truth table")
+
+        # NOT in flipflop
+        c = Circuit()
+        c.simulate(Const.FLIPFLOP)
+        v = c.getcomponent(Const.VARIABLE)
+        g = c.getcomponent(Const.NOT)
+        c.connect(g, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "FF NOT(1)=0")
+        c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.HIGH, "FF NOT(0)=1")
+
+        # Probe in flipflop
+        c = Circuit()
+        c.simulate(Const.FLIPFLOP)
+        v = c.getcomponent(Const.VARIABLE)
+        p = c.getcomponent(Const.PROBE)
+        c.connect(p, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(p.output == Const.HIGH, "FF Probe follows HIGH")
+
+    def test_every_gate_multi_input(self):
+        """Test every gate type with more than 2 inputs (expanded via setlimits)."""
+        self.subsection("Every Gate (Multi-Input)")
+
+        # Test 4-input gates for each type
+        n_inputs = 4
+
+        # AND: all HIGH -> HIGH, any LOW -> LOW
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.AND)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.HIGH)
+        self.assert_test(g.output == Const.HIGH, "AND(4): all HIGH -> HIGH")
+        c.toggle(vs[0], Const.LOW)
+        self.assert_test(g.output == Const.LOW, "AND(4): one LOW -> LOW")
+
+        # NAND: all HIGH -> LOW, any LOW -> HIGH
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.NAND)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "NAND(4): all HIGH -> LOW")
+        c.toggle(vs[0], Const.LOW)
+        self.assert_test(g.output == Const.HIGH, "NAND(4): one LOW -> HIGH")
+
+        # OR: any HIGH -> HIGH, all LOW -> LOW
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.OR)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.LOW, "OR(4): all LOW -> LOW")
+        c.toggle(vs[0], Const.HIGH)
+        self.assert_test(g.output == Const.HIGH, "OR(4): one HIGH -> HIGH")
+
+        # NOR: all LOW -> HIGH, any HIGH -> LOW
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.NOR)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.HIGH, "NOR(4): all LOW -> HIGH")
+        c.toggle(vs[0], Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "NOR(4): one HIGH -> LOW")
+
+        # XOR: odd number of HIGHs -> HIGH, even -> LOW
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.XOR)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.LOW, "XOR(4): 0 HIGH -> LOW")
+        c.toggle(vs[0], Const.HIGH)
+        self.assert_test(g.output == Const.HIGH, "XOR(4): 1 HIGH -> HIGH")
+        c.toggle(vs[1], Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "XOR(4): 2 HIGH -> LOW")
+        c.toggle(vs[2], Const.HIGH)
+        self.assert_test(g.output == Const.HIGH, "XOR(4): 3 HIGH -> HIGH")
+
+        # XNOR: even number of HIGHs -> HIGH, odd -> LOW
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        g = c.getcomponent(Const.XNOR)
+        c.setlimits(g, n_inputs)
+        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        for i, v in enumerate(vs): c.connect(g, v, i)
+        for v in vs: c.toggle(v, Const.LOW)
+        self.assert_test(g.output == Const.HIGH, "XNOR(4): 0 HIGH -> HIGH")
+        c.toggle(vs[0], Const.HIGH)
+        self.assert_test(g.output == Const.LOW, "XNOR(4): 1 HIGH -> LOW")
+        c.toggle(vs[1], Const.HIGH)
+        self.assert_test(g.output == Const.HIGH, "XNOR(4): 2 HIGH -> HIGH")
+
+        # NOT uses base Gate.setlimits, so it CAN expand (but process only uses book)
+        c = Circuit()
+        n = c.getcomponent(Const.NOT)
+        result = c.setlimits(n, 4)
+        self.assert_test(result == True, "NOT setlimits(4) expands (uses base Gate)")
+        self.assert_test(n.inputlimit == 4, "NOT inputlimit == 4 after expand")
+
+        # Probe cannot expand
+        c = Circuit()
+        p = c.getcomponent(Const.PROBE)
+        result = c.setlimits(p, 4)
+        self.assert_test(result == False, "Probe setlimits(4) returns False")
+
+        # Variable cannot expand
+        c = Circuit()
+        v = c.getcomponent(Const.VARIABLE)
+        result = c.setlimits(v, 4)
+        self.assert_test(result == False, "Variable setlimits(4) returns False")
+
+    def test_all_gate_methods(self):
+        """Touch every accessible method/property on every gate type."""
+        self.subsection("All Gate Methods")
+
+        gate_types_const = [Const.NOT, Const.AND, Const.NAND, Const.OR, Const.NOR, Const.XOR, Const.XNOR]
+        gate_names = ['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
+
+        for gtype, gname in zip(gate_types_const, gate_names):
+            c = Circuit()
+            c.simulate(Const.SIMULATE)
+            g = c.getcomponent(gtype)
+
+            # --- getoutput (before connection) ---
+            self.assert_test(g.getoutput() == 'X', f"{gname}.getoutput() = 'X' initially")
+
+            # --- rename ---
+            g.rename(f"my_{gname}")
+            self.assert_test(g.name == f"my_{gname}", f"{gname}.rename() works")
+
+            # --- custom_name and __repr__ / __str__ ---
+            g.custom_name = f"custom_{gname}"
+            self.assert_test(repr(g) == f"custom_{gname}", f"{gname} repr uses custom_name")
+            self.assert_test(str(g) == f"custom_{gname}", f"{gname} str uses custom_name")
+            g.custom_name = ''
+            self.assert_test(repr(g) == f"my_{gname}", f"{gname} repr falls back to name")
+
+            # --- code ---
+            self.assert_test(isinstance(g.code, tuple) and len(g.code) == 2, f"{gname}.code is tuple")
+
+            # --- json_data ---
+            jd = g.json_data()
+            self.assert_test('name' in jd and 'code' in jd and 'source' in jd, f"{gname}.json_data() has keys")
+
+            # --- copy_data ---
+            cluster = set()
+            g.load_to_cluster(cluster)
+            self.assert_test(g in cluster, f"{gname}.load_to_cluster adds self")
+            cd = g.copy_data(cluster)
+            self.assert_test('name' in cd and 'code' in cd, f"{gname}.copy_data() has keys")
+
+            # --- connect, process, propagate via circuit ---
+            if gtype == Const.NOT:
+                v = c.getcomponent(Const.VARIABLE)
+                c.connect(g, v, 0)
+                c.toggle(v, Const.HIGH)
+                self.assert_test(g.getoutput() == 'F', f"{gname} getoutput after connect = 'F'")
+            else:
+                v1 = c.getcomponent(Const.VARIABLE)
+                v2 = c.getcomponent(Const.VARIABLE)
+                c.connect(g, v1, 0)
+                c.connect(g, v2, 1)
+                c.toggle(v1, Const.HIGH)
+                c.toggle(v2, Const.HIGH)
+                out_str = g.getoutput()
+                self.assert_test(out_str in ('T', 'F'), f"{gname} getoutput after HIGH,HIGH = '{out_str}'")
+
+            # --- book tracking ---
+            self.assert_test(isinstance(list(g.book), list), f"{gname}.book is accessible")
+
+            # --- hitlist property ---
+            hl = g.hitlist
+            self.assert_test(isinstance(hl, list), f"{gname}.hitlist returns list")
+
+            # --- sources ---
+            self.assert_test(isinstance(g.sources, list), f"{gname}.sources is list")
+
+        # --- Variable methods ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        v = c.getcomponent(Const.VARIABLE)
+        self.assert_test(v.getoutput() == 'X', "Variable.getoutput() = 'X' initially")
+        c.toggle(v, Const.HIGH)
+        self.assert_test(v.getoutput() == 'T', "Variable.getoutput() = 'T'")
+        v.rename("my_var")
+        self.assert_test(v.name == "my_var", "Variable.rename() works")
+        v.custom_name = "custom_var"
+        self.assert_test(str(v) == "custom_var", "Variable str uses custom_name")
+        v.custom_name = ''
+        jd = v.json_data()
+        self.assert_test('value' in jd, "Variable.json_data has 'value'")
+        cluster = set()
+        v.load_to_cluster(cluster)
+        cd = v.copy_data(cluster)
+        self.assert_test('value' in cd, "Variable.copy_data has 'value'")
+        # Variable connect/disconnect are no-ops
+        v.connect(v, 0)  # should not crash
+        v.disconnect(0)   # should not crash
+        self.assert_test(True, "Variable connect/disconnect no-ops")
+        # Variable setlimits returns False
+        self.assert_test(v.setlimits(10) == False, "Variable.setlimits returns False")
+
+        # --- Probe methods ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        p = c.getcomponent(Const.PROBE)
+        v = c.getcomponent(Const.VARIABLE)
+        c.connect(p, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(p.getoutput() == 'T', "Probe.getoutput() = 'T'")
+        p.rename("my_probe")
+        self.assert_test(p.name == "my_probe", "Probe.rename() works")
+        jd = p.json_data()
+        self.assert_test('source' in jd, "Probe.json_data has 'source'")
+        cluster = set()
+        p.load_to_cluster(cluster)
+        self.assert_test(p in cluster, "Probe.load_to_cluster adds self")
+        self.assert_test(p.setlimits(5) == False, "Probe.setlimits returns False")
+
+        # --- InputPin methods ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        inp = c.getcomponent(Const.INPUT_PIN)
+        v = c.getcomponent(Const.VARIABLE)
+        c.connect(inp, v, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(inp.getoutput() == 'T', "InputPin.getoutput() = 'T'")
+        inp.rename("my_inp")
+        self.assert_test(inp.name == "my_inp", "InputPin.rename() works")
+
+        # --- OutputPin methods ---
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+        out = c.getcomponent(Const.OUTPUT_PIN)
+        v = c.getcomponent(Const.VARIABLE)
+        n = c.getcomponent(Const.NOT)
+        c.connect(n, v, 0)
+        c.connect(out, n, 0)
+        c.toggle(v, Const.HIGH)
+        self.assert_test(out.getoutput() == 'F', "OutputPin.getoutput() = 'F'")
+        out.rename("my_out")
+        self.assert_test(out.name == "my_out", "OutputPin.rename() works")
+
+    def test_all_circuit_methods(self):
+        """Touch every accessible Circuit method."""
+        self.subsection("All Circuit Methods")
+
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        # getcomponent for every type
+        all_types = [
+            (Const.NOT, 'NOT'), (Const.AND, 'AND'), (Const.NAND, 'NAND'),
+            (Const.OR, 'OR'), (Const.NOR, 'NOR'), (Const.XOR, 'XOR'),
+            (Const.XNOR, 'XNOR'), (Const.VARIABLE, 'Variable'),
+            (Const.PROBE, 'Probe'), (Const.INPUT_PIN, 'InputPin'),
+            (Const.OUTPUT_PIN, 'OutputPin'),
+        ]
+        components = {}
+        for gtype, gname in all_types:
+            comp = c.getcomponent(gtype)
+            self.assert_test(comp is not None, f"getcomponent({gname}) != None")
+            components[gname] = comp
+
+        # canvas tracking
+        self.assert_test(len(c.canvas) == len(all_types), f"canvas has {len(all_types)} components")
+
+        # getobj / decode
+        and_gate = components['AND']
+        code = and_gate.code
+        retrieved = c.getobj(code)
+        self.assert_test(retrieved is and_gate, "getobj retrieves same object")
+
+        # setlimits via circuit
+        self.assert_test(c.setlimits(and_gate, 4) == True, "Circuit.setlimits expands AND to 4")
+        self.assert_test(and_gate.inputlimit == 4, "AND inputlimit == 4 after expand")
+
+        # connect/disconnect via circuit
+        v = components['Variable']
+        c.connect(and_gate, v, 0)
+        self.assert_test(and_gate.sources[0] is v, "Circuit.connect wired Variable->AND")
+        c.disconnect(and_gate, 0)
+        self.assert_test(and_gate.sources[0] == Nothing, "Circuit.disconnect cleared AND[0]")
+
+        # toggle
+        c.toggle(v, Const.HIGH)
+        self.assert_test(v.output == Const.HIGH, "Circuit.toggle sets Variable HIGH")
+
+        # hideComponent / renewComponent
+        probe = components['Probe']
+        c.hideComponent(probe)
+        self.assert_test(probe not in c.canvas, "hideComponent removes from canvas")
+        c.renewComponent(probe)
+        self.assert_test(probe in c.canvas, "renewComponent restores to canvas")
+
+        # listComponents / listVar (just call them, no assertions on output)
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            c.listComponent()
+            c.listVar()
+        self.assert_test(True, "listComponent/listVar ran without error")
+
+        # diagnose (capture stdout, just make sure it doesn't crash)
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                c.diagnose()
+            self.assert_test(len(buf.getvalue()) > 0, "diagnose produced output")
+        except Exception as e:
+            self.assert_test(False, f"diagnose crashed: {e}")
+
+        # truthTable with all types connected
+        c2 = Circuit()
+        v1 = c2.getcomponent(Const.VARIABLE)
+        v2 = c2.getcomponent(Const.VARIABLE)
+        for gtype, gname in all_types:
+            if gtype in (Const.VARIABLE, Const.PROBE, Const.INPUT_PIN, Const.OUTPUT_PIN):
+                continue
+            g = c2.getcomponent(gtype)
+            if gtype == Const.NOT:
+                c2.connect(g, v1, 0)
+            else:
+                c2.connect(g, v1, 0)
+                c2.connect(g, v2, 1)
+        c2.simulate(Const.SIMULATE)
+        tt = c2.truthTable()
+        self.assert_test(tt is not None and len(tt) > 0, "truthTable with all gate types")
+
+        # writetojson / readfromjson
+        temp_path = os.path.join(tempfile.gettempdir(), "coverage_test.json")
+        c2.writetojson(temp_path)
+        self.assert_test(os.path.exists(temp_path), "writetojson created file")
+        c3 = Circuit()
+        c3.readfromjson(temp_path)
+        self.assert_test(len(c3.canvas) == len(c2.canvas), "readfromjson loaded same count")
+        os.remove(temp_path)
+
+        # copy / paste
+        c4 = Circuit()
+        g1 = c4.getcomponent(Const.AND)
+        g2 = c4.getcomponent(Const.OR)
+        g3 = c4.getcomponent(Const.NOT)
+        initial = len(c4.canvas)
+        c4.copy([g1, g2, g3])
+        c4.paste()
+        self.assert_test(len(c4.canvas) == initial + 3, "copy/paste duplicated 3 gates")
+
+        # simulate modes
+        c5 = Circuit()
+        c5.simulate(Const.SIMULATE)
+        self.assert_test(Const.get_MODE() == Const.SIMULATE, "simulate(SIMULATE) sets mode")
+        c5.simulate(Const.FLIPFLOP)
+        self.assert_test(Const.get_MODE() == Const.FLIPFLOP, "simulate(FLIPFLOP) sets mode")
+        c5.reset()
+        self.assert_test(Const.get_MODE() == Const.DESIGN, "reset() sets DESIGN mode")
+
+        # clearcircuit
+        c6 = Circuit()
+        for _ in range(10): c6.getcomponent(Const.AND)
+        c6.clearcircuit()
+        self.assert_test(len(c6.canvas) == 0, "clearcircuit empties canvas")
+
+    def test_mixed_gate_circuit(self):
+        """Build a circuit using every gate type simultaneously and verify propagation."""
+        self.subsection("Mixed Gate Circuit")
+
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        # 2 variables feeding into every 2-input gate type
+        v1 = c.getcomponent(Const.VARIABLE)
+        v2 = c.getcomponent(Const.VARIABLE)
+
+        gates = {}
+        for gtype, gname in [(Const.AND,'AND'), (Const.NAND,'NAND'), (Const.OR,'OR'),
+                              (Const.NOR,'NOR'), (Const.XOR,'XOR'), (Const.XNOR,'XNOR')]:
+            g = c.getcomponent(gtype)
+            c.connect(g, v1, 0)
+            c.connect(g, v2, 1)
+            gates[gname] = g
+
+        # NOT from v1
+        not_g = c.getcomponent(Const.NOT)
+        c.connect(not_g, v1, 0)
+        gates['NOT'] = not_g
+
+        # Probe from AND output
+        probe = c.getcomponent(Const.PROBE)
+        c.connect(probe, gates['AND'], 0)
+
+        # InputPin -> OutputPin chain through XOR
+        inp_pin = c.getcomponent(Const.INPUT_PIN)
+        c.connect(inp_pin, v1, 0)
+        out_pin = c.getcomponent(Const.OUTPUT_PIN)
+        c.connect(out_pin, gates['XOR'], 0)
+
+        # Test with (1, 1)
+        c.toggle(v1, Const.HIGH)
+        c.toggle(v2, Const.HIGH)
+        expected = {
+            'AND': Const.HIGH, 'NAND': Const.LOW, 'OR': Const.HIGH,
+            'NOR': Const.LOW, 'XOR': Const.LOW, 'XNOR': Const.HIGH,
+            'NOT': Const.LOW
+        }
+        all_ok = True
+        for gname, exp in expected.items():
+            if gates[gname].output != exp:
+                self.assert_test(False, f"Mixed(1,1) {gname} expected {exp} got {gates[gname].output}")
+                all_ok = False
+        if all_ok:
+            self.assert_test(True, "Mixed(1,1) all gates correct")
+
+        # Probe should follow AND
+        self.assert_test(probe.output == Const.HIGH, "Mixed: Probe follows AND(1,1)=HIGH")
+        # OutputPin should follow XOR
+        self.assert_test(out_pin.output == Const.LOW, "Mixed: OutputPin follows XOR(1,1)=LOW")
+        # InputPin should follow v1
+        self.assert_test(inp_pin.output == Const.HIGH, "Mixed: InputPin follows v1=HIGH")
+
+        # Test with (0, 1)
+        c.toggle(v1, Const.LOW)
+        expected = {
+            'AND': Const.LOW, 'NAND': Const.HIGH, 'OR': Const.HIGH,
+            'NOR': Const.LOW, 'XOR': Const.HIGH, 'XNOR': Const.LOW,
+            'NOT': Const.HIGH
+        }
+        all_ok = True
+        for gname, exp in expected.items():
+            if gates[gname].output != exp:
+                self.assert_test(False, f"Mixed(0,1) {gname} expected {exp} got {gates[gname].output}")
+                all_ok = False
+        if all_ok:
+            self.assert_test(True, "Mixed(0,1) all gates correct")
+
+        # Test with (1, 0)
+        c.toggle(v1, Const.HIGH)
+        c.toggle(v2, Const.LOW)
+        expected = {
+            'AND': Const.LOW, 'NAND': Const.HIGH, 'OR': Const.HIGH,
+            'NOR': Const.LOW, 'XOR': Const.HIGH, 'XNOR': Const.LOW,
+            'NOT': Const.LOW
+        }
+        all_ok = True
+        for gname, exp in expected.items():
+            if gates[gname].output != exp:
+                self.assert_test(False, f"Mixed(1,0) {gname} expected {exp} got {gates[gname].output}")
+                all_ok = False
+        if all_ok:
+            self.assert_test(True, "Mixed(1,0) all gates correct")
+
+        # Test with (0, 0)
+        c.toggle(v1, Const.LOW)
+        expected = {
+            'AND': Const.LOW, 'NAND': Const.HIGH, 'OR': Const.LOW,
+            'NOR': Const.HIGH, 'XOR': Const.LOW, 'XNOR': Const.HIGH,
+            'NOT': Const.HIGH
+        }
+        all_ok = True
+        for gname, exp in expected.items():
+            if gates[gname].output != exp:
+                self.assert_test(False, f"Mixed(0,0) {gname} expected {exp} got {gates[gname].output}")
+                all_ok = False
+        if all_ok:
+            self.assert_test(True, "Mixed(0,0) all gates correct")
+
+        # Reset and verify all go UNKNOWN
+        c.reset()
+        all_unknown = all(g.output == Const.UNKNOWN for g in gates.values())
+        self.assert_test(all_unknown, "Mixed: reset -> all UNKNOWN")
+
+        # Re-simulate and hide/reveal each gate type
+        c.simulate(Const.SIMULATE)
+        c.toggle(v1, Const.HIGH)
+        c.toggle(v2, Const.HIGH)
+        for gname, g in gates.items():
+            c.hideComponent(g)
+            self.assert_test(g not in c.canvas, f"Mixed: hide {gname}")
+            c.renewComponent(g)
+            self.assert_test(g in c.canvas, f"Mixed: reveal {gname}")
+
+        # Disconnect and reconnect each gate (only if source is connected)
+        for gname, g in gates.items():
+            if gname == 'NOT':
+                if g.sources[0] != Nothing:
+                    c.disconnect(g, 0)
+                self.assert_test(g.sources[0] == Nothing, f"Mixed: disconnect {gname}[0]")
+                c.connect(g, v1, 0)
+                self.assert_test(g.sources[0] is v1, f"Mixed: reconnect {gname}[0]")
+            else:
+                if g.sources[0] != Nothing:
+                    c.disconnect(g, 0)
+                if g.sources[1] != Nothing:
+                    c.disconnect(g, 1)
+                self.assert_test(g.sources[0] == Nothing and g.sources[1] == Nothing,
+                                 f"Mixed: disconnect {gname}[0,1]")
+                c.connect(g, v1, 0)
+                c.connect(g, v2, 1)
+                self.assert_test(g.sources[0] is v1 and g.sources[1] is v2,
+                                 f"Mixed: reconnect {gname}[0,1]")
+
+        self.assert_test(True, "Mixed circuit full lifecycle complete")
 
     # =========================================================================
     # PART 2: CIRCUIT STRESS TESTS

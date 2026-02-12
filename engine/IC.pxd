@@ -27,4 +27,4 @@ cdef class IC:
     cpdef showinputpins(self)
     cpdef showoutputpins(self)
     cpdef info(self)
-    cdef purge(self)
+    # cdef purge(self)

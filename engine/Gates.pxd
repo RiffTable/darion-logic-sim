@@ -3,25 +3,33 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
-
+cdef extern from *:
+    ctypedef bint bool "bool"
 # Forward declarations to handle circular references
 cdef class Gate
-cdef class Profile
 cdef class Variable
 
 # Standalone helper functions
-cpdef run(list varlist)
+cpdef void run(list varlist)
 cpdef str table(list gatelist, list varlist)
 
+cdef extern from "Profile.h":
+    cdef cppclass Profile:
+        void* target
+        vector[int] index
+        int output
+        bool red_flag
+        Profile()
+        Profile(void* target, int pin_index, int output)
 # Helper functions for Profile
-cdef hitlist_del(vector[void*]& hitlist, int index)
-cdef int locate(Gate target, vector[void*]& agent_hitlist)
-cdef create(vector[void*]& hitlist, Gate target, int pin_index,int output)
-cdef add(Profile profile, int pin_index)
-cdef remove(Profile profile, int pin_index)
-cdef hide(Profile profile)
-cdef reveal(Profile profile,Gate source)
-cdef bint update(Profile profile, int new_output)
+cdef void hitlist_del(vector[Profile]& hitlist, int index)
+cdef int locate(Gate target, vector[Profile]& agent_hitlist)
+cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output)
+cdef void add(Profile& profile, int pin_index)
+cdef void remove(Profile& profile, int pin_index)
+cdef void hide(Profile& profile)
+cdef void reveal(Profile& profile,Gate source)
+cdef bint update(Profile& profile, int new_output)
 cdef void clear_fuse()
 
 
@@ -29,17 +37,17 @@ cdef class Empty:
     cdef public tuple code
     cdef public int output
 
-cdef class Profile:
-    cdef public Gate target
-    cdef vector[int] index
-    cdef public int output
-    cdef public bint red_flag
+# cdef class Profile:
+#     cdef public Gate target
+#     cdef vector[int] index
+#     cdef public int output
+#     cdef public bint red_flag
 
 cdef class Gate:
     # Public attributes
-    cdef public list sources    # Generic object to handle list[Gate] or int (for Variable)
+    cdef public list sources    
     cdef public int inputlimit
-    cdef public int book[4]              # Fixed-size array for signal counts
+    cdef public int book[4]              
     cdef public int output
     cdef public int prev_output
     
@@ -49,7 +57,7 @@ cdef class Gate:
     cdef public str custom_name
     
     # Internal logic
-    cdef vector[void*] hitlist
+    cdef vector[Profile] hitlist
 
     # Methods
     cdef void process(self)
@@ -66,7 +74,7 @@ cdef class Gate:
     cdef void reveal(self)
     cpdef bint setlimits(self, int size)
     cpdef str getoutput(self)
-    cdef void purge(self)
+    # cdef void purge(self)
     # Serialization / Cloning
     cpdef dict json_data(self)
     cpdef dict copy_data(self, set cluster)

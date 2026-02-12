@@ -7,17 +7,17 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
-from cpython.ref cimport Py_XINCREF, Py_XDECREF, PyObject
+
 
 cdef deque[void*] q
-cdef vector[void*] fuse
+cdef vector[Profile*] fuse
 
-cpdef run(list varlist):
-    cdef Profile profile
+cpdef void run(list varlist):
+    cdef Profile* profile
     cdef Variable variable
     cdef size_t i
     cdef size_t n
-    cdef void** hitlist
+    cdef Profile* hitlist
     cdef Gate target
     for variable in varlist:
         variable.process()
@@ -26,24 +26,25 @@ cpdef run(list varlist):
         n=variable.hitlist.size()
         hitlist = variable.hitlist.data()
         for i in range(n):
-            profile = <Profile>hitlist[i]
-            target = profile.target
+            target = <Gate>hitlist[i].target
             if target.output==ERROR:
-                update(profile,variable.output)
+                update(hitlist[i],variable.output)
                 target.sync()
                 target.process()
                 target.propagate()
-            elif update(profile,variable.output):
+            elif update(hitlist[i],variable.output):
                 target.propagate()
+
 cdef void clear_fuse():
-    cdef Profile profile
+    cdef Profile* profile
     cdef size_t i
     cdef size_t size = fuse.size()
-    cdef void** data = fuse.data()
+    cdef Profile** data = fuse.data()
     for i in range(size):
-        profile = <Profile>data[i]
+        profile = data[i]
         profile.red_flag = False
     fuse.clear()
+
 cpdef str table(list gatelist, list varlist):
     from IC import IC
     # Declarations
@@ -116,26 +117,23 @@ cpdef str table(list gatelist, list varlist):
     
     return "".join(Table)
 
-
-
-cdef hitlist_del(vector[void*]& hitlist, int index):
+cdef void hitlist_del(vector[Profile]& hitlist, int index):
     cdef size_t n=hitlist.size()
     if n==1:
-        Py_XDECREF(<PyObject*>hitlist.back())
+        # Py_XDECREF(<PyObject*>hitlist.back())
         hitlist.pop_back()
     elif n>1:
-        Py_XDECREF(<PyObject*>hitlist[index])
+        # Py_XDECREF(<PyObject*>hitlist[index])
         hitlist[index] = hitlist.back()
         hitlist.pop_back()
 
-
-
-cdef int locate(Gate target, vector[void*]& agent_hitlist):
+cdef int locate(Gate target, vector[Profile]& agent_hitlist):
     cdef size_t i
-    cdef Profile profile
+    cdef Profile* profile
+    cdef void* target_ptr = <void*>target
     for i in range(agent_hitlist.size()):
-        profile = <Profile>agent_hitlist[i]
-        if <void*>profile.target == <void*>target:
+        profile = &agent_hitlist[i]
+        if profile.target == target_ptr:
             return i
     return -1
 
@@ -151,19 +149,19 @@ cdef class Empty:
 
 Nothing = Empty()
 
-cdef  create(vector[void*]& hitlist, Gate target, int pin_index,int output):
-    cdef Profile profile = Profile(target, pin_index, output)
-    Py_XINCREF(<PyObject*>profile)
-    hitlist.push_back(<void*>profile)
-    return profile
+cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output):
+    cdef void* target_ptr = <void*>target
+    hitlist.push_back(Profile(target_ptr, pin_index, output))
+    target.book[output] += 1
 
-cdef  add(Profile profile, int pin_index):
+cdef void add(Profile& profile, int pin_index):
     profile.index.push_back(pin_index)
-    profile.target.book[profile.output] += 1
+    cdef Gate target = <Gate>profile.target
+    target.book[profile.output] += 1
 
 
-cdef  remove(Profile profile, int pin_index):
-    cdef Gate target = profile.target
+cdef void remove(Profile& profile, int pin_index):
+    cdef Gate target = <Gate>profile.target
     target.sources[pin_index] = Nothing
     # Find the position of this index in our index list, then remove it
     cdef size_t i = 0
@@ -176,28 +174,28 @@ cdef  remove(Profile profile, int pin_index):
 
     target.book[profile.output] -= 1
 
-cdef  hide(Profile profile):
-    cdef Gate target = profile.target
+cdef void hide(Profile& profile):
+    cdef Gate target = <Gate>profile.target
     target.book[profile.output] -= profile.index.size()
     for index in profile.index:
         target.sources[index] = Nothing
     profile.output = UNKNOWN
 
 
-cdef  reveal(Profile profile,Gate source):
-    cdef Gate target = profile.target
+cdef void reveal(Profile& profile,Gate source):
+    cdef Gate target = <Gate>profile.target
     target.book[UNKNOWN] += profile.index.size()
     for index in profile.index:
         target.sources[index] = source
 
 
-cdef  bint update(Profile profile, int new_output):
+cdef bint update(Profile& profile, int new_output):
     cdef Gate target
     cdef int count
     if profile.output == new_output:
         # if nothing changed, relax
         return False
-    target = profile.target
+    target = <Gate>profile.target
     if isinstance(target, Probe):
         profile.output = new_output
         target.output = profile.output
@@ -221,26 +219,26 @@ cdef  bint update(Profile profile, int new_output):
     return target.prev_output != target.output
 
 
-cdef  bint burn(Profile profile):
-    cdef Gate target = profile.target
+cdef bint burn(Profile& profile):
+    cdef Gate target = <Gate>profile.target
     target.sync()
     profile.output = ERROR
     return target.output != ERROR
 
 
-cdef class Profile:
-    def __init__(self, Gate target, int index, int output):
-        self.target = target
-        target.book[output] += 1
-        self.index.push_back(index)
-        self.output = output
-        self.red_flag = False
+# cdef class Profile:
+#     def __init__(self, Gate target, int index, int output):
+#         self.target = target
+#         target.book[output] += 1
+#         self.index.push_back(index)
+#         self.output = output
+#         self.red_flag = False
 
-    def __repr__(self):
-        return f"{self.target} {self.index} {self.output}"
+#     def __repr__(self):
+#         return f"{self.target} {self.index} {self.output}"
     
-    def __str__(self):
-        return f"{self.target} {self.index} {self.output}"
+#     def __str__(self):
+#         return f"{self.target} {self.index} {self.output}"
 
 cdef class Gate:
     # it handles inputs, outputs, and  processing logic
@@ -269,29 +267,28 @@ cdef class Gate:
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
 
-    def __dealloc__(self):
-        cdef size_t i
-        # We must cast to PyObject* to decrease refcount
-        for i in range(self.hitlist.size()):
-            Py_XDECREF(<PyObject*>self.hitlist[i])
-        self.hitlist.clear()
+    # def __dealloc__(self):
+    #     cdef size_t i
+    #     # We must cast to PyObject* to decrease refcount
+    #     for i in range(self.hitlist.size()):
+    #         Py_XDECREF(<PyObject*>self.hitlist[i])
+    #     self.hitlist.clear()
 
-    cdef void purge(self):
-        cdef size_t i
-        # We must cast to PyObject* to decrease refcount
-        cdef void** hitlist = self.hitlist.data()
-        for i in range(self.hitlist.size()):
-            Py_XDECREF(<PyObject*>(hitlist[i]))
-        self.hitlist.clear()
+    # cdef void purge(self):
+    #     cdef size_t i
+    #     # We must cast to PyObject* to decrease refcount
+    #     cdef Profile* hitlist = self.hitlist.data()
+    #     for i in range(self.hitlist.size()):
+    #         Py_XDECREF(<PyObject*>(hitlist[i]))
+    #     self.hitlist.clear()
     
     @property
     def hitlist(self):
         cdef list result = []
         cdef size_t i
-        cdef void** data = self.hitlist.data()
         cdef size_t size = self.hitlist.size()
         for i in range(size):
-            result.append(<Profile>data[i])
+            result.append(<Gate>self.hitlist[i].target)
         return result
 
     # calculates the output based on inputs
@@ -321,17 +318,16 @@ cdef class Gate:
     # connect a source gate (input) to this gate
     cpdef void connect(self, Gate source, int index):
         cdef int loc = -1        
-        cdef Profile profile
+        cdef Profile* profile
         if len(self.sources)<source.hitlist.size():
             if source in self.sources:
-                loc = locate(self, (<Gate>source).hitlist)
+                loc = locate(self, source.hitlist)
         else:
-            loc = locate(self, (<Gate>source).hitlist)
+            loc = locate(self, source.hitlist)
         if loc != -1:
-            profile = <Profile>(<Gate>source).hitlist[loc]
-            add(profile, index)
+            add(source.hitlist[loc], index)
         else:
-            profile = create((<Gate>source).hitlist, self, index, source.output)
+            create(source.hitlist, self, index, source.output)
         # actually plug it in
         self.sources[index] = source
         
@@ -344,14 +340,15 @@ cdef class Gate:
             self.process()
 
     cdef void bypass(self):
-        cdef Profile profile
+        cdef Profile* profile
         cdef size_t i
         cdef int size = self.hitlist.size()
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* hitlist = self.hitlist.data()
+        cdef Gate target
         for i in range(size):
-            profile = <Profile>hitlist[i]
-            if update(profile,self.output):
-                profile.target.propagate()
+            target = <Gate>hitlist[i].target
+            if update(hitlist[i],self.output):
+                target.propagate()
 
     # protect against weird loops by resetting counts
     cdef void sync(self):
@@ -365,10 +362,11 @@ cdef class Gate:
     cdef void burn(self):
         cdef Gate gate
         cdef deque[void*] q
-        cdef Profile profile
+        cdef Profile* profile
         cdef size_t i
         cdef size_t size
-        cdef void** hitlist 
+        cdef Profile* hitlist 
+        cdef Gate target
         q.push_back(<void*>self)
         while q.size():
             gate = <Gate>q.front()
@@ -381,10 +379,10 @@ cdef class Gate:
             hitlist = gate.hitlist.data()
             size = gate.hitlist.size()
             for i in range(size):
-                profile = <Profile>hitlist[i]
+                target = <Gate>hitlist[i].target
                 # update target's knowledge
-                if burn(profile) and profile.target.isready():
-                    q.push_back(<void*>profile.target)
+                if burn(hitlist[i]) and target.isready():
+                    q.push_back(<void*>target)
         q.clear()
 
     # spread the signal change to all connected gates
@@ -392,8 +390,8 @@ cdef class Gate:
     cpdef void propagate(self):
         cdef Gate gate
         cdef Gate target
-        cdef Profile profile
-        cdef void** hitlist
+        cdef Profile* profile
+        cdef Profile* hitlist
         cdef size_t size
         cdef size_t i
         if MODE==FLIPFLOP:
@@ -406,19 +404,17 @@ cdef class Gate:
                 hitlist = gate.hitlist.data()
                 size = gate.hitlist.size()
                 for i in range(size):
-                    profile = <Profile>hitlist[i]
-                    target=<Gate>profile.target
-                    if update(profile,gate.output):
+                    if update(hitlist[i],gate.output):
                         # check for loops or inconsistencies
-                        if gate==target: 
+                        if gate==<Gate>hitlist[i].target: 
                             gate.burn()
                             break
-                        if profile.red_flag: 
+                        if hitlist[i].red_flag: 
                             gate.burn()
                             break
-                        profile.red_flag = True
-                        fuse.push_back(<void*>profile)
-                        q.push_back(<void*>target)
+                        hitlist[i].red_flag = True
+                        fuse.push_back(&hitlist[i])
+                        q.push_back(<void*>hitlist[i].target)
             q.clear()
             clear_fuse()
         elif MODE==SIMULATE:# don't need fuse, the logic itself is loop-proof
@@ -430,10 +426,9 @@ cdef class Gate:
                 hitlist = gate.hitlist.data()
                 size = gate.hitlist.size()
                 for i in range(size):
-                    profile = <Profile>hitlist[i]
-                    target=<Gate>profile.target
-                    if update(profile,gate.output):
-                        q.push_back(<void*>target)
+
+                    if update(hitlist[i],gate.output):
+                        q.push_back(<void*>hitlist[i].target)
             q.clear()
 
         else:
@@ -443,11 +438,10 @@ cdef class Gate:
     cpdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         cdef int loc = locate(self, source.hitlist)
-        cdef Profile profile
+        cdef Profile* hitlist = source.hitlist.data()
         if loc != -1:
-            profile = <Profile>source.hitlist[loc]
-            remove(profile, index)
-            if profile.index.empty():
+            remove(hitlist[loc], index)
+            if hitlist[loc].index.empty():
                 hitlist_del(source.hitlist, loc)
         
         # recalculate everything
@@ -463,8 +457,7 @@ cdef class Gate:
         i=0
         cdef int* book = self.book
         n=4
-        cdef Profile profile
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* hitlist = self.hitlist.data()
         cdef int sums=0
         for i in range(n):
             sums+=book[i]
@@ -472,37 +465,33 @@ cdef class Gate:
         self.prev_output = UNKNOWN
 
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            profile.output=UNKNOWN
+            hitlist[i].output=UNKNOWN
 
     cdef void hide(self):
         # disconnect from targets (this gate's outputs)
-        cdef Profile profile
         cdef Gate target
         cdef Gate src
         cdef int loc
         cdef int index
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            hide(profile)
+            hide(hitlist[i])
         
         # disconnect from sources (this gate's inputs)
+        cdef Profile* src_hitlist
         for index, source in enumerate(self.sources):
             if source != Nothing:
                 src = <Gate>source
                 loc = locate(self, src.hitlist)
                 if loc != -1:
-                    profile = <Profile>src.hitlist[loc]
-                    remove(profile, index)
-                    self.sources[index]=source
-                    if profile.index.empty():
+                    src_hitlist = src.hitlist.data()
+                    remove(src_hitlist[loc], index)
+                    if src_hitlist[loc].index.empty():
                         hitlist_del(src.hitlist, loc)
         
         # recalculate targets
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            target = profile.target
+            target = <Gate>hitlist[i].target
             if target != self:
                 target.process()
                 target.propagate()
@@ -513,8 +502,8 @@ cdef class Gate:
     cdef void reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
         cdef int loc
-        cdef Profile profile
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* profile
+        cdef Profile* hitlist = self.hitlist.data()
         cdef Gate src
         for i, source in enumerate(self.sources):
             if source != Nothing:
@@ -523,7 +512,7 @@ cdef class Gate:
                 loc = locate(self, src.hitlist)
                 if loc != -1:
                     # Profile already exists, just add the index
-                    add(<Profile>src.hitlist[loc], i)
+                    add(src.hitlist[loc], i)
                 else:
                     # Create new profile
                     create(src.hitlist, self, i, src.output)
@@ -531,8 +520,7 @@ cdef class Gate:
         
         # reconnect to targets (this gate's outputs)
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            reveal(profile, self)
+            reveal(hitlist[i], self)
         
         self.propagate()
 
@@ -619,10 +607,10 @@ cdef class Variable(Gate):
     cdef void reset(self):
         self.output = UNKNOWN
         self.prev_output = UNKNOWN
-        cdef Profile profile
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* profile
+        cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
+            profile = &hitlist[i]
             profile.output=UNKNOWN
     
     cdef void process(self):
@@ -656,27 +644,23 @@ cdef class Variable(Gate):
 
     cdef void hide(self):
         # disconnect from target
-        cdef Profile profile
+        cdef Profile* profile
         cdef Gate target
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            hide(profile)
+            hide(hitlist[i])
 
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            target = profile.target
+            target = <Gate>hitlist[i].target
             if target != self:
                 target.process()
                 target.propagate()
 
     cdef void reveal(self):
         # connect to targets
-        cdef Profile profile
-        cdef void** hitlist = self.hitlist.data()
+        cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
-            profile = <Profile>hitlist[i]
-            reveal(profile, self)
+            reveal(hitlist[i], self)
         self.propagate()
 
 cdef class Probe(Gate):
