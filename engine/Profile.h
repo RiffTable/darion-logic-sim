@@ -6,14 +6,11 @@
 
 struct Profile {
     void* target;
-    std::vector<int> index;
+    int index;
     int output;
-    bool red_flag;
 
-    Profile() : target(NULL), output(0), red_flag(false) {}
-    Profile(void* t, int i, int o) : target(t), output(o), red_flag(false) {
-        index.push_back(i);
-    }
+    Profile() : target(NULL), output(0){}
+    Profile(void* t, int i, int o) : target(t),index(i), output(o){}
 };
 
 #endif

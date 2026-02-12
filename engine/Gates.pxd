@@ -3,8 +3,6 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
-cdef extern from *:
-    ctypedef bint bool "bool"
 # Forward declarations to handle circular references
 cdef class Gate
 cdef class Variable
@@ -16,20 +14,16 @@ cpdef str table(list gatelist, list varlist)
 cdef extern from "Profile.h":
     cdef cppclass Profile:
         void* target
-        vector[int] index
+        int index
         int output
-        bool red_flag
         Profile()
         Profile(void* target, int pin_index, int output)
 # Helper functions for Profile
-cdef void hitlist_del(vector[Profile]& hitlist, int index)
-cdef int locate(Gate target, vector[Profile]& agent_hitlist)
 cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output)
-cdef void add(Profile& profile, int pin_index)
-cdef void remove(Profile& profile, int pin_index)
+cdef void add(vector[Profile]& hitlist, Gate target, int pin_index,int output)
+cdef void remove(vector[Profile]& hitlist, Gate target, int pin_index)
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
-cdef bint update(Profile& profile, int new_output)
 cdef void clear_fuse()
 
 
@@ -52,6 +46,7 @@ cdef class Gate:
     cdef public int prev_output
     
     # Identity
+    cdef public int id
     cdef public tuple code
     cdef public str name
     cdef public str custom_name
@@ -64,7 +59,7 @@ cdef class Gate:
     cpdef void rename(self, str name)
     cdef bint isready(self)
     cpdef void connect(self, Gate source, int index)
-    cdef void bypass(self)
+    # cdef void bypass(self)
     cdef void sync(self)
     cdef void burn(self)
     cpdef void propagate(self)

@@ -1,5 +1,5 @@
 # distutils: language = c++
-from Gates cimport Gate, InputPin, OutputPin, Profile, hitlist_del,create, add, hide, reveal, locate, remove
+from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove
 from Gates import Nothing
 from Store cimport get
 
@@ -177,12 +177,8 @@ cdef class IC:
             for index, source in enumerate(pin_in.sources):
                 if source is not Nothing:
                     src = <Gate>source
-                    loc = locate(pin_in, src.hitlist)
-                    if loc != -1:
-                        remove(src.hitlist[loc], index)
-                        pin_in.sources[index] = src 
-                        if src.hitlist[loc].index.empty():
-                            hitlist_del(src.hitlist, loc) # Helper from Gates
+                    remove(src.hitlist, pin_in, index)
+                    pin_in.sources[index]=source
 
     # reconnects internal logic
     cpdef reveal(self):
@@ -198,11 +194,7 @@ cdef class IC:
             for index, source in enumerate(pin_in.sources):
                 if source is not Nothing:
                     src = <Gate>source
-                    loc = locate(pin_in, src.hitlist)
-                    if loc != -1:
-                        add(src.hitlist[loc], index)
-                    else:
-                        create(src.hitlist, pin_in, index, src.output)
+                    add(src.hitlist, pin_in, index, src.output)
             pin_in.process()
             pin_in.propagate()
 
