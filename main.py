@@ -1,12 +1,17 @@
 import sys
+import os
+
+# Add engine to path
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
+
 from functools import partial
 
 from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
-# from engine.Event_Manager import Event
-# from engine.Circuit import Circuit
+from Event_Manager import Event
+from Circuit import Circuit
 
 
 
@@ -24,7 +29,7 @@ class AppWindow(QMainWindow):
 		###======= CIRCUIT VIEW =======###
 		self.view = CircuitView()
 		self.scene = self.view.scene
-		# self.logic = Event(Circuit())
+		self.logic = Event(Circuit())
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
