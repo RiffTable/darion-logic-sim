@@ -3,7 +3,7 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
-# Forward declarations to handle circular references
+# from libcpp cimport bool
 cdef class Gate
 cdef class Variable
 

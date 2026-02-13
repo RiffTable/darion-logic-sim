@@ -48,12 +48,10 @@ cdef void clear_fuse():
     cdef size_t i
     cdef size_t size = fuse.size()
     for i in range(size):
-        profile = fuse[i]
-        profile.index*=-1
+        fuse[i].index=-fuse[i].index-1
     fuse.clear()
 
 cpdef str table(list gatelist, list varlist):
-    from IC import IC
     # Declarations
     cdef list gate_list = []
     cdef list var_names, gate_names, inputs, output_vals, all_names, row_data, header_parts
@@ -318,22 +316,27 @@ cdef class Gate:
         cdef Profile* hitlist 
         cdef Gate target
         q.push_back(<void*>self)
+        # input(f'burn from {self}\n')
         # keep propagating until everything settles
         while q.size():
             gate = <Gate>q.front()
             q.pop_front()
             hitlist = gate.hitlist.data()
             size = gate.hitlist.size()
+            gate.prev_output=gate.output
             gate.output = ERROR
             for i in range(size):
                 profile = &hitlist[i]
                 target=<Gate>profile.target
                 profile.output = ERROR
                 if i==size-1 or profile.target!=hitlist[i+1].target:
+                    # input(f'{target} output is {target.output}\n')
                     target.sync()
-                    if target.isready() and target.output!=ERROR:
+                    # input(f'{target} is synced and has {target.output} not {ERROR}\n')
+                    if target.output!=ERROR:
+                        # input(f'{target} pushed to queue\n')
                         q.push_back(<void*>target)
-            q.clear()
+        q.clear()
     # spread the signal change to all connected gates
 
     cpdef void propagate(self):
@@ -348,6 +351,8 @@ cdef class Gate:
         cdef int realsource
         cdef int high
         cdef int low
+        cdef int* index 
+        cdef int limit
         if MODE==FLIPFLOP:
             # notify all targets
             q.push_back(<void*>self)
@@ -361,46 +366,51 @@ cdef class Gate:
                     profile = &hitlist[i]
                     if gate.output!=profile.output:
                         target=<Gate>profile.target
-                        book = target.book
-                        book[profile.output]-=1
-                        book[gate.output]+=1
-                        profile.output = gate.output
-                        if i==size-1 or profile.target!=hitlist[i+1].target:
-                            gate_type = target.id
-                            target.prev_output=target.output
-                            high=book[HIGH]
-                            low=book[LOW]
-                            if high+low==target.inputlimit or high+low+book[UNKNOWN]+book[ERROR]==target.inputlimit:
-                                if gate_type==NOT_ID:
-                                    target.output=low
-                                elif gate_type==AND_ID:
-                                    target.output = low==0
-                                elif gate_type==NAND_ID:
-                                    target.output = low!=0
-                                elif gate_type==OR_ID:
-                                    target.output = high>0
-                                elif gate_type==NOR_ID:
-                                    target.output = high==0
-                                elif gate_type==XOR_ID:
-                                    target.output = high&1
-                                elif gate_type==XNOR_ID:
-                                    target.output = (high&1)^1
-                                elif gate_type==VARIABLE_ID:
-                                    target.output=target.value
+                        gate_type = target.id
+                        if gate_type<PROBE_ID:
+                            book = target.book
+                            book[profile.output]-=1
+                            book[gate.output]+=1
+                            profile.output = gate.output
+                            if i==size-1 or profile.target!=hitlist[i+1].target:
+                                target.prev_output=target.output
+                                high=book[HIGH]
+                                low=book[LOW]
+                                if high+low==target.inputlimit or (high+low and high+low+book[UNKNOWN]+book[ERROR]==target.inputlimit):
+                                    if gate_type==NOT_ID:
+                                        target.output=low
+                                    elif gate_type==AND_ID:
+                                        target.output = low==0
+                                    elif gate_type==NAND_ID:
+                                        target.output = low!=0
+                                    elif gate_type==OR_ID:
+                                        target.output = high>0
+                                    elif gate_type==NOR_ID:
+                                        target.output = high==0
+                                    elif gate_type==XOR_ID:
+                                        target.output = high&1
+                                    elif gate_type==XNOR_ID:
+                                        target.output = (high&1)^1
                                 else:
-                                    target.output=high
-                            if target.prev_output!=target.output:
-                                if gate==target: 
-                                    q.clear()
-                                    gate.burn()
-                                    break
-                                if profile.index<0: 
-                                    q.clear()
-                                    gate.burn()
-                                    break
-                                profile.index*=-1
-                                fuse.push_back(profile)
-                                q.push_back(<void*>target)
+                                    target.output=UNKNOWN
+                        else:
+                            target.output=gate.output
+                            profile.output=gate.output
+                        if target.prev_output!=target.output:
+                            if gate==target: 
+                                q.clear()
+                                # input(f'{gate} is in a loop\n')
+                                gate.burn()
+                                clear_fuse()
+                                return
+                            if profile.index<0: 
+                                q.clear()
+                                gate.burn()
+                                clear_fuse()
+                                return
+                            profile.index=-profile.index-1
+                            fuse.push_back(profile)
+                            q.push_back(<void*>target)
             q.clear()
             clear_fuse()
         elif MODE==SIMULATE:# don't need fuse, the logic itself is loop-proof
@@ -415,36 +425,38 @@ cdef class Gate:
                     profile = &hitlist[i]
                     if gate.output!=profile.output:
                         target=<Gate>profile.target
-                        book = target.book
-                        book[profile.output]-=1
-                        book[gate.output]+=1
-                        profile.output = gate.output
-                        if i==size-1 or profile.target!=hitlist[i+1].target:
-                            gate_type = target.id
-                            target.prev_output=target.output
-                            high=book[HIGH]
-                            low=book[LOW]
-                            if high+low==target.inputlimit:
-                                if gate_type==NOT_ID:
-                                    target.output=low
-                                elif gate_type==AND_ID:
-                                    target.output = low==0
-                                elif gate_type==NAND_ID:
-                                    target.output = low!=0
-                                elif gate_type==OR_ID:
-                                    target.output = high>0
-                                elif gate_type==NOR_ID:
-                                    target.output = high==0
-                                elif gate_type==XOR_ID:
-                                    target.output = high&1
-                                elif gate_type==XNOR_ID:
-                                    target.output = (high&1)^1
-                                elif gate_type==VARIABLE_ID:
-                                    target.output=target.value
+                        gate_type = target.id
+                        if gate_type<PROBE_ID:
+                            book = target.book
+                            book[profile.output]-=1
+                            book[gate.output]+=1
+                            profile.output = gate.output
+                            if i==size-1 or profile.target!=hitlist[i+1].target:
+                                target.prev_output=target.output
+                                high=book[HIGH]
+                                low=book[LOW]
+                                if high+low==target.inputlimit:
+                                    if gate_type==NOT_ID:
+                                        target.output=low
+                                    elif gate_type==AND_ID:
+                                        target.output = low==0
+                                    elif gate_type==NAND_ID:
+                                        target.output = low!=0
+                                    elif gate_type==OR_ID:
+                                        target.output = high>0
+                                    elif gate_type==NOR_ID:
+                                        target.output = high==0
+                                    elif gate_type==XOR_ID:
+                                        target.output = high&1
+                                    elif gate_type==XNOR_ID:
+                                        target.output = (high&1)^1
                                 else:
-                                    target.output=high
-                            if target.prev_output!=target.output:
-                                q.push_back(<void*>target)
+                                    target.output=UNKNOWN
+                        else:
+                            target.output=gate.output
+                            profile.output=gate.output
+                        if target.prev_output!=target.output:
+                            q.push_back(<void*>target)
             q.clear()
         else:
             pass

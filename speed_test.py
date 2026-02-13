@@ -71,9 +71,20 @@ class AggressiveTestSuite:
             sys.stdout.flush()
 
     def timer(self, func):
+        """
+        Modified timer: Disables GC during execution to ensure consistency.
+        Does NOT perform warmup (warmup must be done by the caller to handle state).
+        """
+        gc_enabled = gc.isenabled()
+        gc.disable()
+        
         start = time.perf_counter_ns()
         func()
         end = time.perf_counter_ns()
+        
+        if gc_enabled:
+            gc.enable()
+            
         return (end - start) / 1_000_000
 
     def assert_test(self, condition, test_name, details=""):
@@ -117,7 +128,7 @@ class AggressiveTestSuite:
             }
             # Show section completion
             if self._current_section != "_END_":
-                status_icon = "✓" if self.section_failed == 0 else "✗"
+                status_icon = "[OK]" if self.section_failed == 0 else "[FAIL]"
                 print(f"  {status_icon} {self._current_section}: {self.section_passed} passed ({duration:.0f}ms)")
                 sys.stdout.flush()
         
@@ -1593,12 +1604,25 @@ class AggressiveTestSuite:
         # Level 1
         ic1, inp1, out1 = create_inverter_ic(c)
         # Level 2 inside ic1
-        ic2, inp2, out2 = create_inverter_ic(ic1)
+        ic2, inp2, out2 = create_inverter_ic(c)
+        ic1.addgate(ic2)
+        c.canvas.remove(ic2)
+        c.iclist.remove(ic2)
+
         # Level 3 inside ic2
-        ic3, inp3, out3 = create_inverter_ic(ic2)
+        ic3, inp3, out3 = create_inverter_ic(c)
+        ic2.addgate(ic3)
+        c.canvas.remove(ic3)
+        c.iclist.remove(ic3)
+
         # Level 4 inside ic3
-        ic4, inp4, out4 = create_inverter_ic(ic3)
+        ic4, inp4, out4 = create_inverter_ic(c)
+        ic3.addgate(ic4)
+        c.canvas.remove(ic4)
+        c.iclist.remove(ic4)
         
+        # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
+        create_inverter_ic = locals()['create_inverter_ic'] # Ensure scope
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
         v = c.getcomponent(Const.VARIABLE_ID)
         inp1.connect(v, 0)
@@ -1609,6 +1633,7 @@ class AggressiveTestSuite:
         out2.connect(out3, 0)
         out1.connect(out2, 0)
         
+        c.simulate(Const.SIMULATE)
         c.toggle(v, Const.HIGH)
         # inp1->inp2->inp3->inp4->NOT->out4->out3->out2->out1
         # Effectively a single inverter wrapped in wires
@@ -2154,6 +2179,10 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         c.toggle(inp, 0)
         
+        # Warmup: Toggle to 1 then back to 0
+        c.toggle(inp, 1)
+        c.toggle(inp, 0)
+        
         duration = self.timer(lambda: c.toggle(inp, 1))
         latency = (duration*1e6)/count
         self.perf_metrics['marathon'] = {'time': duration, 'latency': latency, 'gates': count}
@@ -2178,6 +2207,10 @@ class AggressiveTestSuite:
             layer = next_l
 
         c.simulate(Const.SIMULATE)
+        c.toggle(root, 0)
+
+        # Warmup
+        c.toggle(root, 1)
         c.toggle(root, 0)
 
         duration = self.timer(lambda: c.toggle(root, 1))
@@ -2211,6 +2244,10 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         c.toggle(trig, 0)
 
+        # Warmup
+        c.toggle(trig, 1)
+        c.toggle(trig, 0)
+
         duration = self.timer(lambda: c.toggle(trig, 1))
         self.perf_metrics['gridlock'] = {'time': duration, 'gates': total}
         
@@ -2240,6 +2277,10 @@ class AggressiveTestSuite:
         c.toggle(rst_line, 1)
         c.toggle(rst_line, 0)
 
+        # Warmup
+        c.toggle(set_line, 1)
+        c.toggle(set_line, 0)
+
         duration = self.timer(lambda: c.toggle(set_line, 1))
         self.perf_metrics['echo_chamber'] = {'time': duration, 'gates': count*2}
         
@@ -2265,6 +2306,11 @@ class AggressiveTestSuite:
             c.toggle(vars_list[i], 1)
         
         trigger = vars_list[-1]
+        
+        # Warmup
+        c.toggle(trigger, 1)
+        c.toggle(trigger, 0)
+
         duration = self.timer(lambda: c.toggle(trigger, 1))
         self.perf_metrics['black_hole'] = {'time': duration, 'gates': inputs}
         
@@ -2282,15 +2328,22 @@ class AggressiveTestSuite:
         c.connect(xor_gate, source, 0)
         c.connect(xor_gate, xor_gate, 1)
         
+        # NOTE: Skipping warmup for paradox test as it triggers error state/potential crash
+        
         try:
+            gc.disable()
             start = time.perf_counter_ns()
             c.toggle(source, 1)
             duration = (time.perf_counter_ns() - start) / 1_000_000
+            gc.enable()
+            
             self.perf_metrics['paradox'] = {'time': duration, 'gates': 1}
             self.assert_test(xor_gate.output == Const.ERROR, f"ERROR state ({duration:.4f}ms)")
         except RecursionError:
+            gc.enable()
             self.assert_test(True, "Caught RecursionError")
         except Exception as e:
+            gc.enable()
             self.assert_test(False, f"CRASHED: {e}")
 
     def test_warehouse(self, count):
@@ -2333,10 +2386,18 @@ class AggressiveTestSuite:
             c.connect(g, v, 0)
         
         count = 100_000
+        
+        # Warmup
+        for i in range(1000):
+            c.toggle(v, i % 2)
+
+        gc.disable()
         start = time.perf_counter_ns()
         for i in range(count):
             c.toggle(v, i % 2)
         duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
         rate = count / (duration / 1000)
         
         self.perf_metrics['rapid_toggle'] = {'time': duration, 'rate': rate, 'gates': count}
@@ -2353,11 +2414,20 @@ class AggressiveTestSuite:
         c.setlimits(g, 1)
         
         count = 50_000
+        
+        # Warmup
+        for _ in range(1000):
+            c.connect(g, v, 0)
+            c.disconnect(g, 0)
+
+        gc.disable()
         start = time.perf_counter_ns()
         for _ in range(count):
             c.connect(g, v, 0)
             c.disconnect(g, 0)
         duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
         rate = count / (duration / 1000)
         
         self.perf_metrics['connect_disconnect'] = {'time': duration, 'rate': rate, 'gates': count}
@@ -2371,11 +2441,19 @@ class AggressiveTestSuite:
         gate_types = [Const.NOT_ID, Const.AND_ID, Const.NAND_ID, Const.OR_ID, Const.NOR_ID, Const.XOR_ID, Const.XNOR_ID]
         count_per = 10000 // len(gate_types)
         
+        # Warmup (small batch)
+        for gtype in gate_types:
+            c.getcomponent(gtype)
+        c.clearcircuit()
+
+        gc.disable()
         start = time.perf_counter_ns()
         for gtype in gate_types:
             for _ in range(count_per):
                 c.getcomponent(gtype)
         duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
         total = count_per * len(gate_types)
         rate = total / (duration / 1000)
         
@@ -2401,6 +2479,10 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         c.toggle(inp, 0)
         
+        # Warmup
+        c.toggle(inp, 1)
+        c.toggle(inp, 0)
+
         start = time.perf_counter_ns()
         c.toggle(inp, 1)
         duration = (time.perf_counter_ns() - start) / 1_000_000
@@ -2429,6 +2511,10 @@ class AggressiveTestSuite:
             if i > 0 and i % 10000 == 0:
                 self.progress(i, count)
         
+        c.toggle(v, 0)
+
+        # Warmup
+        c.toggle(v, 1)
         c.toggle(v, 0)
         
         start = time.perf_counter_ns()
@@ -2461,6 +2547,10 @@ class AggressiveTestSuite:
         for v in vars_list:
             c.toggle(v, 1)
             
+        # Warmup: Toggle first input 0 -> 1 -> 0 (wait, default was 1)
+        c.toggle(vars_list[0], 0)
+        c.toggle(vars_list[0], 1)
+
         start = time.perf_counter_ns()
         c.toggle(vars_list[0], 0)
         duration = (time.perf_counter_ns() - start) / 1_000_000
@@ -2497,6 +2587,10 @@ class AggressiveTestSuite:
         for v in inputs:
             c.toggle(v, 1)
             
+        # Warmup
+        c.toggle(inputs[0], 0)
+        c.toggle(inputs[0], 1)
+
         start = time.perf_counter_ns()
         c.toggle(inputs[0], 0)
         duration = (time.perf_counter_ns() - start) / 1_000_000

@@ -173,7 +173,7 @@ cdef class Circuit:
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
                 # Targets (outputs to) - using hitlist with Profile objects
-                tgt = [f"{profile.target} ({profile.index})" for profile in comp.hitlist]
+                tgt = [f"{target} " for target in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
                 # Truncate long strings
@@ -197,7 +197,7 @@ cdef class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        targets = [f"{profile.target} ({profile.index})" for profile in pin.hitlist]
+                        targets = [f"{target} " for target in pin.hitlist]
                         print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
                 # Output pins
