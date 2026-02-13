@@ -592,7 +592,7 @@ class Probe(Gate):
 class InputPin(Probe):
     __slots__ = []
     def __init__(self):
-        Probe.__init__(self)
+        super().__init__()
         self.inputlimit: int = 1
         self.id = INPUT_PIN_ID
 
@@ -605,7 +605,7 @@ class InputPin(Probe):
 class OutputPin(Probe):
     __slots__ = []
     def __init__(self):
-        Probe.__init__(self)
+        super().__init__()
         self.inputlimit: int = 1
         self.id = OUTPUT_PIN_ID
 
@@ -666,7 +666,7 @@ class NAND(Gate):
 
 
 class OR(Gate):
-
+    __slots__ = []
     """OR gate - outputs 1 if any input is 1"""
     
     def __init__(self):
