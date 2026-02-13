@@ -20,18 +20,18 @@ cpdef enum:
     LIMIT = 100
 
 
-    NOT = 0
-    AND = 1
-    NAND = 2
-    OR = 3
-    NOR = 4
-    XOR = 5
-    XNOR = 6
-    VARIABLE = 7
-    PROBE = 8
-    INPUT_PIN = 9
-    OUTPUT_PIN = 10
-    IC = 11
+    NOT_ID = 0
+    AND_ID = 1
+    NAND_ID = 2
+    OR_ID = 3
+    NOR_ID = 4
+    XOR_ID = 5
+    XNOR_ID = 6
+    VARIABLE_ID = 7
+    PROBE_ID = 8
+    INPUT_PIN_ID = 9
+    OUTPUT_PIN_ID = 10
+    IC_ID = 11
     TOTAL = 12
 
 cdef public int MODE 

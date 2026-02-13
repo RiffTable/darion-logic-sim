@@ -194,7 +194,7 @@ class AggressiveTestSuite:
 
         # ==================== PART 1: HEAVY UNIT TESTS ====================
         self.section("UNIT TESTS")
-        self.test_gate_construction_heavy()
+        self.test_gate_Construction_heavy()
         self.test_gate_logic_exhaustive()
         self.test_profile_stress()
         self.test_book_tracking_stress()
@@ -404,7 +404,7 @@ class AggressiveTestSuite:
     # PART 1: HEAVY UNIT TESTS
     # =========================================================================
 
-    def test_gate_construction_heavy(self):
+    def test_gate_Construction_heavy(self):
         self.subsection("Gate Construction (1000 each)")
         gate_types = [NOT, AND, NAND, OR, NOR, XOR, XNOR]
         count = 1000
@@ -418,18 +418,18 @@ class AggressiveTestSuite:
         self.subsection("Gate Logic (Full Truth Tables)")
         
         truth_tables = {
-            'AND':  [(0,0,0), (0,1,0), (1,0,0), (1,1,1)],
-            'NAND': [(0,0,1), (0,1,1), (1,0,1), (1,1,0)],
-            'OR':   [(0,0,0), (0,1,1), (1,0,1), (1,1,1)],
-            'NOR':  [(0,0,1), (0,1,0), (1,0,0), (1,1,0)],
-            'XOR':  [(0,0,0), (0,1,1), (1,0,1), (1,1,0)],
-            'XNOR': [(0,0,1), (0,1,0), (1,0,0), (1,1,1)],
+            'AND_ID':  [(0,0,0), (0,1,0), (1,0,0), (1,1,1)],
+            'NAND_ID': [(0,0,1), (0,1,1), (1,0,1), (1,1,0)],
+            'OR_ID':   [(0,0,0), (0,1,1), (1,0,1), (1,1,1)],
+            'NOR_ID':  [(0,0,1), (0,1,0), (1,0,0), (1,1,0)],
+            'XOR_ID':  [(0,0,0), (0,1,1), (1,0,1), (1,1,0)],
+            'XNOR_ID': [(0,0,1), (0,1,0), (1,0,0), (1,1,1)],
         }
         
         for name, table in truth_tables.items():
             c = Circuit()
             c.simulate(Const.SIMULATE)
-            v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
+            v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
             g = c.getcomponent(getattr(Const, name))
             c.connect(g, v1, 0)
             c.connect(g, v2, 1)
@@ -447,8 +447,8 @@ class AggressiveTestSuite:
         # NOT gate
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        n = c.getcomponent(Const.NOT)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        n = c.getcomponent(Const.NOT_ID)
         c.connect(n, v, 0)
         
         all_correct = True
@@ -466,10 +466,10 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        source = c.getcomponent(Const.VARIABLE)
+        source = c.getcomponent(Const.VARIABLE_ID)
         gates = []
         for i in range(1000):
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, source, 0)
             gates.append(g)
@@ -485,12 +485,12 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        g = c.getcomponent(Const.AND)
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, 100)
         
         variables = []
         for i in range(100):
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             c.toggle(v, Const.LOW)
             c.connect(g, v, i)
             variables.append(v)
@@ -510,8 +510,8 @@ class AggressiveTestSuite:
         self.subsection("Connection Stress (500 cycles)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.AND)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.AND_ID)
         
         # Each connect and disconnect is individually verified (1000 total assertions)
         for i in range(500):
@@ -525,11 +525,11 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        g = c.getcomponent(Const.AND)
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, 50)
         
         for i in range(50):
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(g, v, i)
             c.toggle(v, Const.HIGH)
         
@@ -544,8 +544,8 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
-        probe = c.getcomponent(Const.PROBE)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        probe = c.getcomponent(Const.PROBE_ID)
         c.connect(probe, v, 0)
         
         start = time.perf_counter_ns()
@@ -561,8 +561,8 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
-        probes = [c.getcomponent(Const.PROBE) for _ in range(100)]
+        v = c.getcomponent(Const.VARIABLE_ID)
+        probes = [c.getcomponent(Const.PROBE_ID) for _ in range(100)]
         for p in probes:
             c.connect(p, v, 0)
         
@@ -576,10 +576,10 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         for _ in range(50):
-            v = c.getcomponent(Const.VARIABLE)
-            inp = c.getcomponent(Const.INPUT_PIN)
-            out = c.getcomponent(Const.OUTPUT_PIN)
-            g = c.getcomponent(Const.NOT)
+            v = c.getcomponent(Const.VARIABLE_ID)
+            inp = c.getcomponent(Const.INPUT_PIN_ID)
+            out = c.getcomponent(Const.OUTPUT_PIN_ID)
+            g = c.getcomponent(Const.NOT_ID)
             c.connect(inp, v, 0)
             c.connect(g, inp, 0)
             c.connect(out, g, 0)
@@ -590,7 +590,7 @@ class AggressiveTestSuite:
     def test_setlimits_stress(self):
         self.subsection("setlimits (Expand/Contract)")
         c = Circuit()
-        g = c.getcomponent(Const.AND)
+        g = c.getcomponent(Const.AND_ID)
         
         passed = True
         for size in [10, 100, 500, 1000, 500, 100, 10, 2]:
@@ -611,8 +611,8 @@ class AggressiveTestSuite:
         # --- NOT gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.NOT)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.NOT_ID)
         c.connect(g, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(g.output == Const.LOW, "NOT(1)=0")
@@ -622,8 +622,8 @@ class AggressiveTestSuite:
         # --- AND gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.AND)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.AND_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -632,8 +632,8 @@ class AggressiveTestSuite:
         # --- NAND gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.NAND)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.NAND_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -642,8 +642,8 @@ class AggressiveTestSuite:
         # --- OR gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.OR)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.OR_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -652,8 +652,8 @@ class AggressiveTestSuite:
         # --- NOR gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.NOR)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.NOR_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -662,8 +662,8 @@ class AggressiveTestSuite:
         # --- XOR gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.XOR)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.XOR_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -672,8 +672,8 @@ class AggressiveTestSuite:
         # --- XNOR gate ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v1, v2 = c.getcomponent(Const.VARIABLE), c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.XNOR)
+        v1, v2 = c.getcomponent(Const.VARIABLE_ID), c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.XNOR_ID)
         c.connect(g, v1, 0); c.connect(g, v2, 1)
         for a, b, exp in [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)]:
             c.toggle(v1, a); c.toggle(v2, b)
@@ -682,7 +682,7 @@ class AggressiveTestSuite:
         # --- Variable ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         self.assert_test(v.output == Const.UNKNOWN, "Variable initial=UNKNOWN")
         c.toggle(v, Const.HIGH)
         self.assert_test(v.output == Const.HIGH, "Variable toggle HIGH")
@@ -692,8 +692,8 @@ class AggressiveTestSuite:
         # --- Probe ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        p = c.getcomponent(Const.PROBE)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        p = c.getcomponent(Const.PROBE_ID)
         c.connect(p, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(p.output == Const.HIGH, "Probe follows HIGH")
@@ -703,8 +703,8 @@ class AggressiveTestSuite:
         # --- InputPin ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        inp = c.getcomponent(Const.INPUT_PIN)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        inp = c.getcomponent(Const.INPUT_PIN_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(inp.output == Const.HIGH, "InputPin follows HIGH")
@@ -712,10 +712,10 @@ class AggressiveTestSuite:
         # --- OutputPin ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
-        inp = c.getcomponent(Const.INPUT_PIN)
-        n = c.getcomponent(Const.NOT)
-        out = c.getcomponent(Const.OUTPUT_PIN)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        inp = c.getcomponent(Const.INPUT_PIN_ID)
+        n = c.getcomponent(Const.NOT_ID)
+        out = c.getcomponent(Const.OUTPUT_PIN_ID)
         c.connect(inp, v, 0)
         c.connect(n, inp, 0)
         c.connect(out, n, 0)
@@ -727,23 +727,23 @@ class AggressiveTestSuite:
         self.subsection("Every Gate (FLIPFLOP mode)")
 
         gate_truth = {
-            Const.AND:  [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
-            Const.NAND: [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
-            Const.OR:   [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)],
-            Const.NOR:  [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)],
-            Const.XOR:  [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
-            Const.XNOR: [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
+            Const.AND_ID:  [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
+            Const.NAND_ID: [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
+            Const.OR_ID:   [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)],
+            Const.NOR_ID:  [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)],
+            Const.XOR_ID:  [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
+            Const.XNOR_ID: [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
         }
         gate_names = {
-            Const.AND: 'AND', Const.NAND: 'NAND', Const.OR: 'OR',
-            Const.NOR: 'NOR', Const.XOR: 'XOR', Const.XNOR: 'XNOR',
+            Const.AND_ID: 'AND', Const.NAND_ID: 'NAND', Const.OR_ID: 'OR',
+            Const.NOR_ID: 'NOR', Const.XOR_ID: 'XOR', Const.XNOR_ID: 'XNOR',
         }
 
         for gtype, table in gate_truth.items():
             c = Circuit()
             c.simulate(Const.FLIPFLOP)
-            v1 = c.getcomponent(Const.VARIABLE)
-            v2 = c.getcomponent(Const.VARIABLE)
+            v1 = c.getcomponent(Const.VARIABLE_ID)
+            v2 = c.getcomponent(Const.VARIABLE_ID)
             g = c.getcomponent(gtype)
             c.connect(g, v1, 0)
             c.connect(g, v2, 1)
@@ -758,8 +758,8 @@ class AggressiveTestSuite:
         # NOT in flipflop
         c = Circuit()
         c.simulate(Const.FLIPFLOP)
-        v = c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.NOT)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.NOT_ID)
         c.connect(g, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(g.output == Const.LOW, "FF NOT(1)=0")
@@ -769,8 +769,8 @@ class AggressiveTestSuite:
         # Probe in flipflop
         c = Circuit()
         c.simulate(Const.FLIPFLOP)
-        v = c.getcomponent(Const.VARIABLE)
-        p = c.getcomponent(Const.PROBE)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        p = c.getcomponent(Const.PROBE_ID)
         c.connect(p, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(p.output == Const.HIGH, "FF Probe follows HIGH")
@@ -785,9 +785,9 @@ class AggressiveTestSuite:
         # AND: all HIGH -> HIGH, any LOW -> LOW
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.AND)
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.HIGH)
         self.assert_test(g.output == Const.HIGH, "AND(4): all HIGH -> HIGH")
@@ -797,9 +797,9 @@ class AggressiveTestSuite:
         # NAND: all HIGH -> LOW, any LOW -> HIGH
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.NAND)
+        g = c.getcomponent(Const.NAND_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.HIGH)
         self.assert_test(g.output == Const.LOW, "NAND(4): all HIGH -> LOW")
@@ -809,9 +809,9 @@ class AggressiveTestSuite:
         # OR: any HIGH -> HIGH, all LOW -> LOW
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.OR)
+        g = c.getcomponent(Const.OR_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.LOW)
         self.assert_test(g.output == Const.LOW, "OR(4): all LOW -> LOW")
@@ -821,9 +821,9 @@ class AggressiveTestSuite:
         # NOR: all LOW -> HIGH, any HIGH -> LOW
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.NOR)
+        g = c.getcomponent(Const.NOR_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.LOW)
         self.assert_test(g.output == Const.HIGH, "NOR(4): all LOW -> HIGH")
@@ -833,9 +833,9 @@ class AggressiveTestSuite:
         # XOR: odd number of HIGHs -> HIGH, even -> LOW
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.XOR)
+        g = c.getcomponent(Const.XOR_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.LOW)
         self.assert_test(g.output == Const.LOW, "XOR(4): 0 HIGH -> LOW")
@@ -849,9 +849,9 @@ class AggressiveTestSuite:
         # XNOR: even number of HIGHs -> HIGH, odd -> LOW
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        g = c.getcomponent(Const.XNOR)
+        g = c.getcomponent(Const.XNOR_ID)
         c.setlimits(g, n_inputs)
-        vs = [c.getcomponent(Const.VARIABLE) for _ in range(n_inputs)]
+        vs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(n_inputs)]
         for i, v in enumerate(vs): c.connect(g, v, i)
         for v in vs: c.toggle(v, Const.LOW)
         self.assert_test(g.output == Const.HIGH, "XNOR(4): 0 HIGH -> HIGH")
@@ -862,20 +862,20 @@ class AggressiveTestSuite:
 
         # NOT uses base Gate.setlimits, so it CAN expand (but process only uses book)
         c = Circuit()
-        n = c.getcomponent(Const.NOT)
+        n = c.getcomponent(Const.NOT_ID)
         result = c.setlimits(n, 4)
         self.assert_test(result == True, "NOT setlimits(4) expands (uses base Gate)")
         self.assert_test(n.inputlimit == 4, "NOT inputlimit == 4 after expand")
 
         # Probe cannot expand
         c = Circuit()
-        p = c.getcomponent(Const.PROBE)
+        p = c.getcomponent(Const.PROBE_ID)
         result = c.setlimits(p, 4)
         self.assert_test(result == False, "Probe setlimits(4) returns False")
 
         # Variable cannot expand
         c = Circuit()
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         result = c.setlimits(v, 4)
         self.assert_test(result == False, "Variable setlimits(4) returns False")
 
@@ -883,10 +883,10 @@ class AggressiveTestSuite:
         """Touch every accessible method/property on every gate type."""
         self.subsection("All Gate Methods")
 
-        gate_types_const = [Const.NOT, Const.AND, Const.NAND, Const.OR, Const.NOR, Const.XOR, Const.XNOR]
+        gate_types_Const = [Const.NOT_ID, Const.AND_ID, Const.NAND_ID, Const.OR_ID, Const.NOR_ID, Const.XOR_ID, Const.XNOR_ID]
         gate_names = ['NOT', 'AND', 'NAND', 'OR', 'NOR', 'XOR', 'XNOR']
 
-        for gtype, gname in zip(gate_types_const, gate_names):
+        for gtype, gname in zip(gate_types_Const, gate_names):
             c = Circuit()
             c.simulate(Const.SIMULATE)
             g = c.getcomponent(gtype)
@@ -920,14 +920,14 @@ class AggressiveTestSuite:
             self.assert_test('name' in cd and 'code' in cd, f"{gname}.copy_data() has keys")
 
             # --- connect, process, propagate via circuit ---
-            if gtype == Const.NOT:
-                v = c.getcomponent(Const.VARIABLE)
+            if gtype == Const.NOT_ID:
+                v = c.getcomponent(Const.VARIABLE_ID)
                 c.connect(g, v, 0)
                 c.toggle(v, Const.HIGH)
                 self.assert_test(g.getoutput() == 'F', f"{gname} getoutput after connect = 'F'")
             else:
-                v1 = c.getcomponent(Const.VARIABLE)
-                v2 = c.getcomponent(Const.VARIABLE)
+                v1 = c.getcomponent(Const.VARIABLE_ID)
+                v2 = c.getcomponent(Const.VARIABLE_ID)
                 c.connect(g, v1, 0)
                 c.connect(g, v2, 1)
                 c.toggle(v1, Const.HIGH)
@@ -948,7 +948,7 @@ class AggressiveTestSuite:
         # --- Variable methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         self.assert_test(v.getoutput() == 'X', "Variable.getoutput() = 'X' initially")
         c.toggle(v, Const.HIGH)
         self.assert_test(v.getoutput() == 'T', "Variable.getoutput() = 'T'")
@@ -973,8 +973,8 @@ class AggressiveTestSuite:
         # --- Probe methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        p = c.getcomponent(Const.PROBE)
-        v = c.getcomponent(Const.VARIABLE)
+        p = c.getcomponent(Const.PROBE_ID)
+        v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(p, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(p.getoutput() == 'T', "Probe.getoutput() = 'T'")
@@ -990,8 +990,8 @@ class AggressiveTestSuite:
         # --- InputPin methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        inp = c.getcomponent(Const.INPUT_PIN)
-        v = c.getcomponent(Const.VARIABLE)
+        inp = c.getcomponent(Const.INPUT_PIN_ID)
+        v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(inp.getoutput() == 'T', "InputPin.getoutput() = 'T'")
@@ -1001,9 +1001,9 @@ class AggressiveTestSuite:
         # --- OutputPin methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        out = c.getcomponent(Const.OUTPUT_PIN)
-        v = c.getcomponent(Const.VARIABLE)
-        n = c.getcomponent(Const.NOT)
+        out = c.getcomponent(Const.OUTPUT_PIN_ID)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        n = c.getcomponent(Const.NOT_ID)
         c.connect(n, v, 0)
         c.connect(out, n, 0)
         c.toggle(v, Const.HIGH)
@@ -1020,11 +1020,11 @@ class AggressiveTestSuite:
 
         # getcomponent for every type
         all_types = [
-            (Const.NOT, 'NOT'), (Const.AND, 'AND'), (Const.NAND, 'NAND'),
-            (Const.OR, 'OR'), (Const.NOR, 'NOR'), (Const.XOR, 'XOR'),
-            (Const.XNOR, 'XNOR'), (Const.VARIABLE, 'Variable'),
-            (Const.PROBE, 'Probe'), (Const.INPUT_PIN, 'InputPin'),
-            (Const.OUTPUT_PIN, 'OutputPin'),
+            (Const.NOT_ID, 'NOT'), (Const.AND_ID, 'AND'), (Const.NAND_ID, 'NAND'),
+            (Const.OR_ID, 'OR'), (Const.NOR_ID, 'NOR'), (Const.XOR_ID, 'XOR'),
+            (Const.XNOR_ID, 'XNOR'), (Const.VARIABLE_ID, 'Variable'),
+            (Const.PROBE_ID, 'Probe'), (Const.INPUT_PIN_ID, 'InputPin'),
+            (Const.OUTPUT_PIN_ID, 'OutputPin'),
         ]
         components = {}
         for gtype, gname in all_types:
@@ -1082,13 +1082,13 @@ class AggressiveTestSuite:
 
         # truthTable with all types connected
         c2 = Circuit()
-        v1 = c2.getcomponent(Const.VARIABLE)
-        v2 = c2.getcomponent(Const.VARIABLE)
+        v1 = c2.getcomponent(Const.VARIABLE_ID)
+        v2 = c2.getcomponent(Const.VARIABLE_ID)
         for gtype, gname in all_types:
-            if gtype in (Const.VARIABLE, Const.PROBE, Const.INPUT_PIN, Const.OUTPUT_PIN):
+            if gtype in (Const.VARIABLE_ID, Const.PROBE_ID, Const.INPUT_PIN_ID, Const.OUTPUT_PIN_ID):
                 continue
             g = c2.getcomponent(gtype)
-            if gtype == Const.NOT:
+            if gtype == Const.NOT_ID:
                 c2.connect(g, v1, 0)
             else:
                 c2.connect(g, v1, 0)
@@ -1108,9 +1108,9 @@ class AggressiveTestSuite:
 
         # copy / paste
         c4 = Circuit()
-        g1 = c4.getcomponent(Const.AND)
-        g2 = c4.getcomponent(Const.OR)
-        g3 = c4.getcomponent(Const.NOT)
+        g1 = c4.getcomponent(Const.AND_ID)
+        g2 = c4.getcomponent(Const.OR_ID)
+        g3 = c4.getcomponent(Const.NOT_ID)
         initial = len(c4.canvas)
         c4.copy([g1, g2, g3])
         c4.paste()
@@ -1127,7 +1127,7 @@ class AggressiveTestSuite:
 
         # clearcircuit
         c6 = Circuit()
-        for _ in range(10): c6.getcomponent(Const.AND)
+        for _ in range(10): c6.getcomponent(Const.AND_ID)
         c6.clearcircuit()
         self.assert_test(len(c6.canvas) == 0, "clearcircuit empties canvas")
 
@@ -1139,30 +1139,30 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
 
         # 2 variables feeding into every 2-input gate type
-        v1 = c.getcomponent(Const.VARIABLE)
-        v2 = c.getcomponent(Const.VARIABLE)
+        v1 = c.getcomponent(Const.VARIABLE_ID)
+        v2 = c.getcomponent(Const.VARIABLE_ID)
 
         gates = {}
-        for gtype, gname in [(Const.AND,'AND'), (Const.NAND,'NAND'), (Const.OR,'OR'),
-                              (Const.NOR,'NOR'), (Const.XOR,'XOR'), (Const.XNOR,'XNOR')]:
+        for gtype, gname in [(Const.AND_ID,'AND'), (Const.NAND_ID,'NAND'), (Const.OR_ID,'OR'),
+                              (Const.NOR_ID,'NOR'), (Const.XOR_ID,'XOR'), (Const.XNOR_ID,'XNOR')]:
             g = c.getcomponent(gtype)
             c.connect(g, v1, 0)
             c.connect(g, v2, 1)
             gates[gname] = g
 
         # NOT from v1
-        not_g = c.getcomponent(Const.NOT)
+        not_g = c.getcomponent(Const.NOT_ID)
         c.connect(not_g, v1, 0)
         gates['NOT'] = not_g
 
         # Probe from AND output
-        probe = c.getcomponent(Const.PROBE)
+        probe = c.getcomponent(Const.PROBE_ID)
         c.connect(probe, gates['AND'], 0)
 
         # InputPin -> OutputPin chain through XOR
-        inp_pin = c.getcomponent(Const.INPUT_PIN)
+        inp_pin = c.getcomponent(Const.INPUT_PIN_ID)
         c.connect(inp_pin, v1, 0)
-        out_pin = c.getcomponent(Const.OUTPUT_PIN)
+        out_pin = c.getcomponent(Const.OUTPUT_PIN_ID)
         c.connect(out_pin, gates['XOR'], 0)
 
         # Test with (1, 1)
@@ -1279,7 +1279,7 @@ class AggressiveTestSuite:
         self.subsection("Circuit Management (500 gates)")
         c = Circuit()
         
-        gates = [c.getcomponent(Const.AND) for _ in range(500)]
+        gates = [c.getcomponent(Const.AND_ID) for _ in range(500)]
         self.assert_test(len(c.canvas) == 500, "500 gates added")
         
         for g in gates[:250]:
@@ -1295,11 +1295,11 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         c.toggle(v, Const.LOW)
         prev = v
         for _ in range(1000):
-            n = c.getcomponent(Const.NOT)
+            n = c.getcomponent(Const.NOT_ID)
             c.connect(n, prev, 0)
             prev = n
         
@@ -1314,13 +1314,13 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         gates = []
         for _ in range(5000):
             # Using 1-input AND gate acts as a buffer/repeater.
             # Normal AND gate needs 2 inputs, so setting limit to 1 makes it
             # simply forward the input signal. This is perfect for testing fanout.
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, v, 0)
             gates.append(g)
@@ -1337,10 +1337,10 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
 
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         gates = []
         for i in range(500):
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, v, 0)
             gates.append(g)
@@ -1366,11 +1366,11 @@ class AggressiveTestSuite:
         c.simulate(Const.FLIPFLOP)
 
         # Build an SR Latch structure to test internal reference copying
-        set_pin = c.getcomponent(Const.VARIABLE)
-        rst_pin = c.getcomponent(Const.VARIABLE)
+        set_pin = c.getcomponent(Const.VARIABLE_ID)
+        rst_pin = c.getcomponent(Const.VARIABLE_ID)
         
-        q = c.getcomponent(Const.NOR)
-        qb = c.getcomponent(Const.NOR)
+        q = c.getcomponent(Const.NOR_ID)
+        qb = c.getcomponent(Const.NOR_ID)
         
         # Connections
         c.connect(q, rst_pin, 0)
@@ -1406,13 +1406,13 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.FLIPFLOP)
         
-        set_line = c.getcomponent(Const.VARIABLE)
-        rst_line = c.getcomponent(Const.VARIABLE)
+        set_line = c.getcomponent(Const.VARIABLE_ID)
+        rst_line = c.getcomponent(Const.VARIABLE_ID)
         
         latches = []
         for _ in range(500):
-            q = c.getcomponent(Const.NOR)
-            qb = c.getcomponent(Const.NOR)
+            q = c.getcomponent(Const.NOR_ID)
+            qb = c.getcomponent(Const.NOR_ID)
             c.connect(q, rst_line, 0)
             c.connect(qb, set_line, 0)
             c.connect(q, qb, 1)
@@ -1432,8 +1432,8 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.FLIPFLOP)
         
-        v = c.getcomponent(Const.VARIABLE)
-        xor_g = c.getcomponent(Const.XOR)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        xor_g = c.getcomponent(Const.XOR_ID)
         c.connect(xor_g, v, 0)
         c.connect(xor_g, xor_g, 1)
         
@@ -1445,10 +1445,10 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         chain = [v]
         for _ in range(10):
-            g = c.getcomponent(Const.NOT)
+            g = c.getcomponent(Const.NOT_ID)
             c.connect(g, chain[-1], 0)
             chain.append(g)
         
@@ -1465,8 +1465,8 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         for _ in range(100):
-            v = c.getcomponent(Const.VARIABLE)
-            g = c.getcomponent(Const.NOT)
+            v = c.getcomponent(Const.VARIABLE_ID)
+            g = c.getcomponent(Const.NOT_ID)
             c.connect(g, v, 0)
             c.toggle(v, Const.HIGH)
         
@@ -1483,7 +1483,7 @@ class AggressiveTestSuite:
         
         # Add 100 gates - each is an undoable operation
         for i in range(100):
-            g = e.addcomponent(Const.AND)
+            g = e.addcomponent(Const.AND_ID)
             self.assert_test(g in e.circuit.canvas, f"Add gate {i}")
         
         # Undo each one
@@ -1499,7 +1499,7 @@ class AggressiveTestSuite:
     def test_rapid_undo_redo(self):
         self.subsection("Rapid Undo/Redo (500 cycles)")
         e = Event(Circuit())
-        g = e.addcomponent(Const.AND)
+        g = e.addcomponent(Const.AND_ID)
         
         # 500 undo/redo cycles, each pair verified
         for i in range(500):
@@ -1518,10 +1518,10 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         # Create a simple inverter IC
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
@@ -1530,7 +1530,7 @@ class AggressiveTestSuite:
         self.assert_test(len(ic.internal) == 1, "IC has 1 internal gate")
         
         # Wire up and test
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
@@ -1545,16 +1545,16 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         # Create outer IC containing inner IC
-        outer_ic = c.getcomponent(Const.IC)
-        outer_inp = outer_ic.getcomponent(Const.INPUT_PIN)
-        outer_out = outer_ic.getcomponent(Const.OUTPUT_PIN)
+        outer_ic = c.getcomponent(Const.IC_ID)
+        outer_inp = outer_ic.getcomponent(Const.INPUT_PIN_ID)
+        outer_out = outer_ic.getcomponent(Const.OUTPUT_PIN_ID)
         
         # Inner IC: double inverter (identity)
-        inner_ic = outer_ic.getcomponent(Const.IC)
-        inner_inp = inner_ic.getcomponent(Const.INPUT_PIN)
-        inner_out = inner_ic.getcomponent(Const.OUTPUT_PIN)
-        not1 = inner_ic.getcomponent(Const.NOT)
-        not2 = inner_ic.getcomponent(Const.NOT)
+        inner_ic = outer_ic.getcomponent(Const.IC_ID)
+        inner_inp = inner_ic.getcomponent(Const.INPUT_PIN_ID)
+        inner_out = inner_ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not1 = inner_ic.getcomponent(Const.NOT_ID)
+        not2 = inner_ic.getcomponent(Const.NOT_ID)
         not1.connect(inner_inp, 0)
         not2.connect(not1, 0)
         inner_out.connect(not2, 0)
@@ -1563,7 +1563,7 @@ class AggressiveTestSuite:
         inner_inp.connect(outer_inp, 0)
         outer_out.connect(inner_out, 0)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         outer_inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
@@ -1580,12 +1580,12 @@ class AggressiveTestSuite:
         # Create 4-level nested structure
         def create_inverter_ic(parent):
             if isinstance(parent, Circuit):
-                ic = parent.getcomponent(Const.IC)
+                ic = parent.getcomponent(Const.IC_ID)
             else:
-                ic = parent.getcomponent(Const.IC)
-            inp = ic.getcomponent(Const.INPUT_PIN)
-            out = ic.getcomponent(Const.OUTPUT_PIN)
-            not_g = ic.getcomponent(Const.NOT)
+                ic = parent.getcomponent(Const.IC_ID)
+            inp = ic.getcomponent(Const.INPUT_PIN_ID)
+            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            not_g = ic.getcomponent(Const.NOT_ID)
             not_g.connect(inp, 0)
             out.connect(not_g, 0)
             return ic, inp, out
@@ -1600,7 +1600,7 @@ class AggressiveTestSuite:
         ic4, inp4, out4 = create_inverter_ic(ic3)
         
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp1.connect(v, 0)
         inp2.connect(inp1, 0)
         inp3.connect(inp2, 0)
@@ -1619,18 +1619,18 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(Const.IC_ID)
         outputs = []
         variables = []
         
         for i in range(32):
-            inp = ic.getcomponent(Const.INPUT_PIN)
-            out = ic.getcomponent(Const.OUTPUT_PIN)
-            not_g = ic.getcomponent(Const.NOT)
+            inp = ic.getcomponent(Const.INPUT_PIN_ID)
+            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            not_g = ic.getcomponent(Const.NOT_ID)
             not_g.connect(inp, 0)
             out.connect(not_g, 0)
             
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             inp.connect(v, 0)
             variables.append(v)
             outputs.append(out)
@@ -1659,36 +1659,36 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(Const.IC_ID)
         
         # Inputs: A, B, Cin
-        inp_a = ic.getcomponent(Const.INPUT_PIN)
-        inp_b = ic.getcomponent(Const.INPUT_PIN)
-        inp_cin = ic.getcomponent(Const.INPUT_PIN)
+        inp_a = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp_b = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp_cin = ic.getcomponent(Const.INPUT_PIN_ID)
         
         # Outputs: Sum, Cout
-        out_sum = ic.getcomponent(Const.OUTPUT_PIN)
-        out_cout = ic.getcomponent(Const.OUTPUT_PIN)
+        out_sum = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        out_cout = ic.getcomponent(Const.OUTPUT_PIN_ID)
         
         # Internal logic: Full Adder
-        xor1 = ic.getcomponent(Const.XOR)
+        xor1 = ic.getcomponent(Const.XOR_ID)
         xor1.connect(inp_a, 0)
         xor1.connect(inp_b, 1)
         
-        xor2 = ic.getcomponent(Const.XOR)
+        xor2 = ic.getcomponent(Const.XOR_ID)
         xor2.connect(xor1, 0)
         xor2.connect(inp_cin, 1)
         out_sum.connect(xor2, 0)
         
-        and1 = ic.getcomponent(Const.AND)
+        and1 = ic.getcomponent(Const.AND_ID)
         and1.connect(inp_a, 0)
         and1.connect(inp_b, 1)
         
-        and2 = ic.getcomponent(Const.AND)
+        and2 = ic.getcomponent(Const.AND_ID)
         and2.connect(xor1, 0)
         and2.connect(inp_cin, 1)
         
-        or1 = ic.getcomponent(Const.OR)
+        or1 = ic.getcomponent(Const.OR_ID)
         or1.connect(and1, 0)
         or1.connect(and2, 1)
         out_cout.connect(or1, 0)
@@ -1696,9 +1696,9 @@ class AggressiveTestSuite:
         self.assert_test(len(ic.internal) == 5, "IC has 5 internal gates")
         
         # Wire inputs
-        v_a = c.getcomponent(Const.VARIABLE)
-        v_b = c.getcomponent(Const.VARIABLE)
-        v_cin = c.getcomponent(Const.VARIABLE)
+        v_a = c.getcomponent(Const.VARIABLE_ID)
+        v_b = c.getcomponent(Const.VARIABLE_ID)
+        v_cin = c.getcomponent(Const.VARIABLE_ID)
         inp_a.connect(v_a, 0)
         inp_b.connect(v_b, 0)
         inp_cin.connect(v_cin, 0)
@@ -1719,15 +1719,15 @@ class AggressiveTestSuite:
         c1.simulate(Const.SIMULATE)
         
         # Create IC
-        ic = c1.getcomponent(Const.IC)
+        ic = c1.getcomponent(Const.IC_ID)
         ic.custom_name = "TestInverter"
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
-        v = c1.getcomponent(Const.VARIABLE)
+        v = c1.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         c1.toggle(v, Const.HIGH)
         
@@ -1751,14 +1751,14 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
@@ -1776,14 +1776,14 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         c.toggle(v, Const.HIGH)
         
@@ -1800,10 +1800,10 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
@@ -1820,19 +1820,19 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.FLIPFLOP)
         
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(Const.IC_ID)
         
         # Inputs: Set, Reset
-        inp_set = ic.getcomponent(Const.INPUT_PIN)
-        inp_rst = ic.getcomponent(Const.INPUT_PIN)
+        inp_set = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp_rst = ic.getcomponent(Const.INPUT_PIN_ID)
         
         # Outputs: Q, Q'
-        out_q = ic.getcomponent(Const.OUTPUT_PIN)
-        out_qb = ic.getcomponent(Const.OUTPUT_PIN)
+        out_q = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        out_qb = ic.getcomponent(Const.OUTPUT_PIN_ID)
         
         # Internal SR Latch
-        nor1 = ic.getcomponent(Const.NOR)
-        nor2 = ic.getcomponent(Const.NOR)
+        nor1 = ic.getcomponent(Const.NOR_ID)
+        nor2 = ic.getcomponent(Const.NOR_ID)
         
         nor1.connect(inp_rst, 0)
         nor1.connect(nor2, 1)
@@ -1844,8 +1844,8 @@ class AggressiveTestSuite:
         out_qb.connect(nor2, 0)
         
         # Wire to external variables
-        v_set = c.getcomponent(Const.VARIABLE)
-        v_rst = c.getcomponent(Const.VARIABLE)
+        v_set = c.getcomponent(Const.VARIABLE_ID)
+        v_rst = c.getcomponent(Const.VARIABLE_ID)
         inp_set.connect(v_set, 0)
         inp_rst.connect(v_rst, 0)
         
@@ -1864,22 +1864,22 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
         
         # Chain of 100 NOT gates
         prev = inp
         for _ in range(100):
-            not_g = ic.getcomponent(Const.NOT)
+            not_g = ic.getcomponent(Const.NOT_ID)
             not_g.connect(prev, 0)
             prev = not_g
         
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         out.connect(prev, 0)
         
         self.assert_test(len(ic.internal) == 100, "IC has 100 internal gates")
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
@@ -1891,15 +1891,15 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         prev_out = v
         
         ics = []
         for _ in range(10):
-            ic = c.getcomponent(Const.IC)
-            inp = ic.getcomponent(Const.INPUT_PIN)
-            out = ic.getcomponent(Const.OUTPUT_PIN)
-            not_g = ic.getcomponent(Const.NOT)
+            ic = c.getcomponent(Const.IC_ID)
+            inp = ic.getcomponent(Const.INPUT_PIN_ID)
+            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            not_g = ic.getcomponent(Const.NOT_ID)
             not_g.connect(inp, 0)
             out.connect(not_g, 0)
             
@@ -1919,23 +1919,23 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
+        ic = c.getcomponent(Const.IC_ID)
+        inp = ic.getcomponent(Const.INPUT_PIN_ID)
         
         outputs = []
         for i in range(8):
-            out = ic.getcomponent(Const.OUTPUT_PIN)
+            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             if i % 2 == 0:
                 # Direct connection
                 out.connect(inp, 0)
             else:
                 # Through NOT
-                not_g = ic.getcomponent(Const.NOT)
+                not_g = ic.getcomponent(Const.NOT_ID)
                 not_g.connect(inp, 0)
                 out.connect(not_g, 0)
             outputs.append(out)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         inp.connect(v, 0)
         
         c.toggle(v, Const.HIGH)
@@ -1954,14 +1954,14 @@ class AggressiveTestSuite:
         outputs = []
         
         for _ in range(50):
-            ic = c.getcomponent(Const.IC)
-            inp = ic.getcomponent(Const.INPUT_PIN)
-            out = ic.getcomponent(Const.OUTPUT_PIN)
-            not_g = ic.getcomponent(Const.NOT)
+            ic = c.getcomponent(Const.IC_ID)
+            inp = ic.getcomponent(Const.INPUT_PIN_ID)
+            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            not_g = ic.getcomponent(Const.NOT_ID)
             not_g.connect(inp, 0)
             out.connect(not_g, 0)
             
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             inp.connect(v, 0)
             
             ics.append(ic)
@@ -1989,9 +1989,9 @@ class AggressiveTestSuite:
         c1 = Circuit()
         c1.simulate(Const.SIMULATE)
         
-        prev = c1.getcomponent(Const.VARIABLE)
+        prev = c1.getcomponent(Const.VARIABLE_ID)
         for _ in range(999):
-            g = c1.getcomponent(Const.NOT)
+            g = c1.getcomponent(Const.NOT_ID)
             c1.connect(g, prev, 0)
             prev = g
         
@@ -2009,7 +2009,7 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         
-        gates = [c.getcomponent(Const.NOT) for _ in range(50)]
+        gates = [c.getcomponent(Const.NOT_ID) for _ in range(50)]
         initial = len(c.canvas)
         c.copy(gates)
         c.paste()
@@ -2023,8 +2023,8 @@ class AggressiveTestSuite:
     def test_truth_table_4_inputs(self):
         """4-input truth table (16 rows)"""
         c = Circuit()
-        vars = [c.getcomponent(Const.VARIABLE) for _ in range(4)]
-        g = c.getcomponent(Const.AND)
+        vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(4)]
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, 4)
         for i, v in enumerate(vars):
             c.connect(g, v, i)
@@ -2044,8 +2044,8 @@ class AggressiveTestSuite:
     def test_truth_table_6_inputs(self):
         """6-input truth table (64 rows)"""
         c = Circuit()
-        vars = [c.getcomponent(Const.VARIABLE) for _ in range(6)]
-        g = c.getcomponent(Const.OR)
+        vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(6)]
+        g = c.getcomponent(Const.OR_ID)
         c.setlimits(g, 6)
         for i, v in enumerate(vars):
             c.connect(g, v, i)
@@ -2060,8 +2060,8 @@ class AggressiveTestSuite:
     def test_truth_table_8_inputs(self):
         """8-input truth table (256 rows)"""
         c = Circuit()
-        vars = [c.getcomponent(Const.VARIABLE) for _ in range(8)]
-        g = c.getcomponent(Const.XOR)
+        vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(8)]
+        g = c.getcomponent(Const.XOR_ID)
         c.setlimits(g, 8)
         for i, v in enumerate(vars):
             c.connect(g, v, i)
@@ -2076,8 +2076,8 @@ class AggressiveTestSuite:
     def test_truth_table_10_inputs(self):
         """10-input truth table (1024 rows)"""
         c = Circuit()
-        vars = [c.getcomponent(Const.VARIABLE) for _ in range(10)]
-        g = c.getcomponent(Const.NAND)
+        vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(10)]
+        g = c.getcomponent(Const.NAND_ID)
         c.setlimits(g, 10)
         for i, v in enumerate(vars):
             c.connect(g, v, i)
@@ -2094,29 +2094,29 @@ class AggressiveTestSuite:
         c = Circuit()
         
         # Full adder: A + B + Cin = (Sum, Cout)
-        a = c.getcomponent(Const.VARIABLE)
-        b = c.getcomponent(Const.VARIABLE)
-        cin = c.getcomponent(Const.VARIABLE)
+        a = c.getcomponent(Const.VARIABLE_ID)
+        b = c.getcomponent(Const.VARIABLE_ID)
+        cin = c.getcomponent(Const.VARIABLE_ID)
         
         # Sum = A XOR B XOR Cin
-        xor1 = c.getcomponent(Const.XOR)
+        xor1 = c.getcomponent(Const.XOR_ID)
         c.connect(xor1, a, 0)
         c.connect(xor1, b, 1)
         
-        sum_out = c.getcomponent(Const.XOR)
+        sum_out = c.getcomponent(Const.XOR_ID)
         c.connect(sum_out, xor1, 0)
         c.connect(sum_out, cin, 1)
         
         # Cout = (A AND B) OR (Cin AND (A XOR B))
-        and1 = c.getcomponent(Const.AND)
+        and1 = c.getcomponent(Const.AND_ID)
         c.connect(and1, a, 0)
         c.connect(and1, b, 1)
         
-        and2 = c.getcomponent(Const.AND)
+        and2 = c.getcomponent(Const.AND_ID)
         c.connect(and2, cin, 0)
         c.connect(and2, xor1, 1)
         
-        cout = c.getcomponent(Const.OR)
+        cout = c.getcomponent(Const.OR_ID)
         c.connect(cout, and1, 0)
         c.connect(cout, and2, 1)
         
@@ -2144,10 +2144,10 @@ class AggressiveTestSuite:
         self.circuit.clearcircuit()
         c = self.circuit
         
-        inp = c.getcomponent(Const.VARIABLE)
+        inp = c.getcomponent(Const.VARIABLE_ID)
         prev = inp
         for _ in range(count):
-            g = c.getcomponent(Const.NOT)
+            g = c.getcomponent(Const.NOT_ID)
             c.connect(g, prev, 0)
             prev = g
 
@@ -2167,13 +2167,13 @@ class AggressiveTestSuite:
         self.circuit.clearcircuit()
         c = self.circuit
         
-        root = c.getcomponent(Const.VARIABLE)
+        root = c.getcomponent(Const.VARIABLE_ID)
         layer = [root]
         for _ in range(layers):
             next_l = []
             for p in layer:
-                g1 = c.getcomponent(Const.AND); c.setlimits(g1, 1); c.connect(g1, p, 0)
-                g2 = c.getcomponent(Const.AND); c.setlimits(g2, 1); c.connect(g2, p, 0)
+                g1 = c.getcomponent(Const.AND_ID); c.setlimits(g1, 1); c.connect(g1, p, 0)
+                g2 = c.getcomponent(Const.AND_ID); c.setlimits(g2, 1); c.connect(g2, p, 0)
                 next_l.extend([g1, g2])
             layer = next_l
 
@@ -2193,11 +2193,11 @@ class AggressiveTestSuite:
         c = self.circuit
 
         grid = [[None]*size for _ in range(size)]
-        trig = c.getcomponent(Const.VARIABLE)
+        trig = c.getcomponent(Const.VARIABLE_ID)
 
         for r in range(size):
             for k in range(size):
-                grid[r][k] = c.getcomponent(Const.OR)
+                grid[r][k] = c.getcomponent(Const.OR_ID)
         
         for r in range(size):
             for k in range(size):
@@ -2223,13 +2223,13 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.FLIPFLOP)
 
-        set_line = c.getcomponent(Const.VARIABLE)
-        rst_line = c.getcomponent(Const.VARIABLE)
+        set_line = c.getcomponent(Const.VARIABLE_ID)
+        rst_line = c.getcomponent(Const.VARIABLE_ID)
         
         latches = []
         for _ in range(count):
-            q = c.getcomponent(Const.NOR)
-            qb = c.getcomponent(Const.NOR)
+            q = c.getcomponent(Const.NOR_ID)
+            qb = c.getcomponent(Const.NOR_ID)
             c.connect(q, rst_line, 0)
             c.connect(qb, set_line, 0)
             c.connect(q, qb, 1)
@@ -2252,12 +2252,12 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
 
-        black_hole = c.getcomponent(Const.AND)
+        black_hole = c.getcomponent(Const.AND_ID)
         c.setlimits(black_hole, inputs)
 
         vars_list = []
         for i in range(inputs):
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(black_hole, v, i)
             vars_list.append(v)
         
@@ -2276,8 +2276,8 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.FLIPFLOP)
 
-        source = c.getcomponent(Const.VARIABLE)
-        xor_gate = c.getcomponent(Const.XOR)
+        source = c.getcomponent(Const.VARIABLE_ID)
+        xor_gate = c.getcomponent(Const.XOR_ID)
 
         c.connect(xor_gate, source, 0)
         c.connect(xor_gate, xor_gate, 1)
@@ -2306,7 +2306,7 @@ class AggressiveTestSuite:
         baseline = process.memory_info().rss
 
         c = self.circuit
-        gates = [c.getcomponent(Const.NOT) for _ in range(count)]
+        gates = [c.getcomponent(Const.NOT_ID) for _ in range(count)]
         
         current = process.memory_info().rss
         mb_used = (current - baseline) / 1024 / 1024
@@ -2326,9 +2326,9 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         for _ in range(10):
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, v, 0)
         
@@ -2348,8 +2348,8 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
-        g = c.getcomponent(Const.AND)
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, 1)
         
         count = 50_000
@@ -2368,7 +2368,7 @@ class AggressiveTestSuite:
         self.circuit.clearcircuit()
         c = self.circuit
         
-        gate_types = [Const.NOT, Const.AND, Const.NAND, Const.OR, Const.NOR, Const.XOR, Const.XNOR]
+        gate_types = [Const.NOT_ID, Const.AND_ID, Const.NAND_ID, Const.OR_ID, Const.NOR_ID, Const.XOR_ID, Const.XNOR_ID]
         count_per = 10000 // len(gate_types)
         
         start = time.perf_counter_ns()
@@ -2387,12 +2387,12 @@ class AggressiveTestSuite:
         self.circuit.clearcircuit()
         c = self.circuit
         
-        inp = c.getcomponent(Const.VARIABLE)
+        inp = c.getcomponent(Const.VARIABLE_ID)
         prev = inp
         count = 1_000_000
         
         for i in range(count):
-            g = c.getcomponent(Const.NOT)
+            g = c.getcomponent(Const.NOT_ID)
             c.connect(g, prev, 0)
             prev = g
             if i > 0 and i % 100000 == 0:
@@ -2417,12 +2417,12 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(Const.VARIABLE_ID)
         gates = []
         count = 50_000
         
         for i in range(count):
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, v, 0)
             gates.append(g)
@@ -2446,12 +2446,12 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
         
-        g = c.getcomponent(Const.AND)
+        g = c.getcomponent(Const.AND_ID)
         c.setlimits(g, count)
         
         vars_list = []
         for i in range(count):
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(g, v, i)
             vars_list.append(v)
             if i > 0 and i % 10000 == 0:
@@ -2474,12 +2474,12 @@ class AggressiveTestSuite:
         c = self.circuit
         c.simulate(Const.SIMULATE)
         
-        central = c.getcomponent(Const.AND)
+        central = c.getcomponent(Const.AND_ID)
         c.setlimits(central, count)
         
         inputs = []
         for i in range(count):
-            v = c.getcomponent(Const.VARIABLE)
+            v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(central, v, i)
             inputs.append(v)
             if i > 0 and i % 10000 == 0:
@@ -2487,7 +2487,7 @@ class AggressiveTestSuite:
                 
         targets = []
         for i in range(count):
-            g = c.getcomponent(Const.AND)
+            g = c.getcomponent(Const.AND_ID)
             c.setlimits(g, 1)
             c.connect(g, central, 0)
             targets.append(g)

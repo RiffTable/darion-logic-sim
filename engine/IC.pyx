@@ -2,11 +2,13 @@
 from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove
 from Gates import Nothing
 from Store cimport get
+from Const cimport IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
 
 cdef class IC:
     # Integrated Circuit: a custom chip made of other gates
     # It acts like a black box with inputs and outputs
-    
+    def __cinit__(self):
+        self.id = IC_ID
     def __init__(self):
         self.inputs = []
         self.internal = []
@@ -15,7 +17,6 @@ cdef class IC:
         self.name = 'IC'
         self.custom_name = ''
         self.code = ()
-
         self.map = []
 
     def __repr__(self):
@@ -30,11 +31,11 @@ cdef class IC:
         cdef object gt = get(choice)
         cdef int rank
         if gt:
-            if isinstance(gt, InputPin):
+            if gt.id==INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
                 gt.name = 'in-'+str(len(self.inputs))
-            elif isinstance(gt, OutputPin):
+            elif gt.id==OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
                 gt.name = 'out-'+str(len(self.outputs))
@@ -50,11 +51,11 @@ cdef class IC:
         # So source is Gate.
         cdef int rank
 
-        if isinstance(source, InputPin):
+        if source.id==INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
             source.name = 'in-'+str(len(self.inputs))
-        elif isinstance(source, OutputPin):
+        elif source.id==OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
             source.name = 'out-'+str(len(self.outputs))
@@ -107,18 +108,18 @@ cdef class IC:
         for i in self.map:
             code = self.decode(i["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id==IC_ID:
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
-                gate.clone(pseudo)
+                (<IC>gate).clone(pseudo)
             else:
                 gate.clone(i, pseudo)
 
     cpdef load_to_cluster(self, set cluster):
         for i in self.inputs+self.internal+self.outputs:
-            if isinstance(i, IC):
+            if i.id==IC_ID:
                 cluster.add(i)
-                i.load_to_cluster(cluster)
+                (<IC>i).load_to_cluster(cluster)
             else:
                 cluster.add(i)
 
@@ -141,7 +142,7 @@ cdef class IC:
         for i in self.map:
             code = self.decode(i["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id==IC_ID:
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
                 gate.implement(pseudo)
@@ -209,9 +210,9 @@ cdef class IC:
 
     cpdef reset(self):
         for i in self.inputs+self.internal+self.outputs:
-            if isinstance(i, Gate):
+            if i.id!=IC_ID:
                 (<Gate>i).reset()
-            elif isinstance(i, IC):
+            else:
                 (<IC>i).reset()
 
     cpdef showinputpins(self):
@@ -240,8 +241,8 @@ cdef class IC:
         if self.internal:
             print("  INTERNAL:")
             for comp in self.internal:
-                if isinstance(comp, IC):
-                    comp.info()
+                if comp.id==IC_ID:
+                    (<IC>comp).info()
                 else:
                     # Sources (list with indices)
                     if isinstance(comp.sources, list):

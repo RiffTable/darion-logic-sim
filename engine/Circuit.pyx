@@ -2,7 +2,7 @@
 import json
 from Gates cimport Gate, Variable, run, table
 from Gates import Nothing
-from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE,MODE,set_MODE
+from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,ERROR,UNKNOWN,HIGH,LOW,IC_ID,MODE,set_MODE,VARIABLE_ID
 from IC cimport IC
 from Store cimport get
 
@@ -48,9 +48,9 @@ cdef class Circuit:
             else:
                 gt.name = name+'-'+str(len(self.objlist[choice]))
 
-            if isinstance(gt, Variable):
+            if gt.id==VARIABLE_ID:
                 self.varlist.append(gt)
-            if isinstance(gt, IC):
+            if gt.id==IC_ID:
                 self.iclist.append(gt)
             self.canvas.append(gt)
         return gt
@@ -95,9 +95,9 @@ cdef class Circuit:
 
     # removes a component from view (soft delete)
     cpdef void hideComponent(self, object gate):
-        if isinstance(gate, Gate):
+        if gate.id!=IC_ID:
             (<Gate>gate).hide()
-        elif isinstance(gate, IC):
+        else:
             gate.hide()
         
         if gate in self.varlist:
@@ -118,15 +118,15 @@ cdef class Circuit:
         self.delobj(code)
 
     cpdef void renewComponent(self, object gate):
-        if isinstance(gate, Gate):
+        if gate.id!=IC_ID:
             (<Gate>gate).reveal()
-        elif isinstance(gate, IC):
+        else:
             gate.reveal()
         
-        if isinstance(gate, Variable):
+        if gate.id==VARIABLE_ID:
             self.varlist.append(gate)
         self.canvas.append(gate)
-        if isinstance(gate, IC):
+        if gate.id==IC_ID:
             self.iclist.append(gate)
 
     # Result
@@ -146,7 +146,7 @@ cdef class Circuit:
         print("=" * 90)
 
         # Diagnose regular gates
-        gates = [c for c in self.canvas if not isinstance(c, IC)]
+        gates = [c for c in self.canvas if c.id != IC_ID]
         if gates:
             columns = [
                 ("Component", 14),
@@ -231,7 +231,7 @@ cdef class Circuit:
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.custom_name = i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
@@ -240,8 +240,8 @@ cdef class Circuit:
         for gate_dict in circuit:  # connect components or build the circuit
             code = self.decode(gate_dict["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
-                gate.clone(pseudo)
+            if gate.id == IC_ID:
+                (<IC>gate).clone(pseudo)
             else:
                 gate.clone(gate_dict, pseudo)
 
@@ -251,7 +251,7 @@ cdef class Circuit:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
-        myIC = self.getcomponent(IC_TYPE)
+        myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
@@ -260,7 +260,7 @@ cdef class Circuit:
             json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
-        myIC = self.getcomponent(IC_TYPE)
+        myIC = self.getcomponent(IC_ID)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
@@ -307,7 +307,7 @@ cdef class Circuit:
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
             new_items.append(gate.code)
-            if isinstance(gate, IC):
+            if gate.id==IC_ID:
                 gate.custom_name=i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
@@ -316,7 +316,7 @@ cdef class Circuit:
         for gate_dict in circuit:  # connect components or build the circuit
             code = self.decode(gate_dict["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id==IC_ID:
                 gate.implement(pseudo)
             elif gate !=Nothing:
                 gate.clone(gate_dict, pseudo)
@@ -332,7 +332,7 @@ cdef class Circuit:
     cpdef void reset(self):
         set_MODE(DESIGN)
         for i in self.canvas:
-            if isinstance(i, Gate):
+            if i.id!=IC_ID:
                 (<Gate>i).reset()
-            elif isinstance(i, IC):
+            else:
                 (<IC>i).reset()

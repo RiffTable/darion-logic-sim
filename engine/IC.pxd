@@ -10,6 +10,7 @@ cdef class IC:
     cdef public str custom_name
     cdef public tuple code
     cdef public list map
+    cdef public int id
 
     cpdef getcomponent(self, int choice)
     cpdef addgate(self, object source)

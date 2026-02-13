@@ -6,7 +6,7 @@
 from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
-from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE,AND as AND_ID,OR as OR_ID,NOT as NOT_ID,XOR as XOR_ID,NAND as NAND_ID,NOR as NOR_ID,XNOR as XNOR_ID,VARIABLE as VARIABLE_ID,PROBE as PROBE_ID
+from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE,AND_ID,OR_ID,NOT_ID,XOR_ID,NAND_ID,NOR_ID,XNOR_ID,VARIABLE_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID
 
 
 cdef deque[void*] q
@@ -61,13 +61,14 @@ cpdef str table(list gatelist, list varlist):
     cdef str row, header, separator
     cdef int col_width, bit
     cdef Py_ssize_t i, j, n, k
-    
+    cdef int gate_type
     # Filter gatelist
     for item in gatelist:
         # Use simple type checking or isinstance depending on your import availability
-        if isinstance(item, Variable): 
+        gate_type = item.id
+        if gate_type == VARIABLE_ID: 
             continue
-        elif isinstance(item, Gate):
+        elif gate_type != IC_ID:
             gate_list.append(item)
         else:
             # Assuming item is an IC
@@ -213,7 +214,6 @@ cdef class Gate:
         self.code = ()
         self.name = ''
         self.custom_name = ''
-        self.id = -1
 
 
     def __repr__(self):
@@ -587,11 +587,12 @@ cdef class Gate:
 
 
 cdef class Variable(Gate):
+    def __cinit__(self):
+        self.id = VARIABLE_ID
     def __init__(self):
         Gate.__init__(self)
         self.value = 0
         self.inputlimit = 1
-        self.id = VARIABLE_ID
         self.sources = [Nothing]
     cpdef bint setlimits(self,int size):
         return False
@@ -663,10 +664,11 @@ cdef class Variable(Gate):
         self.propagate()
 
 cdef class Probe(Gate):
+    def __cinit__(self):
+        self.id = PROBE_ID
     def __init__(self):
         Gate.__init__(self)
         self.inputlimit = 1
-        self.id=PROBE_ID
         self.sources = [Nothing]
 
     cpdef bint setlimits(self,int size):
@@ -704,22 +706,23 @@ cdef class Probe(Gate):
             self.output = UNKNOWN
 
 cdef class InputPin(Probe):
-    def __init__(self):
-        Probe.__init__(self)
+    def __cinit__(self):
+        self.id = INPUT_PIN_ID
 
 cdef class OutputPin(Probe):
-    def __init__(self):
-        Probe.__init__(self)
+    def __cinit__(self):
+        self.id = OUTPUT_PIN_ID
+
 
 
 cdef class NOT(Gate):
     """NOT gate - inverts the input"""
-    
+    def __cinit__(self):
+        self.id = NOT_ID
     def __init__(self):
         Gate.__init__(self)
         self.inputlimit = 1
         self.sources = [Nothing]
-        self.id = NOT_ID
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -732,10 +735,10 @@ cdef class NOT(Gate):
 
 cdef class AND(Gate):
     """AND gate - outputs 1 only if all inputs are 1"""
-    
+    def __cinit__(self):
+        self.id = AND_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = AND_ID
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -756,10 +759,10 @@ cdef class AND(Gate):
 
 cdef class NAND(Gate):
     """NAND gate - NOT AND"""
-    
+    def __cinit__(self):
+        self.id = NAND_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = NAND_ID
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -779,10 +782,10 @@ cdef class NAND(Gate):
 
 cdef class OR(Gate):
     """OR gate - outputs 1 if any input is 1"""
-    
+    def __cinit__(self):
+        self.id = OR_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = OR_ID
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -802,10 +805,10 @@ cdef class OR(Gate):
 
 cdef class NOR(Gate):
     """NOR gate - NOT OR"""
-    
+    def __cinit__(self):
+        self.id = NOR_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = NOR_ID    
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -825,10 +828,10 @@ cdef class NOR(Gate):
 
 cdef class XOR(Gate):
     """XOR gate - outputs 1 if odd number of inputs are 1"""
-    
+    def __cinit__(self):
+        self.id = XOR_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = XOR_ID    
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
@@ -848,10 +851,10 @@ cdef class XOR(Gate):
 
 cdef class XNOR(Gate):
     """XNOR gate - NOT XOR"""
-    
+    def __cinit__(self):
+        self.id = XNOR_ID
     def __init__(self):
         Gate.__init__(self)
-        self.id = XNOR_ID       
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
