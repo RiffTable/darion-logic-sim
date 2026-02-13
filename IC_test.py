@@ -18,11 +18,10 @@ if engine_path not in sys.path:
 
 try:
     from Circuit import Circuit
-    import Const
-    from Gates import Gate, Variable, Nothing
-    from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
-    from Gates import InputPin, OutputPin
     from IC import IC
+    from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
+    from Const import NOT_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, VARIABLE_ID
+    from Const import HIGH, LOW, UNKNOWN, ERROR, SIMULATE, FLIPFLOP, set_MODE
 except ImportError as e:
     print(f"FATAL ERROR: Could not import engine modules: {e}")
     sys.exit(1)
@@ -54,7 +53,7 @@ class ThoroughICTest:
             self.log(f"[FAIL] {name}")
             return False
 
-    def setup_circuit(self, mode=Const.SIMULATE):
+    def setup_circuit(self, mode=SIMULATE):
         c = Circuit()
         c.simulate(mode)
         return c
@@ -88,7 +87,7 @@ class ThoroughICTest:
     def test_empty_ic(self):
         """Test an IC with absolutely no internal components."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         
         # It should exist and have 0 inputs/outputs
         self.assert_true(len(ic.inputs) == 0, "Empty IC has 0 inputs")
@@ -97,7 +96,7 @@ class ThoroughICTest:
         
         # Should be safe to 'simulate' even if empty
         try:
-            c.simulate(Const.SIMULATE) # Should process nothing
+            c.simulate(SIMULATE) # Should process nothing
             safe = True
         except Exception as e:
             safe = False
@@ -108,53 +107,53 @@ class ThoroughICTest:
     def test_unconnected_pins(self):
         """Test IC pins that lead nowhere or come from nowhere."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Connect external variable to input, but input connects to nothing internally
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         inp.connect(v, 0)
         
-        c.toggle(v, Const.HIGH)
+        c.toggle(v, HIGH)
         
-        self.assert_true(inp.output == Const.HIGH, "Input pin receives signal even if unconnected internally")
-        self.assert_true(out.output == Const.UNKNOWN, "Unconnected output pin remains UNKNOWN")
+        self.assert_true(inp.output == HIGH, "Input pin receives signal even if unconnected internally")
+        self.assert_true(out.output == UNKNOWN, "Unconnected output pin remains UNKNOWN")
 
     def test_partial_connections(self):
         """Test broken internal chains."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
-        not_g = ic.getcomponent(Const.NOT)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(NOT_ID)
         
         # Connect inp -> NOT, but NOT -> nothing (Output pin disconnected)
         not_g.connect(inp, 0)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         inp.connect(v, 0)
         
-        c.toggle(v, Const.HIGH)
+        c.toggle(v, HIGH)
         # NOT gate should work
-        self.assert_true(not_g.output == Const.LOW, "Internal logic works even if result not output")
+        self.assert_true(not_g.output == LOW, "Internal logic works even if result not output")
         # Output pin should be unchanged (UNKNOWN)
-        self.assert_true(out.output == Const.UNKNOWN, "Disconnected Output Pin ignores internal processing")
+        self.assert_true(out.output == UNKNOWN, "Disconnected Output Pin ignores internal processing")
 
     def test_all_gate_types_in_ic(self):
         """Verify every gate type functions correctly inside an IC."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         
         gates = {
-            Const.AND: (1, 1, Const.HIGH),   # AND(1,1)=1
-            Const.OR:  (0, 1, Const.HIGH),   # OR(0,1)=1
-            Const.NAND:(1, 1, Const.LOW),    # NAND(1,1)=0
-            Const.NOR: (0, 0, Const.HIGH),   # NOR(0,0)=1
-            Const.XOR: (1, 0, Const.HIGH),   # XOR(1,0)=1
-            Const.XNOR:(1, 0, Const.LOW)     # XNOR(1,0)=0
+            AND_ID: (1, 1, HIGH),   # AND(1,1)=1
+            OR_ID:  (0, 1, HIGH),   # OR(0,1)=1
+            NAND_ID:(1, 1, LOW),    # NAND(1,1)=0
+            NOR_ID: (0, 0, HIGH),   # NOR(0,0)=1
+            XOR_ID: (1, 0, HIGH),   # XOR(1,0)=1
+            XNOR_ID:(1, 0, LOW)     # XNOR(1,0)=0
         }
         
         results = {}
@@ -163,19 +162,19 @@ class ThoroughICTest:
         for g_type, (in1, in2, expected) in gates.items():
             # Setup separate circuit for each gate to be clean
             sub_c = self.setup_circuit()
-            sub_ic = sub_c.getcomponent(Const.IC)
+            sub_ic = sub_c.getcomponent(IC_ID)
             
-            inp1 = sub_ic.getcomponent(Const.INPUT_PIN)
-            inp2 = sub_ic.getcomponent(Const.INPUT_PIN)
-            out = sub_ic.getcomponent(Const.OUTPUT_PIN)
+            inp1 = sub_ic.getcomponent(INPUT_PIN_ID)
+            inp2 = sub_ic.getcomponent(INPUT_PIN_ID)
+            out = sub_ic.getcomponent(OUTPUT_PIN_ID)
             
             g = sub_ic.getcomponent(g_type)
             g.connect(inp1, 0)
             g.connect(inp2, 1)
             out.connect(g, 0)
             
-            v1 = sub_c.getcomponent(Const.VARIABLE)
-            v2 = sub_c.getcomponent(Const.VARIABLE)
+            v1 = sub_c.getcomponent(VARIABLE_ID)
+            v2 = sub_c.getcomponent(VARIABLE_ID)
             inp1.connect(v1, 0)
             inp2.connect(v2, 0)
             
@@ -190,79 +189,79 @@ class ThoroughICTest:
     def test_error_propagation(self):
         """Test that ERROR state passes into and out of IC."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        ic = c.getcomponent(IC_ID)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Simple passthrough
         out.connect(inp, 0)
         
         # Can't easily force an ERROR from a simple Variable, so let's mock it
         # Or create an error condition (XOR loop) feeding the IC
-        xor_g = c.getcomponent(Const.XOR)
+        xor_g = c.getcomponent(XOR_ID)
         c.connect(xor_g, xor_g, 1) # Self loop causes ERROR/Oscillation
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         c.connect(xor_g, v, 0)
         
-        Const.set_MODE(Const.FLIPFLOP) # Allow oscillation/feedback
+        set_MODE(FLIPFLOP) # Allow oscillation/feedback
         c.toggle(v, 1) 
         # XOR(1, prev) -> if prev=0 -> 1 -> XOR(1,1)->0 -> XOR(1,0)->1 ... Oscillation
         # The engine usually produces ERROR for unstable loops in SIMULATE mode or just oscillates.
         # Let's try SIMULATE mode which detects unstable states better? 
         # Or just force the value.
         
-        v_force = c.getcomponent(Const.VARIABLE)
+        v_force = c.getcomponent(VARIABLE_ID)
         c.connect(inp, v_force, 0)
-        v_force.output = Const.ERROR # Hack: force the variable state
+        v_force.output = ERROR # Hack: force the variable state
         v_force.propagate()
         
-        self.assert_true(inp.output == Const.ERROR, "Input Pin accepts ERROR")
-        self.assert_true(out.output == Const.ERROR, "Output Pin propagates ERROR")
+        self.assert_true(inp.output == ERROR, "Input Pin accepts ERROR")
+        self.assert_true(out.output == ERROR, "Output Pin propagates ERROR")
 
     def test_unknown_propagation(self):
         """Test UNKNOWN state propagation."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        ic = c.getcomponent(IC_ID)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Logic: NOT(Unknown) -> Unknown? Or Logic dependant?
         # In this engine, NOT(Unknown) -> Unknown usually.
-        not_g = ic.getcomponent(Const.NOT)
+        not_g = ic.getcomponent(NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         # Don't toggle V, leave it UNKNOWN (default?)
         # Actually Variables default to LOW usually? No, check Gates.pyx
         # Usually they default to LOW or are initialized. 
         # Let's force UNKNOWN.
-        v.output = Const.UNKNOWN
+        v.output = UNKNOWN
         inp.connect(v, 0)
         v.propagate()
         
-        self.assert_true(out.output == Const.UNKNOWN, "IC propagates UNKNOWN correctly")
+        self.assert_true(out.output == UNKNOWN, "IC propagates UNKNOWN correctly")
 
     def test_floating_inputs(self):
         """Test IC input pin not connected to any external source."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        ic = c.getcomponent(IC_ID)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Just connect internal logic
         out.connect(inp, 0)
         
         # Ensure it works (should be UNKNOWN or LOW depending on defaults)
-        self.assert_true(out.output == Const.UNKNOWN, "Floating input defaults to UNKNOWN")
+        self.assert_true(out.output == UNKNOWN, "Floating input defaults to UNKNOWN")
 
     def test_deep_nesting(self):
         """Test 10 levels of nesting (deeper than speed_test)."""
         c = self.setup_circuit()
         
-        current_ic = c.getcomponent(Const.IC)
-        root_inp = current_ic.getcomponent(Const.INPUT_PIN)
-        root_out = current_ic.getcomponent(Const.OUTPUT_PIN)
+        current_ic = c.getcomponent(IC_ID)
+        root_inp = current_ic.getcomponent(INPUT_PIN_ID)
+        root_out = current_ic.getcomponent(OUTPUT_PIN_ID)
         
         # Make a passthrough
         root_out.connect(root_inp, 0)
@@ -273,9 +272,9 @@ class ThoroughICTest:
         # To nest ICs, I need to add an IC *into* an IC.
         
         # Level 0 (Inner most)
-        inner = c.getcomponent(Const.IC)
-        i_in = inner.getcomponent(Const.INPUT_PIN)
-        i_out = inner.getcomponent(Const.OUTPUT_PIN)
+        inner = c.getcomponent(IC_ID)
+        i_in = inner.getcomponent(INPUT_PIN_ID)
+        i_out = inner.getcomponent(OUTPUT_PIN_ID)
         i_out.connect(i_in, 0)
         
         prev_ic = inner
@@ -284,9 +283,9 @@ class ThoroughICTest:
         
         # Wrap it 9 times
         for i in range(9):
-             wrapper = c.getcomponent(Const.IC)
-             w_in = wrapper.getcomponent(Const.INPUT_PIN)
-             w_out = wrapper.getcomponent(Const.OUTPUT_PIN)
+             wrapper = c.getcomponent(IC_ID)
+             w_in = wrapper.getcomponent(INPUT_PIN_ID)
+             w_out = wrapper.getcomponent(OUTPUT_PIN_ID)
              
              # Add prev_ic to wrapper
              wrapper.addgate(prev_ic)
@@ -301,21 +300,21 @@ class ThoroughICTest:
              prev_out = w_out
              
         # Connect to circuit
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         prev_in.connect(v, 0)
         
-        c.toggle(v, Const.HIGH)
-        self.assert_true(prev_out.output == Const.HIGH, "10-level nested passthrough works")
+        c.toggle(v, HIGH)
+        self.assert_true(prev_out.output == HIGH, "10-level nested passthrough works")
 
     def test_feedback_loop_internal(self):
         """Test an internal feedback loop (Oscillator)."""
-        c = self.setup_circuit(Const.FLIPFLOP)
-        ic = c.getcomponent(Const.IC)
+        c = self.setup_circuit(FLIPFLOP)
+        ic = c.getcomponent(IC_ID)
         
         # Create Loop: NOT -> NOT -> NOT (Odd number = oscillator)
-        n1 = ic.getcomponent(Const.NOT)
-        n2 = ic.getcomponent(Const.NOT)
-        n3 = ic.getcomponent(Const.NOT)
+        n1 = ic.getcomponent(NOT_ID)
+        n2 = ic.getcomponent(NOT_ID)
+        n3 = ic.getcomponent(NOT_ID)
         
         n2.connect(n1, 0)
         n3.connect(n2, 0)
@@ -327,7 +326,7 @@ class ThoroughICTest:
         # This tests stability/crash resilience.
         
         try:
-            c.simulate(Const.FLIPFLOP)
+            c.simulate(FLIPFLOP)
             safe = True
         except:
             safe = False
@@ -337,35 +336,35 @@ class ThoroughICTest:
     def test_dynamic_modification(self):
         """Test adding components to an IC that is already live."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        ic = c.getcomponent(IC_ID)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Initially unconnected
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         inp.connect(v, 0)
-        c.toggle(v, Const.HIGH)
+        c.toggle(v, HIGH)
         
-        self.assert_true(out.output == Const.UNKNOWN, "Output initially UNKNOWN")
+        self.assert_true(out.output == UNKNOWN, "Output initially UNKNOWN")
         
         # Dynamically add a NOT gate bridging them
-        not_g = ic.getcomponent(Const.NOT)
+        not_g = ic.getcomponent(NOT_ID)
         not_g.connect(inp, 0)
         out.connect(not_g, 0)
         
         # Force update?
-        c.toggle(v, Const.LOW)
-        c.toggle(v, Const.HIGH)
+        c.toggle(v, LOW)
+        c.toggle(v, HIGH)
         
-        self.assert_true(out.output == Const.LOW, "Dynamically added gate works (HIGH->NOT->LOW)")
+        self.assert_true(out.output == LOW, "Dynamically added gate works (HIGH->NOT->LOW)")
 
     def test_deletion_cleanup(self):
         """Test strict cleanup when deleting IC."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
-        inp = ic.getcomponent(Const.INPUT_PIN)
+        ic = c.getcomponent(IC_ID)
+        inp = ic.getcomponent(INPUT_PIN_ID)
         
-        v = c.getcomponent(Const.VARIABLE)
+        v = c.getcomponent(VARIABLE_ID)
         inp.connect(v, 0)
         
         self.assert_true(len(v.hitlist) == 1, "Variable connected to IC Pin")
@@ -391,17 +390,17 @@ class ThoroughICTest:
     def test_save_load_complex(self):
         """Test saving/loading an IC with nested components."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         ic.custom_name = "SuperChip"
         
-        inp = ic.getcomponent(Const.INPUT_PIN)
-        out = ic.getcomponent(Const.OUTPUT_PIN)
+        inp = ic.getcomponent(INPUT_PIN_ID)
+        out = ic.getcomponent(OUTPUT_PIN_ID)
         
         # Nested IC
-        inner = ic.getcomponent(Const.IC)
+        inner = ic.getcomponent(IC_ID)
         inner.custom_name = "InnerChip"
-        i_in = inner.getcomponent(Const.INPUT_PIN)
-        i_out = inner.getcomponent(Const.OUTPUT_PIN)
+        i_in = inner.getcomponent(INPUT_PIN_ID)
+        i_out = inner.getcomponent(OUTPUT_PIN_ID)
         i_out.connect(i_in, 0)
         
         i_in.connect(inp, 0)
@@ -427,15 +426,15 @@ class ThoroughICTest:
     def test_input_limit_handling(self):
         """Test that IC gates resize inputs correctly."""
         c = self.setup_circuit()
-        ic = c.getcomponent(Const.IC)
+        ic = c.getcomponent(IC_ID)
         
-        and_g = ic.getcomponent(Const.AND)
+        and_g = ic.getcomponent(AND_ID)
         # Default limit usually 2?
         
         # Connect 5 things to it
         pins = []
         for i in range(5):
-            p = ic.getcomponent(Const.INPUT_PIN)
+            p = ic.getcomponent(INPUT_PIN_ID)
             and_g.setlimits(5) # Auto-resize or manual resize
             and_g.connect(p, i) 
             pins.append(p)
