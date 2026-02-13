@@ -91,19 +91,7 @@ def hitlist_del(hitlist: list[Profile], index: int):
         hitlist.pop()
 
 
-class Empty:
-    def __init__(self):
-        self.code: tuple[str, str] = ('X', 'X')
-        self.output = UNKNOWN
 
-    def __repr__(self) -> str:
-        return 'Empty'
-
-    def __str__(self) -> str:
-        return 'Empty'
-
-
-Nothing: Empty = Empty()
 
 
 def add(profile: Profile, pin_index: int):
@@ -113,7 +101,7 @@ def add(profile: Profile, pin_index: int):
 
 def remove(profile: Profile, pin_index: int) -> bool:
     target: Gate = profile.target
-    target.sources[pin_index] = Nothing
+    target.sources[pin_index] = None
     # Find the position of this index in our index list, then remove it
     i: int = 0
     while i < len(profile.index):
@@ -134,7 +122,7 @@ def hide(profile: Profile):
     target: Gate = profile.target
     target.book[profile.output] -= len(profile.index)
     for index in profile.index:
-        target.sources[index] = Nothing
+        target.sources[index] = None
     profile.output = UNKNOWN
 
 
@@ -203,7 +191,7 @@ class Gate:
                  'prev_output', 'code', 'name', 'custom_name', 'id']
     def __init__(self):
         # who feeds into this gate? (inputs)
-        self.sources: list[Gate | Empty] = [Nothing, Nothing]
+        self.sources: list[Gate | None] = [None, None]
         # who does this gate feed into? (outputs)
         self.hitlist: list[Profile] = []
         # how many inputs do we need?
@@ -282,7 +270,7 @@ class Gate:
         """Protect against weird loops by resetting counts."""
         self.book[:] = [0, 0, 0, 0]
         for source in self.sources:
-            if source != Nothing:
+            if source:
                 self.book[source.output] += 1
 
     def burn(self):
@@ -371,7 +359,7 @@ class Gate:
         
         # disconnect from sources (this gate's inputs)
         for index,source in enumerate(self.sources):
-            if source != Nothing:
+            if source:
                 loc: int = locate(self,source)
                 if loc != -1:
                     profile=source.hitlist[loc]
@@ -394,7 +382,7 @@ class Gate:
     def reveal(self):
         # reconnect to sources (rebuild this gate's inputs)
         for index, source in enumerate(self.sources):
-            if source != Nothing:
+            if source:
                 # Re-register with the source's hitlist
                 loc: int = locate(self,source)
                 if loc != -1:
@@ -415,12 +403,12 @@ class Gate:
     def setlimits(self, size: int) -> bool:
         if size > self.inputlimit:
             for i in range(self.inputlimit, size):
-                self.sources.append(Nothing)
+                self.sources.append(None)
             self.inputlimit = size
             return True
         elif size < self.inputlimit:
             for i in range(size, self.inputlimit):
-                if self.sources[i] != Nothing:
+                if self.sources[i]:
                     return False
             self.sources = self.sources[:size]
             self.inputlimit = size
@@ -440,7 +428,7 @@ class Gate:
             "custom_name": self.custom_name,
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code for source in self.sources],
+            "source": [source.code if source else ('X', 'X') for source in self.sources],
         }
         return dictionary
 
@@ -450,7 +438,7 @@ class Gate:
             "custom_name": "",  # Do not copy custom name for gates
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
         }
         return dictionary
 
@@ -476,7 +464,7 @@ class Variable(Gate):
         super().__init__()
         self.value: int = 0 
         self.inputlimit: int = 1
-        self.sources = [Nothing]
+        self.sources = [None]
         self.id = VARIABLE_ID
 
     def setlimits(self, size: int) -> bool:
@@ -557,7 +545,7 @@ class Probe(Gate):
     def __init__(self):
         super().__init__()
         self.inputlimit: int = 1
-        self.sources: list[Gate | Empty] = [Nothing]
+        self.sources: list[Gate | None] = [None]
         self.id = PROBE_ID
 
     def setlimits(self, size: int) -> bool:
@@ -566,7 +554,7 @@ class Probe(Gate):
     def isready(self) -> bool:
         if get_MODE() == DESIGN:
             return False
-        elif self.sources[0] != Nothing:
+        elif self.sources[0]:
             return True
         else:
             return False
@@ -584,7 +572,7 @@ class Probe(Gate):
             "custom_name": self.custom_name,
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
         }
         return dictionary
 
@@ -622,7 +610,7 @@ class NOT(Gate):
     def __init__(self):
         super().__init__()
         self.inputlimit: int = 1
-        self.sources: list[Gate | Empty] = [Nothing]
+        self.sources: list[Gate | None] = [None]
         self.id = NOT_ID
 
     def process(self):

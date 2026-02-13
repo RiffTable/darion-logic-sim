@@ -1,6 +1,6 @@
 from Circuit import Circuit
 import Const
-from Gates import Gate,Nothing
+from Gates import Gate
 from collections import deque
 
 class Event:
@@ -113,7 +113,7 @@ class Event:
         self.addtoundo((Const.DELETE, gate))
 
     def connect(self, target: Gate, source: Gate, index):
-        if target.sources[index] != Nothing:
+        if target.sources[index] is not None:
             return False
         self.circuit.connect(target, source, index)
         self.addtoundo((Const.CONNECT, target, source, index))

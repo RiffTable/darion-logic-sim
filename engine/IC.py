@@ -1,5 +1,5 @@
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal, locate, remove
+from Gates import Gate, InputPin, OutputPin, Profile, hitlist_del, add, hide, reveal, locate, remove
 from Const import IC_ID
 
 class IC:
@@ -64,7 +64,7 @@ class IC:
     # sets up the IC from a saved plan
     def configure(self, dictionary):
         pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         self.custom_name=dictionary["custom_name"]
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
@@ -153,7 +153,7 @@ class IC:
         # Disconnect input pins from their sources
         for pin in self.inputs:
             for index, source in enumerate(pin.sources):
-                if source != Nothing:
+                if source:
                     loc = locate(pin, source)
                     if loc != -1:
                         profile = source.hitlist[loc]
@@ -168,7 +168,7 @@ class IC:
         # Reconnect output pins to their targets
         for pin in self.inputs:
             for index, source in enumerate(pin.sources):
-                if source != Nothing:
+                if source:
                     # Re-register with the source's hitlist
                     loc = locate(pin, source)
                     if loc != -1:
@@ -221,7 +221,7 @@ class IC:
                 else:
                     # Sources (list with indices)
                     if isinstance(comp.sources, list):
-                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                         ch_str = ", ".join(ch) if ch else "None"
                     else:
                         ch_str = f"val:{comp.sources}"
@@ -235,7 +235,7 @@ class IC:
             print("  OUTPUTS:")
             for pin in self.outputs:
                 if isinstance(pin.sources, list):
-                    ch = [f"{c}" for c in pin.sources if str(c) != 'Empty']
+                    ch = [f"{c}" for c in pin.sources if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"

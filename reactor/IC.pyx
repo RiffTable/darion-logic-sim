@@ -1,6 +1,6 @@
 # distutils: language = c++
-from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove
-from Gates import Nothing
+from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove, propagate
+
 from Store cimport get
 from Const cimport IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
 
@@ -68,7 +68,7 @@ cdef class IC:
     # sets up the IC from a saved plan
     cpdef configure(self, dict dictionary):
         cdef dict pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         self.custom_name = dictionary["custom_name"]
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
@@ -171,12 +171,12 @@ cdef class IC:
                 target = <Gate>hitlist[i].target
                 if target is not self: # Identity check
                    target.process()
-                   target.propagate()
+                   propagate(target)
         
         # Disconnect input pins from their sources
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
-                if source is not Nothing:
+                if source:
                     src = <Gate>source
                     remove(src.hitlist, pin_in, index)
                     pin_in.sources[index]=source
@@ -193,11 +193,11 @@ cdef class IC:
         cdef Gate src
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
-                if source is not Nothing:
+                if source:
                     src = <Gate>source
                     add(src.hitlist, pin_in, index, src.output)
             pin_in.process()
-            pin_in.propagate()
+            propagate(pin_in)
 
         # Original code line 180: iterate self.outputs
         for pin_out in self.outputs:
@@ -205,7 +205,7 @@ cdef class IC:
             size = pin_out.hitlist.size()
             for i in range(size):
                 reveal(hitlist[i], pin_out)
-            pin_out.propagate()
+            propagate(pin_out)
         
 
     cpdef reset(self):
@@ -246,7 +246,7 @@ cdef class IC:
                 else:
                     # Sources (list with indices)
                     if isinstance(comp.sources, list):
-                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                         ch_str = ", ".join(ch) if ch else "None"
                     else:
                         ch_str = f"val:{comp.sources}"
@@ -260,7 +260,7 @@ cdef class IC:
             print("  OUTPUTS:")
             for pin in self.outputs:
                 if isinstance(pin.sources, list):
-                    ch = [f"{c}" for c in pin.sources if str(c) != 'Empty']
+                    ch = [f"{c}" for c in pin.sources if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"

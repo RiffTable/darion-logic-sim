@@ -25,11 +25,10 @@ cdef void remove(vector[Profile]& hitlist, Gate target, int pin_index)
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
 cdef void clear_fuse()
+cdef void propagate(Gate origin)
+cdef void burn(Gate origin)
+cdef void sync(Gate gate)
 
-
-cdef class Empty:
-    cdef public tuple code
-    cdef public int output
 
 # cdef class Profile:
 #     cdef public Gate target
@@ -60,8 +59,7 @@ cdef class Gate:
     cdef bint isready(self)
     cpdef void connect(self, Gate source, int index)
     # cdef void bypass(self)
-    cdef void sync(self)
-    cdef void burn(self)
+    # cdef void sync(self)
     cpdef void propagate(self)
     cpdef void disconnect(self, int index)
     cdef void reset(self)

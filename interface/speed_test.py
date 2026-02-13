@@ -65,20 +65,14 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
-try:
-    from Circuit import Circuit
-    from Event_Manager import Event
-    import Const
-    from Gates import Gate, Variable, Probe, Nothing
-    from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
-    from Gates import InputPin, OutputPin
-    from IC import IC
-    from Store import get
-except ImportError as e:
-    print(f"FATAL ERROR: Could not import backend modules: {e}")
-    if args.reactor:
-        print("Ensure you have built the reactor (python setup.py build_ext --inplace)")
-    sys.exit(1)
+from Circuit import Circuit
+from Event_Manager import Event
+import Const
+from Gates import Gate, Variable, Probe
+from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
+from Gates import InputPin, OutputPin
+from IC import IC
+from Store import get
 
 
 class AggressiveTestSuite:
@@ -565,7 +559,7 @@ class AggressiveTestSuite:
             c.connect(g, v, 0)
             self.assert_test(g.sources[0] == v, f"Cycle {i}: Connected")
             c.disconnect(g, 0)
-            self.assert_test(g.sources[0] == Nothing, f"Cycle {i}: Disconnected")
+            self.assert_test(g.sources[0] is None, f"Cycle {i}: Disconnected")
 
     def test_disconnection_stress(self):
         self.subsection("Disconnection (50-source gate)")
@@ -583,7 +577,7 @@ class AggressiveTestSuite:
         for i in range(49, -1, -1):
             c.disconnect(g, i)
         
-        all_none = all(g.sources[i] == Nothing for i in range(50))
+        all_none = all(g.sources[i] is None for i in range(50))
         self.assert_test(all_none, "All 50 sources cleared")
 
     def test_variable_rapid_toggle(self):
@@ -1097,7 +1091,7 @@ class AggressiveTestSuite:
         c.connect(and_gate, v, 0)
         self.assert_test(and_gate.sources[0] is v, "Circuit.connect wired Variable->AND")
         c.disconnect(and_gate, 0)
-        self.assert_test(and_gate.sources[0] == Nothing, "Circuit.disconnect cleared AND[0]")
+        self.assert_test(and_gate.sources[0] == None, "Circuit.disconnect cleared AND[0]")
 
         # toggle
         c.toggle(v, Const.HIGH)
@@ -1299,17 +1293,17 @@ class AggressiveTestSuite:
         # Disconnect and reconnect each gate (only if source is connected)
         for gname, g in gates.items():
             if gname == 'NOT':
-                if g.sources[0] != Nothing:
+                if g.sources[0] :
                     c.disconnect(g, 0)
-                self.assert_test(g.sources[0] == Nothing, f"Mixed: disconnect {gname}[0]")
+                self.assert_test(g.sources[0] == None, f"Mixed: disconnect {gname}[0]")
                 c.connect(g, v1, 0)
                 self.assert_test(g.sources[0] is v1, f"Mixed: reconnect {gname}[0]")
             else:
-                if g.sources[0] != Nothing:
+                if g.sources[0] != None:
                     c.disconnect(g, 0)
-                if g.sources[1] != Nothing:
+                if g.sources[1] != None:
                     c.disconnect(g, 1)
-                self.assert_test(g.sources[0] == Nothing and g.sources[1] == Nothing,
+                self.assert_test(g.sources[0] == None and g.sources[1] == None,
                                  f"Mixed: disconnect {gname}[0,1]")
                 c.connect(g, v1, 0)
                 c.connect(g, v2, 1)
@@ -1445,7 +1439,7 @@ class AggressiveTestSuite:
         self.assert_test(internal_ok, "Internal feedback loop preserved in copy")
         
         # Verify external connections are lost (because inputs weren't copied)
-        external_lost = (q_copy.sources[0] == Nothing) and (qb_copy.sources[0] == Nothing)
+        external_lost = (q_copy.sources[0] == None) and (qb_copy.sources[0] == None)
         self.assert_test(external_lost, "External connections dropped (as expected)")
 
     def test_flipflop_stress(self):

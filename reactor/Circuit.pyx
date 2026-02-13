@@ -1,7 +1,7 @@
 # distutils: language = c++
 import json
-from Gates cimport Gate, Variable, run, table
-from Gates import Nothing
+from Gates cimport Gate, Variable, run, table,propagate
+
 from Const cimport TOTAL,DESIGN,SIMULATE,FLIPFLOP,ERROR,UNKNOWN,HIGH,LOW,IC_ID,MODE,set_MODE,VARIABLE_ID
 from IC cimport IC
 from Store cimport get
@@ -81,13 +81,13 @@ cdef class Circuit:
         target.connect(source,index)
         # if the connection changed something, let everyone know
         if target.prev_output != target.output:
-            target.propagate()
+            propagate(target)
             
     # switches a variable on or off
     cpdef void toggle(self, Variable target,int value):
         target.toggle(value)
         if target.prev_output != target.output:
-            target.propagate()
+            propagate(target)
 
     # identify target/source
     cpdef void disconnect(self, Gate target,int index):
@@ -164,7 +164,7 @@ cdef class Circuit:
             for comp in gates:
                 # Sources (inputs) - list with indices
                 if isinstance(comp.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{comp.sources}"
@@ -204,7 +204,7 @@ cdef class Circuit:
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if str(c) != 'Empty'] if isinstance(pin.sources, list) else []
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
                         print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
@@ -227,7 +227,7 @@ cdef class Circuit:
         if isinstance(circuit,dict):
             return
         pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
@@ -301,7 +301,7 @@ cdef class Circuit:
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
         pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         new_items = []
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
@@ -318,7 +318,7 @@ cdef class Circuit:
             gate = pseudo[code]
             if gate.id==IC_ID:
                 gate.implement(pseudo)
-            elif gate !=Nothing:
+            elif gate:
                 gate.clone(gate_dict, pseudo)
         return new_items
 

@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Variable, Nothing, update,run,table
+from Gates import Gate, Variable, update,run,table
 from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
 from Store import get
@@ -152,7 +152,7 @@ class Circuit:
             for comp in gates:
                 # Sources (inputs) - list with indices
                 if isinstance(comp.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if str(c) != 'Empty']
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{comp.sources}"
@@ -192,7 +192,7 @@ class Circuit:
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if str(c) != 'Empty'] if isinstance(pin.sources, list) else []
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
                         print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
@@ -215,7 +215,7 @@ class Circuit:
         if isinstance(circuit,dict):
             return
         pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
@@ -289,7 +289,7 @@ class Circuit:
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
         pseudo = {}
-        pseudo[('X', 'X')] = Nothing
+        pseudo[('X', 'X')] = None
         new_items = []
         for i in circuit:  # load to pseudo
             code = self.decode(i["code"])
@@ -306,7 +306,7 @@ class Circuit:
             gate = pseudo[code]
             if isinstance(gate, IC):
                 gate.implement(pseudo)
-            elif gate !=Nothing:
+            elif gate:
                 gate.clone(gate_dict, pseudo)
         return new_items
 

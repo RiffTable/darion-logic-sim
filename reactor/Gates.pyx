@@ -9,6 +9,7 @@ from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE,AND_ID,OR_ID,NOT_ID,XOR_ID,NAND_ID,NOR_ID,XNOR_ID,VARIABLE_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID
 
 
+
 cdef deque[void*] q
 cdef vector[Profile*] fuse
 
@@ -21,7 +22,7 @@ cpdef void run(list varlist):
     cdef Gate target
     cdef int* book
     for variable in varlist:
-        variable.process()
+        variable.output=variable.value
 
     for variable in varlist:
         n=variable.hitlist.size()
@@ -31,9 +32,9 @@ cpdef void run(list varlist):
             target = <Gate>profile.target
             if target.output==ERROR:
                 profile.output=variable.output
-                target.sync()
+                sync(target)
                 target.process()
-                target.propagate()
+                propagate(target)
             
             book=target.book
             book[profile.output]-=1
@@ -41,9 +42,9 @@ cpdef void run(list varlist):
             profile.output=variable.output
             target.process()
             if target.prev_output!=target.output:
-                target.propagate()
+                propagate(target)
 
-cdef void clear_fuse():
+cdef inline void clear_fuse():
     cdef Profile* profile
     cdef size_t i
     cdef size_t size = fuse.size()
@@ -51,6 +52,165 @@ cdef void clear_fuse():
         fuse[i].index=-fuse[i].index-1
     fuse.clear()
 
+cdef inline void sync(Gate gate):
+    cdef int* book = gate.book
+    book[:]=[0,0,0,0]
+    cdef Gate source
+    for source in gate.sources:
+        if source:
+            book[source.output]+=1
+
+cdef inline void burn(Gate origin):
+    cdef Gate gate
+    cdef deque[void*] q
+    cdef Profile* profile
+    cdef size_t i
+    cdef size_t size
+    cdef Profile* hitlist 
+    cdef Gate target
+    q.push_back(<void*>origin)
+    # input(f'burn from {self}\n')
+    # keep propagating until everything settles
+    while q.size():
+        gate = <Gate>q.front()
+        q.pop_front()
+        hitlist = gate.hitlist.data()
+        size = gate.hitlist.size()
+        gate.prev_output=gate.output
+        gate.output = ERROR
+        for i in range(size):
+            profile = &hitlist[i]
+            target=<Gate>profile.target
+            profile.output = ERROR
+            if i==size-1 or profile.target!=hitlist[i+1].target:
+                # input(f'{target} output is {target.output}\n')
+                sync(target)
+                # input(f'{target} is synced and has {target.output} not {ERROR}\n')
+                if target.output!=ERROR:
+                    # input(f'{target} pushed to queue\n')
+                    q.push_back(<void*>target)
+    q.clear()
+
+cdef inline void propagate(Gate origin):
+    cdef Gate gate
+    cdef Gate target
+    cdef Profile* profile
+    cdef Profile* hitlist
+    cdef size_t size
+    cdef size_t i
+    cdef int* book
+    cdef int gate_type
+    cdef int realsource
+    cdef int high
+    cdef int low
+    cdef int* index 
+    cdef int limit
+    if MODE==FLIPFLOP:
+        # notify all targets
+        q.push_back(<void*>origin)
+        # keep propagating until everything settles
+        while q.size():
+            gate = <Gate>q.front()
+            q.pop_front()
+            hitlist = gate.hitlist.data()
+            size = gate.hitlist.size()
+            for i in range(size):
+                profile = &hitlist[i]
+                if gate.output!=profile.output:
+                    target=<Gate>profile.target
+                    gate_type = target.id
+                    if gate_type<PROBE_ID:
+                        book = target.book
+                        book[profile.output]-=1
+                        book[gate.output]+=1
+                        profile.output = gate.output
+                        if i==size-1 or profile.target!=hitlist[i+1].target:
+                            target.prev_output=target.output
+                            high=book[HIGH]
+                            low=book[LOW]
+                            if high+low==target.inputlimit or (high+low and high+low+book[UNKNOWN]+book[ERROR]==target.inputlimit):
+                                if gate_type==NOT_ID:
+                                    target.output=low
+                                elif gate_type==AND_ID:
+                                    target.output = low==0
+                                elif gate_type==NAND_ID:
+                                    target.output = low!=0
+                                elif gate_type==OR_ID:
+                                    target.output = high>0
+                                elif gate_type==NOR_ID:
+                                    target.output = high==0
+                                elif gate_type==XOR_ID:
+                                    target.output = high&1
+                                elif gate_type==XNOR_ID:
+                                    target.output = (high&1)^1
+                            else:
+                                target.output=UNKNOWN
+                    else:
+                        target.output=gate.output
+                        profile.output=gate.output
+                    if target.prev_output!=target.output:
+                        if gate==target: 
+                            q.clear()
+                            burn(gate)
+                            clear_fuse()
+                            return
+                        if profile.index<0: 
+                            q.clear()
+                            burn(gate)
+                            clear_fuse()
+                            return
+                        profile.index=-profile.index-1
+                        fuse.push_back(profile)
+                        q.push_back(<void*>target)
+        q.clear()
+        clear_fuse()
+    elif MODE==SIMULATE:# don't need fuse, the logic itself is loop-proof
+        q.push_back(<void*>origin)
+        # keep propagating until everything settles
+        while q.size():
+            gate = <Gate>q.front()
+            q.pop_front()
+            hitlist = gate.hitlist.data()
+            size = gate.hitlist.size()
+            for i in range(size):
+                profile = &hitlist[i]
+                if gate.output!=profile.output:
+                    target=<Gate>profile.target
+                    gate_type = target.id
+                    if gate_type<PROBE_ID:
+                        book = target.book
+                        book[profile.output]-=1
+                        book[gate.output]+=1
+                        profile.output = gate.output
+                        if i==size-1 or profile.target!=hitlist[i+1].target:
+                            target.prev_output=target.output
+                            high=book[HIGH]
+                            low=book[LOW]
+                            if high+low==target.inputlimit:
+                                if gate_type==NOT_ID:
+                                    target.output=low
+                                elif gate_type==AND_ID:
+                                    target.output = low==0
+                                elif gate_type==NAND_ID:
+                                    target.output = low!=0
+                                elif gate_type==OR_ID:
+                                    target.output = high>0
+                                elif gate_type==NOR_ID:
+                                    target.output = high==0
+                                elif gate_type==XOR_ID:
+                                    target.output = high&1
+                                elif gate_type==XNOR_ID:
+                                    target.output = (high&1)^1
+                            else:
+                                target.output=UNKNOWN
+                    else:
+                        target.output=gate.output
+                        profile.output=gate.output
+                    if target.prev_output!=target.output:
+                        q.push_back(<void*>target)
+        q.clear()
+    else:
+        pass
 cpdef str table(list gatelist, list varlist):
     # Declarations
     cdef list gate_list = []
@@ -106,7 +266,7 @@ cpdef str table(list gatelist, list varlist):
             
             var.toggle(bit)
             if var.prev_output != var.output:
-                var.propagate()
+                propagate(var)
             
             inputs.append("1" if bit else "0")
         
@@ -124,24 +284,13 @@ cpdef str table(list gatelist, list varlist):
     return "".join(Table)
 
 
-cdef class Empty:
-    def __init__(self):
-        self.code = ('X', 'X')
-        self.output = UNKNOWN
-    def __repr__(self):
-        return 'Empty'
 
-    def __str__(self):
-        return 'Empty'
-
-Nothing = Empty()
-
-cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output):
+cdef inline void create(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
     hitlist.push_back(Profile(target_ptr, pin_index, output))
     target.book[output] += 1
 
-cdef void add(vector[Profile]& hitlist, Gate target, int pin_index,int output):
+cdef inline void add(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
     hitlist.push_back(Profile())
     cdef int i=hitlist.size()-1
@@ -155,8 +304,8 @@ cdef void add(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     target.book[output] += 1
 
 
-cdef void remove(vector[Profile]& hitlist,Gate target, int pin_index):
-    target.sources[pin_index] = Nothing
+cdef inline void remove(vector[Profile]& hitlist,Gate target, int pin_index):
+    target.sources[pin_index] = None
     cdef void* target_ptr = <void*>target
     cdef size_t i = 0
     cdef size_t n = hitlist.size()
@@ -166,14 +315,14 @@ cdef void remove(vector[Profile]& hitlist,Gate target, int pin_index):
             hitlist.erase(hitlist.begin()+i)
             break
 
-cdef void hide(Profile& profile):
+cdef inline void hide(Profile& profile):
     cdef Gate target = <Gate>profile.target
     target.book[profile.output] -= 1
-    target.sources[profile.index] = Nothing
+    target.sources[profile.index] = None
     profile.output = UNKNOWN
 
 
-cdef void reveal(Profile& profile,Gate source):
+cdef inline void reveal(Profile& profile,Gate source):
     cdef Gate target = <Gate>profile.target
     target.book[UNKNOWN] += 1
     target.sources[profile.index] = source
@@ -198,7 +347,7 @@ cdef class Gate:
 
     def __init__(self):
         # who feeds into this gate? (inputs)
-        self.sources: list = [Nothing, Nothing]
+        self.sources: list = [None, None]
         # who does this gate feed into? (outputs)
         self.inputlimit = 2
         # keeps track of what kind of inputs we have (high, low, etc)
@@ -213,6 +362,8 @@ cdef class Gate:
         self.name = ''
         self.custom_name = ''
 
+    cpdef void propagate(self):
+        propagate(self)
 
     def __repr__(self):
         return self.name if self.custom_name == '' else self.custom_name
@@ -282,7 +433,7 @@ cdef class Gate:
         # if something is wrong with the input, react
         if source.output==ERROR:
             if self.isready():
-                self.burn()
+                burn(self)
         else:
             # otherwise, recalculate our output
             self.process()
@@ -299,177 +450,25 @@ cdef class Gate:
     #             target.propagate()
 
     # protect against weird loops by resetting counts
-    cdef void sync(self):
-        cdef int* book = self.book
-        book[:]=[0,0,0,0]
-        for source in self.sources:
-            if source!=Nothing:
-                book[source.output]+=1
+
 
     # handles error states and spreads the error
-    cdef void burn(self):
-        cdef Gate gate
-        cdef deque[void*] q
-        cdef Profile* profile
-        cdef size_t i
-        cdef size_t size
-        cdef Profile* hitlist 
-        cdef Gate target
-        q.push_back(<void*>self)
-        # input(f'burn from {self}\n')
-        # keep propagating until everything settles
-        while q.size():
-            gate = <Gate>q.front()
-            q.pop_front()
-            hitlist = gate.hitlist.data()
-            size = gate.hitlist.size()
-            gate.prev_output=gate.output
-            gate.output = ERROR
-            for i in range(size):
-                profile = &hitlist[i]
-                target=<Gate>profile.target
-                profile.output = ERROR
-                if i==size-1 or profile.target!=hitlist[i+1].target:
-                    # input(f'{target} output is {target.output}\n')
-                    target.sync()
-                    # input(f'{target} is synced and has {target.output} not {ERROR}\n')
-                    if target.output!=ERROR:
-                        # input(f'{target} pushed to queue\n')
-                        q.push_back(<void*>target)
-        q.clear()
+
     # spread the signal change to all connected gates
 
-    cpdef void propagate(self):
-        cdef Gate gate
-        cdef Gate target
-        cdef Profile* profile
-        cdef Profile* hitlist
-        cdef size_t size
-        cdef size_t i
-        cdef int* book
-        cdef int gate_type
-        cdef int realsource
-        cdef int high
-        cdef int low
-        cdef int* index 
-        cdef int limit
-        if MODE==FLIPFLOP:
-            # notify all targets
-            q.push_back(<void*>self)
-            # keep propagating until everything settles
-            while q.size():
-                gate = <Gate>q.front()
-                q.pop_front()
-                hitlist = gate.hitlist.data()
-                size = gate.hitlist.size()
-                for i in range(size):
-                    profile = &hitlist[i]
-                    if gate.output!=profile.output:
-                        target=<Gate>profile.target
-                        gate_type = target.id
-                        if gate_type<PROBE_ID:
-                            book = target.book
-                            book[profile.output]-=1
-                            book[gate.output]+=1
-                            profile.output = gate.output
-                            if i==size-1 or profile.target!=hitlist[i+1].target:
-                                target.prev_output=target.output
-                                high=book[HIGH]
-                                low=book[LOW]
-                                if high+low==target.inputlimit or (high+low and high+low+book[UNKNOWN]+book[ERROR]==target.inputlimit):
-                                    if gate_type==NOT_ID:
-                                        target.output=low
-                                    elif gate_type==AND_ID:
-                                        target.output = low==0
-                                    elif gate_type==NAND_ID:
-                                        target.output = low!=0
-                                    elif gate_type==OR_ID:
-                                        target.output = high>0
-                                    elif gate_type==NOR_ID:
-                                        target.output = high==0
-                                    elif gate_type==XOR_ID:
-                                        target.output = high&1
-                                    elif gate_type==XNOR_ID:
-                                        target.output = (high&1)^1
-                                else:
-                                    target.output=UNKNOWN
-                        else:
-                            target.output=gate.output
-                            profile.output=gate.output
-                        if target.prev_output!=target.output:
-                            if gate==target: 
-                                q.clear()
-                                # input(f'{gate} is in a loop\n')
-                                gate.burn()
-                                clear_fuse()
-                                return
-                            if profile.index<0: 
-                                q.clear()
-                                gate.burn()
-                                clear_fuse()
-                                return
-                            profile.index=-profile.index-1
-                            fuse.push_back(profile)
-                            q.push_back(<void*>target)
-            q.clear()
-            clear_fuse()
-        elif MODE==SIMULATE:# don't need fuse, the logic itself is loop-proof
-            q.push_back(<void*>self)
-            # keep propagating until everything settles
-            while q.size():
-                gate = <Gate>q.front()
-                q.pop_front()
-                hitlist = gate.hitlist.data()
-                size = gate.hitlist.size()
-                for i in range(size):
-                    profile = &hitlist[i]
-                    if gate.output!=profile.output:
-                        target=<Gate>profile.target
-                        gate_type = target.id
-                        if gate_type<PROBE_ID:
-                            book = target.book
-                            book[profile.output]-=1
-                            book[gate.output]+=1
-                            profile.output = gate.output
-                            if i==size-1 or profile.target!=hitlist[i+1].target:
-                                target.prev_output=target.output
-                                high=book[HIGH]
-                                low=book[LOW]
-                                if high+low==target.inputlimit:
-                                    if gate_type==NOT_ID:
-                                        target.output=low
-                                    elif gate_type==AND_ID:
-                                        target.output = low==0
-                                    elif gate_type==NAND_ID:
-                                        target.output = low!=0
-                                    elif gate_type==OR_ID:
-                                        target.output = high>0
-                                    elif gate_type==NOR_ID:
-                                        target.output = high==0
-                                    elif gate_type==XOR_ID:
-                                        target.output = high&1
-                                    elif gate_type==XNOR_ID:
-                                        target.output = (high&1)^1
-                                else:
-                                    target.output=UNKNOWN
-                        else:
-                            target.output=gate.output
-                            profile.output=gate.output
-                        if target.prev_output!=target.output:
-                            q.push_back(<void*>target)
-            q.clear()
-        else:
-            pass
+
 
     # remove a connection at a specific index
     cpdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
+        if source is None:
+            return
         remove(source.hitlist, self, index)
         # recalculate everything
         source.process()
-        source.propagate()
+        propagate(source)
         self.process()
-        self.propagate()
+        propagate(self)
 
    
     cdef void reset(self):
@@ -501,7 +500,7 @@ cdef class Gate:
         # disconnect from sources (this gate's inputs)
         cdef Profile* src_hitlist
         for index, source in enumerate(self.sources):
-            if source != Nothing:
+            if source:
                 src = <Gate>source
                 remove(src.hitlist, self, index)
                 self.sources[index] = source
@@ -511,7 +510,7 @@ cdef class Gate:
             target = <Gate>hitlist[i].target
             if target != self:
                 target.process()
-                target.propagate()
+                propagate(target)
 
         self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
@@ -523,7 +522,7 @@ cdef class Gate:
         cdef Profile* hitlist = self.hitlist.data()
         cdef Gate src
         for i, source in enumerate(self.sources):
-            if source != Nothing:
+            if source:
                 src = <Gate>source
                 add(src.hitlist, self, i, src.output)
         self.process()
@@ -532,7 +531,7 @@ cdef class Gate:
         for i in range(self.hitlist.size()):
             reveal(hitlist[i], self)
         
-        self.propagate()
+        propagate(self)
 
     cpdef bint setlimits(self,int size):
         cdef int i
@@ -540,12 +539,12 @@ cdef class Gate:
 
         if size>self.inputlimit:
             for _ in range(size-self.inputlimit):
-                self.sources.append(Nothing)
+                self.sources.append(None)
             self.inputlimit=size
             return True
         elif size<self.inputlimit:
             for i in range(size, self.inputlimit):
-                if self.sources[i] != Nothing:
+                if self.sources[i]:
                     return False
                 i+=1
             self.sources = self.sources[:size]
@@ -566,7 +565,7 @@ cdef class Gate:
             "custom_name": self.custom_name,
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code for source in self.sources],
+            "source": [source.code if source else ('X', 'X') for source in self.sources],
         }
         return dictionary
 
@@ -576,7 +575,7 @@ cdef class Gate:
             "custom_name": "", # Do not copy custom name for gates
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
             }
         return dictionary
 
@@ -605,7 +604,7 @@ cdef class Variable(Gate):
         Gate.__init__(self)
         self.value = 0
         self.inputlimit = 1
-        self.sources = [Nothing]
+        self.sources = [None]
     cpdef bint setlimits(self,int size):
         return False
     cpdef void connect(self, Gate source, int index):
@@ -666,14 +665,14 @@ cdef class Variable(Gate):
             target = <Gate>hitlist[i].target
             if target != self:
                 target.process()
-                target.propagate()
+                propagate(target)
 
     cdef void reveal(self):
         # connect to targets
         cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
             reveal(hitlist[i], self)
-        self.propagate()
+        propagate(self)
 
 cdef class Probe(Gate):
     def __cinit__(self):
@@ -681,7 +680,7 @@ cdef class Probe(Gate):
     def __init__(self):
         Gate.__init__(self)
         self.inputlimit = 1
-        self.sources = [Nothing]
+        self.sources = [None]
 
     cpdef bint setlimits(self,int size):
         return False
@@ -689,7 +688,7 @@ cdef class Probe(Gate):
     cdef bint isready(self):
         if MODE==DESIGN:
             return False
-        elif self.sources[0]!=Nothing:
+        elif self.sources[0] is not None:
             return True
         else:
             return False
@@ -699,7 +698,7 @@ cdef class Probe(Gate):
             "custom_name": self.custom_name, 
             "code": self.code,
             "inputlimit": self.inputlimit,
-            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
             }
         return dictionary
 
@@ -712,7 +711,7 @@ cdef class Probe(Gate):
 
     cdef void process(self):
         self.prev_output = self.output
-        if MODE != DESIGN and self.sources[0] != Nothing:
+        if MODE != DESIGN and self.sources[0]:
             self.output = self.sources[0].output
         else:
             self.output = UNKNOWN
@@ -734,7 +733,7 @@ cdef class NOT(Gate):
     def __init__(self):
         Gate.__init__(self)
         self.inputlimit = 1
-        self.sources = [Nothing]
+        self.sources = [None]
     cdef void process(self):
         self.prev_output = self.output
         cdef int* book = self.book
