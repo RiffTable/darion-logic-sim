@@ -1,7 +1,9 @@
+import os
+import sys
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from Event_Manager import Event
 from Circuit import Circuit
 from Gates import Variable, Probe
-import os
 import Const
 from IC import IC
 

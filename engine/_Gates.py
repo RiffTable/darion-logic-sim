@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import deque
 from typing import Any
-from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE
+from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE, AND_ID,OR_ID,NAND_ID,NOR_ID,XOR_ID,XNOR_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID,VARIABLE_ID
 
 def run(varlist: list[Gate]):
     i: int = 0
@@ -33,9 +33,10 @@ def locate(target:Gate,agent:Gate):
 
 def table(gate_list: list[Gate], varlist: list[Gate]):
     from IC import IC
-    gate_list = [i for i in gate_list if i not in varlist and not isinstance(i, IC)]
+    all_gates = gate_list
+    gate_list = [i for i in all_gates if i not in varlist and not isinstance(i, IC)]
     ic_outputs= []
-    for i in gate_list:
+    for i in all_gates:
         if isinstance(i, IC):
             for pin in i.outputs:
                 ic_outputs.append((i, pin))
@@ -93,6 +94,7 @@ def hitlist_del(hitlist: list[Profile], index: int):
 class Empty:
     def __init__(self):
         self.code: tuple[str, str] = ('X', 'X')
+        self.output = UNKNOWN
 
     def __repr__(self) -> str:
         return 'Empty'
@@ -215,6 +217,7 @@ class Gate:
         self.code: tuple[Any, ...] = ()
         self.name: str = ''
         self.custom_name: str = ''
+        self.id = 0
 
     def process(self):
         """Calculates the output based on inputs."""
@@ -235,13 +238,13 @@ class Gate:
             # if we are designing, nothing works yet
             return False
         else:
-            realsource: int = self.book[HIGH] + self.book[LOW] + self.book[ERROR]
             if get_MODE() == SIMULATE:
-                # in simulation, we need all inputs connected
-                return realsource == self.inputlimit
+                # in simulation, we need all inputs connected and valid (no ERROR, no UNKNOWN)
+                return self.book[HIGH] + self.book[LOW] == self.inputlimit
             else:
                 # in flipflop mode, we're a bit more lenient
-                return bool(realsource and realsource + self.book[UNKNOWN] == self.inputlimit)
+                realsource: int = self.book[HIGH] + self.book[LOW]
+                return bool(realsource and realsource + self.book[UNKNOWN] + self.book[ERROR] == self.inputlimit)
 
     def connect(self, source: Gate, index: int):
         """Connect a source gate (input) to this gate."""
@@ -253,7 +256,7 @@ class Gate:
             loc = locate(self, source)
         if loc != -1:
             profile=self.hitlist[loc]
-            add(profile.index, index)
+            add(profile, index)
         else:
             profile=Profile(self, index, source.output)
             source.hitlist.append(profile)
@@ -468,8 +471,10 @@ class Gate:
 class Variable(Gate):
     def __init__(self):
         Gate.__init__(self)
-        self.sources: int = 0  # type: ignore
+        self.value: int = 0 
         self.inputlimit: int = 1
+        self.sources = [Nothing]
+        self.id = VARIABLE_ID
 
     def setlimits(self, size: int) -> bool:
         return False
@@ -481,7 +486,7 @@ class Variable(Gate):
         pass
 
     def toggle(self, source: int):
-        self.sources = source  # type: ignore
+        self.value = source 
         self.process()
 
     def reset(self):
@@ -499,7 +504,7 @@ class Variable(Gate):
     def process(self):
         self.prev_output = self.output
         if self.isready():
-            self.output = self.sources  # type: ignore
+            self.output = self.value 
         else:
             self.output = UNKNOWN
 
@@ -508,20 +513,20 @@ class Variable(Gate):
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "source": self.sources,
+            "value": self.value,
         }
         return dictionary
 
     def clone(self, dictionary: dict[str, Any], pseudo: dict[tuple[Any, ...], Gate]):
         self.custom_name = dictionary["custom_name"]
-        self.sources = dictionary["source"]  # type: ignore
+        self.value = dictionary["value"]
 
     def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
         dictionary: dict[str, Any] = {
             "name": self.name,
             "custom_name": "",  # Do not copy custom name for gates
             "code": self.code,
-            "source": self.sources,
+            "value": self.value,
         }
         return dictionary
 
@@ -549,6 +554,7 @@ class Probe(Gate):
         Gate.__init__(self)
         self.inputlimit: int = 1
         self.sources: list[Gate | Empty] = [Nothing]
+        self.id = PROBE_ID
 
     def setlimits(self, size: int) -> bool:
         return False
@@ -568,11 +574,22 @@ class Probe(Gate):
         else:
             self.output = UNKNOWN
 
+    def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
+        dictionary: dict[str, Any] = {
+            "name": self.name,
+            "custom_name": self.custom_name,
+            "code": self.code,
+            "inputlimit": self.inputlimit,
+            "source": [source.code if source != Nothing and source in cluster else Nothing.code for source in self.sources],
+        }
+        return dictionary
+
 
 class InputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
         self.inputlimit: int = 1
+        self.id = INPUT_PIN_ID
 
     def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
         d: dict[str, Any] = super().copy_data(cluster)
@@ -584,6 +601,7 @@ class OutputPin(Probe):
     def __init__(self):
         Probe.__init__(self)
         self.inputlimit: int = 1
+        self.id = OUTPUT_PIN_ID
 
     def copy_data(self, cluster: set[Gate]) -> dict[str, Any]:
         d: dict[str, Any] = super().copy_data(cluster)
@@ -598,6 +616,7 @@ class NOT(Gate):
         Gate.__init__(self)
         self.inputlimit: int = 1
         self.sources: list[Gate | Empty] = [Nothing]
+        self.id = NOT_ID
 
     def process(self):
         self.prev_output = self.output
@@ -612,6 +631,7 @@ class AND(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = AND_ID
 
     def process(self):
         self.prev_output = self.output
@@ -626,6 +646,7 @@ class NAND(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = NAND_ID
 
     def process(self):
         self.prev_output = self.output
@@ -640,6 +661,7 @@ class OR(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = OR_ID
 
     def process(self):
         self.prev_output = self.output
@@ -654,6 +676,7 @@ class NOR(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = NOR_ID
 
     def process(self):
         self.prev_output = self.output
@@ -668,6 +691,7 @@ class XOR(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = XOR_ID
 
     def process(self):
         self.prev_output = self.output
@@ -682,6 +706,7 @@ class XNOR(Gate):
     
     def __init__(self):
         Gate.__init__(self)
+        self.id = XNOR_ID
 
     def process(self):
         self.prev_output = self.output

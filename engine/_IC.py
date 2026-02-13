@@ -1,11 +1,14 @@
 from __future__ import annotations
 from Gates import Gate, InputPin, OutputPin, Profile, Nothing, hitlist_del, add, hide, reveal, locate, remove
+from Const import IC_ID
+
 class IC:
     # Integrated Circuit: a custom chip made of other gates
     # It acts like a black box with inputs and outputs
-    __slots__=['inputs','internal','outputs','name','custom_name','code','map']
+    __slots__=['inputs','internal','outputs','name','custom_name','code','map','id']
     
     def __init__(self):
+        self.id = IC_ID
         self.inputs: list[InputPin] = []
         self.internal: list[Gate|IC] = []
         self.outputs: list[OutputPin] = []
