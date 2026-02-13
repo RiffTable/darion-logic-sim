@@ -1,8 +1,9 @@
 import sys
 import os
 
-# Add engine to path
+# Add engine and control to path
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
+sys.path.append(os.path.join(os.getcwd(), 'control'))
 
 from functools import partial
 

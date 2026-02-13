@@ -17,10 +17,45 @@ import tempfile
 sys.setrecursionlimit(10_000)
 LOG_FILE = "test_results.txt"
 
-# Add engine to path
-engine_path = os.path.join(os.getcwd(), 'engine')
-if engine_path not in sys.path:
-    sys.path.append(engine_path)
+# Parse arguments for reactor selection
+import argparse
+parser = argparse.ArgumentParser(description='Run Speed Tests')
+parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+args, unknown = parser.parse_known_args()
+
+base_dir = os.getcwd()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(script_dir)
+
+# Add control to path
+sys.path.append(os.path.join(root_dir, 'control'))
+
+use_reactor = False
+
+# Backend Selection Logic
+if args.reactor:
+    use_reactor = True
+elif args.engine:
+    use_reactor = False
+else:
+    # Interactive prompt
+    print("\nSelect Backend:")
+    print("1. Engine (Python) [Default]")
+    print("2. Reactor (Cython)")
+    choice = input("Choice (1/2): ").strip()
+    if choice == '2':
+        use_reactor = True
+    else:
+        use_reactor = False
+
+# Add engine or reactor to path
+if use_reactor:
+    print("Using Reactor (Cython) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
+else:
+    print("Using Engine (Python) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'engine'))
 
 # Try importing psutil for RAM monitoring
 try:
@@ -40,8 +75,9 @@ try:
     from IC import IC
     from Store import get
 except ImportError as e:
-    print(f"FATAL ERROR: Could not import engine modules: {e}")
-    print("Ensure you have built the project (build.bat/sh) and are running this from the root.")
+    print(f"FATAL ERROR: Could not import backend modules: {e}")
+    if args.reactor:
+        print("Ensure you have built the reactor (python setup.py build_ext --inplace)")
     sys.exit(1)
 
 

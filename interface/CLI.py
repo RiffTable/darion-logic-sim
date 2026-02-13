@@ -1,11 +1,57 @@
 import os
 import sys
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from Event_Manager import Event
-from Circuit import Circuit
-from Gates import Variable, Probe
-import Const
-from IC import IC
+import argparse
+
+# Parse arguments for reactor selection
+parser = argparse.ArgumentParser(description='Run Logic Sim CLI')
+parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+args, unknown = parser.parse_known_args()
+
+base_dir = os.getcwd()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(script_dir)
+
+# Add control to path
+sys.path.append(os.path.join(root_dir, 'control'))
+
+use_reactor = False
+
+# Backend Selection Logic
+if args.reactor:
+    use_reactor = True
+elif args.engine:
+    use_reactor = False
+else:
+    # Interactive prompt
+    print("\nSelect Backend:")
+    print("1. Engine (Python) [Default]")
+    print("2. Reactor (Cython)")
+    choice = input("Choice (1/2): ").strip()
+    if choice == '2':
+        use_reactor = True
+    else:
+        use_reactor = False
+
+# Add engine or reactor to path
+if use_reactor:
+    print("Using Reactor (Cython) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
+else:
+    print("Using Engine (Python) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'engine'))
+
+try:
+    from Event_Manager import Event
+    from Circuit import Circuit
+    from Gates import Variable, Probe
+    import Const
+    from IC import IC
+except ImportError as e:
+    print(f"FATAL ERROR: Could not import backend modules: {e}")
+    if args.reactor:
+        print("Ensure you have built the reactor (python setup.py build_ext --inplace)")
+    sys.exit(1)
 
 
 def clear_screen():
