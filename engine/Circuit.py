@@ -8,7 +8,7 @@ from Store import get
 class Circuit:
     # the main circuit board that holds everything together
     # it knows about all gates, connections, and states
-
+    __slots__ = ['objlist', 'canvas', 'varlist', 'iclist', 'copydata']
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [

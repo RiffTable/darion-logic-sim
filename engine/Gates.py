@@ -181,6 +181,7 @@ def burn(profile: Profile) -> bool:
 
 
 class Profile:
+    __slots__ = ['target', 'index', 'output']
     def __init__(self, target: Gate, index: int, output: int):
         self.target: Gate = target
         self.index: list[int] = []  # Using Python list instead of C++ vector
@@ -198,7 +199,8 @@ class Profile:
 class Gate:
     """The blueprint for all logical gates.
     It handles inputs, outputs, and processing logic."""
-
+    __slots__ = ['sources', 'hitlist', 'inputlimit', 'book', 'output', 
+                 'prev_output', 'code', 'name', 'custom_name', 'id']
     def __init__(self):
         # who feeds into this gate? (inputs)
         self.sources: list[Gate | Empty] = [Nothing, Nothing]
@@ -217,7 +219,7 @@ class Gate:
         self.code: tuple[Any, ...] = ()
         self.name: str = ''
         self.custom_name: str = ''
-        self.id = 0
+        self.id = -1
 
     def process(self):
         """Calculates the output based on inputs."""
@@ -469,8 +471,9 @@ class Gate:
 
 
 class Variable(Gate):
+    __slots__ = ['value']
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.value: int = 0 
         self.inputlimit: int = 1
         self.sources = [Nothing]
@@ -550,8 +553,9 @@ class Variable(Gate):
 
 
 class Probe(Gate):
+    __slots__ = []
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.inputlimit: int = 1
         self.sources: list[Gate | Empty] = [Nothing]
         self.id = PROBE_ID
@@ -586,6 +590,7 @@ class Probe(Gate):
 
 
 class InputPin(Probe):
+    __slots__ = []
     def __init__(self):
         Probe.__init__(self)
         self.inputlimit: int = 1
@@ -598,6 +603,7 @@ class InputPin(Probe):
 
 
 class OutputPin(Probe):
+    __slots__ = []
     def __init__(self):
         Probe.__init__(self)
         self.inputlimit: int = 1
@@ -610,10 +616,11 @@ class OutputPin(Probe):
 
 
 class NOT(Gate):
+    __slots__ = []
     """NOT gate - inverts the input"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.inputlimit: int = 1
         self.sources: list[Gate | Empty] = [Nothing]
         self.id = NOT_ID
@@ -627,10 +634,11 @@ class NOT(Gate):
 
 
 class AND(Gate):
+    __slots__ = []
     """AND gate - outputs 1 only if all inputs are 1"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = AND_ID
 
     def process(self):
@@ -642,10 +650,11 @@ class AND(Gate):
 
 
 class NAND(Gate):
+    __slots__ = []
     """NAND gate - NOT AND"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = NAND_ID
 
     def process(self):
@@ -657,10 +666,11 @@ class NAND(Gate):
 
 
 class OR(Gate):
+
     """OR gate - outputs 1 if any input is 1"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = OR_ID
 
     def process(self):
@@ -672,10 +682,11 @@ class OR(Gate):
 
 
 class NOR(Gate):
+    __slots__ = []
     """NOR gate - NOT OR"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = NOR_ID
 
     def process(self):
@@ -687,10 +698,11 @@ class NOR(Gate):
 
 
 class XOR(Gate):
+    __slots__ = []
     """XOR gate - outputs 1 if odd number of inputs are 1"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = XOR_ID
 
     def process(self):
@@ -702,10 +714,11 @@ class XOR(Gate):
 
 
 class XNOR(Gate):
+    __slots__ = []
     """XNOR gate - NOT XOR"""
     
     def __init__(self):
-        Gate.__init__(self)
+        super().__init__()
         self.id = XNOR_ID
 
     def process(self):
