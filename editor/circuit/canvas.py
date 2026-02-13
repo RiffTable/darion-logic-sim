@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
@@ -6,49 +7,10 @@ import core.grid as GRID
 from .components import CompItem, LabelItem
 from .pins import InputPinItem, OutputPinItem
 from .wires import WireItem
-from .gates import GateItem, UnaryGateItem, InputItem, OutputItem
+from .gates import GateItem
+from .lookup import LOOKUP
 
 
-
-
-
-###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
-COMPONENT_LOOKUP: list[tuple[int, type[CompItem], str]] = [
-	(0,  UnaryGateItem, "NOT Gate"),
-	(1,  GateItem,      "AND Gate"),
-	(2,  GateItem,      "NAND Gate"),
-	(3,  GateItem,      "OR Gate"),
-	(4,  GateItem,      "NOR Gate"),
-	(5,  GateItem,      "XOR Gate"),
-	(6,  GateItem,      "XNOR Gate"),
-	(7,  InputItem,     "Input (Toggle)"),
-	(8,  OutputItem,    "LED"),
-
-	(51, InputItem,     "Input (Hold)"),
-	(52, InputItem,     "Rotary Switch"),
-	(53, InputItem,     "Clock"),
-	(54, InputItem,     "Constant"),
-
-	(62, OutputItem,    "Oscilloscope"),
-	(63, OutputItem,    "7-Segment Display"),
-	(64, OutputItem,    "Hex Display"),
-	# (11, "IC",        CompItem),
-]
-
-Name_to_ID    : dict[str, int] = {}
-ID_to_Name    : dict[int, str] = {}
-ID_to_Class   : dict[int, type[CompItem]] = {}
-Class_to_ID   : dict[type[CompItem], int] = {}
-Name_to_Class : dict[str, type[CompItem]] = {}
-Class_to_Name : dict[type[CompItem], str] = {}
-
-for id_, class_, name_ in COMPONENT_LOOKUP:
-	Name_to_ID[name_]     = id_
-	ID_to_Name[id_]       = name_
-	ID_to_Class[id_]      = class_
-	Class_to_ID[class_]   = id_
-	Name_to_Class[name_]  = class_
-	Class_to_Name[class_] = name_
 
 
 
@@ -103,20 +65,9 @@ class CircuitScene(QGraphicsScene):
 
 	# Components Management
 	def addComp(self, x: float, y:float, comp_id: int):
-		comp_type = ID_to_Class[comp_id]
-		comp = comp_type(QPointF(x, y))
-
-		if comp_type == GateItem:
-			tags = {
-				0: "NOT",
-				1: "AND",
-				2: "NAND",
-				3: "OR",
-				4: "NOR",
-				5: "XOR",
-				6: "XNOR",
-			}
-			comp.labelItem.setPlainText(tags[comp_id])
+		cd = LOOKUP[comp_id]
+		comp = cd.skin(QPointF(x, y))
+		comp.labelItem.setPlainText(cd.tag)
 		
 		self.addItem(comp)
 		self.comps.append(comp)
