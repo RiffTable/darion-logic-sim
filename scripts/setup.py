@@ -71,26 +71,18 @@ for file in glob.glob(f"*{generated_suffix}"):
 print("--- Build Complete ---")
 
 # --- CLEANUP C/C++ FILES ---
-print("\n--- Cleaning up C/C++ files & Moving Reports ---")
+print("\n--- Cleaning up C/C++ files & Reports ---")
 c_files = glob.glob(os.path.join(source_dir, "*.c")) + glob.glob(os.path.join(source_dir, "*.cpp"))
 html_files = glob.glob(os.path.join(source_dir, "*.html"))
 c_files += glob.glob("*.c") + glob.glob("*.cpp")
 html_files += glob.glob("*.html")
 
-reports_dir = "../reports"
-if not os.path.exists(reports_dir):
-    os.makedirs(reports_dir)
-
 for html_file in html_files:
     try:
-        basename = os.path.basename(html_file)
-        dest = os.path.join(reports_dir, basename)
-        if os.path.exists(dest):
-            os.remove(dest)
-        os.rename(html_file, dest)
-        print(f"Moved Report: {html_file} -> {dest}")
+        os.remove(html_file)
+        print(f"Removed Report: {html_file}")
     except OSError as e:
-        print(f"Error moving {html_file}: {e}")
+        print(f"Error removing {html_file}: {e}")
 
 for c_file in c_files:
     try:
