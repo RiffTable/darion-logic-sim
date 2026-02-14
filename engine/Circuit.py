@@ -1,5 +1,5 @@
 import json
-from Gates import Gate, Variable, update,run,table
+from Gates import Gate, Variable, update,run,table,propagate
 from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
 from IC import IC
 from Store import get
@@ -27,7 +27,7 @@ class Circuit:
         return 'Circuit'
 
     # creates and adds a new component to the circuit
-    def getcomponent(self, choice) -> Gate | IC:
+    def getcomponent(self, choice,ui_connect=None) -> Gate | IC:
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -51,6 +51,8 @@ class Circuit:
             if isinstance(gt, IC):
                 self.iclist.append(gt)
             self.canvas.append(gt)
+        if ui_connect:
+            gt.listener.append(ui_connect)
         return gt
 
     def getobj(self, code) -> Gate:
@@ -77,13 +79,13 @@ class Circuit:
         target.connect(source,index)
         # if the connection changed something, let everyone know
         if target.prev_output != target.output:
-            target.propagate()
+            propagate(target)
             
     # switches a variable on or off
     def toggle(self, target: Variable,value):
         target.toggle(value)
         if target.prev_output != target.output:
-            target.propagate()
+            propagate(target)
 
     # identify target/source
     def disconnect(self, target: Gate, index):

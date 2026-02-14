@@ -4,6 +4,10 @@ from collections import deque
 from typing import Any
 from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE, AND_ID,OR_ID,NAND_ID,NOR_ID,XOR_ID,XNOR_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID,VARIABLE_ID, NOT_ID
 
+
+_queue: deque[Gate] = deque()
+_fuse: set[Profile] = set()
+
 def run(varlist: list[Gate]):
     i: int = 0
     n: int = len(varlist)
@@ -18,13 +22,14 @@ def run(varlist: list[Gate]):
             profile=varlist[i].hitlist[idx]
             if profile.target.output==ERROR:
                 update(profile,varlist[i].output)
-                profile.target.sync()
+                sync(profile.target)
                 profile.target.process()
-                profile.target.propagate()
+                propagate(profile.target)
             elif update(profile,varlist[i].output):
-                profile.target.propagate()
+                propagate(profile.target)
             idx+=1
         i+=1
+
 def locate(target:Gate,agent:Gate):
     for i,j in enumerate(agent.hitlist):
         if j.target==target:
@@ -161,9 +166,78 @@ def update(profile: Profile,new_output: int) -> bool:
     return target.prev_output != target.output
 
 
-def burn(profile: Profile) -> bool:
+def clear_fuse():
+    _fuse.clear()
+
+def sync(gate: Gate):
+    """Protect against weird loops by resetting counts."""
+    gate.book[:] = [0, 0, 0, 0]
+    for source in gate.sources:
+        if source:
+            gate.book[source.output] += 1
+
+def burn(origin: Gate):
+    """Handles error states and spreads the error."""
+    gate: Gate
+    
+    _queue.append(origin)
+    while len(_queue):
+        gate = _queue.popleft()
+        gate.prev_output = gate.output
+        # mark as error
+        gate.output = ERROR 
+        for profile in gate.hitlist:
+            # update target's knowledge
+            if _burn_profile(profile) and profile.target.isready():
+                _queue.append(profile.target)
+
+def propagate(origin: Gate):
+    """Spread the signal change to all connected gates."""
+    gate: Gate
+    target: Gate
+    if get_MODE() == FLIPFLOP:
+        # notify all targets
+        _queue.append(origin)
+        # keep propagating until everything settles
+        while _queue:
+            gate = _queue.popleft()
+            gate.updateUI()
+            for profile in gate.hitlist:
+                target = profile.target
+                if update(profile,gate.output):
+                    # check for loops or inconsistencies
+                    if gate == target: 
+                        burn(gate)
+                        _queue.clear()
+                        clear_fuse()
+                        return
+                    if profile in _fuse: 
+                        burn(gate)
+                        _queue.clear()
+                        clear_fuse()
+                        return
+                    _fuse.add(profile)
+                    _queue.append(target)
+        _queue.clear()
+        clear_fuse()
+
+    elif get_MODE() == SIMULATE:  # don't need fuse, the logic itself is loop-proof
+        _queue.append(origin)                       
+        # keep propagating until everything settles
+        while _queue:
+            gate = _queue.popleft()
+            gate.updateUI()
+            for profile in gate.hitlist:
+                target = profile.target
+                if update(profile,gate.output):
+                    _queue.append(target)
+        _queue.clear()
+    else:
+        pass
+
+def _burn_profile(profile: Profile) -> bool:
     target: Gate = profile.target
-    target.sync()
+    sync(target)
     profile.output = ERROR
     return target.output != ERROR
 
@@ -187,11 +261,13 @@ class Profile:
 class Gate:
     """The blueprint for all logical gates.
     It handles inputs, outputs, and processing logic."""
-    __slots__ = ['sources', 'hitlist', 'inputlimit', 'book', 'output', 
+    __slots__ = ['sources', 'listener', 'hitlist', 'inputlimit', 'book', 'output', 
                  'prev_output', 'code', 'name', 'custom_name', 'id']
     def __init__(self):
         # who feeds into this gate? (inputs)
         self.sources: list[Gate | None] = [None, None]
+
+        self.listener=[]
         # who does this gate feed into? (outputs)
         self.hitlist: list[Profile] = []
         # how many inputs do we need?
@@ -204,11 +280,15 @@ class Gate:
         self.prev_output: int = UNKNOWN
         
         # identity details
-        self.code: tuple[Any, ...] = ()
+        self.code: tuple = ()
         self.name: str = ''
         self.custom_name: str = ''
         self.id = -1
-
+        
+    def updateUI(self):
+        if self.listener:
+            for listener in self.listener:
+                listener(self.output)
     def process(self):
         """Calculates the output based on inputs."""
         pass
@@ -256,7 +336,7 @@ class Gate:
         # if something is wrong with the input, react
         if source.output == ERROR:
             if self.isready():
-                self.burn()
+                burn(self)
         else:
             # otherwise, recalculate our output
             self.process()
@@ -267,64 +347,13 @@ class Gate:
                 profile.target.propagate()  
 
     def sync(self):
-        """Protect against weird loops by resetting counts."""
-        self.book[:] = [0, 0, 0, 0]
-        for source in self.sources:
-            if source:
-                self.book[source.output] += 1
+        sync(self)
 
     def burn(self):
-        """Handles error states and spreads the error."""
-        queue: deque[Gate] = deque()
-        queue.append(self)
-        while len(queue):
-            gate: Gate = queue.popleft()
-            gate.prev_output = gate.output
-            # mark as error
-            gate.output = ERROR 
-            for profile in gate.hitlist:
-                # update target's knowledge
-                if burn(profile) and profile.target.isready():
-                    queue.append(profile.target)
+        burn(self)
 
     def propagate(self):
-        """Spread the signal change to all connected gates."""
-        gate: Gate
-        target: Gate
-        if get_MODE() == FLIPFLOP:
-            fuse: set[Profile] = set()
-            queue: deque[Gate] = deque()
-            # notify all targets
-            queue.append(self)
-            # keep propagating until everything settles
-            while queue:
-                gate = queue.popleft()
-                for profile in gate.hitlist:
-                    target = profile.target
-                    if update(profile,gate.output):
-                        # check for loops or inconsistencies
-                        if gate == target: 
-                            gate.burn()
-                            return
-                        if profile in fuse: 
-                            gate.burn()
-                            return
-                        fuse.add(profile)
-                        queue.append(target)
-
-        elif get_MODE() == SIMULATE:  # don't need fuse, the logic itself is loop-proof
-            queue: deque[Gate] = deque()            
-            queue.append(self)                       
-            # keep propagating until everything settles
-            while queue:
-                gate = queue.popleft()
-                for profile in gate.hitlist:
-                    target = profile.target
-                    if update(profile,gate.output):
-                        queue.append(target)
-
-        else:
-            pass
+        propagate(self)
 
     def disconnect(self, index: int):
         """Remove a connection at a specific index."""
@@ -374,6 +403,8 @@ class Gate:
             if target != self:
                 target.process()
                 target.propagate()
+
+        self.prev_output = UNKNOWN
 
         self.prev_output = UNKNOWN
         self.output = UNKNOWN
