@@ -106,42 +106,36 @@ cdef inline void propagate(Gate origin):
                     if gate.output!=profile.output:
                         target=<Gate>profile.target
                         gate_type = target.id
-                        if gate_type<PROBE_ID:
-                            book = target.book
-                            book[profile.output]-=1
-                            book[gate.output]+=1
-                            profile.output = gate.output
-                            if profile==end-1 or profile.target!=(profile+1).target:
-                                target.prev_output=target.output
-                                high=book[HIGH]
-                                low=book[LOW]
-                                if high+low==target.inputlimit or (high+low and high+low+book[UNKNOWN]+book[ERROR]==target.inputlimit):
-                                    if gate_type==NOT_ID:target.output=low
-                                    elif gate_type==AND_ID:target.output = low==0
-                                    elif gate_type==NAND_ID:target.output = low!=0
-                                    elif gate_type==OR_ID:target.output = high>0
-                                    elif gate_type==NOR_ID:target.output = high==0
-                                    elif gate_type==XOR_ID:target.output = high&1
-                                    elif gate_type==XNOR_ID:target.output = (high&1)^1
-                                else:target.output=UNKNOWN
-                        else:
-                            target.output=gate.output
-                            profile.output=gate.output
-                        if target.prev_output!=target.output:
-                            if gate==target: 
-                                queue.clear()
-                                burn(gate)
-                                clear_fuse()
-                                return
-                            if profile.index<0: 
-                                queue.clear()
-                                burn(gate)
-                                clear_fuse()
-                                return
-                            profile.index=-profile.index-1
-                            fuse.push_back(profile)
-                            queue.push_back(<void*>target)
-                        profile+=1
+                        book = target.book
+                        book[profile.output]-=1
+                        book[gate.output]+=1
+                        profile.output = gate.output
+                        if profile==end-1 or profile.target!=(profile+1).target:
+                            target.prev_output=target.output
+                            high=book[HIGH]
+                            low=book[LOW]
+                            realsource=book[HIGH]+book[LOW]
+                            if realsource==target.inputlimit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==target.inputlimit):
+                                if gate_type==NOT_ID:target.output=low
+                                elif gate_type==AND_ID:target.output = low==0
+                                elif gate_type==NAND_ID:target.output = low!=0
+                                elif gate_type==OR_ID:target.output = high>0
+                                elif gate_type==NOR_ID:target.output = high==0
+                                elif gate_type==XOR_ID:target.output = high&1
+                                elif gate_type==XNOR_ID:target.output = (high&1)^1
+                                else:target.output=gate.output
+                            else:target.output=UNKNOWN
+
+                            if target.prev_output!=target.output:
+                                if <void*>gate==profile.target or profile.index<0: 
+                                    queue.clear()
+                                    burn(gate)
+                                    clear_fuse()
+                                    return
+                                profile.index=-profile.index-1
+                                fuse.push_back(profile)
+                                queue.push_back(<void*>target)
+                    profile+=1
         except Exception as e:
             print(e)
         finally:
@@ -161,29 +155,26 @@ cdef inline void propagate(Gate origin):
                     if gate.output!=profile.output:
                         target=<Gate>profile.target
                         gate_type = target.id
-                        if gate_type<PROBE_ID:
-                            book = target.book
-                            book[profile.output]-=1
-                            book[gate.output]+=1
-                            profile.output = gate.output
-                            if profile==end-1 or profile.target!=(profile+1).target:
-                                target.prev_output=target.output
-                                high=book[HIGH]
-                                low=book[LOW]
-                                if high+low==target.inputlimit:
-                                    if gate_type==NOT_ID:target.output=low
-                                    elif gate_type==AND_ID:target.output = low==0
-                                    elif gate_type==NAND_ID:target.output = low!=0
-                                    elif gate_type==OR_ID:target.output = high>0
-                                    elif gate_type==NOR_ID:target.output = high==0
-                                    elif gate_type==XOR_ID:target.output = high&1
-                                    elif gate_type==XNOR_ID:target.output = (high&1)^1
-                                else:target.output=UNKNOWN
-                        else:
-                            target.output=gate.output
-                            profile.output=gate.output
-                        if target.prev_output!=target.output:
-                            queue.push_back(<void*>target)
+                        book = target.book
+                        book[profile.output]-=1
+                        book[gate.output]+=1
+                        profile.output = gate.output
+                        if profile==end-1 or profile.target!=(profile+1).target:
+                            target.prev_output=target.output
+                            high=book[HIGH]
+                            low=book[LOW]
+                            if high+low==target.inputlimit:
+                                if gate_type==NOT_ID:target.output=low
+                                elif gate_type==AND_ID:target.output = low==0
+                                elif gate_type==NAND_ID:target.output = low!=0
+                                elif gate_type==OR_ID:target.output = high>0
+                                elif gate_type==NOR_ID:target.output = high==0
+                                elif gate_type==XOR_ID:target.output = high&1
+                                elif gate_type==XNOR_ID:target.output = (high&1)^1
+                                else:target.output=gate.output
+                            else:target.output=UNKNOWN
+                            if target.prev_output!=target.output:
+                                queue.push_back(<void*>target)
                     profile+=1
         except Exception as e:
             print(e)
@@ -407,6 +398,8 @@ cdef class Gate:
 
     # connect a source gate (input) to this gate
     cpdef void connect(self, Gate source, int index):
+        if source:
+            self.disconnect(index)
         if source.hitlist.size()>len(self.sources):
             if source in self.sources:
                 add(source.hitlist, self, index, source.output)

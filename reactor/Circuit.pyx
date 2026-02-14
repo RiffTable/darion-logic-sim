@@ -86,7 +86,7 @@ cdef class Circuit:
     # switches a variable on or off
     cpdef void toggle(self, Variable target,int value):
         target.toggle(value)
-        if target.prev_output != target.output:
+        if target.prev_output != target.output and target.output!=ERROR:
             propagate(target)
 
     # identify target/source

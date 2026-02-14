@@ -234,25 +234,26 @@ class ThoroughICTest:
         out.connect(inp, 0)
         
         # Can't easily force an ERROR from a simple Variable, so let's mock it
-        # Or create an error condition (XOR loop) feeding the IC
+        # Create a real error condition using a paradox (XOR self-loop with HIGH input)
+        # XOR(1, Q) -> if Q=0, Out=1. If Q=1, Out=0. Oscillation!
         xor_g = c.getcomponent(XOR_ID)
-        c.connect(xor_g, xor_g, 1) # Self loop causes ERROR/Oscillation
-        v = c.getcomponent(VARIABLE_ID)
-        c.connect(xor_g, v, 0)
+        v_trigger = c.getcomponent(VARIABLE_ID)
         
-        set_MODE(FLIPFLOP) # Allow oscillation/feedback
-        c.toggle(v, 1) 
-        # XOR(1, prev) -> if prev=0 -> 1 -> XOR(1,1)->0 -> XOR(1,0)->1 ... Oscillation
-        # The engine usually produces ERROR for unstable loops in SIMULATE mode or just oscillates.
-        # Let's try SIMULATE mode which detects unstable states better? 
-        # Or just force the value.
+        c.connect(xor_g, v_trigger, 0)
+        c.connect(xor_g, xor_g, 1) # Feedback loop
         
-        v_force = c.getcomponent(VARIABLE_ID)
-        c.connect(inp, v_force, 0)
-        v_force.output = ERROR # Hack: force the variable state
-        v_force.propagate()
+        # Connect XOR to IC Input
+        # Note: We must connect BEFORE triggering, or trigger then connect.
+        # Since XOR will go to ERROR immediately upon trigger.
+        inp.connect(xor_g, 0)
         
-        self.assert_true(inp.output == ERROR, "Input Pin accepts ERROR")
+        # Enable FLIPFLOP mode which detects oscillation loops and converts to ERROR
+        c.simulate(FLIPFLOP)
+        
+        # Trigger the paradox
+        c.toggle(v_trigger, HIGH)
+        
+        self.assert_true(inp.output == ERROR, "Input Pin accepts ERROR from paradoxical XOR")
         self.assert_true(out.output == ERROR, "Output Pin propagates ERROR")
 
     def test_unknown_propagation(self):
