@@ -72,7 +72,6 @@ from Gates import Gate, Variable, Probe
 from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
 from Gates import InputPin, OutputPin
 from IC import IC
-from Store import get
 
 
 class AggressiveTestSuite:

@@ -1,2 +1,2 @@
 cdef list _gateobjects
-cpdef object get(int choice)
+cdef object get(int choice)

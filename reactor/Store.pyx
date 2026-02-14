@@ -17,5 +17,5 @@ cdef list _gateobjects = [
     IC
 ]
 
-cpdef object get(int choice):
+cdef object get(int choice):
     return _gateobjects[choice]()

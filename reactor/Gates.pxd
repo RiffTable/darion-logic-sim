@@ -29,7 +29,8 @@ cdef void propagate(Gate origin)
 cdef void burn(Gate origin)
 cdef void sync(Gate gate)
 
-
+ctypedef deque[void*] Queue
+ctypedef vector[Profile*] Fuse
 # cdef class Profile:
 #     cdef public Gate target
 #     cdef vector[int] index
