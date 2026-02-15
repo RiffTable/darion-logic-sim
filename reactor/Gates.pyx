@@ -55,7 +55,7 @@ cdef inline void reveal(Profile& profile,Gate source):
     cdef Gate target = <Gate>profile.target
     target.book[UNKNOWN] += 1
     target.sources[profile.index] = source
-
+    
 
 # cdef class Profile:
 #     def __init__(self, Gate target, int index, int output):
@@ -196,12 +196,11 @@ cdef class Gate:
                 self.sources[index] = source
         
         # recalculate targets
-        for i in range(self.hitlist.size()):
-            target = <Gate>hitlist[i].target
-            if target != self:
-                target.process()
+        # for i in range(self.hitlist.size()):
+        #     target = <Gate>hitlist[i].target
+        #     if target != self:
+        #         target.process()
 
-        self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
     cdef void reveal(self):

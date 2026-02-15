@@ -22,6 +22,18 @@ cdef inline void sync(Gate gate):
         if source:
             book[source.output]+=1
 
+cdef inline void turnoff(Gate gate,Queue &queue,Fuse &fuse):
+    cdef Profile* profile = gate.hitlist.data()
+    cdef Profile* end = profile+gate.hitlist.size()
+    cdef Gate target
+    while profile!=end:
+        target = <Gate>profile.target
+        if <void*>target != <void*>gate:
+            target.prev_output=target.output
+            target.output = UNKNOWN
+            propagate(target,queue,fuse)
+        profile+=1
+
 cdef inline void burn(Gate origin, Queue &queue):
     cdef Gate gate
     cdef Profile* profile
@@ -125,7 +137,10 @@ cdef inline void propagate(Gate origin, Queue &queue,Fuse &fuse):
                         if limit==1:
                             target.prev_output=target.output
                             if gate_type==NOT_ID:
-                                target.output=gate.output^1
+                                if gate.output==UNKNOWN:
+                                    target.output=UNKNOWN
+                                else:
+                                    target.output=gate.output^1
                             else:
                                 target.output=gate.output
                             if target.prev_output!=target.output:
@@ -258,12 +273,12 @@ cdef class Circuit:
         cdef Gate pin
         if gate.id==IC_ID:
             (<IC>gate).hide()
-            for pin in gate.inputs:
-                propagate(pin,self.queue,self.fuse)
+            for pin in gate.outputs:
+                turnoff(pin,self.queue,self.fuse)
         else:
             pin=<Gate>gate
             pin.hide()
-            propagate(pin,self.queue,self.fuse)
+            turnoff(pin,self.queue,self.fuse)
         
         if gate in self.varlist:
             self.varlist.remove(gate)
@@ -286,7 +301,7 @@ cdef class Circuit:
         cdef Gate pin
         if gate.id==IC_ID:
             (<IC>gate).reveal()
-            for pin in gate.inputs:
+            for pin in gate.outputs:
                 propagate(pin,self.queue,self.fuse)
         else:
             pin=<Gate>gate
