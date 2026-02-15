@@ -32,7 +32,7 @@ for source in source_files:
         sources=[source],
         language=language,
         include_dirs=[source_dir], # Make sure it finds headers in reactor/
-        extra_compile_args=["-O2"],
+        extra_compile_args=["-O3", "-march=native"],
         extra_link_args=link_args, 
     )
     extensions.append(ext)

@@ -507,11 +507,17 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         source = c.getcomponent(Const.VARIABLE_ID)
+        
+        # Create a constant rail for the second input of AND gates
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         gates = []
         for i in range(1000):
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
+            # Use 2 inputs properly: Source -> 0, Const_High -> 1
             c.connect(g, source, 0)
+            c.connect(g, const_high, 1)
             gates.append(g)
         
         self.assert_test(len(source.hitlist) == 1000, "1000 profiles created")
@@ -1355,14 +1361,15 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         gates = []
         for _ in range(5000):
-            # Using 1-input AND gate acts as a buffer/repeater.
-            # Normal AND gate needs 2 inputs, so setting limit to 1 makes it
-            # simply forward the input signal. This is perfect for testing fanout.
+            # Using 2-input AND gate as a buffer/repeater properly.
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
             c.connect(g, v, 0)
+            c.connect(g, const_high, 1)
             gates.append(g)
         
         start = time.perf_counter_ns()
@@ -1378,11 +1385,14 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
 
         v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         gates = []
         for i in range(500):
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
             c.connect(g, v, 0)
+            c.connect(g, const_high, 1)
             gates.append(g)
 
         self.assert_test(len(v.hitlist) == 500, "500 connections in hitlist")
@@ -2226,12 +2236,17 @@ class AggressiveTestSuite:
         c = self.circuit
         
         root = c.getcomponent(Const.VARIABLE_ID)
+        # Create constant HIGH rail for AND gate second inputs
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         layer = [root]
         for _ in range(layers):
             next_l = []
             for p in layer:
-                g1 = c.getcomponent(Const.AND_ID); c.setlimits(g1, 1); c.connect(g1, p, 0)
-                g2 = c.getcomponent(Const.AND_ID); c.setlimits(g2, 1); c.connect(g2, p, 0)
+                # Use standard 2-input AND gates instead of 1-input buffers
+                g1 = c.getcomponent(Const.AND_ID); c.connect(g1, p, 0); c.connect(g1, const_high, 1)
+                g2 = c.getcomponent(Const.AND_ID); c.connect(g2, p, 0); c.connect(g2, const_high, 1)
                 next_l.extend([g1, g2])
             layer = next_l
 
@@ -2256,6 +2271,10 @@ class AggressiveTestSuite:
 
         grid = [[None]*size for _ in range(size)]
         trig = c.getcomponent(Const.VARIABLE_ID)
+        
+        # Create constant LOW rail for unconnected OR inputs
+        const_low = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_low, Const.LOW)
 
         for r in range(size):
             for k in range(size):
@@ -2264,11 +2283,22 @@ class AggressiveTestSuite:
         for r in range(size):
             for k in range(size):
                 g = grid[r][k]
-                ins = 0
-                if r>0: c.connect(g, grid[r-1][k], ins); ins+=1
-                elif r==0 and k==0: c.connect(g, trig, 0); ins+=1
-                if k>0: c.connect(g, grid[r][k-1], ins); ins+=1
-                c.setlimits(g, max(1, ins))
+                
+                # Input 0: Top neighbor, trigger, or LOW rail
+                if r > 0:
+                    c.connect(g, grid[r-1][k], 0)
+                elif r == 0 and k == 0:
+                    c.connect(g, trig, 0)
+                else:
+                    c.connect(g, const_low, 0)
+                
+                # Input 1: Left neighbor or LOW rail
+                if k > 0:
+                    c.connect(g, grid[r][k-1], 1)
+                else:
+                    c.connect(g, const_low, 1)
+                
+                # Removed setlimits(1) optimization
 
         c.simulate(Const.SIMULATE)
         c.toggle(trig, 0)
@@ -2409,10 +2439,14 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+
         for _ in range(10):
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
+            # Use 2-input AND
             c.connect(g, v, 0)
+            c.connect(g, const_high, 1)
         
         count = 100_000
         
@@ -2439,8 +2473,12 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         g = c.getcomponent(Const.AND_ID)
-        c.setlimits(g, 1)
+        # Connect steady state pin 1
+        c.connect(g, const_high, 1)
         
         count = 50_000
         
@@ -2529,13 +2567,17 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         gates = []
         count = 50_000
         
         for i in range(count):
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
+            # Use 2-input AND
             c.connect(g, v, 0)
+            c.connect(g, const_high, 1)
             gates.append(g)
             if i > 0 and i % 10000 == 0:
                 self.progress(i, count)
@@ -2596,6 +2638,10 @@ class AggressiveTestSuite:
         central = c.getcomponent(Const.AND_ID)
         c.setlimits(central, count)
         
+        # For fanout targets, use proper 2-input AND gates
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+        
         inputs = []
         for i in range(count):
             v = c.getcomponent(Const.VARIABLE_ID)
@@ -2607,8 +2653,9 @@ class AggressiveTestSuite:
         targets = []
         for i in range(count):
             g = c.getcomponent(Const.AND_ID)
-            c.setlimits(g, 1)
+            # Use 2-input AND
             c.connect(g, central, 0)
+            c.connect(g, const_high, 1)
             targets.append(g)
             if i > 0 and i % 10000 == 0:
                 self.progress(i, count)

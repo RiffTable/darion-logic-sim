@@ -8,8 +8,6 @@ cdef class Gate
 cdef class Variable
 
 # Standalone helper functions
-cpdef void run(list varlist)
-cpdef str table(list gatelist, list varlist)
 
 cdef extern from "Profile.h":
     cdef cppclass Profile:
@@ -18,19 +16,18 @@ cdef extern from "Profile.h":
         int output
         Profile()
         Profile(void* target, int pin_index, int output)
+
+ctypedef deque[void*] Queue
+ctypedef vector[Profile*] Fuse
 # Helper functions for Profile
 cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output)
 cdef void add(vector[Profile]& hitlist, Gate target, int pin_index,int output)
 cdef void remove(vector[Profile]& hitlist, Gate target, int pin_index)
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
-cdef void clear_fuse()
-cdef void propagate(Gate origin)
-cdef void burn(Gate origin)
-cdef void sync(Gate gate)
 
-ctypedef deque[void*] Queue
-ctypedef vector[Profile*] Fuse
+
+
 # cdef class Profile:
 #     cdef public Gate target
 #     cdef vector[int] index
@@ -61,7 +58,7 @@ cdef class Gate:
     cpdef void connect(self, Gate source, int index)
     # cdef void bypass(self)
     # cdef void sync(self)
-    cpdef void propagate(self)
+    # cpdef void propagate(self)
     cpdef void disconnect(self, int index)
     cdef void reset(self)
     cdef void hide(self)

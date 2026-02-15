@@ -1,5 +1,15 @@
 # distutils: language = c++
-from Gates cimport Gate, Variable
+from Gates cimport Gate, Variable,Profile
+from libcpp.deque cimport deque
+from libcpp.vector cimport vector
+
+ctypedef deque[void*] Queue
+ctypedef vector[Profile*] Fuse
+
+cdef void clear_fuse(Fuse &fuse)
+cdef void propagate(Gate origin,Queue &queue,Fuse &fuse)
+cdef void burn(Gate origin,Queue &queue)
+cdef void sync(Gate gate)
 
 cdef class Circuit:
     cdef public list objlist
@@ -7,7 +17,8 @@ cdef class Circuit:
     cdef public list varlist
     cdef public list iclist
     cdef public list copydata
-
+    cdef Queue queue
+    cdef Fuse fuse
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef void delobj(self, tuple code)
