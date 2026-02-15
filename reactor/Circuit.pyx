@@ -1,4 +1,8 @@
 # distutils: language = c++
+# cython: boundscheck=False
+# cython: wraparound=True
+# cython: initializedcheck=False
+# cython: cdivision=True
 import json
 from Gates cimport Gate, Variable, Profile
 from libcpp.deque cimport deque
@@ -117,67 +121,63 @@ cdef inline void propagate(Gate origin, Queue &queue,Fuse &fuse):
                 profile+=1
 
     elif MODE==FLIPFLOP:
-        try:
+
             # notify all targets
-            if origin.output==ERROR:
-                burn(origin,queue)
-                return
-            queue.push_back(<void*>origin)
-            # keep propagating until everything settles
-            while not queue.empty():
-                gate = <Gate>queue.front()
-                queue.pop_front()
-                profile = gate.hitlist.data()
-                end = profile+gate.hitlist.size()
-                while profile!=end:
-                    if gate.output!=profile.output:
-                        target=<Gate>profile.target
-                        gate_type = target.id
-                        limit=target.inputlimit
-                        if limit==1:
-                            target.prev_output=target.output
-                            if gate_type==NOT_ID:
-                                if gate.output==UNKNOWN:
-                                    target.output=UNKNOWN
-                                else:
-                                    target.output=gate.output^1
+        if origin.output==ERROR:
+            burn(origin,queue)
+            return
+        queue.push_back(<void*>origin)
+        # keep propagating until everything settles
+        while not queue.empty():
+            gate = <Gate>queue.front()
+            queue.pop_front()
+            profile = gate.hitlist.data()
+            end = profile+gate.hitlist.size()
+            while profile!=end:
+                if gate.output!=profile.output:
+                    target=<Gate>profile.target
+                    gate_type = target.id
+                    limit=target.inputlimit
+                    if limit==1:
+                        target.prev_output=target.output
+                        if gate_type==NOT_ID:
+                            if gate.output==UNKNOWN:
+                                target.output=UNKNOWN
                             else:
-                                target.output=gate.output
-                            if target.prev_output!=target.output:
-                                queue.push_back(<void*>target)
-                        else:                           
-                            book = target.book
-                            book[profile.output]-=1
-                            book[gate.output]+=1
-                            profile.output = gate.output
-                            if profile==end-1 or profile.target!=(profile+1).target:
-                                target.prev_output=target.output
-                                high=book[HIGH]
-                                low=book[LOW]
-                                realsource=book[HIGH]+book[LOW]
-                                if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
-                                    if gate_type==AND_ID:target.output = low==0
-                                    elif gate_type==NAND_ID:target.output = low!=0
-                                    elif gate_type==OR_ID:target.output = high>0
-                                    elif gate_type==NOR_ID:target.output = high==0
-                                    elif gate_type==XOR_ID:target.output = high&1
-                                    elif gate_type==XNOR_ID:target.output = (high&1)^1
-                                else:target.output=UNKNOWN
-                                if target.prev_output!=target.output:
-                                    if <void*>gate==profile.target or profile.index<0: 
-                                        queue.clear()
-                                        burn(gate,queue)
-                                        clear_fuse(fuse)
-                                        return
-                                    profile.index=-profile.index-1
-                                    fuse.push_back(profile)
-                                    queue.push_back(<void*>target)
+                                target.output=gate.output^1
+                        else:
+                            target.output=gate.output
+                        if target.prev_output!=target.output:
+                            queue.push_back(<void*>target)
+                    else:                           
+                        book = target.book
+                        book[profile.output]-=1
+                        book[gate.output]+=1
                         profile.output = gate.output
-                    profile+=1
-        except Exception as e:
-            queue.clear()
-            print(e)
-        finally:
+                        if profile==end-1 or profile.target!=(profile+1).target:
+                            target.prev_output=target.output
+                            high=book[HIGH]
+                            low=book[LOW]
+                            realsource=book[HIGH]+book[LOW]
+                            if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
+                                if gate_type==AND_ID:target.output = low==0
+                                elif gate_type==NAND_ID:target.output = low!=0
+                                elif gate_type==OR_ID:target.output = high>0
+                                elif gate_type==NOR_ID:target.output = high==0
+                                elif gate_type==XOR_ID:target.output = high&1
+                                elif gate_type==XNOR_ID:target.output = (high&1)^1
+                            else:target.output=UNKNOWN
+                            if target.prev_output!=target.output:
+                                if <void*>gate==profile.target or profile.index<0: 
+                                    queue.clear()
+                                    burn(gate,queue)
+                                    clear_fuse(fuse)
+                                    return
+                                profile.index=-profile.index-1
+                                fuse.push_back(profile)
+                                queue.push_back(<void*>target)
+                    profile.output = gate.output
+                profile+=1
             clear_fuse(fuse)
 cdef class Circuit:
     # the main circuit board that holds everything together

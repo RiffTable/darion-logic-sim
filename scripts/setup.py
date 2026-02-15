@@ -16,7 +16,7 @@ for source in source_files:
     module_name = os.path.splitext(os.path.basename(source))[0]
     
     # Determine settings
-    if "Gates" in module_name or "Circuit" in module_name:
+    if "Gates" in module_name or "Circuit" in module_name or "IC" in module_name or "Store" in module_name:
         language = "c++"
         if sys.platform == "win32":
             link_args = ["-static"] # Bundle C++ DLLs

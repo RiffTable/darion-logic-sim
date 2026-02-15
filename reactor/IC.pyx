@@ -1,4 +1,8 @@
 # distutils: language = c++
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: initializedcheck=False
+# cython: cdivision=True
 from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove
 
 from Store cimport get
