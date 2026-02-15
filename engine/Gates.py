@@ -1,108 +1,27 @@
 # Pure Python version of Gates.pyx with type annotations
 from __future__ import annotations
-from collections import deque
 from typing import Any
-from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP,get_MODE, AND_ID,OR_ID,NAND_ID,NOR_ID,XOR_ID,XNOR_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID,VARIABLE_ID, NOT_ID
+from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, get_MODE, AND_ID, OR_ID, NAND_ID, NOR_ID, XOR_ID, XNOR_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID, VARIABLE_ID, NOT_ID
 
-
-_queue: deque[Gate] = deque()
-_fuse: set[Profile] = set()
-
-def run(varlist: list[Gate]):
-    i: int = 0
-    n: int = len(varlist)
-    while i<n:
-        varlist[i].process()
-        i+=1
-    i=0
-    while i<n:
-        idx=0
-        size=len(varlist[i].hitlist)
-        while idx<size:
-            profile=varlist[i].hitlist[idx]
-            if profile.target.output==ERROR:
-                update(profile,varlist[i].output)
-                sync(profile.target)
-                profile.target.process()
-                propagate(profile.target)
-            elif update(profile,varlist[i].output):
-                propagate(profile.target)
-            idx+=1
-        i+=1
-
-def locate(target:Gate,agent:Gate):
-    for i,j in enumerate(agent.hitlist):
-        if j.target==target:
+def locate(target: Gate, agent: Gate):
+    for i, j in enumerate(agent.hitlist):
+        if j.target == target:
             return i
     return -1
 
-def table(gate_list: list[Gate], varlist: list[Gate]):
-    from IC import IC
-    all_gates = gate_list
-    gate_list = [i for i in all_gates if i not in varlist and not isinstance(i, IC)]
-    ic_outputs= []
-    for i in all_gates:
-        if isinstance(i, IC):
-            for pin in i.outputs:
-                ic_outputs.append((i, pin))
-
-    n = len(varlist)
-    rows = 1 << n
-    # Collect decoded variable names and the output gate name
-    var_names = [v.name for v in varlist]
-    gate_names = [v.name for v in gate_list]
-    ic_names = [f"{ic}:{pin.name}" for ic, pin in ic_outputs]
-    output_names = gate_names + ic_names
-
-    # Determine column widths for nice alignment
-    col_width = max(len(name) for name in var_names + output_names) + 2
-    header = " | ".join(name.center(col_width)
-                        for name in var_names + output_names)
-    separator = "─" * len(header)
-
-    # Print table header
-    Table = "\nTruth Table\n"
-    # add seperater header and seperator in Table
-    Table += separator+'\n'
-    Table += header+'\n'
-    Table += separator+'\n'
-    for i in range(rows):
-        inputs = []
-        for j in range(n):
-            var = varlist[j]
-            bit = 1 if (i & (1 << (n - j - 1))) else 0
-            var.toggle(bit)
-            if var.prev_output != var.output:
-                var.propagate()
-            inputs.append("1" if bit else "0")
-        
-        output_vals = [gate.getoutput() for gate in gate_list]
-        output_vals += [pin.getoutput() for _, pin in ic_outputs]
-        
-        row = " | ".join(val.center(col_width) for val in inputs + output_vals)
-        Table += row+'\n'
-    Table += separator+'\n'
-    return Table
-    
 def listdel(lst: list[Any], index: int):
     if lst:
         lst[index] = lst[-1]
         lst.pop()
-
 
 def hitlist_del(hitlist: list[Profile], index: int):
     if hitlist:
         hitlist[index] = hitlist[-1]
         hitlist.pop()
 
-
-
-
-
 def add(profile: Profile, pin_index: int):
     profile.index.append(pin_index)
     profile.target.book[profile.output] += 1
-
 
 def remove(profile: Profile, pin_index: int) -> bool:
     target: Gate = profile.target
@@ -122,7 +41,6 @@ def remove(profile: Profile, pin_index: int) -> bool:
     else:
         return False
 
-
 def hide(profile: Profile):
     target: Gate = profile.target
     target.book[profile.output] -= len(profile.index)
@@ -130,117 +48,11 @@ def hide(profile: Profile):
         target.sources[index] = None
     profile.output = UNKNOWN
 
-
-def reveal(profile: Profile,source:Gate):
+def reveal(profile: Profile, source: Gate):
     target: Gate = profile.target
     target.book[UNKNOWN] += len(profile.index)
     for index in profile.index:
         target.sources[index] = source
-
-
-def update(profile: Profile,new_output: int) -> bool:
-    if profile.output == new_output:
-        # if nothing changed, relax
-        return False
-    target: Gate = profile.target
-    if isinstance(target, Probe):
-        profile.output = new_output
-        target.output = profile.output
-        target.bypass()
-        return False
-    # update the target's records
-    count: int = len(profile.index)
-    target.book[profile.output] -= count
-    target.book[new_output] += count
-    
-    if new_output == ERROR:
-        # error propagation
-        if target.isready():
-            target.output = ERROR
-    else:
-        # let the target recalculate
-        target.process()
-        
-    # update what the target thinks our output is
-    profile.output = new_output
-    return target.prev_output != target.output
-
-
-def clear_fuse():
-    _fuse.clear()
-
-def sync(gate: Gate):
-    """Protect against weird loops by resetting counts."""
-    gate.book[:] = [0, 0, 0, 0]
-    for source in gate.sources:
-        if source:
-            gate.book[source.output] += 1
-
-def burn(origin: Gate):
-    """Handles error states and spreads the error."""
-    gate: Gate
-    
-    _queue.append(origin)
-    while len(_queue):
-        gate = _queue.popleft()
-        gate.prev_output = gate.output
-        # mark as error
-        gate.output = ERROR 
-        for profile in gate.hitlist:
-            # update target's knowledge
-            if _burn_profile(profile) and profile.target.isready():
-                _queue.append(profile.target)
-
-def propagate(origin: Gate):
-    """Spread the signal change to all connected gates."""
-    gate: Gate
-    target: Gate
-    if get_MODE() == FLIPFLOP:
-        # notify all targets
-        _queue.append(origin)
-        # keep propagating until everything settles
-        while _queue:
-            gate = _queue.popleft()
-            gate.updateUI()
-            for profile in gate.hitlist:
-                target = profile.target
-                if update(profile,gate.output):
-                    # check for loops or inconsistencies
-                    if gate == target: 
-                        burn(gate)
-                        _queue.clear()
-                        clear_fuse()
-                        return
-                    if profile in _fuse: 
-                        burn(gate)
-                        _queue.clear()
-                        clear_fuse()
-                        return
-                    _fuse.add(profile)
-                    _queue.append(target)
-        _queue.clear()
-        clear_fuse()
-
-    elif get_MODE() == SIMULATE:  # don't need fuse, the logic itself is loop-proof
-        _queue.append(origin)                       
-        # keep propagating until everything settles
-        while _queue:
-            gate = _queue.popleft()
-            gate.updateUI()
-            for profile in gate.hitlist:
-                target = profile.target
-                if update(profile,gate.output):
-                    _queue.append(target)
-        _queue.clear()
-    else:
-        pass
-
-def _burn_profile(profile: Profile) -> bool:
-    target: Gate = profile.target
-    sync(target)
-    profile.output = ERROR
-    return target.output != ERROR
-
 
 class Profile:
     __slots__ = ['target', 'index', 'output']
@@ -257,7 +69,6 @@ class Profile:
     def __str__(self) -> str:
         return f"{self.target} {self.index} {self.output}"
 
-
 class Gate:
     """The blueprint for all logical gates.
     It handles inputs, outputs, and processing logic."""
@@ -267,7 +78,7 @@ class Gate:
         # who feeds into this gate? (inputs)
         self.sources: list[Gate | None] = [None, None]
 
-        self.listener=[]
+        self.listener = []
         # who does this gate feed into? (outputs)
         self.hitlist: list[Profile] = []
         # how many inputs do we need?
@@ -318,58 +129,42 @@ class Gate:
 
     def connect(self, source: Gate, index: int):
         """Connect a source gate (input) to this gate."""
-        loc:int = -1        
-        if len(self.sources)<len(source.hitlist):
+        loc: int = -1        
+        if len(self.sources) < len(source.hitlist):
             if source in self.sources:
                 loc = locate(self, source)
         else:
             loc = locate(self, source)
         if loc != -1:
-            profile=self.hitlist[loc]
+            profile = self.hitlist[loc]
             add(profile, index)
         else:
-            profile=Profile(self, index, source.output)
+            profile = Profile(self, index, source.output)
             source.hitlist.append(profile)
         # actually plug it in
         self.sources[index] = source
         
         # if something is wrong with the input, react
         if source.output == ERROR:
-            if self.isready():
-                burn(self)
+            self.output = ERROR
         else:
             # otherwise, recalculate our output
             self.process()
 
-    def bypass(self):
-        for profile in self.hitlist:
-            if update(profile,self.output):
-                profile.target.propagate()  
-
-    def sync(self):
-        sync(self)
-
-    def burn(self):
-        burn(self)
-
-    def propagate(self):
-        propagate(self)
-
     def disconnect(self, index: int):
         """Remove a connection at a specific index."""
         source: Gate = self.sources[index]  # type: ignore
-        loc: int = locate(self,source)
+        if source is None:
+            return
+        loc: int = locate(self, source)
         if loc != -1:
-            profile=source.hitlist[loc]
+            profile = source.hitlist[loc]
             remove(profile, index)
             if not profile.index:
-                hitlist_del(source.hitlist,loc)
+                hitlist_del(source.hitlist, loc)
         
         # recalculate everything
-        source.process()
-        source.propagate()
         self.process()
-        self.propagate()
 
     def reset(self):
         self.output = UNKNOWN
@@ -387,27 +182,16 @@ class Gate:
             hide(profile)
         
         # disconnect from sources (this gate's inputs)
-        for index,source in enumerate(self.sources):
+        for index, source in enumerate(self.sources):
             if source:
-                loc: int = locate(self,source)
+                loc: int = locate(self, source)
                 if loc != -1:
-                    profile=source.hitlist[loc]
+                    profile = source.hitlist[loc]
                     remove(profile, index)
-                    self.sources[index]=source
+                    self.sources[index] = source
                     if not profile.index:
                         hitlist_del(source.hitlist, loc)
         
-        # recalculate targets
-        for profile in self.hitlist:
-            target: Gate = profile.target
-            if target != self:
-                target.process()
-                target.propagate()
-
-        self.prev_output = UNKNOWN
-
-        self.prev_output = UNKNOWN
-        self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
     def reveal(self):
@@ -415,7 +199,7 @@ class Gate:
         for index, source in enumerate(self.sources):
             if source:
                 # Re-register with the source's hitlist
-                loc: int = locate(self,source)
+                loc: int = locate(self, source)
                 if loc != -1:
                     # Profile already exists, just add the index
                     add(source.hitlist[loc], index)
@@ -427,9 +211,7 @@ class Gate:
         
         # reconnect to targets (this gate's outputs)
         for profile in self.hitlist:
-            reveal(profile,self)
-        
-        self.propagate()
+            reveal(profile, self)
 
     def setlimits(self, size: int) -> bool:
         if size > self.inputlimit:
@@ -557,18 +339,10 @@ class Variable(Gate):
         for hits in self.hitlist:
             hide(hits)
 
-        for profile in self.hitlist:
-            target: Gate = profile.target
-            if target != self:
-                target.process()
-                target.propagate()
-
     def reveal(self):
         # connect to targets
         for profile in self.hitlist:
-            reveal(profile)
-
-        self.propagate()
+            reveal(profile, self)
 
 
 class Probe(Gate):

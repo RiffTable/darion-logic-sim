@@ -1,14 +1,117 @@
 import json
-from Gates import Gate, Variable, update,run,table,propagate
-from Const import TOTAL,DESIGN,SIMULATE,FLIPFLOP,get_MODE,set_MODE,ERROR,UNKNOWN,HIGH,LOW,IC as IC_TYPE
+from collections import deque
+from Gates import Gate, Variable, Profile, hide, reveal
+from Const import TOTAL, DESIGN, SIMULATE, FLIPFLOP, get_MODE, set_MODE, ERROR, UNKNOWN, HIGH, LOW, IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID, VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID
 from IC import IC
 from Store import get
 
+def clear_fuse(fuse: set):
+    fuse.clear()
+
+def sync(gate: Gate):
+    # reset book based on sources
+    gate.book[:] = [0, 0, 0, 0]
+    for source in gate.sources:
+        if source:
+            gate.book[source.output] += 1
+
+def turnoff(gate: Gate, queue: deque, fuse: set):
+    for profile in gate.hitlist:
+        target = profile.target
+        if target != gate:
+            target.prev_output = target.output
+            target.output = UNKNOWN
+            propagate(target, queue, fuse)
+
+def burn(origin: Gate, queue: deque):
+    queue.append(origin)
+    while queue:
+        gate = queue.popleft()
+        gate.prev_output = gate.output
+        gate.output = ERROR
+        for profile in gate.hitlist:
+            target = profile.target
+            # Python Profile handles multiple indices implicitly in book update logic?
+            # Wait, Reactor syncs entire target. Engine's Profile.output is single value?
+            # Profile tracks what the target *thinks* we are outputting.
+            
+            profile.output = ERROR
+            sync(target)
+            if target.output != ERROR:
+                queue.append(target)
+
+def propagate(origin: Gate, queue: deque, fuse: set):
+    gate: Gate
+    target: Gate
+    
+    if get_MODE() == SIMULATE:
+        queue.append(origin)
+        while queue:
+            gate = queue.popleft()
+            if gate.listener:
+                for listener in gate.listener:
+                    listener(gate.output)
+            
+            for profile in gate.hitlist:
+                if gate.output != profile.output:
+                    target = profile.target
+                    # Update book
+                    count = len(profile.index)
+                    target.book[profile.output] -= count
+                    target.book[gate.output] += count
+                    profile.output = gate.output
+                    
+                    target.prev_output = target.output
+                    target.process()
+                    if target.prev_output != target.output:
+                        queue.append(target)
+
+    elif get_MODE() == FLIPFLOP:
+         if origin.output == ERROR:
+             burn(origin, queue)
+             return
+         queue.append(origin)
+         while queue:
+            gate = queue.popleft()
+            if gate.listener:
+                for listener in gate.listener:
+                    listener(gate.output)
+
+            for profile in gate.hitlist:
+                if gate.output != profile.output:
+                    target = profile.target
+                    # Update book
+                    count = len(profile.index)
+                    target.book[profile.output] -= count
+                    target.book[gate.output] += count
+                    profile.output = gate.output
+                    
+                    target.prev_output = target.output
+                    target.process()
+                    
+                    if target.prev_output != target.output:
+                        # loop detection
+                        # Reactor checks: if <void*>gate==profile.target or profile.index<0 (fused)
+                        # Engine check:
+                        if gate == target:
+                            queue.clear()
+                            burn(gate, queue)
+                            clear_fuse(fuse)
+                            return
+                        if profile in fuse:
+                             queue.clear()
+                             burn(gate, queue)
+                             clear_fuse(fuse)
+                             return
+                        
+                        fuse.add(profile)
+                        queue.append(target)
+         clear_fuse(fuse)
 
 class Circuit:
     # the main circuit board that holds everything together
     # it knows about all gates, connections, and states
-    __slots__ = ['objlist', 'canvas', 'varlist', 'iclist', 'copydata']
+    __slots__ = ['objlist', 'canvas', 'varlist', 'iclist', 'copydata', 'queue', 'fuse']
     def __init__(self):
         # lookup table for objects by code
         self.objlist: list[list[Gate | IC]] = [
@@ -22,12 +125,15 @@ class Circuit:
 
         # clipboard for copy/paste
         self.copydata = []
+        
+        self.queue = deque()
+        self.fuse = set()
 
     def __repr__(self):
         return 'Circuit'
 
     # creates and adds a new component to the circuit
-    def getcomponent(self, choice,ui_connect=None) -> Gate | IC:
+    def getcomponent(self, choice, ui_connect=None) -> Gate | IC:
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -35,7 +141,6 @@ class Circuit:
             gt.code = (choice, rank)
             name = gt.__class__.__name__
             
-            # give it a nice name like A1, B2 or AND-1
             # give it a nice name like A1, B2 or AND-1
             if name == 'Variable':
                 gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
@@ -79,21 +184,30 @@ class Circuit:
         target.connect(source,index)
         # if the connection changed something, let everyone know
         if target.prev_output != target.output:
-            propagate(target)
+            propagate(target, self.queue, self.fuse)
             
     # switches a variable on or off
-    def toggle(self, target: Variable,value):
+    def toggle(self, target: Variable, value):
         target.toggle(value)
         if target.prev_output != target.output:
-            propagate(target)
+            propagate(target, self.queue, self.fuse)
 
     # identify target/source
     def disconnect(self, target: Gate, index):
         target.disconnect(index)
+        if target.prev_output != target.output:
+            propagate(target, self.queue, self.fuse)
 
     # removes a component from view (soft delete)
     def hideComponent(self, gate: Gate | IC):
-        gate.hide()
+        if isinstance(gate, IC):
+            gate.hide()
+            for pin in gate.outputs:
+                turnoff(pin, self.queue, self.fuse)
+        else:
+            gate.hide()
+            turnoff(gate, self.queue, self.fuse)
+        
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
@@ -112,7 +226,14 @@ class Circuit:
         self.delobj(code)
 
     def renewComponent(self, gate: Gate | IC):
-        gate.reveal()
+        if isinstance(gate, IC):
+            gate.reveal()
+            for pin in gate.outputs:
+                propagate(pin, self.queue, self.fuse)
+        else:
+            gate.reveal()
+            propagate(gate, self.queue, self.fuse)
+
         if isinstance(gate, Variable):
             self.varlist.append(gate)
         self.canvas.append(gate)
@@ -127,7 +248,58 @@ class Circuit:
     def truthTable(self):
         if len(self.varlist) == 0:
             return
-        return table(self.canvas, self.varlist)
+        
+        # logic from old table() or reactor truthTable()
+        gate_list = []
+        for item in self.canvas:
+            if isinstance(item, Variable): 
+                continue
+            elif isinstance(item, IC):
+                for pin in item.outputs:
+                    gate_list.append(pin)
+            else:
+                gate_list.append(item)
+
+        n = len(self.varlist)
+        rows_count = 1 << n
+        var_names = [v.name for v in self.varlist]
+        gate_names = [v.name for v in gate_list] # IC pins might need better names?
+        all_names = var_names + gate_names
+
+        if len(all_names) > 0:
+            col_width = max([len(name) for name in all_names]) + 2
+        else:
+            col_width = 4
+
+        header_parts = [name.center(col_width) for name in all_names]
+        header = " | ".join(header_parts)
+        separator = "─" * len(header)
+        
+        Table = []
+        Table.append(separator + '\n')
+        Table.append(header + '\n')
+        Table.append(separator + '\n')
+        
+        for i in range(rows_count):
+            inputs = []
+            for j in range(n):
+                var = self.varlist[j]
+                bit = 1 if (i & (1 << (n - j - 1))) else 0
+                
+                var.toggle(bit)
+                if var.prev_output != var.output:
+                     propagate(var, self.queue, self.fuse)
+                
+                inputs.append("1" if bit else "0")
+            
+            output_vals = [str(gate.getoutput()) for gate in gate_list]
+            row_data = inputs + output_vals
+            row_parts = [val.center(col_width) for val in row_data]
+            row = " | ".join(row_parts)
+            Table.append(row + '\n')
+            
+        Table.append(separator + '\n')
+        return "".join(Table)
 
     # prints a detailed report of everything going on
     def diagnose(self):
@@ -180,22 +352,7 @@ class Circuit:
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in self.iclist:
-                print(f"\n  IC: {ic.name} (Code: {ic.code})")
-                print("  " + "-" * 50)
-
-                # Input pins
-                if ic.inputs:
-                    print("  INPUT PINS:")
-                    for pin in ic.inputs:
-                        targets = [f"{profile.target} ({profile.index})" for profile in pin.hitlist]
-                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
-
-                # Output pins
-                if ic.outputs:
-                    print("  OUTPUT PINS:")
-                    for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
-                        print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                ic.info()
 
         print("\n" + "=" * 90)
 
@@ -241,7 +398,7 @@ class Circuit:
             print('Delete Variables First')
             return
         lst = [i for i in self.canvas]
-        myIC = self.getcomponent(IC_TYPE)
+        myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
@@ -250,7 +407,7 @@ class Circuit:
             json.dump(myIC.json_data(), file)
 
     def getIC(self, location):
-        myIC = self.getcomponent(IC_TYPE)
+        myIC = self.getcomponent(IC_ID)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
@@ -317,8 +474,9 @@ class Circuit:
         if get_MODE() != DESIGN:
             self.reset()
         set_MODE(Mode)
-        run(self.varlist)
-
+        for variable in self.varlist:
+            variable.output=variable.value
+            propagate(variable, self.queue, self.fuse)
 
     def reset(self):
         set_MODE(DESIGN)

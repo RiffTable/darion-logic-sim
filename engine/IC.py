@@ -144,11 +144,6 @@ class IC:
         for pin in self.outputs:
             for profile in pin.hitlist:
                 hide(profile)
-            for profile in pin.hitlist:
-                target = profile.target
-                if target != self:
-                    target.process()
-                    target.propagate()
         
         # Disconnect input pins from their sources
         for pin in self.inputs:
@@ -177,13 +172,10 @@ class IC:
                         source.hitlist.append(Profile(pin, index, source.output))
             # Critical: Ensure input pin knows its value and notifies internal targets
             pin.process()
-            pin.propagate()
-
 
         for pin in self.outputs:
             for profile in pin.hitlist:
                 reveal(profile, pin)
-            pin.propagate()
         
         # Reconnect input pins to their sources
 
@@ -242,4 +234,3 @@ class IC:
                 print(f"    {pin.name}: out={pin.getoutput()}, from={ch_str}")
 
         print("  " + "-" * 40)
-
