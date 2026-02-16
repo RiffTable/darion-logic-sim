@@ -154,8 +154,6 @@ cdef class Gate:
     # remove a connection at a specific index
     cpdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
-        if source is None:
-            return
         remove(source.hitlist, self, index)
         # recalculate everything
         self.process()
@@ -179,8 +177,7 @@ cdef class Gate:
 
     cdef void hide(self):
         # disconnect from targets (this gate's outputs)
-        cdef Gate target
-        cdef Gate src
+        cdef Gate source
         cdef int loc
         cdef int index
         cdef Profile* hitlist = self.hitlist.data()
@@ -189,30 +186,20 @@ cdef class Gate:
         
         # disconnect from sources (this gate's inputs)
         cdef Profile* src_hitlist
-        for index, source in enumerate(self.sources):
+        cdef list sources=self.sources
+        for index, source in enumerate(sources):
             if source:
-                src = <Gate>source
-                remove(src.hitlist, self, index)
-                self.sources[index] = source
+                remove(source.hitlist, self, index)
+                sources[index] = source
         
-        # recalculate targets
-        # for i in range(self.hitlist.size()):
-        #     target = <Gate>hitlist[i].target
-        #     if target != self:
-        #         target.process()
-
         self.book[:] = [0, 0, 0, 0]
 
     cdef void reveal(self):
-        # reconnect to sources (rebuild this gate's inputs)
-        cdef int loc
-        cdef Profile* profile
         cdef Profile* hitlist = self.hitlist.data()
-        cdef Gate src
+        cdef Gate source
         for i, source in enumerate(self.sources):
             if source:
-                src = <Gate>source
-                add(src.hitlist, self, i, src.output)
+                add(source.hitlist, self, i, source.output)
         self.process()
         
         # reconnect to targets (this gate's outputs)
@@ -290,7 +277,7 @@ cdef class Variable(Gate):
         Gate.__init__(self)
         self.value = 0
         self.inputlimit = 1
-        self.sources = [None]
+        self.sources.pop()
     cpdef bint setlimits(self,int size):
         return False
     cpdef void connect(self, Gate source, int index):
@@ -364,7 +351,7 @@ cdef class Probe(Gate):
     def __init__(self):
         Gate.__init__(self)
         self.inputlimit = 1
-        self.sources = [None]
+        self.sources.pop()
 
     cpdef bint setlimits(self,int size):
         return False
@@ -372,7 +359,7 @@ cdef class Probe(Gate):
     cdef bint isready(self):
         if MODE==DESIGN:
             return False
-        elif self.sources[0] is not None:
+        elif self.sources[0]:
             return True
         else:
             return False

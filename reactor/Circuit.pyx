@@ -531,10 +531,10 @@ cdef class Circuit:
 
     cpdef void clearcircuit(self):
         for i in range(TOTAL):
-            self.objlist[i]=[]
-        self.varlist = []
-        self.canvas = []
-        self.iclist = []
+            self.objlist[i].clear()
+        self.varlist.clear()
+        self.canvas.clear()
+        self.iclist.clear()
 
     # copies selected components to clipboard
     def copy(self, components: list["Gate"]):

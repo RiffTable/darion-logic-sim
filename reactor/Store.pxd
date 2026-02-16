@@ -1,2 +1,2 @@
-cdef list _gateobjects
+cdef tuple _gateobjects
 cdef object get(int choice)
