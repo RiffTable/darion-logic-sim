@@ -3,10 +3,10 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
-from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove
+from Gates cimport Gate, InputPin, OutputPin, Profile, create, add, hide, reveal, remove,pop
 
 from Store cimport get
-from Const cimport IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID,UNKNOWN
+from Const cimport *
 
 cdef class IC:
     # Integrated Circuit: a custom chip made of other gates
@@ -178,11 +178,12 @@ cdef class IC:
         # Disconnect input pins from their sources
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
-                if source:
+                if source is not None:
                     src = <Gate>source
-                    remove(src.hitlist, pin_in, index)
-                    pin_in.sources[index]=source
-
+                    if MODE==FLIPFLOP:
+                        remove(src.hitlist, pin_in, index)
+                    else:
+                        pop(src.hitlist, pin_in, index)
 
     # reconnects internal logic
     cpdef reveal(self):
@@ -196,9 +197,12 @@ cdef class IC:
         cdef Gate src
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
-                if source:
+                if source is not None:
                     src = <Gate>source
-                    add(src.hitlist, pin_in, index, src.output)
+                    if MODE==FLIPFLOP:
+                        add(src.hitlist, pin_in, index, src.output)
+                    else:
+                        create(src.hitlist, pin_in, index, src.output)
             pin_in.process()
 
         # Original code line 180: iterate self.outputs

@@ -4,10 +4,9 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 from libcpp.vector cimport vector
-from libcpp.deque cimport deque
-from libcpp.unordered_set cimport unordered_set
-from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE,AND_ID,OR_ID,NOT_ID,XOR_ID,NAND_ID,NOR_ID,XNOR_ID,VARIABLE_ID,PROBE_ID,INPUT_PIN_ID,OUTPUT_PIN_ID,IC_ID
-
+from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
+from Const cimport *
+from libc.string cimport memmove
 cdef inline void create(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
     hitlist.push_back(Profile(target_ptr, pin_index, output))
@@ -16,30 +15,60 @@ cdef inline void create(vector[Profile]& hitlist, Gate target, int pin_index,int
 cdef inline void add(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
     hitlist.push_back(Profile())
-    cdef Profile* start = hitlist.data()
-    cdef Profile* profile = start+hitlist.size()-1
-    cdef int i=hitlist.size()-1
-    while profile>start and profile.target != target_ptr:
-        profile[0]=(profile-1)[0]
-        profile-=1
-    profile.target=target_ptr
-    profile.index=pin_index
-    profile.output=output
+    cdef Profile* start= hitlist.data()
+    cdef Profile* final=start+hitlist.size()-1
+    cdef Profile* end = final-1
+    cdef Profile* mid
+    while start<=end:
+        mid = start+(end-start)/2
+        if mid.target > target_ptr:
+            end = mid-1
+        elif mid.target < target_ptr:
+            start = mid+1            
+        else: 
+            if mid.index<pin_index:
+                start = mid+1
+            else:
+                end = mid-1
+    memmove(start+1, start, (final-start)*sizeof(Profile))
+    start.target = target_ptr
+    start.index = pin_index
+    start.output = output
 
     target.book[output] += 1
 
-
 cdef inline void remove(vector[Profile]& hitlist,Gate target, int pin_index):
-    target.sources[pin_index] = None
+    cdef void* target_ptr = <void*>target
+    cdef Profile* start= hitlist.data()
+    cdef Profile* final=start+hitlist.size()
+    cdef Profile* end = final-1
+    cdef Profile* mid
+    while start<=end:
+        mid = start+(end-start)/2
+        if mid.target == target_ptr:
+            if mid.index==pin_index:
+                target.book[mid.output] -= 1
+                memmove(mid, mid+1, (final-mid-1)*sizeof(Profile))
+                hitlist.pop_back()
+                return
+            elif mid.index<pin_index:
+                start = mid+1
+            else:
+                end = mid-1
+        elif mid.target < target_ptr:
+            start = mid+1
+        else:
+            end = mid-1
+
+            
+cdef inline void pop(vector[Profile]& hitlist,Gate target, int pin_index):
     cdef void* target_ptr = <void*>target
     cdef Profile* profile= hitlist.data()
     cdef Profile* end = profile+hitlist.size()
     while profile<end:
         if profile.target == target_ptr and profile.index == pin_index:
             target.book[profile.output] -= 1
-            while profile<end-1:
-                profile[0]=profile[1]
-                profile+=1
+            profile[0]=(end-1)[0]
             hitlist.pop_back()
             break
         profile+=1
@@ -50,49 +79,35 @@ cdef inline void hide(Profile& profile):
     target.sources[profile.index] = None
     profile.output = UNKNOWN
 
-
 cdef inline void reveal(Profile& profile,Gate source):
     cdef Gate target = <Gate>profile.target
     target.book[UNKNOWN] += 1
     target.sources[profile.index] = source
-    
-
-# cdef class Profile:
-#     def __init__(self, Gate target, int index, int output):
-#         self.target = target
-#         target.book[output] += 1
-#         self.index.push_back(index)
-#         self.output = output
-#         self.red_flag = False
-
-#     def __repr__(self):
-#         return f"{self.target} {self.index} {self.output}"
-    
-#     def __str__(self):
-#         return f"{self.target} {self.index} {self.output}"
-
+# cdef inline bint search_source(list sources, void* source):
+#     cdef size_t i
+#     cdef size_t size = PyList_GET_SIZE(sources)
+#     cdef void* item
+#     for i in range(size):
+#         item = PyList_GET_ITEM(sources, i)
+#         if item == source:
+#             return True
+#     return False
 cdef class Gate:
     # it handles inputs, outputs, and  processing logic
-
     def __init__(self):
         # who feeds into this gate? (inputs)
         self.sources: list = [None, None]
         # who does this gate feed into? (outputs)
         self.inputlimit = 2
         # keeps track of what kind of inputs we have (high, low, etc)
-        self.book[:] = [0, 0, 0, 0]
-        
+        # self.need_sort: bint = False
         # current and previous state
         self.output = UNKNOWN
         self.prev_output = UNKNOWN
-        
         # identity details
         self.code = ()
         self.name = ''
         self.custom_name = ''
-
-    # cpdef void propagate(self,Queue &queue,Fuse &fuse):
-    #     propagate(self,queue,fuse)
 
     def __repr__(self):
         return self.name if self.custom_name == '' else self.custom_name
@@ -112,7 +127,28 @@ cdef class Gate:
 
     # calculates the output based on inputs
     cdef void process(self):
-        pass
+        cdef int* book=self.book
+        cdef int gate_type = self.id
+        cdef int low=book[LOW]
+        cdef int high=book[HIGH]
+        self.prev_output=self.output
+        if MODE == DESIGN:
+            self.output = UNKNOWN
+        elif MODE == SIMULATE:
+            if high+low==self.inputlimit:
+                if gate_type<=NAND_ID:self.output = (low!=0)^(gate_type&1)
+                elif gate_type<=NOR_ID:self.output = (high==0)^(gate_type&1)
+                else:self.output = (high&1)^(gate_type==XNOR_ID)
+            else:
+                self.output = UNKNOWN
+        else:
+            if high+low and high+low+book[ERROR]+book[UNKNOWN]==self.inputlimit:
+                if gate_type<=NAND_ID:self.output = (low!=0)^(gate_type&1)
+                elif gate_type<=NOR_ID:self.output = (high==0)^(gate_type&1)
+                else:self.output = (high&1)^(gate_type==XNOR_ID)
+            else:
+                self.output = UNKNOWN
+        
        
     cpdef void rename(self,str name):
         self.name = name
@@ -136,13 +172,11 @@ cdef class Gate:
 
     # connect a source gate (input) to this gate
     cpdef void connect(self, Gate source, int index):
-        if source.hitlist.size()>len(self.sources):
-            if source in self.sources:
-                add(source.hitlist, self, index, source.output)
-            else:
-                create(source.hitlist, self, index, source.output)
-        else:
+        if MODE==FLIPFLOP:
             add(source.hitlist, self, index, source.output)
+        else:
+            create(source.hitlist, self, index, source.output)
+        # source.need_sort=True
         # actually plug it in
         self.sources[index] = source
         # if something is wrong with the input, react
@@ -154,58 +188,70 @@ cdef class Gate:
     # remove a connection at a specific index
     cpdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
-        remove(source.hitlist, self, index)
+        if MODE==FLIPFLOP:
+            remove(source.hitlist, self, index)
+        else:
+            pop(source.hitlist, self, index)
+        self.sources[index] = None
+        # source.need_sort=True
         # recalculate everything
         self.process()
 
    
     cdef void reset(self):
-        self.output = UNKNOWN
-        cdef int i
-        cdef int n
-        i=0
-        cdef int* book = self.book
-        n=4
-        cdef Profile* hitlist = self.hitlist.data()
-        cdef int sums=0
-        for i in range(n):
-            sums+=book[i]
-        book[:]=[0, 0, 0, sums]
         self.prev_output = UNKNOWN
-        for i in range(self.hitlist.size()):
-            hitlist[i].output=UNKNOWN
+        self.output = UNKNOWN
+        cdef Profile* profile = self.hitlist.data()
+        cdef Profile* end = profile + self.hitlist.size()
+        cdef int* book = self.book
+        book[3] += book[0] + book[1] + book[2]
+        book[0] = book[1] = book[2] = 0
+        while profile<end:
+            profile.output=UNKNOWN
+            profile+=1
 
     cdef void hide(self):
         # disconnect from targets (this gate's outputs)
-        cdef Gate source
-        cdef int loc
-        cdef int index
+        cdef Py_ssize_t i
+        cdef Py_ssize_t n=self.hitlist.size()
         cdef Profile* hitlist = self.hitlist.data()
-        for i in range(self.hitlist.size()):
+        for i in range(n):
             hide(hitlist[i])
         
         # disconnect from sources (this gate's inputs)
         cdef Profile* src_hitlist
         cdef list sources=self.sources
-        for index, source in enumerate(sources):
-            if source:
-                remove(source.hitlist, self, index)
-                sources[index] = source
+        n=len(sources)
+        cdef Gate source
+        for i in range(n):
+            source=<Gate>PyList_GET_ITEM(sources,i)
+            if source is not None:
+                if MODE==FLIPFLOP:
+                    remove(source.hitlist, self, i)
+                else:
+                    pop(source.hitlist, self, i)
         
-        self.book[:] = [0, 0, 0, 0]
+        cdef int* book = self.book
+        book[0] = book[1] = book[2] = book[3] = 0
 
     cdef void reveal(self):
         cdef Profile* hitlist = self.hitlist.data()
+        cdef Py_ssize_t i
+        cdef list sources=self.sources
+        cdef Py_ssize_t n=len(sources)
         cdef Gate source
-        for i, source in enumerate(self.sources):
-            if source:
-                add(source.hitlist, self, i, source.output)
+        for i in range(n):
+            source=<Gate>PyList_GET_ITEM(sources,i)
+            if source is not None:
+                if MODE==FLIPFLOP:
+                    add(source.hitlist, self, i, source.output)
+                else:
+                    create(source.hitlist, self, i, source.output)
         self.process()
-        
+        n=self.hitlist.size()
         # reconnect to targets (this gate's outputs)
-        for i in range(self.hitlist.size()):
-            reveal(hitlist[i], self)
-        
+        for i in range(n):
+            reveal(hitlist[i], self)        
 
     cpdef bint setlimits(self,int size):
         if size<2:
@@ -284,7 +330,7 @@ cdef class Variable(Gate):
         pass
     cpdef void disconnect(self, int index):
         pass
-    cdef void toggle(self, int source):
+    cpdef void toggle(self, int source):
         self.value = source
         self.process()
 
@@ -299,10 +345,10 @@ cdef class Variable(Gate):
     
     cdef void process(self):
         self.prev_output = self.output
-        if MODE != DESIGN:
-            self.output = self.value
-        else:
+        if MODE == DESIGN:
             self.output = UNKNOWN
+        else:
+            self.output = self.value
 
     cpdef dict json_data(self):
         dictionary = {
@@ -328,16 +374,9 @@ cdef class Variable(Gate):
 
     cdef void hide(self):
         # disconnect from target
-        cdef Profile* profile
-        cdef Gate target
         cdef Profile* hitlist = self.hitlist.data()
         for i in range(self.hitlist.size()):
             hide(hitlist[i])
-
-        for i in range(self.hitlist.size()):
-            target = <Gate>hitlist[i].target
-            if target != self:
-                target.process()
 
     cdef void reveal(self):
         # connect to targets
@@ -382,8 +421,11 @@ cdef class Probe(Gate):
 
     cdef void process(self):
         self.prev_output = self.output
-        if MODE != DESIGN and self.sources[0]:
-            self.output = self.sources[0].output
+        cdef Gate source=self.sources[0]
+        if MODE == DESIGN:
+            self.output = UNKNOWN
+        elif source is not None:
+            self.output = source.output
         else:
             self.output = UNKNOWN
 
@@ -407,14 +449,18 @@ cdef class NOT(Gate):
         self.sources = [None]
     cdef void process(self):
         self.prev_output = self.output
-        if MODE != DESIGN and self.sources[0]:
-            if self.sources[0].output == UNKNOWN:
+        cdef Gate source=self.sources[0]
+        cdef int output
+        if MODE == DESIGN:
+            self.output = UNKNOWN
+        elif source is not None:
+            output=source.output
+            if output == UNKNOWN:
                 self.output = UNKNOWN
             else:
-                self.output = self.sources[0].output^1
+                self.output = output^1
         else:
             self.output = UNKNOWN
-
 
 cdef class AND(Gate):
     """AND gate - outputs 1 only if all inputs are 1"""
@@ -422,23 +468,6 @@ cdef class AND(Gate):
         self.id = AND_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = book[LOW]==0
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = book[LOW]==0
-            else:
-                self.output = UNKNOWN
-
 
 cdef class NAND(Gate):
     """NAND gate - NOT AND"""
@@ -446,22 +475,6 @@ cdef class NAND(Gate):
         self.id = NAND_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = book[LOW]!=0
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = book[LOW]!=0
-            else:
-                self.output = UNKNOWN
 
 cdef class OR(Gate):
     """OR gate - outputs 1 if any input is 1"""
@@ -469,22 +482,6 @@ cdef class OR(Gate):
         self.id = OR_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = book[HIGH]!=0
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = book[HIGH]!=0
-            else:
-                self.output = UNKNOWN
 
 cdef class NOR(Gate):
     """NOR gate - NOT OR"""
@@ -492,22 +489,6 @@ cdef class NOR(Gate):
         self.id = NOR_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = book[HIGH]==0
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = book[HIGH]==0
-            else:
-                self.output = UNKNOWN
 
 cdef class XOR(Gate):
     """XOR gate - outputs 1 if odd number of inputs are 1"""
@@ -515,22 +496,6 @@ cdef class XOR(Gate):
         self.id = XOR_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = book[HIGH] &1
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = book[HIGH] &1
-            else:
-                self.output = UNKNOWN
 
 cdef class XNOR(Gate):
     """XNOR gate - NOT XOR"""
@@ -538,21 +503,5 @@ cdef class XNOR(Gate):
         self.id = XNOR_ID
     def __init__(self):
         Gate.__init__(self)
-    cdef void process(self):
-        self.prev_output = self.output
-        cdef int* book = self.book
-
-        cdef int realsource=book[HIGH]+book[LOW]
-        cdef int inputlimit=self.inputlimit
-        if MODE == DESIGN:
-            # if we are designing, nothing works yet
-            self.output = UNKNOWN
-        else:
-            if realsource == inputlimit:
-                self.output = (book[HIGH] &1) ^ 1
-            elif MODE == FLIPFLOP and realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit:
-                self.output = (book[HIGH] &1) ^ 1
-            else:
-                self.output = UNKNOWN
 
 
