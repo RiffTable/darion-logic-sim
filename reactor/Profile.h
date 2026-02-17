@@ -16,6 +16,9 @@ struct Profile {
         }
         return target < other.target;
     }
+    void flag(){
+        index=-index-1;
+    }
 };
 
 #endif

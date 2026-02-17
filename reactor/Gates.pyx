@@ -3,18 +3,18 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
-from libcpp.vector cimport vector
+from Gates cimport vector
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from Const cimport *
 from libc.string cimport memmove
 cdef inline void create(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
-    hitlist.push_back(Profile(target_ptr, pin_index, output))
+    hitlist.emplace_back(target_ptr, pin_index, output)
     target.book[output] += 1
 
 cdef inline void add(vector[Profile]& hitlist, Gate target, int pin_index,int output):
     cdef void* target_ptr = <void*>target
-    hitlist.push_back(Profile())
+    hitlist.emplace_back()
     cdef Profile* start= hitlist.data()
     cdef Profile* final=start+hitlist.size()-1
     cdef Profile* end = final-1

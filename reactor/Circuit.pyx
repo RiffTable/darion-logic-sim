@@ -24,7 +24,7 @@ cdef inline void clear_fuse(Fuse &fuse):
     cdef Profile** profile=fuse.data()
     cdef Profile** end = profile+fuse.size()
     while profile!=end:
-        profile[0].index=-profile[0].index-1
+        profile[0].flag()
         profile+=1
     fuse.clear()
 
@@ -200,8 +200,8 @@ cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
                                 burn(gate,queue)
                                 clear_fuse(fuse)
                                 return
-                            profile.index=-profile.index-1
-                            fuse.push_back(profile)
+                            profile.flag()
+                            fuse.push_back(&profile[0])
                             queue.push_back(<void*>target)
                 profile.output = gate.output
             profile+=1

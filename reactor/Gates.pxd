@@ -1,9 +1,46 @@
 # distutils: language = c++
-from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
 # from libcpp cimport bool
+# In reactor/Gates.pxd
+
+# Ensure you DO NOT have 'from libcpp.vector cimport vector' anywhere in this file.
+
+cdef extern from "<vector>" namespace "std" nogil:
+    cdef cppclass vector[T, ALLOCATOR=*]:
+        cppclass iterator:
+            T& operator*()
+            iterator operator++()
+            bint operator!=(iterator)
+            bint operator==(iterator)
+            
+        vector()
+        
+        # Element Access
+        T& operator[](int)
+        T& at(int)
+        T& front()
+        T& back()           # Required for 'queue.back()'
+        T* data()           # Required for 'fuse.data()'
+
+        # Modifiers
+        void push_back(T&)
+        void emplace_back(...)  # Your custom addition
+        void pop_back()         # Required for 'queue.pop_back()'
+        void clear()
+        void reserve(int)
+        void resize(int)
+        
+        # Capacity
+        bint empty()
+        int size()
+        int capacity()
+
+        # Iterators
+        iterator begin()
+        iterator end()
+
 cdef class Gate
 cdef class Variable
 
@@ -16,6 +53,7 @@ cdef extern from "Profile.h":
         int output
         Profile()
         Profile(void* target, int pin_index, int output)
+        void flag()
 
 ctypedef deque[void*] Queue
 ctypedef vector[Profile*] Fuse
