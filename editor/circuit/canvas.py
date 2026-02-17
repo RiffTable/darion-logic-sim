@@ -4,18 +4,21 @@ from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from .components import CompItem, LabelItem
-from .pins import InputPinItem, OutputPinItem
-from .wires import WireItem
-from .gates import GateItem
-from .lookup import LOOKUP
+from .catalog import (
+	LOOKUP, CompItem, LabelItem, WireItem, InputPinItem, OutputPinItem,
+	GateItem
+)
+
+from engine.Circuit import Circuit
+from engine.Gates import Gate, InputPin, OutputPin
+
 
 
 
 
 
 class CircuitScene(QGraphicsScene):
-	def __init__(self):
+	def __init__(self, logic: Circuit):
 		super().__init__()
 
 		self.SIZE = 12
@@ -68,6 +71,7 @@ class CircuitScene(QGraphicsScene):
 		cd = LOOKUP[comp_id]
 		comp = cd.skin(QPointF(x, y))
 		comp.labelItem.setPlainText(cd.tag)
+		# comp.setUnit(circuit.getComponent(cd.logic))
 		
 		self.addItem(comp)
 		self.comps.append(comp)
@@ -85,6 +89,7 @@ class CircuitScene(QGraphicsScene):
 	def finishWiring(self, target: QGraphicsItem, modifiers: KeyMod):
 		g_wire = self.ghostWire
 		g_pin = self.ghostPin
+		source = g_wire.source
 		finishing = False
 
 		# Wiring: Finish!
@@ -118,6 +123,12 @@ class CircuitScene(QGraphicsScene):
 				self.ghostWire = None
 			
 			g_wire.supplies.append(target); target.setWire(g_wire)
+
+			g, idx = target.logical
+			if isinstance(g, Gate) and idx < g.inputlimit:
+				g.setlimits(idx)
+			self.logic.connect(g, source.logical, idx)
+
 			g_wire.updateShape()
 			target.highlight(False)
 			

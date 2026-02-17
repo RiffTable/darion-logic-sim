@@ -8,8 +8,10 @@ from editor.styles import Color
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
-	from .components import CompItem
-	from .wires import WireItem
+	from .compitem import CompItem
+	from .wireitem import WireItem
+
+from engine.Gates import Gate, InputPin, OutputPin
 
 
 
@@ -113,6 +115,16 @@ class PinItem(QGraphicsRectItem):
 class InputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
 		super().__init__(parent, relpos, facing)
+		self.logical: tuple[Gate, int] | tuple[InputPin, int]
+
+	def setLogical(self, input: Gate | InputPin, index: int = 0):
+		if isinstance(input, InputPin):
+			self.logical = (input, 0)
+		elif isinstance(input, Gate):
+			self.logical = (input, index)
+		else:
+			raise TypeError(f"Invalid logical value 'input' = {input} and 'index' = {index}")
+			
 
 	def disconnect(self):
 		if not self._wire: return
@@ -135,6 +147,12 @@ class InputPinItem(PinItem):
 class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
 		super().__init__(parent, relpos, facing)
+		self.logical: Gate | OutputPin
+
+	def setLogical(self, output: Gate | OutputPin):
+		if not isinstance(input, (Gate, InputPin)):
+			raise TypeError(f"Invalid logical value 'output' = {output}")
+		self.logical = output
 	
 	def disconnect(self):
 		if not self._wire: return

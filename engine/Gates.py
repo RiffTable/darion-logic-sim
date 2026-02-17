@@ -1,7 +1,7 @@
 # Pure Python version of Gates.pyx with type annotations
 from __future__ import annotations
 from typing import Any
-from Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, get_MODE, AND_ID, OR_ID, NAND_ID, NOR_ID, XOR_ID, XNOR_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID, VARIABLE_ID, NOT_ID
+from .Const import HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, get_MODE, AND_ID, OR_ID, NAND_ID, NOR_ID, XOR_ID, XNOR_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID, VARIABLE_ID, NOT_ID
 
 def locate(target: Gate, agent: Gate):
     for i, j in enumerate(agent.hitlist):

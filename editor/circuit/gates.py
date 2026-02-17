@@ -4,7 +4,7 @@ from core.Enums import CompEdge, EditorState
 
 from editor.styles import Color
 
-from .components import CompItem
+from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from .components import CompItem
+from .compitem import CompItem, LabelItem
 from .gates import GateItem, UnaryGateItem, InputItem, OutputItem
+from .wireitem import WireItem
+from .pins import PinItem, InputPinItem, OutputPinItem
 
 
 
@@ -18,7 +20,7 @@ class CompDetail:
 
 
 ###======= LOOKUP TABLE FOR ALL COMPONENTS =======###
-LOOKUP: list[CompDetail] = {
+LOOKUP: dict[int, CompDetail] = {
 	0:  CompDetail(UnaryGateItem, 0, "NOT"  , "NOT Gate"          , ""),
 	1:  CompDetail(GateItem,      1, "AND"  , "AND Gate"          , ""),
 	2:  CompDetail(GateItem,      2, "NAND" , "NAND Gate"         , ""),

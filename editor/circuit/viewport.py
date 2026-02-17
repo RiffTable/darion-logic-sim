@@ -8,8 +8,8 @@ from .canvas import CircuitScene
 
 class CircuitView(QGraphicsView):
 	scene: CircuitScene
-	def __init__(self):
-		self.scene = CircuitScene()
+	def __init__(self, logic: Circuit):
+		self.scene = CircuitScene(logic)
 		super().__init__(self.scene)
 
 		self.DRAG_THRESHOLD = QGuiApplication.styleHints().startDragDistance()

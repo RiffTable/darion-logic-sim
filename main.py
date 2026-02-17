@@ -9,7 +9,8 @@ from editor.circuit.viewport import CircuitView
 # Add engine to path
 import os
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from Circuit import Circuit
+from engine.Circuit import Circuit
+import engine.Const as Const
 
 
 
@@ -23,11 +24,13 @@ class AppWindow(QMainWindow):
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
 		
-		
-		###======= CIRCUIT VIEW =======###
-		self.view = CircuitView()
-		self.scene = self.view.scene
+
+		###======= CIRCUIT =======###
 		self.logic = Circuit()
+		self.logic.simulate(Const.FLIPFLOP)
+		
+		self.view = CircuitView(self.logic)
+		self.scene = self.view.scene
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
