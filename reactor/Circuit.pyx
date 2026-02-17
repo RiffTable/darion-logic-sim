@@ -13,12 +13,11 @@ from libcpp.algorithm cimport sort
 
 cdef void hitlist_sort(Gate gate):
     sort(gate.hitlist.begin(), gate.hitlist.end())
-    gate.need_sort=False
 cdef void build_cache(list lst):
     for i in lst:
         if i.id==IC_ID:
             build_cache(i.inputs+i.outputs+i.internal)
-        elif i.need_sort:
+        else:
             hitlist_sort(i)
 
 cdef inline void clear_fuse(Fuse &fuse):
