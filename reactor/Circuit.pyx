@@ -10,15 +10,23 @@ from Const cimport *
 from IC cimport IC
 from Store cimport get
 from libcpp.algorithm cimport sort
+from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
 cdef void hitlist_sort(Gate gate):
     sort(gate.hitlist.begin(), gate.hitlist.end())
 cdef void build_cache(list lst):
-    for i in lst:
-        if i.id==IC_ID:
-            build_cache(i.inputs+i.outputs+i.internal)
+    cdef object obj
+    cdef Gate gate
+    cdef IC ic
+    cdef int i
+    for i in range(PyList_GET_SIZE(lst)):
+        obj = <object>PyList_GET_ITEM(lst, i)
+        if obj.id==IC_ID:
+            ic=<IC>obj
+            build_cache(ic.inputs+ic.outputs+ic.internal)
         else:
-            hitlist_sort(i)
+            gate=<Gate>obj
+            hitlist_sort(gate)
 
 cdef inline void clear_fuse(Fuse &fuse):
     cdef Profile** profile=fuse.data()
@@ -33,7 +41,9 @@ cdef inline void sync(Gate gate):
     cdef int* book = gate.book
     book[0]=book[1]=book[2]=book[3]=0
     cdef Gate source
-    for source in gate.sources:
+    cdef int i
+    for i in range(PyList_GET_SIZE(gate.sources)):
+        source = <Gate>PyList_GET_ITEM(gate.sources, i)
         if source:
             book[source.output]+=1
 
