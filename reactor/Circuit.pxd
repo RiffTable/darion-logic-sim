@@ -1,6 +1,5 @@
 # distutils: language = c++
 from Gates cimport Gate, Variable,Profile
-from libcpp.deque cimport deque
 from libcpp.vector cimport vector
 
 ctypedef vector[void*] Queue

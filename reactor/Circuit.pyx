@@ -1,16 +1,15 @@
 # distutils: language = c++
-
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: initializedcheck=False
+# cython: cdivision=True
 import json
 from Gates cimport Gate, Variable, Profile
-from libcpp.deque cimport deque
 from libcpp.vector cimport vector
 from Const cimport *
 from IC cimport IC
 from Store cimport get
 from libcpp.algorithm cimport sort
-
-
-
 
 cdef void hitlist_sort(Gate gate):
     sort(gate.hitlist.begin(), gate.hitlist.end())
