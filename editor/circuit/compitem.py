@@ -43,6 +43,7 @@ class CompItem(QGraphicsRectItem):
 			GraphicsItemFlag.ItemSendsGeometryChanges
 			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
+		self.setAcceptHoverEvents(True)
 		self._cached_hitbox = QPainterPath()
 		self._cached_hitbox.addRect(self.rect())
 		self._hover_count = 0
@@ -76,7 +77,7 @@ class CompItem(QGraphicsRectItem):
 	
 
 	@property
-	def cscene(self): return cast(CircuitScene, self.scene())
+	def cscene(self): return cast('CircuitScene', self.scene())
 
 	def setDimension(self, width: int, height: int):
 		self._size = (width, height)

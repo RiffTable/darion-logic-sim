@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from typing import cast
 from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
@@ -86,7 +86,7 @@ class CircuitScene(QGraphicsScene):
 		# run_logic()
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem, multiWireMode: bool):
+	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
 		g_wire = self.ghostWire
 
 		if g_wire == None:
@@ -119,6 +119,7 @@ class CircuitScene(QGraphicsScene):
 				finishing = True
 		
 		if finishing:
+			target = cast(InputPinItem, target)
 			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 
 			if not multiWireMode:
@@ -128,10 +129,11 @@ class CircuitScene(QGraphicsScene):
 			
 			g_wire.supplies.append(target); target.setWire(g_wire)
 
-			g, idx = target.logical
-			if isinstance(g, Gate) and idx < g.inputlimit:
-				g.setlimits(idx)
-			self.logic.connect(g, source.logical, idx)
+			# fuck
+			# g, idx = target.logical
+			# if isinstance(g, Gate) and idx < g.inputlimit:
+			# 	g.setlimits(idx)
+			# self.logic.connect(g, source.logical, idx)
 
 			g_wire.updateShape()
 			target.highlight(False)
@@ -159,14 +161,15 @@ class CircuitScene(QGraphicsScene):
 		# Wiring: Start!
 		if self.checkState(EditorState.NORMAL):
 			if isinstance(item, OutputPinItem) and event.button() == MouseBtn.LeftButton:
-				if event.button() == Qt.LeftButton:
+				if event.button() == MouseBtn.LeftButton:
 					self.setState(EditorState.WIRING)
-					if not item.hasWire():
+					w = item.getWire()
+					if w == None:
 						self.ghostWire = WireItem(item, self.ghostPin)
 						# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
 						self.addItem(self.ghostWire)
 					else:
-						self.ghostWire = item.getWire()
+						self.ghostWire = w
 						self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
@@ -183,7 +186,7 @@ class CircuitScene(QGraphicsScene):
 			if btn == MouseBtn.LeftButton:
 				self.finishWiring(
 					target,
-					event.modifiers() & KeyMod.ShiftModifier
+					bool(event.modifiers() & KeyMod.ShiftModifier)
 				)
 
 			# Wiring: Skip!

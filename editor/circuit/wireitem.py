@@ -34,7 +34,7 @@ class WireItem(QGraphicsPathItem):
 		# self.updateShape()
 	
 	@property
-	def cscene(self): return cast(CircuitScene, self.scene())
+	def cscene(self): return cast('CircuitScene', self.scene())
 
 	# Connection configuration
 	def addSupply(self, pin: InputPinItem):

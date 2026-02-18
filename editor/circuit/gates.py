@@ -12,13 +12,14 @@ from engine.Gates import Gate
 
 
 
+
+
 ### Gate Item
 class GateItem(CompItem):
 	def __init__(self, pos: QPointF):
 		super().__init__(pos, QPoint(6, 4))
 		
 		# Behavior
-		self.setAcceptHoverEvents(True)
 		self.labelText = "GATE"
 		self.labelItem.setPlainText(self.labelText)
 

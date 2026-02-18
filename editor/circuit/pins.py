@@ -44,9 +44,9 @@ class PinItem(QGraphicsRectItem):
 		self.setPos(relpos)
 	
 	@property
-	def cscene(self):     return cast(CircuitScene, self.scene())
+	def cscene(self):     return cast('CircuitScene', self.scene())
 	@property
-	def parentComp(self): return cast(CompItem, self.parentItem())
+	def parentComp(self): return cast('CompItem', self.parentItem())
 	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
