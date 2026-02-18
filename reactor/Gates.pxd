@@ -1,11 +1,5 @@
 # distutils: language = c++
-from libcpp.deque cimport deque
-from libcpp.unordered_set cimport unordered_set
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, FLIPFLOP, MODE
-# from libcpp cimport bool
-# In reactor/Gates.pxd
-
-# Ensure you DO NOT have 'from libcpp.vector cimport vector' anywhere in this file.
 
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
@@ -55,8 +49,6 @@ cdef extern from "Profile.h":
         Profile(void* target, int pin_index, int output)
         void flag()
 
-ctypedef deque[void*] Queue
-ctypedef vector[Profile*] Fuse
 # Helper functions for Profile
 cdef void create(vector[Profile]& hitlist, void* target, int pin_index,int output)
 cdef void add(vector[Profile]& hitlist, void* target, int pin_index,int output)
@@ -88,8 +80,8 @@ cdef class Gate:
     cdef void process(self)
     cpdef void rename(self, str name)
     cdef bint isready(self)
-    cpdef void connect(self, Gate source, int index)
-    cpdef void disconnect(self, int index)
+    cdef void connect(self, Gate source, int index)
+    cdef void disconnect(self, int index)
     cdef void reset(self)
     cdef void hide(self)
     cdef void reveal(self)
@@ -103,7 +95,7 @@ cdef class Gate:
 
 cdef class Variable(Gate):
     cdef public int value
-    cpdef void toggle(self, int source)
+    # cpdef void toggle(self, int source)
 
 cdef class Probe(Gate):
     pass

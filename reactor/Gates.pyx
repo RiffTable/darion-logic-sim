@@ -155,7 +155,7 @@ cdef class Gate:
                 return realsource and realsource+book[UNKNOWN]+book[ERROR] == inputlimit
 
     # connect a source gate (input) to this gate
-    cpdef void connect(self, Gate source, int index):
+    cdef void connect(self, Gate source, int index):
         if MODE==FLIPFLOP:
             add(source.hitlist, <void*>self, index, source.output)
         else:
@@ -171,7 +171,7 @@ cdef class Gate:
             # otherwise, recalculate our output
             self.process()
     # remove a connection at a specific index
-    cpdef void disconnect(self,int index):
+    cdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         if MODE==FLIPFLOP:
             remove(source.hitlist, <void*>self, index)
@@ -311,13 +311,13 @@ cdef class Variable(Gate):
         self.sources.pop()
     cpdef bint setlimits(self,int size):
         return False
-    cpdef void connect(self, Gate source, int index):
+    cdef void connect(self, Gate source, int index):
         pass
-    cpdef void disconnect(self, int index):
+    cdef void disconnect(self, int index):
         pass
-    cpdef void toggle(self, int source):
-        self.value = source
-        self.process()
+    # cpdef void toggle(self, int source):
+    #     self.value = source
+    #     self.process()
 
     cdef void reset(self):
         self.output = UNKNOWN
@@ -377,7 +377,7 @@ cdef class Probe(Gate):
         self.inputlimit = 1
         self.sources.pop()
 
-    cpdef void connect(self, Gate source, int index):
+    cdef void connect(self, Gate source, int index):
         if MODE==FLIPFLOP:
             add(source.hitlist, <void*>self, index, source.output)
         else:
@@ -391,7 +391,7 @@ cdef class Probe(Gate):
             # otherwise, recalculate our output
             self.process()
     # remove a connection at a specific index
-    cpdef void disconnect(self,int index):
+    cdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         if MODE==FLIPFLOP:
             remove(source.hitlist, <void*>self, index)
@@ -505,7 +505,7 @@ cdef class NOT(Gate):
         self.inputlimit = 1
         self.sources = [None]
 
-    cpdef void connect(self, Gate source, int index):
+    cdef void connect(self, Gate source, int index):
         if MODE==FLIPFLOP:
             add(source.hitlist, <void*>self, index, source.output)
         else:
@@ -519,7 +519,7 @@ cdef class NOT(Gate):
             # otherwise, recalculate our output
             self.process()
     # remove a connection at a specific index
-    cpdef void disconnect(self,int index):
+    cdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         if MODE==FLIPFLOP:
             remove(source.hitlist, <void*>self, index)

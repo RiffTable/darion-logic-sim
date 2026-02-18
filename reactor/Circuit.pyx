@@ -12,9 +12,9 @@ from Store cimport get
 from libcpp.algorithm cimport sort
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
-cdef void hitlist_sort(Gate gate):
+cdef inline void hitlist_sort(Gate gate):
     sort(gate.hitlist.begin(), gate.hitlist.end())
-cdef void build_cache(list lst):
+cdef inline void build_cache(list lst):
     cdef object obj
     cdef Gate gate
     cdef IC ic
@@ -300,8 +300,10 @@ cdef class Circuit:
             
     # switches a variable on or off
     cpdef void toggle(self, Variable target,int value):
-        target.toggle(value)
-        if target.prev_output != target.output and target.output!=ERROR:
+        target.prev_output=target.output
+        target.value=value
+        target.output=value
+        if target.prev_output != target.output:
             if MODE==SIMULATE:
                 propagate(target,self.queue)
             elif MODE==FLIPFLOP:
@@ -418,34 +420,54 @@ cdef class Circuit:
         Table.append(separator + '\n')
         Table.append(header + '\n')
         Table.append(separator + '\n')
-
-        for i in range(rows_count):
-            inputs = []
-            for j in range(n):
-                # Retrieve variable
-                var = varlist[j]
-                
-                # Calculate bit
-                bit = 1 if (i & (1 << (n - j - 1))) else 0
-                
-                var.toggle(bit)
-                if var.prev_output != var.output:
-                    if MODE==SIMULATE:
+        if MODE==SIMULATE:
+            for i in range(rows_count):
+                inputs = []
+                for j in range(n):
+                    # Retrieve variable
+                    var = varlist[j]
+                    
+                    # Calculate bit
+                    bit = 1 if (i & (1 << (n - j - 1))) else 0
+                    var.prev_output=var.output
+                    var.output=bit
+                    if var.prev_output!=var.output:
                         propagate(var,self.queue)
-                    elif MODE==FLIPFLOP:
-                        seq_propagate(var,self.queue,self.fuse)
+                    inputs.append(str(bit))                
+                # Calculate outputs
+                output_vals = [str(gate.getoutput()) for gate in gate_list]
                 
-                inputs.append("1" if bit else "0")
-            
-            # Calculate outputs
-            output_vals = [str(gate.getoutput()) for gate in gate_list]
-            
-            row_data = inputs + output_vals
-            row_parts = [val.center(col_width) for val in row_data]
-            
-            row = " | ".join(row_parts)
-            Table.append(row + '\n')
-
+                row_data = inputs + output_vals
+                row_parts = [val.center(col_width) for val in row_data]
+                
+                row = " | ".join(row_parts)
+                Table.append(row + '\n')
+            self.simulate(SIMULATE)
+        elif MODE==FLIPFLOP:
+            for i in range(rows_count):
+                inputs = []
+                for j in range(n):
+                    # Retrieve variable
+                    var = varlist[j]
+                    
+                    # Calculate bit
+                    bit = 1 if (i & (1 << (n - j - 1))) else 0
+                    
+                    var.prev_output=var.output
+                    var.output=bit
+                    if var.prev_output!=var.output:
+                        seq_propagate(var,self.queue,self.fuse)
+                    inputs.append(str(bit))
+                
+                # Calculate outputs
+                output_vals = [str(gate.getoutput()) for gate in gate_list]
+                
+                row_data = inputs + output_vals
+                row_parts = [val.center(col_width) for val in row_data]
+                
+                row = " | ".join(row_parts)
+                Table.append(row + '\n')
+            self.simulate(FLIPFLOP)
         Table.append(separator + '\n')
         
         return "".join(Table)
@@ -635,17 +657,18 @@ cdef class Circuit:
 
     # runs the simulation
     cpdef void simulate(self, int Mod):
-        if MODE != DESIGN :
+        if MODE != DESIGN and MODE!=Mod:
             self.reset()
-        if MODE!=Mod and MODE==FLIPFLOP:
-            build_cache(self.canvas)
         set_MODE(Mod)
         cdef Variable variable
-        for variable in self.varlist:
-            variable.output=variable.value
-            if MODE==SIMULATE:
+        if MODE==SIMULATE:
+            for variable in self.varlist:
+                variable.output=variable.value
                 propagate(variable,self.queue)
-            elif MODE==FLIPFLOP:
+        else:
+            build_cache(self.canvas)
+            for variable in self.varlist:
+                variable.output=variable.value
                 seq_propagate(variable,self.queue,self.fuse)
 
     cpdef void reset(self):

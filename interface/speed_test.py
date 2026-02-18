@@ -1010,8 +1010,8 @@ class AggressiveTestSuite:
         cd = v.copy_data(cluster)
         self.assert_test('value' in cd, "Variable.copy_data has 'value'")
         # Variable connect/disconnect are no-ops
-        v.connect(v, 0)  # should not crash
-        v.disconnect(0)   # should not crash
+        c.connect(v, v, 0)  # should not crash
+        c.disconnect(v, 0)   # should not crash
         self.assert_test(True, "Variable connect/disconnect no-ops")
         # Variable setlimits returns False
         self.assert_test(v.setlimits(10) == False, "Variable.setlimits returns False")
@@ -1572,8 +1572,8 @@ class AggressiveTestSuite:
         inp = ic.getcomponent(Const.INPUT_PIN_ID)
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
         
         self.assert_test(len(ic.inputs) == 1, "IC has 1 input")
         self.assert_test(len(ic.outputs) == 1, "IC has 1 output")
@@ -1581,7 +1581,7 @@ class AggressiveTestSuite:
         
         # Wire up and test
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
         self.assert_test(out.output == Const.LOW, "IC inverts HIGH->LOW")
@@ -1605,16 +1605,16 @@ class AggressiveTestSuite:
         inner_out = inner_ic.getcomponent(Const.OUTPUT_PIN_ID)
         not1 = inner_ic.getcomponent(Const.NOT_ID)
         not2 = inner_ic.getcomponent(Const.NOT_ID)
-        not1.connect(inner_inp, 0)
-        not2.connect(not1, 0)
-        inner_out.connect(not2, 0)
+        c.connect(not1, inner_inp, 0)
+        c.connect(not2, not1, 0)
+        c.connect(inner_out, not2, 0)
         
         # Wire outer IC
-        inner_inp.connect(outer_inp, 0)
-        outer_out.connect(inner_out, 0)
+        c.connect(inner_inp, outer_inp, 0)
+        c.connect(outer_out, inner_out, 0)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        outer_inp.connect(v, 0)
+        c.connect(outer_inp, v, 0)
         
         c.toggle(v, Const.HIGH)
         self.assert_test(outer_out.output == Const.HIGH, "Nested IC preserves HIGH")
@@ -1636,8 +1636,8 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
-            not_g.connect(inp, 0)
-            out.connect(not_g, 0)
+            c.connect(not_g, inp, 0)
+            c.connect(out, not_g, 0)
             return ic, inp, out
         
         # Level 1
@@ -1664,13 +1664,13 @@ class AggressiveTestSuite:
         create_inverter_ic = locals()['create_inverter_ic'] # Ensure scope
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp1.connect(v, 0)
-        inp2.connect(inp1, 0)
-        inp3.connect(inp2, 0)
-        inp4.connect(inp3, 0)
-        out3.connect(out4, 0)
-        out2.connect(out3, 0)
-        out1.connect(out2, 0)
+        c.connect(inp1, v, 0)
+        c.connect(inp2, inp1, 0)
+        c.connect(inp3, inp2, 0)
+        c.connect(inp4, inp3, 0)
+        c.connect(out3, out4, 0)
+        c.connect(out2, out3, 0)
+        c.connect(out1, out2, 0)
         
         c.simulate(Const.SIMULATE)
         c.toggle(v, Const.HIGH)
@@ -1691,11 +1691,11 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
-            not_g.connect(inp, 0)
-            out.connect(not_g, 0)
+            c.connect(not_g, inp, 0)
+            c.connect(out, not_g, 0)
             
             v = c.getcomponent(Const.VARIABLE_ID)
-            inp.connect(v, 0)
+            c.connect(inp, v, 0)
             variables.append(v)
             outputs.append(out)
         
@@ -1736,26 +1736,26 @@ class AggressiveTestSuite:
         
         # Internal logic: Full Adder
         xor1 = ic.getcomponent(Const.XOR_ID)
-        xor1.connect(inp_a, 0)
-        xor1.connect(inp_b, 1)
+        c.connect(xor1, inp_a, 0)
+        c.connect(xor1, inp_b, 1)
         
         xor2 = ic.getcomponent(Const.XOR_ID)
-        xor2.connect(xor1, 0)
-        xor2.connect(inp_cin, 1)
-        out_sum.connect(xor2, 0)
+        c.connect(xor2, xor1, 0)
+        c.connect(xor2, inp_cin, 1)
+        c.connect(out_sum, xor2, 0)
         
         and1 = ic.getcomponent(Const.AND_ID)
-        and1.connect(inp_a, 0)
-        and1.connect(inp_b, 1)
+        c.connect(and1, inp_a, 0)
+        c.connect(and1, inp_b, 1)
         
         and2 = ic.getcomponent(Const.AND_ID)
-        and2.connect(xor1, 0)
-        and2.connect(inp_cin, 1)
+        c.connect(and2, xor1, 0)
+        c.connect(and2, inp_cin, 1)
         
         or1 = ic.getcomponent(Const.OR_ID)
-        or1.connect(and1, 0)
-        or1.connect(and2, 1)
-        out_cout.connect(or1, 0)
+        c.connect(or1, and1, 0)
+        c.connect(or1, and2, 1)
+        c.connect(out_cout, or1, 0)
         
         self.assert_test(len(ic.internal) == 5, "IC has 5 internal gates")
         
@@ -1763,9 +1763,9 @@ class AggressiveTestSuite:
         v_a = c.getcomponent(Const.VARIABLE_ID)
         v_b = c.getcomponent(Const.VARIABLE_ID)
         v_cin = c.getcomponent(Const.VARIABLE_ID)
-        inp_a.connect(v_a, 0)
-        inp_b.connect(v_b, 0)
-        inp_cin.connect(v_cin, 0)
+        c.connect(inp_a, v_a, 0)
+        c.connect(inp_b, v_b, 0)
+        c.connect(inp_cin, v_cin, 0)
         
         # Test: 1+1+1 = 11 (Sum=1, Cout=1)
         c.toggle(v_a, 1); c.toggle(v_b, 1); c.toggle(v_cin, 1)
@@ -1788,11 +1788,11 @@ class AggressiveTestSuite:
         inp = ic.getcomponent(Const.INPUT_PIN_ID)
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c1.connect(not_g, inp, 0)
+        c1.connect(out, not_g, 0)
         
         v = c1.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c1.connect(inp, v, 0)
         c1.toggle(v, Const.HIGH)
         
         # Save
@@ -1819,11 +1819,11 @@ class AggressiveTestSuite:
         inp = ic.getcomponent(Const.INPUT_PIN_ID)
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
         
@@ -1844,11 +1844,11 @@ class AggressiveTestSuite:
         inp = ic.getcomponent(Const.INPUT_PIN_ID)
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
         
         self.assert_test(out.output == Const.LOW, "IC output LOW before reset")
@@ -1868,8 +1868,8 @@ class AggressiveTestSuite:
         inp = ic.getcomponent(Const.INPUT_PIN_ID)
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
         
         initial_count = len(c.canvas)
         
@@ -1898,20 +1898,20 @@ class AggressiveTestSuite:
         nor1 = ic.getcomponent(Const.NOR_ID)
         nor2 = ic.getcomponent(Const.NOR_ID)
         
-        nor1.connect(inp_rst, 0)
-        nor1.connect(nor2, 1)
+        c.connect(nor1, inp_rst, 0)
+        c.connect(nor1, nor2, 1)
         
-        nor2.connect(inp_set, 0)
-        nor2.connect(nor1, 1)
+        c.connect(nor2, inp_set, 0)
+        c.connect(nor2, nor1, 1)
         
-        out_q.connect(nor1, 0)
-        out_qb.connect(nor2, 0)
+        c.connect(out_q, nor1, 0)
+        c.connect(out_qb, nor2, 0)
         
         # Wire to external variables
         v_set = c.getcomponent(Const.VARIABLE_ID)
         v_rst = c.getcomponent(Const.VARIABLE_ID)
-        inp_set.connect(v_set, 0)
-        inp_rst.connect(v_rst, 0)
+        c.connect(inp_set, v_set, 0)
+        c.connect(inp_rst, v_rst, 0)
         
         # Reset latch
         c.toggle(v_rst, 1)
@@ -1935,16 +1935,16 @@ class AggressiveTestSuite:
         prev = inp
         for _ in range(100):
             not_g = ic.getcomponent(Const.NOT_ID)
-            not_g.connect(prev, 0)
+            c.connect(not_g, prev, 0)
             prev = not_g
         
         out = ic.getcomponent(Const.OUTPUT_PIN_ID)
-        out.connect(prev, 0)
+        c.connect(out, prev, 0)
         
         self.assert_test(len(ic.internal) == 100, "IC has 100 internal gates")
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
         # 100 inversions = identity (even number)
@@ -1964,10 +1964,10 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
-            not_g.connect(inp, 0)
-            out.connect(not_g, 0)
+            c.connect(not_g, inp, 0)
+            c.connect(out, not_g, 0)
             
-            inp.connect(prev_out, 0)
+            c.connect(inp, prev_out, 0)
             prev_out = out
             ics.append(out)
         
@@ -1991,16 +1991,16 @@ class AggressiveTestSuite:
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             if i % 2 == 0:
                 # Direct connection
-                out.connect(inp, 0)
+                c.connect(out, inp, 0)
             else:
                 # Through NOT
                 not_g = ic.getcomponent(Const.NOT_ID)
-                not_g.connect(inp, 0)
-                out.connect(not_g, 0)
+                c.connect(not_g, inp, 0)
+                c.connect(out, not_g, 0)
             outputs.append(out)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
         
@@ -2022,11 +2022,11 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
-            not_g.connect(inp, 0)
-            out.connect(not_g, 0)
+            c.connect(not_g, inp, 0)
+            c.connect(out, not_g, 0)
             
             v = c.getcomponent(Const.VARIABLE_ID)
-            inp.connect(v, 0)
+            c.connect(inp, v, 0)
             
             ics.append(ic)
             variables.append(v)
