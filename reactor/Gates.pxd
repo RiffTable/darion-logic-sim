@@ -58,12 +58,12 @@ cdef extern from "Profile.h":
 ctypedef deque[void*] Queue
 ctypedef vector[Profile*] Fuse
 # Helper functions for Profile
-cdef void create(vector[Profile]& hitlist, Gate target, int pin_index,int output)
-cdef void add(vector[Profile]& hitlist, Gate target, int pin_index,int output)
-cdef void remove(vector[Profile]& hitlist, Gate target, int pin_index)
+cdef void create(vector[Profile]& hitlist, void* target, int pin_index,int output)
+cdef void add(vector[Profile]& hitlist, void* target, int pin_index,int output)
+cdef void remove(vector[Profile]& hitlist, void* target, int pin_index)
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
-cdef void pop(vector[Profile]& hitlist, Gate target, int pin_index)
+cdef void pop(vector[Profile]& hitlist, void* target, int pin_index)
 
 
 

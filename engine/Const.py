@@ -22,8 +22,8 @@ LIMIT = 100
 
 NOT_ID = 0
 AND_ID = 1
-NAND_ID = 2
-OR_ID = 3
+OR_ID = 2
+NAND_ID = 3
 NOR_ID = 4
 XOR_ID = 5
 XNOR_ID = 6

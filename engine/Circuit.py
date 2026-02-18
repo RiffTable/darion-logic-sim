@@ -30,11 +30,7 @@ def burn(origin: Gate, queue: deque):
         gate.prev_output = gate.output
         gate.output = ERROR
         for profile in gate.hitlist:
-            target = profile.target
-            # Python Profile handles multiple indices implicitly in book update logic?
-            # Wait, Reactor syncs entire target. Engine's Profile.output is single value?
-            # Profile tracks what the target *thinks* we are outputting.
-            
+            target = profile.target    
             profile.output = ERROR
             sync(target)
             if target.output != ERROR:
@@ -67,11 +63,11 @@ def propagate(origin: Gate, queue: deque, fuse: set):
                         queue.append(target)
 
     elif get_MODE() == FLIPFLOP:
-         if origin.output == ERROR:
-             burn(origin, queue)
-             return
-         queue.append(origin)
-         while queue:
+        if origin.output == ERROR:
+            burn(origin, queue)
+            return
+        queue.append(origin)
+        while queue:
             gate = queue.popleft()
             if gate.listener:
                 for listener in gate.listener:
@@ -99,14 +95,14 @@ def propagate(origin: Gate, queue: deque, fuse: set):
                             clear_fuse(fuse)
                             return
                         if profile in fuse:
-                             queue.clear()
-                             burn(gate, queue)
-                             clear_fuse(fuse)
-                             return
+                                queue.clear()
+                                burn(gate, queue)
+                                clear_fuse(fuse)
+                                return
                         
                         fuse.add(profile)
                         queue.append(target)
-         clear_fuse(fuse)
+        clear_fuse(fuse)
 
 class Circuit:
     # the main circuit board that holds everything together

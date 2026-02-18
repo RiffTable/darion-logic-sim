@@ -205,13 +205,14 @@ cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
                             else:target.output = (high&1)^1
                         else:target.output=UNKNOWN
                         if target.prev_output!=target.output:
-                            if <void*>gate==profile.target or profile.index<0: 
-                                queue.clear()
-                                burn(gate,queue)
-                                clear_fuse(fuse)
-                                return
-                            profile.flag()
-                            fuse.push_back(&profile[0])
+                            if gate_type>=NAND_ID:
+                                if <void*>gate==profile.target or profile.index<0: 
+                                    queue.clear()
+                                    burn(gate,queue)
+                                    clear_fuse(fuse)
+                                    return
+                                profile.flag()
+                                fuse.push_back(&profile[0])
                             queue.push_back(<void*>target)
                 profile.output = gate.output
             profile+=1

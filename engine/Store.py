@@ -3,11 +3,11 @@ from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin,
 from IC import IC
 
 # Define the map at the module level for efficiency
-_gateobjects = [
+_gateobjects = (
     NOT,
     AND,
-    NAND,
     OR,
+    NAND,
     NOR,
     XOR,
     XNOR,
@@ -16,7 +16,7 @@ _gateobjects = [
     InputPin,
     OutputPin,
     IC
-]
+)
 
 def get(choice):
     try:

@@ -181,9 +181,9 @@ cdef class IC:
                 if source is not None:
                     src = <Gate>source
                     if MODE==FLIPFLOP:
-                        remove(src.hitlist, pin_in, index)
+                        remove(src.hitlist, <void*>pin_in, index)
                     else:
-                        pop(src.hitlist, pin_in, index)
+                        pop(src.hitlist, <void*>pin_in, index)
 
     # reconnects internal logic
     cpdef reveal(self):
@@ -200,9 +200,9 @@ cdef class IC:
                 if source is not None:
                     src = <Gate>source
                     if MODE==FLIPFLOP:
-                        add(src.hitlist, pin_in, index, src.output)
+                        add(src.hitlist, <void*>pin_in, index, src.output)
                     else:
-                        create(src.hitlist, pin_in, index, src.output)
+                        src.hitlist.emplace_back(<void*>pin_in, index, src.output)
             pin_in.process()
 
         # Original code line 180: iterate self.outputs

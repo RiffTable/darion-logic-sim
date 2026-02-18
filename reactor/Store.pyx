@@ -5,8 +5,8 @@ from IC cimport IC
 cdef tuple _gateobjects = (
     NOT,
     AND,
-    NAND,
     OR,
+    NAND,
     NOR,
     XOR,
     XNOR,
