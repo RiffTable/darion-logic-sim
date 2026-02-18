@@ -48,6 +48,12 @@ class CompItem(QGraphicsRectItem):
 		self._cached_hitbox.addRect(self.rect())
 		self._hover_count = 0
 
+		# Proxy & Hovering
+		self.hoverLeaveTimer = QTimer()
+		self.hoverLeaveTimer.setSingleShot(True)
+		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
+		self.hoverLeaveTimer.setInterval(30)
+
 		# Properties
 		self._size = size.toTuple()    # (Length, Width) independent of facing
 		self.padding = padding.toTuple()
@@ -194,17 +200,58 @@ class CompItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 
 
-	# Events
+	# Smart Hover System
+	def proxyPin(self) -> InputPinItem|None:
+		"""The getter function for the proxy pin. If the proxy pin is stored as an index, then dereference it here"""
+		return None    # ABSTRACT METHOD (defaults to None)
+	
 	def hoverEnterEvent(self, event): self._updateHoverStatus(True);  return super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self._updateHoverStatus(False); return super().hoverLeaveEvent(event)
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
+		self._hover_count += (+1 if hoverStatus else -1)
+		# _hover_count = 0:    Not hovering component
+		# _hover_count = 1:    Hovering the component
+		# _hover_count = 2:    Hovering its pins
+		# print(self._hover_count)
+
+		if self._hover_count == 1 and hoverStatus:
+			if not self.hoverLeaveTimer.isActive():
+				self.betterHoverEnter()
+			self.hoverLeaveTimer.stop()
+		
+		elif self._hover_count == 0 and not hoverStatus:
+			self.hoverLeaveTimer.start()
+	def betterHoverEnter(self):
 		...    # ABSTRACT METHOD
+	def betterHoverLeave(self):
+		...    # ABSTRACT METHOD
+	
+	
+	# Hitbox managment
+	def setHitbox(self):
+		"""Always call this after adding pins. Edges without any pins will not have any \"hitbox\""""
+		# fucked up inefficient algorithm. and yes I mark my incomplete code with `fuck`
+		self.prepareGeometryChange()
+		path = QPainterPath()
+
+		girth = GRID.SIZE
+		rect = self.rect().adjusted(
+			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
+			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
+		)
+		
+		path.addRect(rect)
+		self._cached_hitbox = path
 	
 	def shape(self) -> QPainterPath:
 		return self._cached_hitbox
 	def boundingRect(self) -> QRectF:
 		return self._cached_hitbox.boundingRect()
 	
+
+	# Events
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
 			return GRID.snapF(value)
@@ -230,21 +277,3 @@ class CompItem(QGraphicsRectItem):
 
 		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		self.setHitbox()
-	
-	
-	def setHitbox(self):
-		"""Always call this after adding pins. Edges without any pins will not have any \"hitbox\""""
-		# fucked up inefficient algorithm. and yes I mark my incomplete code with fuck
-		self.prepareGeometryChange()
-		path = QPainterPath()
-
-		girth = GRID.SIZE
-		rect = self.rect().adjusted(
-			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
-			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
-			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
-			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
-		)
-		
-		path.addRect(rect)
-		self._cached_hitbox = path

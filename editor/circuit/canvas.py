@@ -97,7 +97,7 @@ class CircuitScene(QGraphicsScene):
 		finishing = False
 
 		# Wiring: Finish!
-		if isinstance(target, CompItem) and hasattr(target, "proxyPin"):
+		if isinstance(target, CompItem):
 			# Proxying: Wire is connected to the gate's *favorite* pin
 			target = target.proxyPin()
 			if target is None: return

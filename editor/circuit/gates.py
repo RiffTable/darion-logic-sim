@@ -30,11 +30,6 @@ class GateItem(CompItem):
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
-		self.hoverLeaveTimer = QTimer()
-		self.hoverLeaveTimer.setSingleShot(True)
-		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
-		self.hoverLeaveTimer.setInterval(30)
-
 		self.unit: Gate|None = None
 		self.proxyIndex = 0    # Always the first unconnected pin or the peeking pin
 		self.peekingPin: PinItem|None = None
@@ -85,6 +80,7 @@ class GateItem(CompItem):
 	# 2. Peek Off (betterHoverLeave)
 	# 3. Default/Proxy Connection
 
+	# Smart Hover + Proxy System
 	def betterHoverEnter(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.proxyIndex == len(self.inputPins) \
@@ -99,6 +95,15 @@ class GateItem(CompItem):
 			self.removePin(CompEdge.INPUT, self.proxyIndex)
 			self.updateShape()
 		self.peekingPin = None
+	
+	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
+		super()._updateHoverStatus(hoverStatus, hoveredPin)
+		
+		# Enable proxyHighlight if only the gate is being hovered, not its pins
+		proxy = self.proxyPin()
+		if proxy:
+			proxy.proxyHighlight = True if (self._hover_count == 1) else False
+			proxy.highlight(proxy is hoveredPin)
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if (activePinCountChange == +1) and pin is self.proxyPin():
@@ -119,28 +124,6 @@ class GateItem(CompItem):
 	def paint(self, painter, option, widget):
 		if self._dirty: self._updateShape(); self._dirty = False
 		return super().paint(painter, option, widget)
-	
-	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
-		self._hover_count += (+1 if hoverStatus else -1)
-		# _hover_count = 0:    Not hovering component
-		# _hover_count = 1:    Hovering the component
-		# _hover_count = 2:    Hovering its pins
-		# print(self._hover_count)
-
-		if self._hover_count == 1 and hoverStatus:
-			if not self.hoverLeaveTimer.isActive():
-				self.betterHoverEnter()
-			self.hoverLeaveTimer.stop()
-		
-		elif self._hover_count == 0 and not hoverStatus:
-			self.hoverLeaveTimer.start()
-		
-		# Enable proxyHighlight if only the gate is being hovered, not its pins
-		proxy = self.proxyPin()
-		if proxy:
-			proxy.proxyHighlight = True if (self._hover_count == 1) else False
-			proxy.highlight(proxy is hoveredPin)
-	
 
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
