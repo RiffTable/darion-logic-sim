@@ -4,6 +4,7 @@ from typing import cast
 from core.QtCore import *
 from .canvas import CircuitScene
 
+from engine.Circuit import Circuit
 
 
 class CircuitView(QGraphicsView):

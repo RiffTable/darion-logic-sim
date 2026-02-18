@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
@@ -19,7 +19,7 @@ from engine.Gates import Gate, InputPin, OutputPin
 
 ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
-	def __init__(self, parentComp: CompItem, relpos: QPointF, facing: Facing):
+	def __init__(self, parentComp: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(
 			-GRID.SIZE, -GRID.SIZE,
 			GRID.DSIZE, GRID.DSIZE,
@@ -34,7 +34,7 @@ class PinItem(QGraphicsRectItem):
 		self.setZValue(1)
 
 		self.state = False
-		self._wire: WireItem = None
+		self._wire: WireItem|None = None
 		self.isHighlighted = False
 		self.proxyHighlight = False
 		self.facing = facing
@@ -44,9 +44,9 @@ class PinItem(QGraphicsRectItem):
 		self.setPos(relpos)
 	
 	@property
-	def cscene(self) -> CircuitScene: return self.scene()
+	def cscene(self):     return cast(CircuitScene, self.scene())
 	@property
-	def parentComp(self) -> CompItem: return self.parentItem()
+	def parentComp(self): return cast(CompItem, self.parentItem())
 	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
@@ -55,7 +55,7 @@ class PinItem(QGraphicsRectItem):
 	
 	
 	# Wire configuration
-	def setWire(self, wire: WireItem):
+	def setWire(self, wire: WireItem|None):
 		"""Doesn't remove its reference from its wire. Use disconnect() then"""
 		if self._wire is wire: return
 
@@ -113,17 +113,15 @@ class PinItem(QGraphicsRectItem):
 
 ###======= INPUT PIN =======###
 class InputPinItem(PinItem):
-	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
 		self.logical: tuple[Gate, int] | tuple[InputPin, int]
 
 	def setLogical(self, input: Gate | InputPin, index: int = 0):
 		if isinstance(input, InputPin):
 			self.logical = (input, 0)
-		elif isinstance(input, Gate):
-			self.logical = (input, index)
 		else:
-			raise TypeError(f"Invalid logical value 'input' = {input} and 'index' = {index}")
+			self.logical = (input, index)
 			
 
 	def disconnect(self):
@@ -145,7 +143,7 @@ class InputPinItem(PinItem):
 
 ###======= OUTPUT PIN =======###
 class OutputPinItem(PinItem):
-	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
 		self.logical: Gate | OutputPin
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import cast
 from core.QtCore import *
 from core.Enums import CompEdge, EditorState
 
@@ -7,13 +8,13 @@ from editor.styles import Color
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
-
+from engine.Gates import Gate
 
 
 
 ### Gate Item
 class GateItem(CompItem):
-	def __init__(self, pos: QPointF | tuple[float, float]):
+	def __init__(self, pos: QPointF):
 		super().__init__(pos, QPoint(6, 4))
 		
 		# Behavior
@@ -24,8 +25,8 @@ class GateItem(CompItem):
 		# Pins
 		self.addPin(0, CompEdge.INPUT, InputPinItem)
 		self.addPin(2, CompEdge.INPUT, InputPinItem)
-		self.inputPins: list[InputPinItem] = self._pinslist[CompEdge.INPUT]
-		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
+		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
+		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
 		self.hoverLeaveTimer = QTimer()
@@ -33,11 +34,17 @@ class GateItem(CompItem):
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
+		self.unit: Gate|None = None
 		self.proxyIndex = 0    # Always the first unconnected pin or the peeking pin
-		self.peekingPin: PinItem = None
+		self.peekingPin: PinItem|None = None
 		self.minInput = 2
 		self.maxInput = 69
 
+	
+	def setUnit(self, unit: Gate):
+		self.unit = unit
+	def getUnit(self):
+		return self.unit
 
 	# Proxying
 	def proxyPin(self):
@@ -102,7 +109,7 @@ class GateItem(CompItem):
 				self.proxyIndex = len(self.inputPins)
 		
 		if (activePinCountChange == -1) and pin in self.inputPins:
-			index = self.inputPins.index(pin)
+			index = self.inputPins.index(cast(InputPinItem, pin))
 			self.proxyIndex = min(self.proxyIndex, index)
 
 	# Events
@@ -112,7 +119,7 @@ class GateItem(CompItem):
 		if self._dirty: self._updateShape(); self._dirty = False
 		return super().paint(painter, option, widget)
 	
-	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
+	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
 		self._hover_count += (+1 if hoverStatus else -1)
 		# _hover_count = 0:    Not hovering component
 		# _hover_count = 1:    Hovering the component
@@ -142,7 +149,7 @@ class GateItem(CompItem):
 		elif n < 10: w = 8
 		else:        w = 10
 		h = 2*(n-1) if n > 3 else 4
-		m = h/(n-1)
+		m = h//(n-1)
 		self.setDimension(w, h)
 
 		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
@@ -153,14 +160,14 @@ class GateItem(CompItem):
 		opin = self.outputPin
 		fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
 		opin.facing = fa
-		self.setPinPos(opin, gen(h/2))
+		self.setPinPos(opin, gen(h//2))
 		super()._updateShape()
 
 
 
 ### Gate Item
 class UnaryGateItem(CompItem):
-	def __init__(self, pos: QPointF | tuple[float, float]):
+	def __init__(self, pos: QPointF):
 		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
@@ -170,8 +177,8 @@ class UnaryGateItem(CompItem):
 		self.labelItem.setPos(5, -5)
 
 		# Pins
-		self.inputPin: InputPinItem   = self.addPin(1, CompEdge.INPUT, InputPinItem)
-		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
+		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
+		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
 		# Properties
@@ -181,7 +188,7 @@ class UnaryGateItem(CompItem):
 
 
 class InputItem(CompItem):
-	def __init__(self, pos: QPointF | tuple[float, float]):
+	def __init__(self, pos: QPointF):
 		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
@@ -191,7 +198,7 @@ class InputItem(CompItem):
 		self.labelItem.setPos(5, -5)
 		
 		# Pins
-		self.outputPin: OutputPinItem = self.addPin(1, CompEdge.OUTPUT, OutputPinItem)
+		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
 		# Properties
@@ -212,7 +219,7 @@ class InputItem(CompItem):
 
 
 class OutputItem(CompItem):
-	def __init__(self, pos: QPointF | tuple[float, float]):
+	def __init__(self, pos: QPointF):
 		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
 		
 		# Behavior
@@ -222,7 +229,7 @@ class OutputItem(CompItem):
 		self.labelItem.setPos(5, -5)
 		
 		# Pins
-		self.inputPin: InputPinItem = self.addPin(1, CompEdge.INPUT, InputPinItem)
+		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
 		self.setHitbox()
 
 		# Properties

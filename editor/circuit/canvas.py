@@ -21,7 +21,7 @@ class CircuitScene(QGraphicsScene):
 	def __init__(self, logic: Circuit):
 		super().__init__()
 
-		self.SIZE = 12
+		self.logic = logic
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
 		self._state = EditorState.NORMAL
@@ -29,7 +29,7 @@ class CircuitScene(QGraphicsScene):
 		self._rmb_last_pos = QPointF()
 
 		# Wiring logic
-		self.ghostWire: WireItem = None
+		self.ghostWire: WireItem|None = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 
 		self.ghostPin.hide()    # These three lines does the same thing but still...
@@ -71,7 +71,7 @@ class CircuitScene(QGraphicsScene):
 		cd = LOOKUP[comp_id]
 		comp = cd.skin(QPointF(x, y))
 		comp.labelItem.setPlainText(cd.tag)
-		# comp.setUnit(circuit.getComponent(cd.logic))
+		# self.logic.getcomponent(cd.logic, )
 		
 		self.addItem(comp)
 		self.comps.append(comp)
@@ -86,8 +86,12 @@ class CircuitScene(QGraphicsScene):
 		# run_logic()
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem, modifiers: KeyMod):
+	def finishWiring(self, target: QGraphicsItem, multiWireMode: bool):
 		g_wire = self.ghostWire
+
+		if g_wire == None:
+			self.setState(EditorState.NORMAL)
+			return
 		g_pin = self.ghostPin
 		source = g_wire.source
 		finishing = False
@@ -99,9 +103,9 @@ class CircuitScene(QGraphicsScene):
 			if target is None: return
 		
 		if isinstance(target, InputPinItem):
-			if target.hasWire():
+			t_wire = target.getWire()
+			if t_wire:
 				# Swap Connections
-				t_wire = target.getWire()
 				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
 				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
 				
@@ -117,7 +121,7 @@ class CircuitScene(QGraphicsScene):
 		if finishing:
 			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 
-			if not (modifiers & KeyMod.ShiftModifier):
+			if not multiWireMode:
 				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 				self.setState(EditorState.NORMAL)
 				self.ghostWire = None
@@ -177,7 +181,10 @@ class CircuitScene(QGraphicsScene):
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
 			if btn == MouseBtn.LeftButton:
-				self.finishWiring(target, event.modifiers())
+				self.finishWiring(
+					target,
+					event.modifiers() & KeyMod.ShiftModifier
+				)
 
 			# Wiring: Skip!
 			if btn == MouseBtn.RightButton:   # RMB click
@@ -210,6 +217,8 @@ class CircuitScene(QGraphicsScene):
 					is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
+					u = item.getUnit()
+					if u: self.logic.setlimits(u, new_size)
 		
 		# if key == Key.Key_M:
 		# 	for item in self.selectedItems():

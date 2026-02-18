@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 
 from editor.styles import Color
@@ -18,7 +18,7 @@ class WireItem(QGraphicsPathItem):
 		super().__init__()
 
 		# Behavior
-		self.setFlags(QGraphicsItem.ItemIsSelectable)
+		self.setFlags(GraphicsItemFlag.ItemIsSelectable)
 		self.setZValue(-1)
 		self._dirty = False
 
@@ -34,7 +34,7 @@ class WireItem(QGraphicsPathItem):
 		# self.updateShape()
 	
 	@property
-	def cscene(self) -> CircuitScene: return self.scene()
+	def cscene(self): return cast(CircuitScene, self.scene())
 
 	# Connection configuration
 	def addSupply(self, pin: InputPinItem):

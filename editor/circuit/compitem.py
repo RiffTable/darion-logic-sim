@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, cast, TYPE_CHECKING
 from core.QtCore import *
 from core.Enums import Facing, CompEdge
 import core.grid as GRID
@@ -24,8 +24,8 @@ class LabelItem(QGraphicsTextItem):
 class CompItem(QGraphicsRectItem):
 	def __init__(
 			self,
-			pos: QPointF | tuple[float, float],
-			size: QPoint,
+			pos: QPointF,
+			size: QPoint = QPoint(2, 2),
 			padding: QPointF = QPointF(0, 9)
 		):
 		x, y = GRID.snapF(pos).toTuple()
@@ -76,7 +76,7 @@ class CompItem(QGraphicsRectItem):
 	
 
 	@property
-	def cscene(self) -> CircuitScene: return self.scene()
+	def cscene(self): return cast(CircuitScene, self.scene())
 
 	def setDimension(self, width: int, height: int):
 		self._size = (width, height)
@@ -86,7 +86,7 @@ class CompItem(QGraphicsRectItem):
 			return self._size
 		else:
 			# Vertical
-			return self._size[::-1]
+			return self._size[::-1]  # pyright: ignore[reportReturnType]
 
 
 	# Facing and Rotation
@@ -100,7 +100,7 @@ class CompItem(QGraphicsRectItem):
 
 	def rotate(self, clockwise: bool = True):
 		"""Don't forget to run updateShape() afterwards"""
-		self.setFacing(self.facing + (1 if clockwise else 3))
+		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
 	def mirror(self):
 		"""Don't forget to run updateShape() afterwards"""
 		self.isMirrored = not self.isMirrored
@@ -132,7 +132,7 @@ class CompItem(QGraphicsRectItem):
 
 
 	# Pin Configuration
-	def addPin(self, index: int, edge: CompEdge, type: InputPinItem | OutputPinItem) -> InputPinItem | OutputPinItem:
+	def addPin(self, index: int, edge: CompEdge, type: type[InputPinItem] | type[OutputPinItem]) -> InputPinItem | OutputPinItem:
 		"""Don't forget to call updateShape() afterwards."""
 		pinslist = self._pinslist[edge]
 
@@ -163,16 +163,12 @@ class CompItem(QGraphicsRectItem):
 			case 4: return ( fa, lambda i: QPointF(w  , h-i) * GRID.SIZE )    # A*
 			case 5: return ( fa, lambda i: QPointF(i  , h  ) * GRID.SIZE )    # B*
 			case 6: return ( fa, lambda i: QPointF(0  , i  ) * GRID.SIZE )    # C*
-			case 7: return ( fa, lambda i: QPointF(w-i, 0  ) * GRID.SIZE )    # D*
+			case _: return ( fa, lambda i: QPointF(w-i, 0  ) * GRID.SIZE )    # D*
 
 	def setPinPos(self, pin: PinItem, placement: QPointF):
 		"""Set `pin.facing` before calling"""
 		pin.setPos(placement)
 		if pin._wire: pin._wire.updateShape()
-	
-	def addPins(self, index_edge_type: list[tuple[int, CompEdge, InputPinItem | OutputPinItem]]) -> None:
-		for index, edge, type in index_edge_type:
-			self.addPin(index, edge, type)
 	
 	def allPins(self):
 		list_of_pinlists = self._pinslist.values()
@@ -186,7 +182,7 @@ class CompItem(QGraphicsRectItem):
 		pin.disconnect()
 		
 		pinlist.pop(index)
-		pin.setParentItem(None)
+		pin.setParentItem(None)  # pyright: ignore[reportArgumentType]
 		self.cscene.removeItem(pin)
 	
 	def cutConnections(self):
@@ -200,7 +196,7 @@ class CompItem(QGraphicsRectItem):
 	# Events
 	def hoverEnterEvent(self, event): self._updateHoverStatus(True);  return super().hoverEnterEvent(event)
 	def hoverLeaveEvent(self, event): self._updateHoverStatus(False); return super().hoverLeaveEvent(event)
-	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem = None):
+	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
 		...    # ABSTRACT METHOD
 	
 	def shape(self) -> QPainterPath:
