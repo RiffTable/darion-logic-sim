@@ -92,58 +92,47 @@ cdef inline void propagate(Gate origin, Queue &queue):
     cdef Profile* profile
     cdef Profile* end
     cdef int* book
-    cdef int gate_type
-    cdef int realsource
-    cdef int high
-    cdef int low
-    cdef int limit
+    cdef int gate_type, realsource, high, low, limit
+    cdef int old_output, new_output,target_output
     queue.push_back(<void*>origin)
     # keep propagating until everything settles
     while not queue.empty():
         gate = <Gate>queue.back()
         queue.pop_back()
-        # if gate.need_sort:
-        #     hitlist_sort(gate)
         profile = gate.hitlist.data()
         end = profile+gate.hitlist.size()
-        # if not gate.cached:
+        new_output = gate.output
         while profile!=end:
-            if gate.output!=profile.output:
+            old_output = profile.output
+            if old_output!=new_output:
                 target=<Gate>profile.target
                 gate_type = target.id
                 limit=target.inputlimit
                 if limit==1:
-                    target.prev_output=target.output
                     if gate_type==NOT_ID:
-                        if gate.output==UNKNOWN:
-                            target.output=UNKNOWN
+                        if new_output==UNKNOWN:
+                            target_output=UNKNOWN
                         else:
-                            target.output=gate.output^1
+                            target_output=new_output^1
                     else:
-                        target.output=gate.output
-                    if target.prev_output!=target.output:
-                        queue.push_back(<void*>target)
+                        target_output=new_output
                 else:                           
-
                     book = target.book
-                    book[profile.output]-=1
-                    book[gate.output]+=1
-                    # if profile==end-1 or profile.target!=(profile+1).target:
-                    target.prev_output=target.output
+                    book[old_output]-=1
+                    book[new_output]+=1
                     high=book[HIGH]
                     low=book[LOW]
-                    realsource=book[HIGH]+book[LOW]
-                    if realsource==limit:
-                        if gate_type==AND_ID:target.output = low==0
-                        elif gate_type==NAND_ID:target.output = low!=0
-                        elif gate_type==OR_ID:target.output = high>0
-                        elif gate_type==NOR_ID:target.output = high==0
-                        elif gate_type==XOR_ID:target.output = high&1
-                        else:target.output = (high&1)^1
-                    else:target.output=UNKNOWN
-                    if target.prev_output!=target.output:
-                        queue.push_back(<void*>target)
-                profile.output = gate.output
+                    if high+low==limit:
+                        if gate_type==AND_ID or gate_type==NAND_ID:target_output = low==0
+                        elif gate_type==OR_ID or gate_type==NOR_ID:target_output = high>0
+                        else:target_output = high&1
+                        target_output^=(gate_type>XOR_ID)
+                    else:target_output=UNKNOWN
+                if target_output!=target.output:
+                    queue.push_back(<void*>target)
+                    target.prev_output=target.output
+                    target.output=target_output
+                profile.output = new_output
             profile+=1
 
 
@@ -154,11 +143,9 @@ cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
     cdef Profile* profile
     cdef Profile* end
     cdef int* book
-    cdef int gate_type
-    cdef int realsource
-    cdef int high
-    cdef int low
-    cdef int limit
+    cdef int gate_type, realsource, high, low, limit
+    cdef int old_output, new_output, target_output
+
     if origin.output==ERROR:
         burn(origin,queue)
         return
@@ -167,45 +154,43 @@ cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
     while not queue.empty():
         gate = <Gate>queue.back()
         queue.pop_back()
-        # if gate.need_sort:
-        #     hitlist_sort(gate)
         profile = gate.hitlist.data()
         end = profile+gate.hitlist.size()
+        new_output = gate.output
         while profile!=end:
-            if gate.output!=profile.output:
+            old_output = profile.output
+            if old_output!=new_output:
                 target=<Gate>profile.target
                 gate_type = target.id
                 limit=target.inputlimit
                 if limit==1:
-                    target.prev_output=target.output
                     if gate_type==NOT_ID:
-                        if gate.output==UNKNOWN:
-                            target.output=UNKNOWN
+                        if new_output==UNKNOWN:
+                            target_output=UNKNOWN
                         else:
-                            target.output=gate.output^1
+                            target_output=new_output^1
                     else:
-                        target.output=gate.output
-                    if target.prev_output!=target.output:
+                        target_output=new_output
+                    if target_output!=target.output:
+                        target.prev_output=target.output
+                        target.output=target_output
                         queue.push_back(<void*>target)
                 else:                           
                     book = target.book
-                    book[profile.output]-=1
-                    book[gate.output]+=1
+                    book[old_output]-=1
+                    book[new_output]+=1
                     if profile==end-1 or profile.target!=(profile+1).target:
-                        target.prev_output=target.output
                         high=book[HIGH]
                         low=book[LOW]
                         realsource=high+low
                         if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
-                            if gate_type==AND_ID:target.output = low==0
-                            elif gate_type==NAND_ID:target.output = low!=0
-                            elif gate_type==OR_ID:target.output = high>0
-                            elif gate_type==NOR_ID:target.output = high==0
-                            elif gate_type==XOR_ID:target.output = high&1
-                            else:target.output = (high&1)^1
-                        else:target.output=UNKNOWN
-                        if target.prev_output!=target.output:
-                            if gate_type>=NAND_ID:
+                            if gate_type==AND_ID or gate_type==NAND_ID:target_output = low==0
+                            elif gate_type==OR_ID or gate_type==NOR_ID:target_output = high>0
+                            else:target_output = high&1
+                            target_output^=(gate_type>XOR_ID)
+                        else:target_output=UNKNOWN
+                        if target_output!=target.output:
+                            if gate_type>=XOR_ID:
                                 if <void*>gate==profile.target or profile.index<0: 
                                     queue.clear()
                                     burn(gate,queue)
@@ -213,10 +198,13 @@ cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
                                     return
                                 profile.flag()
                                 fuse.push_back(&profile[0])
+                            target.prev_output=target.output
+                            target.output=target_output
                             queue.push_back(<void*>target)
-                profile.output = gate.output
+                profile.output = new_output
             profile+=1
     clear_fuse(fuse)
+
 cdef class Circuit:
     # the main circuit board that holds everything together
     # it knows about all gates, connections, and states

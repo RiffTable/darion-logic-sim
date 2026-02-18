@@ -23,9 +23,9 @@ cpdef enum:
     NOT_ID = 0
     AND_ID = 1
     OR_ID = 2
-    NAND_ID = 3
-    NOR_ID = 4
-    XOR_ID = 5
+    XOR_ID = 3
+    NAND_ID = 4
+    NOR_ID = 5
     XNOR_ID = 6
     VARIABLE_ID = 7
     PROBE_ID = 8

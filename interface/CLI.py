@@ -116,8 +116,8 @@ def submenu_components():
         if choice == '1':
             # Add Component section
             print("\nChoose a gate to add:")
-            print("0. NOT  1. AND  2. OR  3. NAND  4. NOR")
-            print("5. XOR  6. XNOR  7. Variable  8. Probe")
+            print("0. NOT  1. AND  2. OR  3. XOR  4. NAND")
+            print("5. NOR  6. XNOR  7. Variable  8. Probe")
             print("9. InputPin  10. OutputPin")
             
             c = input("Enter choices (space separated): ").split()
