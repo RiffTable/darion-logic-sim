@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 
 class WireItem(QGraphicsPathItem):
+	COUNT = 1    # NO CONNECTION = ZERO (0)
 	MINWALK = 2
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
@@ -26,15 +27,25 @@ class WireItem(QGraphicsPathItem):
 		end.setWire(self)
 
 		# Properties
+		self._id = WireItem.COUNT
 		self.state = False
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
 		# self.updateVisual()
 		# self.updateShape()
+		WireItem.COUNT += 1
 	
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
+	def getID(self):
+		return self._id
+
+	
+	## Properties Data
+	def getData(self):
+		return {}
+
 
 	# Connection configuration
 	def addSupply(self, pin: InputPinItem):

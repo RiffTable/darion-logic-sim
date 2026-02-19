@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .pins import PinItem, InputPinItem, OutputPinItem
 
+from engine.Gates import Gate
+
 
 
 
@@ -34,7 +36,6 @@ class CompItem(QGraphicsRectItem):
 		super().__init__(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		
 		# Behavior
-		self._dirty = True
 		self.setPos(x, y)
 		self.setZValue(0)
 		self.setFlags(
@@ -44,9 +45,13 @@ class CompItem(QGraphicsRectItem):
 			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setAcceptHoverEvents(True)
+		self._dirty = True
 		self._cached_hitbox = QPainterPath()
 		self._cached_hitbox.addRect(self.rect())
 		self._hover_count = 0
+		self._size = size.toTuple()    # (Length, Width) independent of facing
+		self._padding = padding.toTuple()
+		self._unit: Gate|None = None
 
 		# Proxy & Hovering
 		self.hoverLeaveTimer = QTimer()
@@ -54,18 +59,17 @@ class CompItem(QGraphicsRectItem):
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
-		# Properties
-		self._size = size.toTuple()    # (Length, Width) independent of facing
-		self.padding = padding.toTuple()
-		self.state = False
-		self.facing = Facing.EAST
-		
 		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
 		# INPUT-OUTPUT edges, as doing so will make the component
 		# visually face the opposite way, ultimately making
 		# self.facing sound STUPID!
+
+		# Properties
+		self.tag = "COMP"
+		self.state = False
+		self.facing = Facing.EAST
 		self.isMirrored = False
-		self.labelText = "COMP"
+		
 		self._pinslist: dict[CompEdge, list[PinItem]] = {
 			CompEdge.OUTPUT : [],
 			CompEdge.BOTTOM : [],
@@ -78,25 +82,40 @@ class CompItem(QGraphicsRectItem):
 		self.setBrush(Color.comp_body)
 
 		# Label
-		self.labelItem = LabelItem(self.labelText, self)
+		self.labelItem = LabelItem("COMP", self)
 		self.labelItem.setPos(5, 5)
 	
 
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
 
-	def setDimension(self, width: int, height: int):
-		self._size = (width, height)
-	def getDimension(self) -> tuple[int, int]:
-		if self.facing%2 == 0:
-			# Horizontal
-			return self._size
-		else:
-			# Vertical
-			return self._size[::-1]  # pyright: ignore[reportReturnType]
+	def setUnit(self, unit: Gate):
+		self._unit = unit
+	def getUnit(self):
+		return self._unit
 
+	
+	### Properties Data
+	def getData(self):
+		return {
+			"pos"      : self.pos().toTuple(),
+			"tag"      : self.tag,
+			"facing"   : self.facing.value,
+			"mirror"   : self.isMirrored,
+			"pinslist" : {
+				CompEdge.OUTPUT.value : [p.getWireID() for p in self._pinslist[CompEdge.OUTPUT]],
+				CompEdge.BOTTOM.value : [p.getWireID() for p in self._pinslist[CompEdge.BOTTOM]],
+				CompEdge.INPUT.value  : [p.getWireID() for p in self._pinslist[CompEdge.INPUT]],
+				CompEdge.TOP.value    : [p.getWireID() for p in self._pinslist[CompEdge.TOP]],
+			}
+		}
 
-	# Facing and Rotation
+	def setTag(self, tag: str):
+		self.tag = tag
+		self.labelItem.setPlainText(tag)
+	
+
+	### Facing and Rotation
 	def setFacing(self, facing: Facing):
 		"""Don't forget to run updateShape() afterwards"""
 		if facing == self.facing:
@@ -138,7 +157,7 @@ class CompItem(QGraphicsRectItem):
 		return CompEdge(res + (2 if mirrored else 0))
 
 
-	# Pin Configuration
+	### Pin Configuration
 	def addPin(self, index: int, edge: CompEdge, type: type[InputPinItem] | type[OutputPinItem]) -> InputPinItem | OutputPinItem:
 		"""Don't forget to call updateShape() afterwards."""
 		pinslist = self._pinslist[edge]
@@ -200,7 +219,7 @@ class CompItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 
 
-	# Smart Hover System
+	### Smart Hover System
 	def proxyPin(self) -> InputPinItem|None:
 		"""The getter function for the proxy pin. If the proxy pin is stored as an index, then dereference it here"""
 		return None    # ABSTRACT METHOD (defaults to None)
@@ -227,7 +246,7 @@ class CompItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 	
 	
-	# Hitbox managment
+	### Hitbox managment
 	def setHitbox(self):
 		"""Always call this after adding pins. Edges without any pins will not have any \"hitbox\""""
 		# fucked up inefficient algorithm. and yes I mark my incomplete code with `fuck`
@@ -251,7 +270,7 @@ class CompItem(QGraphicsRectItem):
 		return self._cached_hitbox.boundingRect()
 	
 
-	# Events
+	### Events
 	def itemChange(self, change: GraphicsItemChange, value):
 		if change == GraphicsItemChange.ItemPositionChange:
 			return GRID.snapF(value)
@@ -264,16 +283,26 @@ class CompItem(QGraphicsRectItem):
 		if self._dirty: self._updateShape(); self._dirty = False
 		return super().paint(painter, option, widget)
 	
+	def setDimension(self, width: int, height: int):
+		self._size = (width, height)
+	def getDimension(self) -> tuple[int, int]:
+		if self.facing%2 == 0:
+			# Horizontal
+			return self._size
+		else:
+			# Vertical
+			return self._size[::-1]  # pyright: ignore[reportReturnType]
+	
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
 		if self.facing%2 == 0:
 			# Horizontal
 			w, h = self._size
-			dx, dy = self.padding
+			dx, dy = self._padding
 		else:
 			# Vertical
 			h, w = self._size
-			dy, dx = self.padding
+			dy, dx = self._padding
 
 		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
 		self.setHitbox()

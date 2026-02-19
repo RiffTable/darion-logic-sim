@@ -8,8 +8,6 @@ from editor.styles import Color
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
-from engine.Gates import Gate
-
 
 
 
@@ -20,8 +18,7 @@ class GateItem(CompItem):
 		super().__init__(pos, QPoint(6, 4))
 		
 		# Behavior
-		self.labelText = "GATE"
-		self.labelItem.setPlainText(self.labelText)
+		self.setTag("GATE")
 
 		# Pins
 		self.addPin(0, CompEdge.INPUT, InputPinItem)
@@ -30,17 +27,21 @@ class GateItem(CompItem):
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
-		self.unit: Gate|None = None
 		self.proxyIndex = 0    # Always the first unconnected pin or the peeking pin
 		self.peekingPin: PinItem|None = None
+
+		# Properties
 		self.minInput = 2
 		self.maxInput = 69
-
 	
-	def setUnit(self, unit: Gate):
-		self.unit = unit
-	def getUnit(self):
-		return self.unit
+
+	### Properties Data
+	def getData(self):
+		return super().getData() | {
+			"maxInput" : self.maxInput,
+			"minInput" : self.minInput,
+		}
+
 
 	# Proxying
 	def proxyPin(self):
@@ -156,8 +157,7 @@ class UnaryGateItem(CompItem):
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.labelText = "NOT"
-		self.labelItem.setPlainText(self.labelText)
+		self.setTag("NOT")
 		self.labelItem.setPos(5, -5)
 
 		# Pins
@@ -177,8 +177,7 @@ class InputItem(CompItem):
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.labelText = "IN"
-		self.labelItem.setPlainText(self.labelText)
+		self.setTag("IN")
 		self.labelItem.setPos(5, -5)
 		
 		# Pins
@@ -208,8 +207,7 @@ class OutputItem(CompItem):
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.labelText = "OUT"
-		self.labelItem.setPlainText(self.labelText)
+		self.setTag("OUT")
 		self.labelItem.setPos(5, -5)
 		
 		# Pins

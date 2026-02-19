@@ -68,6 +68,9 @@ class PinItem(QGraphicsRectItem):
 	
 	def getWire(self): return self._wire
 	def hasWire(self): return self._wire != None
+	def getWireID(self):
+		if self._wire: return self._wire.getID()
+		else:          return 0
 
 
 	# Events
@@ -115,14 +118,13 @@ class PinItem(QGraphicsRectItem):
 class InputPinItem(PinItem):
 	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: tuple[Gate, int] | tuple[InputPin, int]
+		self.logical: tuple[Gate, int] | tuple[InputPin, int] | None = None
 
 	def setLogical(self, input: Gate | InputPin, index: int = 0):
 		if isinstance(input, InputPin):
 			self.logical = (input, 0)
 		else:
 			self.logical = (input, index)
-			
 
 	def disconnect(self):
 		if not self._wire: return
@@ -145,7 +147,7 @@ class InputPinItem(PinItem):
 class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: Gate | OutputPin
+		self.logical: Gate | OutputPin | None = None
 
 	def setLogical(self, output: Gate | OutputPin):
 		if not isinstance(input, (Gate, InputPin)):
