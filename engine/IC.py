@@ -1,7 +1,7 @@
 
 from __future__ import annotations
-from .Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
-from .Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
+from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
 
 
 class IC:
