@@ -26,7 +26,7 @@ class PinItem(QGraphicsRectItem):
 			parentComp
 		)
 		self.setFlags(
-			GraphicsItemFlag.ItemIsSelectable |
+			# GraphicsItemFlag.ItemIsSelectable |
 			GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setPen(Qt.PenStyle.NoPen)
@@ -54,6 +54,14 @@ class PinItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 	
 	
+	# Serialization
+	def getData(self):
+		return {
+			"pos"     : self.pos().toTuple(),
+			"wire"    : self.getWireID(),
+			"isInput" : isinstance(self, InputPinItem)
+		}
+
 	# Wire configuration
 	def setWire(self, wire: WireItem|None):
 		"""Doesn't remove its reference from its wire. Use disconnect() then"""

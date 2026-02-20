@@ -82,7 +82,7 @@ class CompItem(QGraphicsRectItem):
 		self.setBrush(Color.comp_body)
 
 		# Label
-		self.labelItem = LabelItem("COMP", self)
+		self.labelItem = LabelItem(self.tag, self)
 		self.labelItem.setPos(5, 5)
 	
 
@@ -103,10 +103,8 @@ class CompItem(QGraphicsRectItem):
 			"facing"   : self.facing.value,
 			"mirror"   : self.isMirrored,
 			"pinslist" : {
-				CompEdge.OUTPUT.value : [p.getWireID() for p in self._pinslist[CompEdge.OUTPUT]],
-				CompEdge.BOTTOM.value : [p.getWireID() for p in self._pinslist[CompEdge.BOTTOM]],
-				CompEdge.INPUT.value  : [p.getWireID() for p in self._pinslist[CompEdge.INPUT]],
-				CompEdge.TOP.value    : [p.getWireID() for p in self._pinslist[CompEdge.TOP]],
+				edge.value: [p.getData() for p in pins]
+				for edge, pins in self._pinslist.items()
 			}
 		}
 

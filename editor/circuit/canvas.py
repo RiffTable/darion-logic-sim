@@ -24,12 +24,16 @@ class CircuitScene(QGraphicsScene):
 		self.logic = logic
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
-		self._state = EditorState.NORMAL
 
 		self._rmb_last_pos = QPointF()
 
 		# Clipboard
 		self.clipboard = { "comps": [], "wires": [] }
+
+		# Editor Stuffs
+		self._state = EditorState.NORMAL
+		self.defaultFacing = Facing.EAST
+		self.defaultMirror = False
 
 		# Wiring logic
 		self.ghostWire: WireItem|None = None
@@ -130,6 +134,8 @@ class CircuitScene(QGraphicsScene):
 				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 				self.setState(EditorState.NORMAL)
 				self.ghostWire = None
+			self.clearSelection()
+			g_wire.setSelected(True)    # Solo select the finished wire
 			
 			g_wire.supplies.append(target); target.setWire(g_wire)
 
@@ -196,6 +202,8 @@ class CircuitScene(QGraphicsScene):
 			# Wiring: Skip!
 			if btn == MouseBtn.RightButton:   # RMB click
 				self.skipWiring()
+				event.accept()
+				return
 		
 		super().mouseReleaseEvent(event)
 
@@ -260,11 +268,12 @@ class CircuitScene(QGraphicsScene):
 		
 		# if key == Key.Key_C and mod & KeyMod.ControlModifier:
 		# 	comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
-		if key == Key.Key_Space:
-			for item in self.selectedItems():
-				if isinstance(item, CompItem):
-					print(item.getData())
-					break
+		# # DEBUG
+		# if key == Key.Key_Space:
+		# 	for item in self.selectedItems():
+		# 		if isinstance(item, CompItem):
+		# 			print(item.getData())
+		# 			break
 
 
 		super().keyPressEvent(event)

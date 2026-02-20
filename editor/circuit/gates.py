@@ -27,7 +27,7 @@ class GateItem(CompItem):
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.setHitbox()
 
-		self.proxyIndex = 0    # Always the first unconnected pin or the peeking pin
+		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
 
 		# Properties
@@ -60,18 +60,12 @@ class GateItem(CompItem):
 			left = n - size
 
 			for i in range(n-1, -1, -1):
-				if left == 0: break
 				pin = self.inputPins[i]
+				if left == 0 or pin.hasWire(): break
 
-				# Only attempt to delete if not connected to a wire
-				if not pin.hasWire():
-					self.removePin(CompEdge.INPUT, i)
-					left -= 1
-
-					# Check the special "Proxy" constraint
-					if i <= self.proxyIndex:
-						self.proxyIndex = size + left
-						break
+				self.removePin(CompEdge.INPUT, i)
+				left -= 1
+			
 		self.updateShape()
 		return True
 
@@ -106,14 +100,15 @@ class GateItem(CompItem):
 			proxy.proxyHighlight = True if (self._hover_count == 1) else False
 			proxy.highlight(proxy is hoveredPin)
 	
+	def findFirstEmptyPin(self):
+		for i, p in enumerate(self.inputPins):
+			if not p.hasWire():
+				return i
+		return len(self.inputPins)
+	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if (activePinCountChange == +1) and pin is self.proxyPin():
-			for i, p in enumerate(self.inputPins):
-				if not p.hasWire():
-					self.proxyIndex = i
-					break
-			else:
-				self.proxyIndex = len(self.inputPins)
+			self.proxyIndex = self.findFirstEmptyPin()
 		
 		if (activePinCountChange == -1) and pin in self.inputPins:
 			index = self.inputPins.index(cast(InputPinItem, pin))
