@@ -10,6 +10,8 @@ from .wires import WireItem
 from .gates import GateItem
 from .lookup import LOOKUP
 
+from editor.tools.properties import PropertiesPanel
+
 
 
 
@@ -24,6 +26,26 @@ class CircuitScene(QGraphicsScene):
 		self._state = EditorState.NORMAL
 
 		self._rmb_last_pos = QPointF()
+
+		self.selectionChanged.connect(self._on_selection_changed)
+		self._props_panel: "PropertiesPanel" = None
+	
+	def _on_selection_changed(self):
+		if self._props_panel is None:
+			return
+		
+		comp_items = []
+		for item in self.selectedItems():
+			if isinstance(item, CompItem):
+				comp_items.append(item)
+				if len(comp_items) > 1:  # Early exit - found second component
+					self._props_panel.clear()
+					return
+		
+		if len(comp_items) == 1:
+			self._props_panel.show_comp(comp_items[0])
+		else:  # len(comp_items) == 0
+			self._props_panel.clear()
 
 		# Wiring logic
 		self.ghostWire: WireItem = None
@@ -228,5 +250,8 @@ class CircuitScene(QGraphicsScene):
 						case Key.Key_Left:  item.setFacing(Facing.WEST)
 						case Key.Key_Up:    item.setFacing(Facing.NORTH)
 					item.updateShape()
+
+		if self._props_panel:
+			self._props_panel.refresh()
 
 		super().keyPressEvent(event)

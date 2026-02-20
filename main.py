@@ -5,6 +5,7 @@ from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
+from editor.tools.properties import PropertiesPanel
 
 # Add engine to path
 import os
@@ -28,6 +29,10 @@ class AppWindow(QMainWindow):
 		self.view = CircuitView()
 		self.scene = self.view.scene
 		self.logic = Circuit()
+
+		###======= PROPERTIES PANEL =======###
+		self.props_panel = PropertiesPanel()
+		self.scene._props_panel = self.props_panel
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
@@ -54,6 +59,7 @@ class AppWindow(QMainWindow):
 		
 		layout_main.addLayout(self.dragbar)
 		layout_main.addWidget(self.view)
+		layout_main.addWidget(self.props_panel) 
 
 
 
