@@ -9,8 +9,8 @@ from engine.Circuit import Circuit
 
 class CircuitView(QGraphicsView):
 	scene: CircuitScene
-	def __init__(self, logic: Circuit):
-		self.scene = CircuitScene(logic)
+	def __init__(self, scene: CircuitScene):
+		self.scene = scene
 		super().__init__(self.scene)
 
 		self.DRAG_THRESHOLD = QGuiApplication.styleHints().startDragDistance()

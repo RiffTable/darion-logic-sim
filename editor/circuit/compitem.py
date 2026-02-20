@@ -244,22 +244,33 @@ class CompItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 	
 	
-	### Hitbox managment
-	def setHitbox(self):
-		"""Always call this after adding pins. Edges without any pins will not have any \"hitbox\""""
-		# fucked up inefficient algorithm. and yes I mark my incomplete code with `fuck`
-		self.prepareGeometryChange()
-		path = QPainterPath()
+	### Shape Updating
+	def _updateShape(self):
+		"""DO NOT set _dirty to False before call this"""
+		if self.facing%2 == 0:
+			# Horizontal
+			w, h = self._size
+			dx, dy = self._padding
+		else:
+			# Vertical
+			h, w = self._size
+			dy, dx = self._padding
 
+		rect = QRectF(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
+		self.setRect(rect)
+	
+		# This part changes the bounding rect and "shape" of the compItem
+		# For when you're changing number of pins. Edges without any pins will not have any "hitbox"
 		girth = GRID.SIZE
-		rect = self.rect().adjusted(
+		hitbox_rect = rect.adjusted(
 			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
 			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
 			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
 			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
 		)
 		
-		path.addRect(rect)
+		path = QPainterPath()
+		path.addRect(hitbox_rect)
 		self._cached_hitbox = path
 	
 	def shape(self) -> QPainterPath:
@@ -276,6 +287,7 @@ class CompItem(QGraphicsRectItem):
 		return super().itemChange(change, value)
 	
 	def updateShape(self):
+		"""No need to call `setHitbox()` afterwards"""
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
 	def paint(self, painter, option, widget):
 		if self._dirty: self._updateShape(); self._dirty = False
@@ -290,17 +302,3 @@ class CompItem(QGraphicsRectItem):
 		else:
 			# Vertical
 			return self._size[::-1]  # pyright: ignore[reportReturnType]
-	
-	def _updateShape(self):
-		"""DO NOT set _dirty to False before call this"""
-		if self.facing%2 == 0:
-			# Horizontal
-			w, h = self._size
-			dx, dy = self._padding
-		else:
-			# Vertical
-			h, w = self._size
-			dy, dx = self._padding
-
-		self.setRect(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
-		self.setHitbox()

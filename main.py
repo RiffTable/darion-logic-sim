@@ -5,6 +5,7 @@ from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
+from editor.circuit.canvas import CircuitScene
 
 # Add engine to path
 import os
@@ -29,8 +30,8 @@ class AppWindow(QMainWindow):
 		self.logic = Circuit()
 		self.logic.simulate(Const.FLIPFLOP)
 		
-		self.view = CircuitView(self.logic)
-		self.scene = self.view.scene
+		self.scene = CircuitScene(self.logic)
+		self.view = CircuitView(self.scene)
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###

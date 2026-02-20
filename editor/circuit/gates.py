@@ -25,7 +25,7 @@ class GateItem(CompItem):
 		self.addPin(2, CompEdge.INPUT, InputPinItem)
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.setHitbox()
+		self.updateShape()
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
@@ -115,14 +115,7 @@ class GateItem(CompItem):
 			self.proxyIndex = min(self.proxyIndex, index)
 
 	# Events
-	def updateShape(self):
-		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
-	def paint(self, painter, option, widget):
-		if self._dirty: self._updateShape(); self._dirty = False
-		return super().paint(painter, option, widget)
-
 	def _updateShape(self):
-		"""DO NOT set _dirty to False before call this"""
 		n = len(self.inputPins)
 		w = 0
 		if   n < 5:  w = 6
@@ -158,7 +151,7 @@ class UnaryGateItem(CompItem):
 		# Pins
 		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.setHitbox()
+		self.updateShape()
 
 		# Properties
 		self.minInput = 1
@@ -177,7 +170,7 @@ class InputItem(CompItem):
 		
 		# Pins
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.setHitbox()
+		self.updateShape()
 
 		# Properties
 	
@@ -207,7 +200,7 @@ class OutputItem(CompItem):
 		
 		# Pins
 		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
-		self.setHitbox()
+		self.updateShape()
 
 		# Properties
 	
