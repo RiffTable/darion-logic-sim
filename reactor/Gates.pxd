@@ -46,18 +46,24 @@ cdef void reveal(Profile& profile,Gate source)
 cdef void pop(vector[Profile]& hitlist, void* target, int pin_index)
 
 cdef class Gate:
-    cdef public list sources    
+# --- 4-BYTE ALIGNED (HOT C-TYPES) ---
+    cdef public int id
     cdef public int inputlimit
     cdef public int output
-    cdef public int book[4]              
     cdef public bint scheduled
-    cdef public int id
     
+    # --- 4-BYTE ALIGNED CONTINUED (ARRAYS) ---
+    cdef public list sources
+    cdef public int book[4]
+    
+    # --- 8-BYTE ALIGNED (C++ VECTORS) ---
     cdef vector[Profile] hitlist
-
+    
+    # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public tuple code
     cdef public str name
     cdef public str custom_name
+
     cdef void process(self)
     cpdef void rename(self, str name)
 
