@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from Const import (
+from .Const import (
     HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE,
     AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
     VARIABLE_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID,

@@ -1,15 +1,15 @@
 
 import json
-from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
-from Const import (
+from .Gates import Gate, Variable, Profile, hide_profile, reveal_profile
+from .Const import (
     TOTAL, DESIGN, SIMULATE, set_MODE,
     ERROR, UNKNOWN, HIGH, LOW,
     IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
     VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID,
 )
 import Const
-from IC import IC
-from Store import get
+from .IC import IC
+from .Store import get
 
 def turnoff(gate: Gate, readqueue: list, writequeue: list, wave_limit: int):
     """Set all targets to UNKNOWN and propagate."""

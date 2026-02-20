@@ -9,7 +9,7 @@ from editor.circuit.viewport import CircuitView
 # Add engine to path
 import os
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from Circuit import Circuit
+from engine.Circuit import Circuit
 
 
 
