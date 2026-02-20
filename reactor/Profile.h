@@ -10,15 +10,6 @@ struct Profile {
     int output;
     Profile() : target(NULL), output(0){}
     Profile(void* t, int i, int o) : target(t),index(i), output(o){}
-    bool operator<(const Profile& other) const {
-        if(target==other.target){
-            return index<other.index;
-        }
-        return target < other.target;
-    }
-    void flag(){
-        index=-index-1;
-    }
 };
 
 #endif

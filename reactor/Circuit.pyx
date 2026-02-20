@@ -9,227 +9,133 @@ from libcpp.vector cimport vector
 from Const cimport *
 from IC cimport IC
 from Store cimport get
-from libcpp.algorithm cimport sort
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
-cdef inline void hitlist_sort(Gate gate):
-    sort(gate.hitlist.begin(), gate.hitlist.end())
-cdef inline void build_cache(list lst):
-    cdef object obj
-    cdef Gate gate
-    cdef IC ic
-    cdef int i
-    for i in range(PyList_GET_SIZE(lst)):
-        obj = <object>PyList_GET_ITEM(lst, i)
-        if obj.id==IC_ID:
-            ic=<IC>obj
-            build_cache(ic.inputs+ic.outputs+ic.internal)
-        else:
-            gate=<Gate>obj
-            hitlist_sort(gate)
 
-cdef inline void clear_fuse(Fuse &fuse):
-    cdef Profile** profile=fuse.data()
-    cdef Profile** end = profile+fuse.size()
-    while profile!=end:
-        profile[0].flag()
-        profile+=1
-    fuse.clear()
-
-cdef inline void sync(Gate gate):
-
-    cdef int* book = gate.book
-    book[0]=book[1]=book[2]=book[3]=0
-    cdef Gate source
-    cdef int i
-    for i in range(PyList_GET_SIZE(gate.sources)):
-        source = <Gate>PyList_GET_ITEM(gate.sources, i)
-        if source:
-            book[source.output]+=1
-
-cdef inline void turnoff(Gate gate,Queue &queue,Fuse &fuse):
+cdef inline void turnoff(Gate gate,Queue &readqueue,Queue &writequeue,int wave_limit):
     cdef Profile* profile = gate.hitlist.data()
     cdef Profile* end = profile+gate.hitlist.size()
     cdef Gate target
     while profile!=end:
         target = <Gate>profile.target
         if <void*>target != <void*>gate:
-            target.prev_output=target.output
             target.output = UNKNOWN
-            if MODE==SIMULATE:
-                propagate(target,queue)
-            elif MODE==FLIPFLOP:
-                seq_propagate(target,queue,fuse)
+            propagate(target,readqueue,writequeue,wave_limit)
         profile+=1
 
-cdef inline void burn(Gate origin, Queue &queue):
-    cdef Gate gate
+cdef void burn(Gate origin, Queue &readqueue,Queue &writequeue):
+    cdef Gate gate,target
     cdef Profile* profile
-    cdef Profile* end 
-    cdef Gate target
-    queue.push_back(<void*>origin)
-    # input(f'burn from {self}\n')
+    cdef Profile* end
+    cdef Py_ssize_t index,size=1
+    cdef int* book
+    readqueue.push_back(<void*>origin)
     # keep propagating until everything settles
-    while queue.size():
-        gate = <Gate>queue.back()
-        queue.pop_back()
-        profile = gate.hitlist.data()
-        end = profile+gate.hitlist.size()
-        gate.prev_output=gate.output
-        gate.output = ERROR
-        while profile!=end:
-            target=<Gate>profile.target
-            profile.output = ERROR
-            # if profile==end-1 or profile.target!=(profile+1).target:
-            sync(target)
-            if target.output!=ERROR:
-                queue.push_back(<void*>target)
-            profile+=1
+    while size>0:
+        for index in range(size):
+            gate = <Gate>readqueue[index]
+            gate.scheduled=False
+            profile = gate.hitlist.data()
+            end = profile+gate.hitlist.size()
+            gate.output = ERROR
+            while profile!=end:
+                if profile.output!=ERROR:
+                    target=<Gate>profile.target
+                    if target.inputlimit!=1:
+                        book = target.book
+                        book[profile.output]-=1
+                        book[ERROR]+=1
+                    profile.output = ERROR
+                    if target.output!=ERROR:
+                        writequeue.push_back(<void*>target)
+                profile+=1
+        readqueue.swap(writequeue)
+        writequeue.clear()
+        size = readqueue.size()
 
-cdef inline void propagate(Gate origin, Queue &queue):
-    cdef Gate gate
-    cdef Gate target
+
+cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limit):
+    cdef Gate gate,target
     cdef Profile* profile
     cdef Profile* end
     cdef int* book
     cdef int gate_type, realsource, high, low, limit
-    cdef int old_output, new_output,target_output
-    queue.push_back(<void*>origin)
-    # keep propagating until everything settles
-    while not queue.empty():
-        gate = <Gate>queue.back()
-        queue.pop_back()
-        profile = gate.hitlist.data()
-        end = profile+gate.hitlist.size()
-        new_output = gate.output
-        while profile!=end:
-            old_output = profile.output
-            if old_output!=new_output:
-                target=<Gate>profile.target
-                gate_type = target.id
-                limit=target.inputlimit
-                if limit==1:
-                    if gate_type==NOT_ID:
-                        if new_output==UNKNOWN:
-                            target_output=UNKNOWN
-                        else:
-                            target_output=new_output^1
-                    else:
-                        target_output=new_output
-                else:                           
-                    book = target.book
-                    book[old_output]-=1
-                    book[new_output]+=1
-                    high=book[HIGH]
-                    low=book[LOW]
-                    if high+low==limit:
-                        if gate_type==AND_ID or gate_type==NAND_ID:target_output = low==0
-                        elif gate_type==OR_ID or gate_type==NOR_ID:target_output = high>0
-                        else:target_output = high&1
-                        target_output^=(gate_type>XOR_ID)
-                    else:target_output=UNKNOWN
-                if target_output!=target.output:
-                    queue.push_back(<void*>target)
-                    target.prev_output=target.output
-                    target.output=target_output
-                profile.output = new_output
-            profile+=1
-
-
-            # notify all targets
-cdef inline void seq_propagate(Gate origin,Queue &queue, Fuse& fuse):
-    cdef Gate gate
-    cdef Gate target
-    cdef Profile* profile
-    cdef Profile* end
-    cdef int* book
-    cdef int gate_type, realsource, high, low, limit
-    cdef int old_output, new_output, target_output
-
+    cdef int old_output, new_output, profile_output,target_output
+    cdef Py_ssize_t index,size=1
+    cdef int counter=0
     if origin.output==ERROR:
-        burn(origin,queue)
+        burn(origin,readqueue,writequeue)
         return
-    queue.push_back(<void*>origin)
-    # keep propagating until everything settles
-    while not queue.empty():
-        gate = <Gate>queue.back()
-        queue.pop_back()
-        profile = gate.hitlist.data()
-        end = profile+gate.hitlist.size()
-        new_output = gate.output
-        while profile!=end:
-            old_output = profile.output
-            if old_output!=new_output:
-                target=<Gate>profile.target
-                gate_type = target.id
-                limit=target.inputlimit
-                if limit==1:
-                    if gate_type==NOT_ID:
-                        if new_output==UNKNOWN:
-                            target_output=UNKNOWN
-                        else:
+    readqueue.push_back(<void*>origin)
+    while size:
+        if counter>wave_limit:
+            readqueue.clear()
+            writequeue.clear()
+            burn(gate,readqueue,writequeue)
+            return
+        counter+=1
+        for index in range(size):
+            gate = <Gate>readqueue[index]
+            gate.scheduled=False
+            new_output=gate.output
+            profile = gate.hitlist.data()
+            end = profile+gate.hitlist.size()
+            while profile!=end:
+                profile_output = profile.output
+                if profile_output!=new_output:
+                    target=<Gate>profile.target
+                    gate_type = target.id
+                    limit = target.inputlimit
+                    if limit==1:
+                        if gate_type==NOT_ID and new_output!=UNKNOWN:
                             target_output=new_output^1
+                        else:
+                            target_output=new_output
                     else:
-                        target_output=new_output
-                    if target_output!=target.output:
-                        target.prev_output=target.output
-                        target.output=target_output
-                        queue.push_back(<void*>target)
-                else:                           
-                    book = target.book
-                    book[old_output]-=1
-                    book[new_output]+=1
-                    if profile==end-1 or profile.target!=(profile+1).target:
+                        book = target.book
+                        book[profile_output]-=1
+                        book[new_output]+=1
                         high=book[HIGH]
                         low=book[LOW]
                         realsource=high+low
                         if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
-                            if gate_type==AND_ID or gate_type==NAND_ID:target_output = low==0
-                            elif gate_type==OR_ID or gate_type==NOR_ID:target_output = high>0
+                            if gate_type<=NAND_ID:target_output = low==0
+                            elif gate_type<=NOR_ID:target_output = high>0
                             else:target_output = high&1
-                            target_output^=(gate_type>XOR_ID)
-                        else:target_output=UNKNOWN
-                        if target_output!=target.output:
-                            if gate_type>=XOR_ID:
-                                if <void*>gate==profile.target or profile.index<0: 
-                                    queue.clear()
-                                    burn(gate,queue)
-                                    clear_fuse(fuse)
-                                    return
-                                profile.flag()
-                                fuse.push_back(&profile[0])
-                            target.prev_output=target.output
-                            target.output=target_output
-                            queue.push_back(<void*>target)
-                profile.output = new_output
-            profile+=1
-    clear_fuse(fuse)
+                            target_output^=(gate_type&1)
+                        else: target_output = UNKNOWN
+                    if target_output!=target.output:
+                        target.output = target_output
+                        if not target.scheduled:
+                            target.scheduled=True
+                            writequeue.push_back(<void*>target)
+                    profile.output = new_output
+                profile+=1
+        readqueue.swap(writequeue)
+        writequeue.clear()
+        size = readqueue.size()
+
 
 cdef class Circuit:
-    # the main circuit board that holds everything together
-    # it knows about all gates, connections, and states
     def __cinit__(self):
-        self.fuse.reserve(16384)
-        self.queue.reserve(131072)
+        self.counter=0
+        self.readqueue.reserve(64000)
+        self.writequeue.reserve(64000)
     def __init__(self):
         # lookup table for objects by code
         self.objlist = [
-            [] for i in range(TOTAL)]  # holds the objects with code name
-        # list of everything visible on the board
-        self.canvas = []  # displays the components
-        # special list for input/output variables (0/1 switches)
-        self.varlist = []  # holds variables with 0/1 input
-        # distinct list for Integrated Circuits
+            [] for i in range(TOTAL)]
+        self.canvas = []
+        self.varlist = []
         self.iclist = []
 
-        # clipboard for copy/paste
         self.copydata = []
 
     def __repr__(self):
         return 'Circuit'
 
-    # creates and adds a new component to the circuit
     cpdef object getcomponent(self,int choice):
+        self.counter+=1
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
@@ -237,8 +143,7 @@ cdef class Circuit:
             gt.code = (choice, rank)
             name = gt.__class__.__name__
             
-            # give it a nice name like A1, B2 or AND-1
-            # give it a nice name like A1, B2 or AND-1
+            
             if name == 'Variable':
                 gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
             elif name == 'InputPin':
@@ -261,13 +166,11 @@ cdef class Circuit:
     cpdef void delobj(self, tuple code):
         self.objlist[code[0]][code[1]] = None
 
-    # show component
     cpdef void listComponent(self):
         cdef int i=0
         for i,gate in enumerate(self.canvas):
             print(f'{i}. {gate}')
 
-    # show variables
     cpdef void listVar(self):
         cdef int i=0
         for i,gate in enumerate(self.varlist):
@@ -276,82 +179,72 @@ cdef class Circuit:
     cpdef bint setlimits(self,Gate gate,int size):
         return gate.setlimits(size)
 
-    # connects a target gate to a source (input)
     cpdef void connect(self, Gate target, Gate source,int index):
+        cdef int prev=target.output
         target.connect(source,index)
-        # if the connection changed something, let everyone know
-        if target.prev_output != target.output:
-            if MODE==SIMULATE:
-                propagate(target,self.queue)
-            elif MODE==FLIPFLOP:
-                seq_propagate(target,self.queue,self.fuse)
+        if prev != target.output:
+            propagate(target,self.readqueue,self.writequeue,self.counter)
+
             
-    # switches a variable on or off
     cpdef void toggle(self, Variable target,int value):
-        target.prev_output=target.output
-        target.value=value
-        target.output=value
-        if target.prev_output != target.output:
-            if MODE==SIMULATE:
-                propagate(target,self.queue)
-            elif MODE==FLIPFLOP:
-                seq_propagate(target,self.queue,self.fuse)
+        if value != target.output:
+            target.value=value
+            target.output=value if MODE==SIMULATE else UNKNOWN
+            propagate(target,self.readqueue,self.writequeue,self.counter)
 
-    # identify target/source
     cpdef void disconnect(self, Gate target,int index):
+        cdef int prev=target.output
         target.disconnect(index)
-        if target.prev_output != target.output:
-            if MODE==SIMULATE:
-                propagate(target,self.queue)
-            elif MODE==FLIPFLOP:
-                seq_propagate(target,self.queue,self.fuse)
+        if prev != target.output:
+            propagate(target,self.readqueue,self.writequeue,self.counter)
 
-    # removes a component from view (soft delete)
     cpdef void hideComponent(self, object gate):
         cdef Gate pin
+        cdef IC ic
         if gate.id==IC_ID:
-            (<IC>gate).hide()
-            for pin in gate.outputs:
-                turnoff(pin,self.queue,self.fuse)
+            ic=<IC>gate
+            ic.hide()
+            for pin in ic.outputs:
+                turnoff(pin,self.readqueue,self.writequeue,self.counter)
+            self.counter-=ic.counter
         else:
             pin=<Gate>gate
             pin.hide()
-            turnoff(pin,self.queue,self.fuse)
-        
+            turnoff(pin,self.readqueue,self.writequeue,self.counter)
+        self.counter-=1        
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
             self.iclist.remove(gate)
         self.canvas.remove(gate)
 
-    # completely wipes a component from existence
     cpdef void terminate(self, code):
         cdef object gate = self.getobj(code)
-        if gate in self.varlist:
+        cdef IC ic
+        if gate.id==VARIABLE_ID:
             self.varlist.remove(gate)
-        if gate in self.iclist:
+        elif gate.id==IC_ID:
+            ic=<IC>gate
+            self.counter-=ic.counter
             self.iclist.remove(gate)
-        if gate in self.canvas:
-            self.canvas.remove(gate)
+        self.counter-=1
+        self.canvas.remove(gate)
         self.delobj(code)
 
     cpdef void renewComponent(self, object gate):
         cdef Gate pin
+        cdef IC ic
         if gate.id==IC_ID:
-            (<IC>gate).reveal()
-            for pin in gate.outputs:
-                if MODE==SIMULATE:
-                    propagate(pin,self.queue)
-                elif MODE==FLIPFLOP:
-                    seq_propagate(pin,self.queue,self.fuse)
+            ic=<IC>gate
+            ic.reveal()
+            self.counter+=ic.counter
+            for pin in ic.outputs:
+                propagate(pin,self.readqueue,self.writequeue,self.counter)
         else:
             pin=<Gate>gate
             pin.reveal()
-            if MODE==SIMULATE:
-                propagate(pin,self.queue)
-            elif MODE==FLIPFLOP:
-                seq_propagate(pin,self.queue,self.fuse)
-        
+            propagate(pin,self.readqueue,self.writequeue,self.counter)
+        self.counter+=1
         if gate.id==VARIABLE_ID:
             self.varlist.append(gate)
         self.canvas.append(gate)
@@ -362,7 +255,6 @@ cdef class Circuit:
     cpdef void output(self, Gate gate):
         print(f'{gate} output is {gate.getoutput()}')
 
-    # generates a truth table for all possible inputs
     cpdef str truthTable(self):
         if len(self.varlist) == 0:
             return
@@ -408,65 +300,37 @@ cdef class Circuit:
         Table.append(separator + '\n')
         Table.append(header + '\n')
         Table.append(separator + '\n')
-        if MODE==SIMULATE:
-            for i in range(rows_count):
-                inputs = []
-                for j in range(n):
-                    # Retrieve variable
-                    var = varlist[j]
-                    
-                    # Calculate bit
-                    bit = 1 if (i & (1 << (n - j - 1))) else 0
-                    var.prev_output=var.output
+
+        for i in range(rows_count):
+            inputs = []
+            for j in range(n):
+                # Retrieve variable
+                var = varlist[j]
+                
+                # Calculate bit
+                bit = 1 if (i & (1 << (n - j - 1))) else 0
+                if bit!=var.output:
                     var.output=bit
-                    if var.prev_output!=var.output:
-                        propagate(var,self.queue)
-                    inputs.append(str(bit))                
-                # Calculate outputs
-                output_vals = [str(gate.getoutput()) for gate in gate_list]
-                
-                row_data = inputs + output_vals
-                row_parts = [val.center(col_width) for val in row_data]
-                
-                row = " | ".join(row_parts)
-                Table.append(row + '\n')
-            self.simulate(SIMULATE)
-        elif MODE==FLIPFLOP:
-            for i in range(rows_count):
-                inputs = []
-                for j in range(n):
-                    # Retrieve variable
-                    var = varlist[j]
-                    
-                    # Calculate bit
-                    bit = 1 if (i & (1 << (n - j - 1))) else 0
-                    
-                    var.prev_output=var.output
-                    var.output=bit
-                    if var.prev_output!=var.output:
-                        seq_propagate(var,self.queue,self.fuse)
-                    inputs.append(str(bit))
-                
-                # Calculate outputs
-                output_vals = [str(gate.getoutput()) for gate in gate_list]
-                
-                row_data = inputs + output_vals
-                row_parts = [val.center(col_width) for val in row_data]
-                
-                row = " | ".join(row_parts)
-                Table.append(row + '\n')
-            self.simulate(FLIPFLOP)
+                    propagate(var,self.readqueue,self.writequeue,self.counter)
+                inputs.append(str(bit))                
+            # Calculate outputs
+            output_vals = [str(gate.getoutput()) for gate in gate_list]
+            
+            row_data = inputs + output_vals
+            row_parts = [val.center(col_width) for val in row_data]
+            
+            row = " | ".join(row_parts)
+            Table.append(row + '\n')
+        self.simulate(SIMULATE)
         Table.append(separator + '\n')
         
         return "".join(Table)
 
-    # prints a detailed report of everything going on
     def diagnose(self):
         print("=" * 90)
         print(" " * 35 + "CIRCUIT DIAGNOSIS")
         print("=" * 90)
 
-        # Diagnose regular gates
         gates = [c for c in self.canvas if c.id != IC_ID]
         if gates:
             columns = [
@@ -483,7 +347,6 @@ cdef class Circuit:
             print("-" * total_width)
 
             for comp in gates:
-                # Sources (inputs) - list with indices
                 if isinstance(comp.sources, list):
                     ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
@@ -505,7 +368,6 @@ cdef class Circuit:
 
             print("-" * total_width)
 
-        # Diagnose ICs
         if self.iclist:
             print("\n" + "=" * 90)
             print(" " * 40 + "IC STATUS")
@@ -514,14 +376,12 @@ cdef class Circuit:
                 print(f"\n  IC: {ic.name} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
-                # Input pins
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
                         targets = [f"{target} " for target in pin.hitlist]
                         print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
-                # Output pins
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
@@ -563,10 +423,10 @@ cdef class Circuit:
             gate = pseudo[code]
             if gate.id == IC_ID:
                 (<IC>gate).clone(pseudo)
+                self.counter+=(<IC>gate).counter
             else:
                 gate.clone(gate_dict, pseudo)
 
-    # packages the current circuit into an IC
     def save_as_ic(self, location, ic_name="IC"):
         if self.varlist:
             print('Delete Variables First')
@@ -579,6 +439,8 @@ cdef class Circuit:
             myIC.addgate(component)
         with open(location, 'w') as file:
             json.dump(myIC.json_data(), file)
+        self.clearcircuit()
+        self.getIC(location)
 
     def getIC(self, location):
         myIC = self.getcomponent(IC_ID)
@@ -586,6 +448,7 @@ cdef class Circuit:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
                 myIC.configure(crct)
+                self.counter+=myIC.counter
                 return myIC
             else:
                 print('Cannot Convert to IC')
@@ -602,8 +465,8 @@ cdef class Circuit:
         self.varlist.clear()
         self.canvas.clear()
         self.iclist.clear()
+        self.counter = 0
 
-    # copies selected components to clipboard
     def copy(self, components: list["Gate"]):
         if len(components) == 0:
             return
@@ -617,7 +480,6 @@ cdef class Circuit:
             json.dump(self.copydata, file)
         self.copydata = [i.code for i in components]
 
-    # pastes components from clipboard
     def paste(self):
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
@@ -639,28 +501,24 @@ cdef class Circuit:
             gate = pseudo[code]
             if gate.id==IC_ID:
                 gate.implement(pseudo)
+                self.counter+=(<IC>gate).counter
             elif gate:
                 gate.clone(gate_dict, pseudo)
         return new_items
 
-    # runs the simulation
     cpdef void simulate(self, int Mod):
-        if MODE != DESIGN and MODE!=Mod:
-            self.reset()
         set_MODE(Mod)
+        if self.readqueue.capacity()<self.counter:
+            self.readqueue.reserve(self.counter)
+            self.writequeue.reserve(self.counter)
         cdef Variable variable
-        if MODE==SIMULATE:
-            for variable in self.varlist:
-                variable.output=variable.value
-                propagate(variable,self.queue)
-        else:
-            build_cache(self.canvas)
-            for variable in self.varlist:
-                variable.output=variable.value
-                seq_propagate(variable,self.queue,self.fuse)
+        for variable in self.varlist:
+            variable.output=variable.value
+            propagate(variable,self.readqueue,self.writequeue,self.counter)
 
     cpdef void reset(self):
         set_MODE(DESIGN)
+
         for i in self.canvas:
             if i.id!=IC_ID:
                 (<Gate>i).reset()

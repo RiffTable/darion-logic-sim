@@ -1,15 +1,15 @@
 from Gates cimport NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin, OutputPin
 from IC cimport IC
 
-# Define the map at the module level for efficiency
+
 cdef tuple _gateobjects = (
-    NOT,
     AND,
-    OR,
-    XOR,
     NAND,
+    OR,
     NOR,
+    XOR,
     XNOR,
+    NOT,
     Variable,
     Probe,
     InputPin,

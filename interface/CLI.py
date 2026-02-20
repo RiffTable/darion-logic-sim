@@ -116,8 +116,8 @@ def submenu_components():
         if choice == '1':
             # Add Component section
             print("\nChoose a gate to add:")
-            print("0. NOT  1. AND  2. OR  3. XOR  4. NAND")
-            print("5. NOR  6. XNOR  7. Variable  8. Probe")
+            print("0. AND  1. NAND  2. OR  3. NOR  4. XOR")
+            print("5. XNOR  6. NOT  7. Variable  8. Probe")
             print("9. InputPin  10. OutputPin")
             
             c = input("Enter choices (space separated): ").split()
@@ -352,8 +352,7 @@ def submenu_simulation():
         print("3. Show Truth Table")
         print("4. Diagnose")
         print("5. Start Simulation")
-        print("6. Flip-Flop Mode")
-        print("7. Reset Simulation")
+        print("6. Reset Simulation")
         print("B. Back to Main Menu")
         
         choice = input("\nSelect Option: ").strip().upper()
@@ -399,11 +398,6 @@ def submenu_simulation():
             input("Press Enter...")
 
         elif choice == '6':
-            base.circuit.simulate(Const.FLIPFLOP)
-            print("Flip-Flop Mode Activated.")
-            input("Press Enter...")
-
-        elif choice == '7':
             base.circuit.reset()
             print("Reset complete.")
             input("Press Enter...")

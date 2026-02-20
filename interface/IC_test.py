@@ -59,7 +59,7 @@ try:
     from IC import IC
     from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
     from Const import NOT_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, VARIABLE_ID
-    from Const import HIGH, LOW, UNKNOWN, ERROR, SIMULATE, FLIPFLOP, set_MODE
+    from Const import HIGH, LOW, UNKNOWN, ERROR, SIMULATE, set_MODE
 except ImportError as e:
     print(f"FATAL ERROR: Could not import backend modules: {e}")
     if args.reactor:
@@ -152,7 +152,7 @@ class ThoroughICTest:
         out = ic.getcomponent(OUTPUT_PIN_ID)
         
         v = c.getcomponent(VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         c.toggle(v, HIGH)
         
         self.assert_true(inp.output == HIGH, "Input pin receives signal even if unconnected internally")
@@ -167,9 +167,9 @@ class ThoroughICTest:
         out = ic.getcomponent(OUTPUT_PIN_ID)
         not_g = ic.getcomponent(NOT_ID)
         
-        not_g.connect(inp, 0)
+        c.connect(not_g, inp, 0)
         v = c.getcomponent(VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         c.toggle(v, HIGH)
         
         self.assert_true(not_g.output == LOW, "Internal logic works even if result not output")
@@ -202,16 +202,16 @@ class ThoroughICTest:
             g = sub_ic.getcomponent(g_type)
             # Standard gates must support at least 2 inputs
             if g.inputlimit < 2:
-                 g.setlimits(2)
+                 sub_c.setlimits(g, 2)
 
-            g.connect(inp1, 0)
-            g.connect(inp2, 1)
-            out.connect(g, 0)
+            sub_c.connect(g, inp1, 0)
+            sub_c.connect(g, inp2, 1)
+            sub_c.connect(out, g, 0)
             
             v1 = sub_c.getcomponent(VARIABLE_ID)
             v2 = sub_c.getcomponent(VARIABLE_ID)
-            inp1.connect(v1, 0)
-            inp2.connect(v2, 0)
+            sub_c.connect(inp1, v1, 0)
+            sub_c.connect(inp2, v2, 0)
             
             sub_c.toggle(v1, in1)
             sub_c.toggle(v2, in2)
@@ -228,7 +228,7 @@ class ThoroughICTest:
         inp = ic.getcomponent(INPUT_PIN_ID)
         out = ic.getcomponent(OUTPUT_PIN_ID)
         
-        out.connect(inp, 0)
+        c.connect(out, inp, 0)
         
         xor_g = c.getcomponent(XOR_ID)
         v_trigger = c.getcomponent(VARIABLE_ID)
@@ -236,9 +236,9 @@ class ThoroughICTest:
         c.connect(xor_g, v_trigger, 0)
         c.connect(xor_g, xor_g, 1) # Paradox Loop
         
-        inp.connect(xor_g, 0)
+        c.connect(inp, xor_g, 0)
         
-        c.simulate(FLIPFLOP)
+        c.simulate(SIMULATE)
         c.toggle(v_trigger, HIGH)
         
         self.assert_true(inp.output == ERROR, "Input Pin accepts ERROR")
@@ -252,13 +252,13 @@ class ThoroughICTest:
         out = ic.getcomponent(OUTPUT_PIN_ID)
         
         not_g = ic.getcomponent(NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
         
         v = c.getcomponent(VARIABLE_ID)
         v.value=UNKNOWN
-        inp.connect(v, 0)
-        c.simulate(FLIPFLOP)
+        c.connect(inp, v, 0)
+        c.simulate(SIMULATE)
         
         self.assert_true(out.output == UNKNOWN, "IC propagates UNKNOWN correctly")
 
@@ -269,7 +269,7 @@ class ThoroughICTest:
         inp = ic.getcomponent(INPUT_PIN_ID)
         out = ic.getcomponent(OUTPUT_PIN_ID)
         
-        out.connect(inp, 0)
+        c.connect(out, inp, 0)
         self.assert_true(out.output == UNKNOWN, "Floating input defaults to UNKNOWN")
 
     def test_deep_nesting(self):
@@ -279,13 +279,13 @@ class ThoroughICTest:
         current_ic = c.getcomponent(IC_ID)
         root_inp = current_ic.getcomponent(INPUT_PIN_ID)
         root_out = current_ic.getcomponent(OUTPUT_PIN_ID)
-        root_out.connect(root_inp, 0)
+        c.connect(root_out, root_inp, 0)
         
         # Level 0 (Inner most)
         inner = c.getcomponent(IC_ID)
         i_in = inner.getcomponent(INPUT_PIN_ID)
         i_out = inner.getcomponent(OUTPUT_PIN_ID)
-        i_out.connect(i_in, 0)
+        c.connect(i_out, i_in, 0)
         
         prev_ic = inner
         prev_in = i_in
@@ -297,34 +297,40 @@ class ThoroughICTest:
              w_out = wrapper.getcomponent(OUTPUT_PIN_ID)
              
              wrapper.addgate(prev_ic)
-             prev_in.connect(w_in, 0)
-             w_out.connect(prev_out, 0)
+             c.canvas.remove(prev_ic)
+             c.iclist.remove(prev_ic)
+             c.connect(prev_in, w_in, 0)
+             c.connect(w_out, prev_out, 0)
+             c.counter += wrapper.counter
              
              prev_ic = wrapper
              prev_in = w_in
              prev_out = w_out
              
         v = c.getcomponent(VARIABLE_ID)
-        prev_in.connect(v, 0)
+        c.connect(prev_in, v, 0)
         
+        # Accumulate IC counters for propagation wave limit
+        c.counter += current_ic.counter
+        c.counter += inner.counter
         c.toggle(v, HIGH)
         self.assert_true(prev_out.output == HIGH, "10-level nested passthrough works")
 
     def test_feedback_loop_internal(self):
         """Test an internal feedback loop (Oscillator)."""
-        c = self.setup_circuit(FLIPFLOP)
+        c = self.setup_circuit(SIMULATE)
         ic = c.getcomponent(IC_ID)
         
         n1 = ic.getcomponent(NOT_ID)
         n2 = ic.getcomponent(NOT_ID)
         n3 = ic.getcomponent(NOT_ID)
         
-        n2.connect(n1, 0)
-        n3.connect(n2, 0)
-        n1.connect(n3, 0)
+        c.connect(n2, n1, 0)
+        c.connect(n3, n2, 0)
+        c.connect(n1, n3, 0)
         
         try:
-            c.simulate(FLIPFLOP)
+            c.simulate(SIMULATE)
             safe = True
         except:
             safe = False
@@ -339,14 +345,15 @@ class ThoroughICTest:
         out = ic.getcomponent(OUTPUT_PIN_ID)
         
         v = c.getcomponent(VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         c.toggle(v, HIGH)
         
         self.assert_true(out.output == UNKNOWN, "Output initially UNKNOWN")
         
         not_g = ic.getcomponent(NOT_ID)
-        not_g.connect(inp, 0)
-        out.connect(not_g, 0)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
+        c.counter += ic.counter
         
         c.toggle(v, LOW)
         c.toggle(v, HIGH)
@@ -360,7 +367,7 @@ class ThoroughICTest:
         inp = ic.getcomponent(INPUT_PIN_ID)
         
         v = c.getcomponent(VARIABLE_ID)
-        inp.connect(v, 0)
+        c.connect(inp, v, 0)
         
         self.assert_true(len(v.hitlist) == 1, "Variable connected to IC Pin")
         c.hideComponent(ic) 
@@ -382,10 +389,10 @@ class ThoroughICTest:
         inner.custom_name = "InnerChip"
         i_in = inner.getcomponent(INPUT_PIN_ID)
         i_out = inner.getcomponent(OUTPUT_PIN_ID)
-        i_out.connect(i_in, 0)
+        c.connect(i_out, i_in, 0)
         
-        i_in.connect(inp, 0)
-        out.connect(i_out, 0)
+        c.connect(i_in, inp, 0)
+        c.connect(out, i_out, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "complex_ic_test.json")
         c.save_as_ic(fp, "ComplexIC")
@@ -412,7 +419,7 @@ class ThoroughICTest:
         
         # 2. Resize and Connect
         TARGET_INPUTS = 5
-        and_g.setlimits(TARGET_INPUTS)
+        c.setlimits(and_g, TARGET_INPUTS)
         
         # Verify limit was actually set
         self.assert_true(and_g.inputlimit == TARGET_INPUTS, f"AND Gate resized to {TARGET_INPUTS}")
@@ -425,8 +432,8 @@ class ThoroughICTest:
             p = ic.getcomponent(INPUT_PIN_ID)
             
             # External Variable -> IC Pin -> AND Gate[i]
-            p.connect(v, 0)
-            and_g.connect(p, i)
+            c.connect(p, v, 0)
+            c.connect(and_g, p, i)
             
             vars_list.append(v)
             pins.append(p)
@@ -439,7 +446,7 @@ class ThoroughICTest:
             
         # Check Output (We need an output pin to read the result easily, or check gate directly)
         out_pin = ic.getcomponent(OUTPUT_PIN_ID)
-        out_pin.connect(and_g, 0)
+        c.connect(out_pin, and_g, 0)
         
         self.assert_true(out_pin.output == HIGH, "AND-5 Gate High with all High")
         

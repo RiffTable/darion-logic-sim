@@ -11,6 +11,7 @@ cdef class IC:
     cdef public tuple code
     cdef public list map
     cdef public int id
+    cdef public int counter
 
     cpdef getcomponent(self, int choice)
     cpdef addgate(self, object source)

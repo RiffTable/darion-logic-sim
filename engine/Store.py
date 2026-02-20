@@ -1,27 +1,22 @@
 
-from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin, OutputPin
+from Gates import AND, NAND, OR, NOR, XOR, XNOR, NOT, Variable, Probe, InputPin, OutputPin
 from IC import IC
 
-# Define the map at the module level for efficiency
+
 _gateobjects = (
-    NOT,
     AND,
-    OR,
     NAND,
+    OR,
     NOR,
     XOR,
     XNOR,
+    NOT,
     Variable,
     Probe,
     InputPin,
     OutputPin,
-    IC
+    IC,
 )
 
 def get(choice):
-    try:
-        if 0 <= choice < len(_gateobjects):
-            return _gateobjects[choice]()
-        return None
-    except IndexError:
-        return None
+    return _gateobjects[choice]()

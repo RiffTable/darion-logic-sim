@@ -1,5 +1,4 @@
 
-# Constants file mirroring Const.pxd/Const.pyx
 
 HIGH = 1
 LOW = 0
@@ -8,7 +7,9 @@ UNKNOWN = 3
 
 DESIGN = 0
 SIMULATE = 1
-FLIPFLOP = 2
+FLIPFLOP = SIMULATE
+
+
 
 ADD = 1
 DELETE = 2
@@ -20,13 +21,13 @@ SETLIMITS = 7
 
 LIMIT = 100
 
-NOT_ID = 0
-AND_ID = 1
+AND_ID = 0
+NAND_ID = 1
 OR_ID = 2
-NAND_ID = 3
-NOR_ID = 4
-XOR_ID = 5
-XNOR_ID = 6
+NOR_ID = 3
+XOR_ID = 4
+XNOR_ID = 5
+NOT_ID = 6
 VARIABLE_ID = 7
 PROBE_ID = 8
 INPUT_PIN_ID = 9
@@ -34,10 +35,7 @@ OUTPUT_PIN_ID = 10
 IC_ID = 11
 TOTAL = 12
 
-# Alias for backward compatibility if needed, though IC_ID is preferred
-IC = IC_ID
 
-# Global Mode
 MODE = DESIGN
 
 def set_MODE(mode):
@@ -45,5 +43,4 @@ def set_MODE(mode):
     MODE = mode
 
 def get_MODE():
-    global MODE
     return MODE

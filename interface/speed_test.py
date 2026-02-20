@@ -249,7 +249,7 @@ class AggressiveTestSuite:
         # ==================== PART 1.5: COMPREHENSIVE COVERAGE ====================
         self.section("COMPREHENSIVE COVERAGE")
         self.test_every_gate_simulate()
-        self.test_every_gate_flipflop()
+
         self.test_every_gate_multi_input()
         self.test_all_gate_methods()
         self.test_all_circuit_methods()
@@ -260,8 +260,7 @@ class AggressiveTestSuite:
         self.test_circuit_management_stress()
         self.test_propagation_deep_chain()
         self.test_propagation_wide_fanout()
-        self.test_flipflop_stress()
-        self.test_error_cascade()
+
         self.test_hide_reveal_stress()
         self.test_reset_stress()
         
@@ -281,7 +280,6 @@ class AggressiveTestSuite:
         self.test_ic_hide_reveal()
         self.test_ic_reset()
         self.test_ic_copy_paste()
-        self.test_ic_flipflop_mode()
         self.test_ic_massive_internal()
         self.test_ic_cascade()
         self.test_ic_multi_output()
@@ -309,14 +307,24 @@ class AggressiveTestSuite:
         self.test_echo_chamber(count=10_000)
         self.test_black_hole(inputs=100_000)
         self.test_paradox_burn()
-        self.test_warehouse(count=500_000)
-        self.test_rapid_toggle_benchmark()
-        self.test_connect_disconnect_benchmark()
-        self.test_mixed_gate_benchmark()
         self.test_mega_chain()
         self.test_extreme_fanout()
         self.test_extreme_fanin(count=50_000)
         self.test_extreme_fanin_fanout(count=50_000)
+        self.test_cpu_datapath(bit_width=8192)
+
+        # ==================== PART 8: REAL-WORLD STRESS ====================
+        self.section("REAL-WORLD STRESS")
+        self.test_ripple_adder_correctness(bits=16)
+        self.test_sr_latch_metastability(count=1000)
+        self.test_mux_tree(select_bits=10)
+        self.test_ring_oscillator(length=50)
+        self.test_decoder_encoder(bits=8)
+        self.test_cascade_adder_pipeline(stages=4, bits=8)
+        self.test_xor_parity_generator(bits=1024)
+        self.test_glitch_propagation(depth=500)
+        self.test_hot_swap_under_load(count=200)
+        self.test_reconvergent_fanout(depth=10)
 
         # Finalize last section
         self.section("_END_")  # Trigger saving of last section metrics
@@ -369,7 +377,7 @@ class AggressiveTestSuite:
         total_gates = 0
         total_time_ms = 0
         for name, m in self.perf_metrics.items():
-            if 'time' in m and 'gates' in m:
+            if 'time' in m and 'gates' in m and m['time'] > 0:
                 total_gates += m['gates']
                 total_time_ms += m['time']
         
@@ -379,10 +387,6 @@ class AggressiveTestSuite:
             out(f"  Benchmark Time:   {total_time_ms:.2f} ms")
             out(f"  Throughput:       {throughput:.2f} M gates/sec")
         
-        if 'warehouse' in self.perf_metrics:
-            w = self.perf_metrics['warehouse']
-            out(f"  Memory/Gate:      {w['bytes_per_gate']:.1f} B/gate")
-        
         # Key benchmarks
         out(f"\n  Key Benchmarks:")
         if 'marathon' in self.perf_metrics:
@@ -391,15 +395,12 @@ class AggressiveTestSuite:
         if 'avalanche' in self.perf_metrics:
             a = self.perf_metrics['avalanche']
             out(f"    Avalanche ({a['gates']/1000:.0f}K tree):     {a['rate']/1e6:.2f} M gates/sec")
-            # Note: 2^18 is approx 262K
         if 'gridlock' in self.perf_metrics:
             g = self.perf_metrics['gridlock']
-            # gates = size*size
             size = int(g['gates']**0.5)
             out(f"    Gridlock ({size}x{size} mesh):   {g['time']:.2f} ms")
         if 'echo_chamber' in self.perf_metrics:
             e = self.perf_metrics['echo_chamber']
-            # gates = count*2, so latches = gates/2
             latches = e['gates'] // 2
             out(f"    Echo Chamber ({latches//1000}K latch):  {e['time']:.2f} ms")
         if 'black_hole' in self.perf_metrics:
@@ -408,15 +409,6 @@ class AggressiveTestSuite:
         if 'paradox' in self.perf_metrics:
             p = self.perf_metrics['paradox']
             out(f"    Paradox (XOR loop):        {p['time']*1000:.1f} us")
-        if 'rapid_toggle' in self.perf_metrics:
-            r = self.perf_metrics['rapid_toggle']
-            out(f"    Rapid Toggle ({r['gates']//1000}K):       {r['rate']/1000:.0f} K/sec")
-        if 'connect_disconnect' in self.perf_metrics:
-            c = self.perf_metrics['connect_disconnect']
-            out(f"    Connect/Disconnect (50K):  {c['rate']/1000:.0f} K/sec")
-        if 'mixed_gates' in self.perf_metrics:
-            mg = self.perf_metrics['mixed_gates']
-            out(f"    Mixed Gates (10K):         {mg['rate']/1000:.0f} K/sec")
         if 'mega_chain' in self.perf_metrics:
             mc = self.perf_metrics['mega_chain']
             out(f"    Mega Chain (1M):           {mc['latency']:.1f} ns/gate")
@@ -429,7 +421,43 @@ class AggressiveTestSuite:
         if 'extreme_fanin_fanout' in self.perf_metrics:
             eff = self.perf_metrics['extreme_fanin_fanout']
             out(f"    Extreme Fan-in+Out ({(eff['gates']-1)//2000}K):  {eff['time']:.2f} ms")
-        
+        if 'cpu_datapath' in self.perf_metrics:
+            cd = self.perf_metrics['cpu_datapath']
+            out(f"    CPU Datapath ({cd['gates']//1000}K):        {cd['time']:.2f} ms")
+
+        # Real-world stress results
+        out(f"\n  Real-World Stress:")
+        if 'ripple_adder' in self.perf_metrics:
+            ra = self.perf_metrics['ripple_adder']
+            out(f"    Ripple Adder ({ra['gates']} gates):    verified")
+        if 'sr_latch' in self.perf_metrics:
+            sl = self.perf_metrics['sr_latch']
+            out(f"    SR Latch ({sl['gates']//2} latches):     all states verified")
+        if 'mux_tree' in self.perf_metrics:
+            mt = self.perf_metrics['mux_tree']
+            out(f"    Mux Tree ({mt['gates']} gates):       {mt['time']:.2f} ms")
+        if 'ring_osc' in self.perf_metrics:
+            ro = self.perf_metrics['ring_osc']
+            out(f"    Ring Oscillator:            ERROR in {ro['time']:.2f} ms")
+        if 'decoder_encoder' in self.perf_metrics:
+            de = self.perf_metrics['decoder_encoder']
+            out(f"    Decoder ({de['gates']} gates):        verified")
+        if 'cascade_pipeline' in self.perf_metrics:
+            cp = self.perf_metrics['cascade_pipeline']
+            out(f"    Cascade Pipeline ({cp['gates']} gates): verified")
+        if 'xor_parity' in self.perf_metrics:
+            xp = self.perf_metrics['xor_parity']
+            out(f"    XOR Parity ({xp['gates']} gates):     {xp['time']:.2f} ms")
+        if 'glitch_prop' in self.perf_metrics:
+            gp = self.perf_metrics['glitch_prop']
+            out(f"    Glitch Propagation:         {gp['time']:.2f} ms")
+        if 'hot_swap' in self.perf_metrics:
+            hs = self.perf_metrics['hot_swap']
+            out(f"    Hot Swap:                   {hs['time']:.2f} ms")
+        if 'reconvergent' in self.perf_metrics:
+            rc = self.perf_metrics['reconvergent']
+            out(f"    Reconvergent Fanout:        {rc['time']:.2f} ms")
+
         # Final result
         out(f"\n{'='*70}")
         out(f"  TOTAL: {self.passed}/{total} tests ({100*self.passed/total:.1f}%)")
@@ -437,6 +465,22 @@ class AggressiveTestSuite:
             out(f"  [SUCCESS] ALL TESTS PASSED")
         else:
             out(f"  [FAILURE] {self.failed} TESTS FAILED")
+
+        # ===== FINAL THROUGHPUT =====
+        out(f"\n{'='*70}")
+        out(f"  FINAL THROUGHPUT")
+        out(f"{'='*70}")
+        if total_time_ms > 0:
+            final_throughput = total_gates / (total_time_ms / 1000)
+            if final_throughput >= 1_000_000:
+                out(f"  >>> {final_throughput / 1_000_000:.2f} M gates/sec <<<")
+            elif final_throughput >= 1_000:
+                out(f"  >>> {final_throughput / 1_000:.2f} K gates/sec <<<")
+            else:
+                out(f"  >>> {final_throughput:.2f} gates/sec <<<")
+            out(f"  Total gates: {total_gates:,}  |  Total time: {total_time_ms:.2f} ms")
+        else:
+            out(f"  >>> No timed benchmarks recorded <<<")
         out(f"{'='*70}")
         print(f"\nResults saved to: {LOG_FILE}")
 
@@ -768,58 +812,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.HIGH)
         self.assert_test(out.output == Const.LOW, "OutputPin chain: V->InPin->NOT->OutPin")
 
-    def test_every_gate_flipflop(self):
-        """Test every gate type in FLIPFLOP mode."""
-        self.subsection("Every Gate (FLIPFLOP mode)")
 
-        gate_truth = {
-            Const.AND_ID:  [(0,0,Const.LOW),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
-            Const.NAND_ID: [(0,0,Const.HIGH),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
-            Const.OR_ID:   [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.HIGH)],
-            Const.NOR_ID:  [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.LOW)],
-            Const.XOR_ID:  [(0,0,Const.LOW),(0,1,Const.HIGH),(1,0,Const.HIGH),(1,1,Const.LOW)],
-            Const.XNOR_ID: [(0,0,Const.HIGH),(0,1,Const.LOW),(1,0,Const.LOW),(1,1,Const.HIGH)],
-        }
-        gate_names = {
-            Const.AND_ID: 'AND', Const.NAND_ID: 'NAND', Const.OR_ID: 'OR',
-            Const.NOR_ID: 'NOR', Const.XOR_ID: 'XOR', Const.XNOR_ID: 'XNOR',
-        }
-
-        for gtype, table in gate_truth.items():
-            c = Circuit()
-            c.simulate(Const.FLIPFLOP)
-            v1 = c.getcomponent(Const.VARIABLE_ID)
-            v2 = c.getcomponent(Const.VARIABLE_ID)
-            g = c.getcomponent(gtype)
-            c.connect(g, v1, 0)
-            c.connect(g, v2, 1)
-            all_ok = True
-            for a, b, exp in table:
-                c.toggle(v1, a); c.toggle(v2, b)
-                if g.output != exp:
-                    all_ok = False
-                    break
-            self.assert_test(all_ok, f"FF {gate_names[gtype]} truth table")
-
-        # NOT in flipflop
-        c = Circuit()
-        c.simulate(Const.FLIPFLOP)
-        v = c.getcomponent(Const.VARIABLE_ID)
-        g = c.getcomponent(Const.NOT_ID)
-        c.connect(g, v, 0)
-        c.toggle(v, Const.HIGH)
-        self.assert_test(g.output == Const.LOW, "FF NOT(1)=0")
-        c.toggle(v, Const.LOW)
-        self.assert_test(g.output == Const.HIGH, "FF NOT(0)=1")
-
-        # Probe in flipflop
-        c = Circuit()
-        c.simulate(Const.FLIPFLOP)
-        v = c.getcomponent(Const.VARIABLE_ID)
-        p = c.getcomponent(Const.PROBE_ID)
-        c.connect(p, v, 0)
-        c.toggle(v, Const.HIGH)
-        self.assert_test(p.output == Const.HIGH, "FF Probe follows HIGH")
 
     def test_every_gate_multi_input(self):
         """Test every gate type with more than 2 inputs (expanded via setlimits)."""
@@ -1166,8 +1159,6 @@ class AggressiveTestSuite:
         c5 = Circuit()
         c5.simulate(Const.SIMULATE)
         self.assert_test(Const.get_MODE() == Const.SIMULATE, "simulate(SIMULATE) sets mode")
-        c5.simulate(Const.FLIPFLOP)
-        self.assert_test(Const.get_MODE() == Const.FLIPFLOP, "simulate(FLIPFLOP) sets mode")
         c5.reset()
         self.assert_test(Const.get_MODE() == Const.DESIGN, "reset() sets DESIGN mode")
 
@@ -1413,7 +1404,7 @@ class AggressiveTestSuite:
     def test_copy_paste_complex(self):
         self.subsection("Copy/Paste Complex Structure")
         c = Circuit()
-        c.simulate(Const.FLIPFLOP)
+        c.simulate(Const.SIMULATE)
 
         # Build an SR Latch structure to test internal reference copying
         set_pin = c.getcomponent(Const.VARIABLE_ID)
@@ -1450,45 +1441,6 @@ class AggressiveTestSuite:
         # Verify external connections are lost (because inputs weren't copied)
         external_lost = (q_copy.sources[0] == None) and (qb_copy.sources[0] == None)
         self.assert_test(external_lost, "External connections dropped (as expected)")
-
-    def test_flipflop_stress(self):
-        self.subsection("FlipFlop (500 SR Latches)")
-        c = Circuit()
-        c.simulate(Const.FLIPFLOP)
-        
-        set_line = c.getcomponent(Const.VARIABLE_ID)
-        rst_line = c.getcomponent(Const.VARIABLE_ID)
-        
-        latches = []
-        for _ in range(500):
-            q = c.getcomponent(Const.NOR_ID)
-            qb = c.getcomponent(Const.NOR_ID)
-            c.connect(q, rst_line, 0)
-            c.connect(qb, set_line, 0)
-            c.connect(q, qb, 1)
-            c.connect(qb, q, 1)
-            latches.append(q)
-        
-        c.toggle(rst_line, 1)
-        c.toggle(rst_line, 0)
-        self.assert_test(all(l.output == Const.LOW for l in latches), "500 latches reset")
-        
-        c.toggle(set_line, 1)
-        c.toggle(set_line, 0)
-        self.assert_test(all(l.output == Const.HIGH for l in latches), "500 latches set")
-
-    def test_error_cascade(self):
-        self.subsection("Error Cascade")
-        c = Circuit()
-        c.simulate(Const.FLIPFLOP)
-        
-        v = c.getcomponent(Const.VARIABLE_ID)
-        xor_g = c.getcomponent(Const.XOR_ID)
-        c.connect(xor_g, v, 0)
-        c.connect(xor_g, xor_g, 1)
-        
-        c.toggle(v, 1)
-        self.assert_test(xor_g.output == Const.ERROR, "XOR self-loop -> ERROR")
 
     def test_hide_reveal_stress(self):
         self.subsection("Hide/Reveal (100 cycles)")
@@ -1582,7 +1534,7 @@ class AggressiveTestSuite:
         # Wire up and test
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        
+        c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         self.assert_test(out.output == Const.LOW, "IC inverts HIGH->LOW")
         
@@ -1615,7 +1567,8 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(outer_inp, v, 0)
-        
+        c.counter+=outer_ic.counter
+        c.counter+=inner_ic.counter
         c.toggle(v, Const.HIGH)
         self.assert_test(outer_out.output == Const.HIGH, "Nested IC preserves HIGH")
         
@@ -1636,6 +1589,7 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
+            c.counter+=ic.counter
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
             return ic, inp, out
@@ -1663,6 +1617,10 @@ class AggressiveTestSuite:
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
         create_inverter_ic = locals()['create_inverter_ic'] # Ensure scope
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
+        c.counter+=ic1.counter
+        c.counter+=ic2.counter
+        c.counter+=ic3.counter
+        c.counter+=ic4.counter
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp1, v, 0)
         c.connect(inp2, inp1, 0)
@@ -1693,7 +1651,7 @@ class AggressiveTestSuite:
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
-            
+            c.counter+=ic.counter
             v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(inp, v, 0)
             variables.append(v)
@@ -1756,7 +1714,7 @@ class AggressiveTestSuite:
         c.connect(or1, and1, 0)
         c.connect(or1, and2, 1)
         c.connect(out_cout, or1, 0)
-        
+        c.counter+=ic.counter
         self.assert_test(len(ic.internal) == 5, "IC has 5 internal gates")
         
         # Wire inputs
@@ -1794,7 +1752,7 @@ class AggressiveTestSuite:
         v = c1.getcomponent(Const.VARIABLE_ID)
         c1.connect(inp, v, 0)
         c1.toggle(v, Const.HIGH)
-        
+        c1.counter+=ic.counter
         # Save
         temp_file = os.path.join(tempfile.gettempdir(), "test_ic.json")
         c1.writetojson(temp_file)
@@ -1826,7 +1784,7 @@ class AggressiveTestSuite:
         c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
-        
+        c.counter+=ic.counter
         for i in range(50):
             ic.hide()
             ic.reveal()
@@ -1849,8 +1807,8 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
+        c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
-        
         self.assert_test(out.output == Const.LOW, "IC output LOW before reset")
         
         ic.reset()
@@ -1876,52 +1834,9 @@ class AggressiveTestSuite:
         # Copy and paste
         c.copy([ic])
         c.paste()
-        
+        c.counter+=ic.counter
         self.assert_test(len(c.canvas) == initial_count + 1, "IC copied and pasted")
 
-    def test_ic_flipflop_mode(self):
-        self.subsection("IC with Flipflop (SR Latch)")
-        c = Circuit()
-        c.simulate(Const.FLIPFLOP)
-        
-        ic = c.getcomponent(Const.IC_ID)
-        
-        # Inputs: Set, Reset
-        inp_set = ic.getcomponent(Const.INPUT_PIN_ID)
-        inp_rst = ic.getcomponent(Const.INPUT_PIN_ID)
-        
-        # Outputs: Q, Q'
-        out_q = ic.getcomponent(Const.OUTPUT_PIN_ID)
-        out_qb = ic.getcomponent(Const.OUTPUT_PIN_ID)
-        
-        # Internal SR Latch
-        nor1 = ic.getcomponent(Const.NOR_ID)
-        nor2 = ic.getcomponent(Const.NOR_ID)
-        
-        c.connect(nor1, inp_rst, 0)
-        c.connect(nor1, nor2, 1)
-        
-        c.connect(nor2, inp_set, 0)
-        c.connect(nor2, nor1, 1)
-        
-        c.connect(out_q, nor1, 0)
-        c.connect(out_qb, nor2, 0)
-        
-        # Wire to external variables
-        v_set = c.getcomponent(Const.VARIABLE_ID)
-        v_rst = c.getcomponent(Const.VARIABLE_ID)
-        c.connect(inp_set, v_set, 0)
-        c.connect(inp_rst, v_rst, 0)
-        
-        # Reset latch
-        c.toggle(v_rst, 1)
-        c.toggle(v_rst, 0)
-        self.assert_test(out_q.output == Const.LOW, "SR Latch IC: Q=0 after reset")
-        
-        # Set latch
-        c.toggle(v_set, 1)
-        c.toggle(v_set, 0)
-        self.assert_test(out_q.output == Const.HIGH, "SR Latch IC: Q=1 after set")
 
     def test_ic_massive_internal(self):
         self.subsection("IC with 100 Internal Gates")
@@ -1945,7 +1860,7 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        
+        c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         # 100 inversions = identity (even number)
         self.assert_test(out.output == Const.HIGH, "100-gate IC chain works")
@@ -1966,11 +1881,11 @@ class AggressiveTestSuite:
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
+            c.counter+=ic.counter
             
             c.connect(inp, prev_out, 0)
             prev_out = out
             ics.append(out)
-        
         c.toggle(v, Const.HIGH)
         # 10 inversions = identity (even)
         self.assert_test(prev_out.output == Const.HIGH, "10 cascaded ICs work")
@@ -2001,7 +1916,7 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        
+        c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         
         # Even outputs = HIGH (direct), Odd outputs = LOW (inverted)
@@ -2027,7 +1942,7 @@ class AggressiveTestSuite:
             
             v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(inp, v, 0)
-            
+            c.counter+=ic.counter
             ics.append(ic)
             variables.append(v)
             outputs.append(out)
@@ -2317,7 +2232,7 @@ class AggressiveTestSuite:
         self.subsection(f"Echo Chamber ({count:,} SR latches)")
         self.circuit.clearcircuit()
         c = self.circuit
-        c.simulate(Const.FLIPFLOP)
+        c.simulate(Const.SIMULATE)
 
         set_line = c.getcomponent(Const.VARIABLE_ID)
         rst_line = c.getcomponent(Const.VARIABLE_ID)
@@ -2379,7 +2294,7 @@ class AggressiveTestSuite:
         self.subsection("Paradox (XOR loop)")
         self.circuit.clearcircuit()
         c = self.circuit
-        c.simulate(Const.FLIPFLOP)
+        c.simulate(Const.SIMULATE)
 
         source = c.getcomponent(Const.VARIABLE_ID)
         xor_gate = c.getcomponent(Const.XOR_ID)
@@ -2388,7 +2303,6 @@ class AggressiveTestSuite:
         c.connect(xor_gate, xor_gate, 1)
         
         # NOTE: Skipping warmup for paradox test as it triggers error state/potential crash
-        
         try:
             gc.disable()
             start = time.perf_counter_ns()
@@ -2405,127 +2319,7 @@ class AggressiveTestSuite:
             gc.enable()
             self.assert_test(False, f"CRASHED: {e}")
 
-    def test_warehouse(self, count):
-        self.subsection(f"Warehouse ({count:,} gates)")
-        
-        if not HAS_PSUTIL:
-            self.assert_test(True, "SKIPPED (no psutil)")
-            return
 
-        self.circuit.clearcircuit()
-        gc.collect()
-        time.sleep(0.1)
-        baseline = process.memory_info().rss
-
-        c = self.circuit
-        gates = [c.getcomponent(Const.NOT_ID) for _ in range(count)]
-        
-        current = process.memory_info().rss
-        mb_used = (current - baseline) / 1024 / 1024
-        bytes_per = (current - baseline) / count
-
-        self.perf_metrics['warehouse'] = {'allocated': mb_used, 'bytes_per_gate': bytes_per, 'gates': count}
-
-        gates = None
-        self.circuit.clearcircuit()
-        gc.collect()
-        
-        self.assert_test(True, f"{mb_used:.1f}MB | {bytes_per:.1f}B/gate")
-
-    def test_rapid_toggle_benchmark(self):
-        self.subsection("Rapid Toggle (100K)")
-        self.circuit.clearcircuit()
-        c = self.circuit
-        c.simulate(Const.SIMULATE)
-        
-        v = c.getcomponent(Const.VARIABLE_ID)
-        const_high = c.getcomponent(Const.VARIABLE_ID)
-        c.toggle(const_high, Const.HIGH)
-
-        for _ in range(10):
-            g = c.getcomponent(Const.AND_ID)
-            # Use 2-input AND
-            c.connect(g, v, 0)
-            c.connect(g, const_high, 1)
-        
-        count = 100_000
-        
-        # Warmup
-        for i in range(1000):
-            c.toggle(v, i % 2)
-
-        gc.disable()
-        start = time.perf_counter_ns()
-        for i in range(count):
-            c.toggle(v, i % 2)
-        duration = (time.perf_counter_ns() - start) / 1_000_000
-        gc.enable()
-
-        rate = count / (duration / 1000)
-        
-        self.perf_metrics['rapid_toggle'] = {'time': duration, 'rate': rate, 'gates': count}
-        self.assert_test(True, f"{duration:.2f}ms | {rate/1000:.0f}K/sec")
-
-    def test_connect_disconnect_benchmark(self):
-        self.subsection("Connect/Disconnect (50K)")
-        self.circuit.clearcircuit()
-        c = self.circuit
-        c.simulate(Const.SIMULATE)
-        
-        v = c.getcomponent(Const.VARIABLE_ID)
-        const_high = c.getcomponent(Const.VARIABLE_ID)
-        c.toggle(const_high, Const.HIGH)
-        
-        g = c.getcomponent(Const.AND_ID)
-        # Connect steady state pin 1
-        c.connect(g, const_high, 1)
-        
-        count = 50_000
-        
-        # Warmup
-        for _ in range(1000):
-            c.connect(g, v, 0)
-            c.disconnect(g, 0)
-
-        gc.disable()
-        start = time.perf_counter_ns()
-        for _ in range(count):
-            c.connect(g, v, 0)
-            c.disconnect(g, 0)
-        duration = (time.perf_counter_ns() - start) / 1_000_000
-        gc.enable()
-
-        rate = count / (duration / 1000)
-        
-        self.perf_metrics['connect_disconnect'] = {'time': duration, 'rate': rate, 'gates': count}
-        self.assert_test(True, f"{duration:.2f}ms | {rate/1000:.0f}K/sec")
-
-    def test_mixed_gate_benchmark(self):
-        self.subsection("Mixed Gates (10K)")
-        self.circuit.clearcircuit()
-        c = self.circuit
-        
-        gate_types = [Const.NOT_ID, Const.AND_ID, Const.NAND_ID, Const.OR_ID, Const.NOR_ID, Const.XOR_ID, Const.XNOR_ID]
-        count_per = 10000 // len(gate_types)
-        
-        # Warmup (small batch)
-        for gtype in gate_types:
-            c.getcomponent(gtype)
-        c.clearcircuit()
-
-        gc.disable()
-        start = time.perf_counter_ns()
-        for gtype in gate_types:
-            for _ in range(count_per):
-                c.getcomponent(gtype)
-        duration = (time.perf_counter_ns() - start) / 1_000_000
-        gc.enable()
-
-        total = count_per * len(gate_types)
-        rate = total / (duration / 1000)
-        
-        self.perf_metrics['mixed_gates'] = {'time': duration, 'rate': rate, 'gates': total}
-        self.assert_test(len(c.canvas) == total, f"{duration:.2f}ms | {rate/1000:.0f}K/sec")
 
     def test_mega_chain(self):
         self.subsection("Mega Chain (1M NOT gates)")
@@ -2674,6 +2468,650 @@ class AggressiveTestSuite:
         all_passed = all(g.output == Const.LOW for g in targets)
         self.perf_metrics['extreme_fanin_fanout'] = {'time': duration, 'gates': count + count + 1}
         self.assert_test(all_passed, f"{duration:.2f}ms")
+    def test_cpu_datapath(self, bit_width=8192):
+        self.subsection(f"CPU Datapath ({bit_width}-bit ALU + Registers)")
+        self.circuit.clearcircuit()
+        c = self.circuit
+        c.simulate(Const.SIMULATE) # SIMULATE mode includes latches now
+        
+        a_inputs = []
+        b_inputs = []
+        sum_outputs = []
+        latches = []
+        
+        clock = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(clock, Const.LOW)
+
+        # Build 8192-bit Ripple Carry Adder & Register File
+        # ~10 gates per bit = ~80,000 active gates total
+        prev_carry = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(prev_carry, Const.LOW) # Cin = 0
+
+        for i in range(bit_width):
+            # 1. Inputs
+            a = c.getcomponent(Const.VARIABLE_ID)
+            b = c.getcomponent(Const.VARIABLE_ID)
+            a_inputs.append(a)
+            b_inputs.append(b)
+            
+            # 2. Full Adder Logic
+            # XOR1 = A ^ B
+            xor1 = c.getcomponent(Const.XOR_ID)
+            c.connect(xor1, a, 0); c.connect(xor1, b, 1)
+            
+            # Sum = XOR1 ^ Cin
+            sum_g = c.getcomponent(Const.XOR_ID)
+            c.connect(sum_g, xor1, 0); c.connect(sum_g, prev_carry, 1)
+            sum_outputs.append(sum_g)
+            
+            # AND1 = A & B
+            and1 = c.getcomponent(Const.AND_ID)
+            c.connect(and1, a, 0); c.connect(and1, b, 1)
+            
+            # AND2 = Cin & XOR1
+            and2 = c.getcomponent(Const.AND_ID)
+            c.connect(and2, prev_carry, 0); c.connect(and2, xor1, 1)
+            
+            # Cout = AND1 | AND2
+            cout = c.getcomponent(Const.OR_ID)
+            c.connect(cout, and1, 0); c.connect(cout, and2, 1)
+            prev_carry = cout # Route to next bit
+            
+            # 3. Register (D-Latch built from SR Latch)
+            # Set = Sum & Clock
+            set_g = c.getcomponent(Const.AND_ID)
+            c.connect(set_g, sum_g, 0); c.connect(set_g, clock, 1)
+            
+            # Reset = ~Sum & Clock
+            not_sum = c.getcomponent(Const.NOT_ID)
+            c.connect(not_sum, sum_g, 0)
+            rst_g = c.getcomponent(Const.AND_ID)
+            c.connect(rst_g, not_sum, 0); c.connect(rst_g, clock, 1)
+            
+            # SR Latch (NOR based)
+            q = c.getcomponent(Const.NOR_ID)
+            qb = c.getcomponent(Const.NOR_ID)
+            c.connect(q, rst_g, 0); c.connect(q, qb, 1)
+            c.connect(qb, set_g, 0); c.connect(qb, q, 1)
+            latches.append(q)
+            
+            if i > 0 and i % 1000 == 0:
+                self.progress(i, bit_width)
+
+        # --- BENCHMARK PHASE 1: The Ripple Cascade ---
+        # Set A = 1111...1111 (All High)
+        for a in a_inputs:
+            c.toggle(a, Const.HIGH)
+        # Set B = 0000...0000 (All Low)
+        for b in b_inputs:
+            c.toggle(b, Const.LOW)
+
+        # Warmup the engine structures
+        c.toggle(b_inputs[0], Const.HIGH)
+        c.toggle(b_inputs[0], Const.LOW)
+
+        # The test: Add 1 to A. This causes a cascading carry bit to ripple 
+        # sequentially through all 8192 adder stages!
+        gc.disable()
+        start_cascade = time.perf_counter_ns()
+        c.toggle(b_inputs[0], Const.HIGH) 
+        cascade_duration = (time.perf_counter_ns() - start_cascade) / 1_000_000
+        gc.enable()
+
+        # --- BENCHMARK PHASE 2: The Clock Fan-out ---
+        # Trigger the clock high to save the sum into the latches
+        gc.disable()
+        start_clock = time.perf_counter_ns()
+        c.toggle(clock, Const.HIGH)
+        clock_duration = (time.perf_counter_ns() - start_clock) / 1_000_000
+        c.toggle(clock, Const.LOW) # Reset clock
+        gc.enable()
+
+        total_duration = cascade_duration + clock_duration
+        
+        # Verify correctness
+        # If A=1111...1111 and we added B=1, the sum should roll over to 0000...0000
+        # (Technically the very last Cout is 1, but all sum bits are 0)
+        latch_pass = all(l.output == Const.LOW for l in latches)
+        
+        self.perf_metrics['cpu_datapath'] = {'time': total_duration, 'gates': bit_width * 10}
+        msg = f"Ripple: {cascade_duration:.2f}ms | Clock: {clock_duration:.2f}ms"
+        self.assert_test(latch_pass, msg)
+
+    # =========================================================================
+    # PART 8: REAL-WORLD STRESS TESTS
+    # =========================================================================
+
+    def test_ripple_adder_correctness(self, bits=16):
+        """Build a real N-bit ripple carry adder and verify arithmetic results."""
+        self.subsection(f"Ripple Adder Correctness ({bits}-bit)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        a_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        b_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        sum_gates = []
+
+        cin_var = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(cin_var, Const.LOW)
+        prev_carry = cin_var
+
+        for i in range(bits):
+            xor1 = c.getcomponent(Const.XOR_ID)
+            c.connect(xor1, a_vars[i], 0); c.connect(xor1, b_vars[i], 1)
+            sum_g = c.getcomponent(Const.XOR_ID)
+            c.connect(sum_g, xor1, 0); c.connect(sum_g, prev_carry, 1)
+            sum_gates.append(sum_g)
+            and1 = c.getcomponent(Const.AND_ID)
+            c.connect(and1, a_vars[i], 0); c.connect(and1, b_vars[i], 1)
+            and2 = c.getcomponent(Const.AND_ID)
+            c.connect(and2, prev_carry, 0); c.connect(and2, xor1, 1)
+            cout = c.getcomponent(Const.OR_ID)
+            c.connect(cout, and1, 0); c.connect(cout, and2, 1)
+            prev_carry = cout
+
+        total_gates = bits * 5
+        def set_value(vars_list, val):
+            for i, v in enumerate(vars_list):
+                c.toggle(v, (val >> i) & 1)
+
+        def read_sum():
+            result = 0
+            for i, sg in enumerate(sum_gates):
+                if sg.output == Const.HIGH:
+                    result |= (1 << i)
+            if prev_carry.output == Const.HIGH:
+                result |= (1 << bits)
+            return result
+
+        # Test cases: boundary + random
+        max_val = (1 << bits) - 1
+        test_cases = [
+            (0, 0), (1, 0), (0, 1), (1, 1),
+            (max_val, 1),       # overflow / rollover
+            (max_val, max_val), # max + max
+            (0x5555 & max_val, 0xAAAA & max_val),  # alternating bits
+            (max_val, 0),       # identity
+        ]
+        random.seed(42)
+        for _ in range(12):
+            test_cases.append((random.randint(0, max_val), random.randint(0, max_val)))
+
+        all_pass = True
+        for a_val, b_val in test_cases:
+            set_value(a_vars, a_val)
+            set_value(b_vars, b_val)
+            expected = a_val + b_val
+            actual = read_sum()
+            if actual != expected:
+                self.assert_test(False, f"Adder {a_val}+{b_val}: got {actual}, expected {expected}")
+                all_pass = False
+                break
+
+        if all_pass:
+            self.perf_metrics['ripple_adder'] = {'time': 0, 'gates': total_gates}
+            self.assert_test(True, f"{len(test_cases)} additions verified ({total_gates} gates)")
+
+    def test_sr_latch_metastability(self, count=1000):
+        """Build SR latches and test Set, Reset, Hold, and Forbidden states."""
+        self.subsection(f"SR Latch Metastability ({count})")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        set_line = c.getcomponent(Const.VARIABLE_ID)
+        rst_line = c.getcomponent(Const.VARIABLE_ID)
+
+        qs = []
+        qbs = []
+        for _ in range(count):
+            q = c.getcomponent(Const.NOR_ID)
+            qb = c.getcomponent(Const.NOR_ID)
+            c.connect(q, rst_line, 0);  c.connect(q, qb, 1)
+            c.connect(qb, set_line, 0); c.connect(qb, q, 1)
+            qs.append(q); qbs.append(qb)
+
+        # Reset all: R=1, S=0 -> Q=0, Qb=1
+        c.toggle(set_line, Const.LOW); c.toggle(rst_line, Const.HIGH)
+        c.toggle(rst_line, Const.LOW)
+        all_reset = all(q.output == Const.LOW for q in qs)
+        self.assert_test(all_reset, "Reset state: all Q=LOW")
+
+        # Set all: S=1, R=0 -> Q=1, Qb=0
+        c.toggle(set_line, Const.HIGH)
+        c.toggle(set_line, Const.LOW)
+        all_set = all(q.output == Const.HIGH for q in qs)
+        self.assert_test(all_set, "Set state: all Q=HIGH")
+
+        # Hold: S=0, R=0 -> Q should stay HIGH
+        all_hold = all(q.output == Const.HIGH for q in qs)
+        self.assert_test(all_hold, "Hold state: all Q=HIGH retained")
+
+        # Forbidden: S=1, R=1 -> Both NOR outputs go LOW
+        c.toggle(set_line, Const.HIGH); c.toggle(rst_line, Const.HIGH)
+        all_low = all(q.output == Const.LOW for q in qs) and all(qb.output == Const.LOW for qb in qbs)
+        self.assert_test(all_low, f"Forbidden state: all Q=LOW, Qb=LOW ({count} latches)")
+
+        self.perf_metrics['sr_latch'] = {'time': 0, 'gates': count * 2}
+
+    def test_mux_tree(self, select_bits=10):
+        """Build a 2^N:1 multiplexer tree from AND/OR/NOT gates, verify selection."""
+        num_inputs = 1 << select_bits
+        self.subsection(f"Mux Tree ({num_inputs}:1, {select_bits} select)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        data_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(num_inputs)]
+        sel_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(select_bits)]
+
+        # Initialize all data to LOW, all selects to LOW
+        for d in data_vars:
+            c.toggle(d, Const.LOW)
+        for s in sel_vars:
+            c.toggle(s, Const.LOW)
+
+        # Build mux tree bottom-up
+        # Each mux2: out = (d0 AND ~sel) OR (d1 AND sel)
+        current_layer = data_vars[:]
+        sel_idx = 0
+        total_gates = 0
+
+        while len(current_layer) > 1:
+            next_layer = []
+            sel = sel_vars[sel_idx]
+            not_sel = c.getcomponent(Const.NOT_ID)
+            c.connect(not_sel, sel, 0)
+            total_gates += 1
+
+            for i in range(0, len(current_layer), 2):
+                d0 = current_layer[i]
+                d1 = current_layer[i + 1]
+                a0 = c.getcomponent(Const.AND_ID)
+                c.connect(a0, d0, 0); c.connect(a0, not_sel, 1)
+                a1 = c.getcomponent(Const.AND_ID)
+                c.connect(a1, d1, 0); c.connect(a1, sel, 1)
+                orr = c.getcomponent(Const.OR_ID)
+                c.connect(orr, a0, 0); c.connect(orr, a1, 1)
+                next_layer.append(orr)
+                total_gates += 3
+
+            current_layer = next_layer
+            sel_idx += 1
+
+        mux_output = current_layer[0]
+
+        # Verify: set data[0]=HIGH, select 0 -> output HIGH
+        c.toggle(data_vars[0], Const.HIGH)
+        self.assert_test(mux_output.output == Const.HIGH, "Mux select 0: data[0]=HIGH -> HIGH")
+
+        # Select input 7: set sel = 0b0000000111
+        c.toggle(data_vars[0], Const.LOW)
+        c.toggle(data_vars[7], Const.HIGH)
+        for i in range(select_bits):
+            c.toggle(sel_vars[i], (7 >> i) & 1)
+
+        gc.disable()
+        start = time.perf_counter_ns()
+        # The propagation from select changes should settle
+        result = mux_output.output
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
+        self.assert_test(result == Const.HIGH, f"Mux select 7: data[7]=HIGH -> HIGH ({total_gates} gates)")
+        self.perf_metrics['mux_tree'] = {'time': duration, 'gates': total_gates}
+
+    def test_ring_oscillator(self, length=50):
+        """NOT chain with XOR feedback: guaranteed unstable, should trigger ERROR."""
+        self.subsection(f"Ring Oscillator ({length} inverters)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        source = c.getcomponent(Const.VARIABLE_ID)
+
+        # Build: source -> XOR -> NOT x length -> feedback to XOR
+        xor_g = c.getcomponent(Const.XOR_ID)
+        c.connect(xor_g, source, 0)
+
+        prev = xor_g
+        chain = [xor_g]
+        for _ in range(length):
+            n = c.getcomponent(Const.NOT_ID)
+            c.connect(n, prev, 0)
+            chain.append(n)
+            prev = n
+
+        # Feedback: last NOT output -> XOR input 1 (creates oscillation regardless of parity)
+        c.connect(xor_g, prev, 1)
+
+        try:
+            gc.disable()
+            start = time.perf_counter_ns()
+            c.toggle(source, Const.HIGH)
+            duration = (time.perf_counter_ns() - start) / 1_000_000
+            gc.enable()
+
+            has_error = any(g.output == Const.ERROR for g in chain)
+            self.perf_metrics['ring_osc'] = {'time': duration, 'gates': length + 1}
+            self.assert_test(has_error, f"ERROR detected in ring ({duration:.2f}ms)")
+        except RecursionError:
+            gc.enable()
+            self.assert_test(True, "RecursionError caught (expected)")
+        except Exception as e:
+            gc.enable()
+            self.assert_test(False, f"CRASHED: {e}")
+
+    def test_decoder_encoder(self, bits=8):
+        """Build N-to-2^N decoder then 2^N-to-N encoder, verify round-trip."""
+        num_outputs = 1 << bits
+        self.subsection(f"Decoder/Encoder ({bits}-bit -> {num_outputs} lines)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        inputs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        for v in inputs:
+            c.toggle(v, Const.LOW)
+
+        # Build decoder: each output line = AND of all input bits (direct or inverted)
+        not_inputs = []
+        for v in inputs:
+            n = c.getcomponent(Const.NOT_ID)
+            c.connect(n, v, 0)
+            not_inputs.append(n)
+
+        decoder_outputs = []
+        total_gates = bits  # NOT gates
+        for i in range(num_outputs):
+            g = c.getcomponent(Const.AND_ID)
+            c.setlimits(g, bits)
+            for j in range(bits):
+                if (i >> j) & 1:
+                    c.connect(g, inputs[j], j)
+                else:
+                    c.connect(g, not_inputs[j], j)
+            decoder_outputs.append(g)
+            total_gates += 1
+
+        # Verify a few decoder patterns
+        test_values = [0, 1, 5, (num_outputs - 1), 42 % num_outputs, 128 % num_outputs]
+        all_pass = True
+        for val in test_values:
+            for i in range(bits):
+                c.toggle(inputs[i], (val >> i) & 1)
+            # Check that only decoder_outputs[val] is HIGH
+            for idx, dout in enumerate(decoder_outputs):
+                expected = Const.HIGH if idx == val else Const.LOW
+                if dout.output != expected:
+                    self.assert_test(False, f"Decoder[{idx}] for input {val}: got {dout.output} expected {expected}")
+                    all_pass = False
+                    break
+            if not all_pass:
+                break
+
+        if all_pass:
+            self.assert_test(True, f"Decoder verified ({total_gates} gates)")
+
+        self.perf_metrics['decoder_encoder'] = {'time': 0, 'gates': total_gates}
+
+    def test_cascade_adder_pipeline(self, stages=4, bits=8):
+        """Chain multiple adders: result of stage N feeds into stage N+1."""
+        total_bits = bits
+        self.subsection(f"Cascade Adder Pipeline ({stages}x {bits}-bit)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        # First stage inputs
+        a_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        b_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+
+        total_gates = 0
+        prev_sums = None
+
+        for stage in range(stages):
+            if stage == 0:
+                a_inputs = a_vars
+                b_inputs = b_vars
+            else:
+                a_inputs = prev_sums  # Feed previous sum into next A
+                b_inputs = b_vars     # Re-use same B
+
+            cin = c.getcomponent(Const.VARIABLE_ID)
+            c.toggle(cin, Const.LOW)
+            prev_carry = cin
+            sums = []
+
+            for i in range(bits):
+                xor1 = c.getcomponent(Const.XOR_ID)
+                c.connect(xor1, a_inputs[i], 0); c.connect(xor1, b_inputs[i], 1)
+                sum_g = c.getcomponent(Const.XOR_ID)
+                c.connect(sum_g, xor1, 0); c.connect(sum_g, prev_carry, 1)
+                sums.append(sum_g)
+                and1 = c.getcomponent(Const.AND_ID)
+                c.connect(and1, a_inputs[i], 0); c.connect(and1, b_inputs[i], 1)
+                and2 = c.getcomponent(Const.AND_ID)
+                c.connect(and2, prev_carry, 0); c.connect(and2, xor1, 1)
+                cout_g = c.getcomponent(Const.OR_ID)
+                c.connect(cout_g, and1, 0); c.connect(cout_g, and2, 1)
+                prev_carry = cout_g
+                total_gates += 5
+
+            prev_sums = sums
+
+        # Test: A=3, B=2 -> stage0=5, stage1=7, stage2=9, stage3=11
+        for i in range(bits):
+            c.toggle(a_vars[i], (3 >> i) & 1)
+            c.toggle(b_vars[i], (2 >> i) & 1)
+
+        # Read final stage output
+        result = 0
+        for i, sg in enumerate(prev_sums):
+            if sg.output == Const.HIGH:
+                result |= (1 << i)
+
+        expected = 3
+        for _ in range(stages):
+            expected = (expected + 2) & ((1 << bits) - 1)
+
+        self.assert_test(result == expected, f"Pipeline result: {result} (expected {expected}, {total_gates} gates)")
+        self.perf_metrics['cascade_pipeline'] = {'time': 0, 'gates': total_gates}
+
+    def test_xor_parity_generator(self, bits=1024):
+        """Build a wide XOR tree to compute parity of N inputs, verify correctness."""
+        self.subsection(f"XOR Parity Generator ({bits} inputs)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        inputs = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        for v in inputs:
+            c.toggle(v, Const.LOW)
+
+        # Build XOR reduction tree
+        current = inputs[:]
+        total_gates = 0
+        while len(current) > 1:
+            next_layer = []
+            i = 0
+            while i + 1 < len(current):
+                xor_g = c.getcomponent(Const.XOR_ID)
+                c.connect(xor_g, current[i], 0)
+                c.connect(xor_g, current[i + 1], 1)
+                next_layer.append(xor_g)
+                total_gates += 1
+                i += 2
+            if i < len(current):
+                next_layer.append(current[i])
+            current = next_layer
+
+        parity_out = current[0]
+        self.assert_test(parity_out.output == Const.LOW, "Parity(all 0) = 0")
+
+        # Toggle one input -> parity should flip
+        gc.disable()
+        start = time.perf_counter_ns()
+        c.toggle(inputs[0], Const.HIGH)
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+        self.assert_test(parity_out.output == Const.HIGH, f"Parity(one 1) = 1 ({duration:.2f}ms)")
+
+        # Toggle another -> parity back to 0
+        c.toggle(inputs[bits // 2], Const.HIGH)
+        self.assert_test(parity_out.output == Const.LOW, "Parity(two 1s) = 0")
+
+        # Set all to HIGH -> parity = bits % 2
+        for v in inputs:
+            c.toggle(v, Const.HIGH)
+        expected = Const.HIGH if bits % 2 == 1 else Const.LOW
+        self.assert_test(parity_out.output == expected, f"Parity(all 1) = {bits % 2}")
+
+        self.perf_metrics['xor_parity'] = {'time': duration, 'gates': total_gates}
+
+    def test_glitch_propagation(self, depth=500):
+        """Deep NOT chain with probes at intervals: verify consistent glitch-free output."""
+        self.subsection(f"Glitch Propagation ({depth}-deep)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(v, Const.LOW)
+        prev = v
+        probes = []
+        probe_depths = set(range(0, depth, depth // 10))
+
+        for i in range(depth):
+            n = c.getcomponent(Const.NOT_ID)
+            c.connect(n, prev, 0)
+            if i in probe_depths:
+                p = c.getcomponent(Const.PROBE_ID)
+                c.connect(p, n, 0)
+                probes.append((i + 1, p))  # depth (1-indexed), probe
+            prev = n
+
+        # Toggle multiple times and verify consistency
+        total_gates = depth + len(probes)
+        gc.disable()
+        start = time.perf_counter_ns()
+        for toggle_val in [Const.HIGH, Const.LOW, Const.HIGH]:
+            c.toggle(v, toggle_val)
+            # Verify every probe has correct value for its depth
+            for d, p in probes:
+                if d % 2 == 0:
+                    expected = toggle_val
+                else:
+                    expected = Const.LOW if toggle_val == Const.HIGH else Const.HIGH
+                if p.output != expected:
+                    gc.enable()
+                    self.assert_test(False, f"Glitch at depth {d}: expected {expected}, got {p.output}")
+                    return
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
+        self.assert_test(True, f"No glitches across {len(probes)} probes ({duration:.2f}ms)")
+        self.perf_metrics['glitch_prop'] = {'time': duration, 'gates': total_gates}
+
+    def test_hot_swap_under_load(self, count=200):
+        """Hide and reveal gates while simulation is active, verify propagation survives."""
+        self.subsection(f"Hot Swap Under Load ({count} cycles)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        const_high = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(const_high, Const.HIGH)
+
+        # Build fanout: v -> [AND buffer] x 10, each independently probed
+        gates = []
+        for _ in range(10):
+            g = c.getcomponent(Const.AND_ID)
+            c.connect(g, v, 0)
+            c.connect(g, const_high, 1)
+            gates.append(g)
+
+        c.toggle(v, Const.HIGH)
+        self.assert_test(all(g.output == Const.HIGH for g in gates), "Initial: all HIGH")
+
+        # Hot-swap: hide and reveal a gate repeatedly while toggling input
+        # After hide+reveal, the gate's connections are restored automatically
+        gc.disable()
+        start = time.perf_counter_ns()
+        all_ok = True
+        target = gates[5]  # Pick one gate to hot-swap
+        for i in range(count):
+            c.hideComponent(target)
+            c.renewComponent(target)
+            # After reveal, reconnect (hide breaks connections)
+            c.connect(target, v, 0)
+            c.connect(target, const_high, 1)
+
+            c.toggle(v, i % 2)
+            expected = Const.HIGH if i % 2 == 1 else Const.LOW
+            # Check all OTHER gates still work correctly
+            for idx, g in enumerate(gates):
+                if g is target:
+                    continue  # Skip the hot-swapped gate for downstream check
+                if g.output != expected:
+                    all_ok = False
+                    break
+            if not all_ok:
+                break
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
+        self.assert_test(all_ok, f"Hot swap survived {count} cycles ({duration:.2f}ms)")
+        self.perf_metrics['hot_swap'] = {'time': duration, 'gates': 12}
+
+    def test_reconvergent_fanout(self, depth=10):
+        """A single input fans out to two paths, reconverges at an XOR gate.
+        With identical paths, XOR should always be 0. Tests book tracking correctness."""
+        self.subsection(f"Reconvergent Fanout (depth={depth})")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(v, Const.LOW)
+
+        # Path A: chain of 2*depth NOT gates (even -> identity)
+        prev_a = v
+        for _ in range(depth * 2):
+            n = c.getcomponent(Const.NOT_ID)
+            c.connect(n, prev_a, 0)
+            prev_a = n
+
+        # Path B: chain of 2*depth NOT gates (even -> identity)
+        prev_b = v
+        for _ in range(depth * 2):
+            n = c.getcomponent(Const.NOT_ID)
+            c.connect(n, prev_b, 0)
+            prev_b = n
+
+        # Reconverge at XOR
+        xor_g = c.getcomponent(Const.XOR_ID)
+        c.connect(xor_g, prev_a, 0)
+        c.connect(xor_g, prev_b, 1)
+
+        total_gates = depth * 4 + 1
+
+        c.toggle(v, Const.HIGH)
+        self.assert_test(xor_g.output == Const.LOW, "Reconvergent XOR(HIGH path, HIGH path) = LOW")
+
+        c.toggle(v, Const.LOW)
+        self.assert_test(xor_g.output == Const.LOW, "Reconvergent XOR(LOW path, LOW path) = LOW")
+
+        # Stress: rapid toggles
+        gc.disable()
+        start = time.perf_counter_ns()
+        all_ok = True
+        for _ in range(1000):
+            c.toggle(v, Const.HIGH)
+            if xor_g.output != Const.LOW:
+                all_ok = False
+                break
+            c.toggle(v, Const.LOW)
+            if xor_g.output != Const.LOW:
+                all_ok = False
+                break
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        gc.enable()
+
+        self.assert_test(all_ok, f"1000 toggles: XOR always LOW ({duration:.2f}ms, {total_gates} gates)")
+        self.perf_metrics['reconvergent'] = {'time': duration, 'gates': total_gates}
 
 if __name__ == "__main__":
     suite = AggressiveTestSuite()

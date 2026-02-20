@@ -1,23 +1,27 @@
+
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Profile, hitlist_del, add, hide, reveal, locate, remove
-from Const import IC_ID
+from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
+
 
 class IC:
-    # Integrated Circuit: a custom chip made of other gates
-    # It acts like a black box with inputs and outputs
-    __slots__=['inputs','internal','outputs','name','custom_name','code','map','id']
-    
+    """Integrated Circuit: a custom chip made of other gates."""
+    __slots__ = [
+        'inputs', 'internal', 'outputs',
+        'name', 'custom_name', 'code', 'map',
+        'id', 'counter',
+    ]
+
     def __init__(self):
-        self.id = IC_ID
+        self.id: int = IC_ID
+        self.counter: int = 0
         self.inputs: list[InputPin] = []
-        self.internal: list[Gate|IC] = []
+        self.internal: list = []
         self.outputs: list[OutputPin] = []
-
-        self.name = 'IC'
-        self.custom_name = ''
-        self.code = ''
-
-        self.map = []
+        self.name: str = 'IC'
+        self.custom_name: str = ''
+        self.code: tuple = ()
+        self.map: list = []
 
     def __repr__(self):
         return self.name if self.custom_name == '' else self.custom_name
@@ -25,164 +29,151 @@ class IC:
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
 
-    # helps created parts inside the IC
-    def getcomponent(self, choice):
+    def getcomponent(self, choice: int):
+        """Create a sub-component inside this IC."""
         from Store import get
         gt = get(choice)
+        self.counter += 1
         if gt:
-            if isinstance(gt, InputPin):
+            if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-                gt.name = 'in-'+str(len(self.inputs))
-            elif isinstance(gt, OutputPin):
+                gt.name = 'in-' + str(len(self.inputs))
+            elif gt.id == OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
-                gt.name = 'out-'+str(len(self.outputs))
+                gt.name = 'out-' + str(len(self.outputs))
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-                gt.name = gt.__class__.__name__+'-'+str(len(self.internal))
+                gt.name = gt.__class__.__name__ + '-' + str(len(self.internal))
             gt.code = (choice, rank, self.code)
         return gt
 
-    def addgate(self, source: Gate | OutputPin | InputPin):
-
-        if isinstance(source, InputPin):
+    def addgate(self, source):
+        """Add an existing gate into this IC."""
+        self.counter += 1
+        if source.id == INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-            source.name = 'in-'+str(len(self.inputs))
-        elif isinstance(source, OutputPin):
+            source.name = 'in-' + str(len(self.inputs))
+        elif source.id == OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
-            source.name = 'out-'+str(len(self.outputs))
+            source.name = 'out-' + str(len(self.outputs))
         else:
             rank = len(self.internal)
             self.internal.append(source)
-            source.name = source.__class__.__name__+'-'+str(len(self.internal))
+            source.name = source.__class__.__name__ + '-' + str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
-    # sets up the IC from a saved plan
-    def configure(self, dictionary):
+    def configure(self, dictionary: dict):
+        """Set up the IC from a saved plan."""
         pseudo = {}
         pseudo[('X', 'X')] = None
-        self.custom_name=dictionary["custom_name"]
+        self.custom_name = dictionary["custom_name"]
         self.map = dictionary["map"]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
-    def decode(self, code):
+    def decode(self, code: list) -> tuple:
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    # brings the components to life based on the plan
-    def load_components(self, dictionary, pseudo):
-        # generate all the necessary components
-        for code in dictionary["components"]:
-            gate = self.getcomponent(code[0])
-            pseudo[self.decode(code)] = gate
+    def load_components(self, dictionary: dict, pseudo: dict):
+        """Instantiate components from the plan."""
+        for comp_code in dictionary["components"]:
+            gate = self.getcomponent(comp_code[0])
+            pseudo[self.decode(comp_code)] = gate
 
-    # prepares data to be saved to file
-    def json_data(self):
+    def json_data(self) -> dict:
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
-            "map": []
+            "components": [gate.code for gate in self.internal + self.inputs + self.outputs],
+            "map": [],
         }
-        for i in self.internal+self.inputs+self.outputs:
+        for i in self.internal + self.inputs + self.outputs:
             dictionary["map"].append(i.json_data())
         return dictionary
 
-    def clone(self, pseudo):
+    def clone(self, pseudo: dict):
+        """Wire up all sub-components."""
         for i in self.map:
             code = self.decode(i["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
                 gate.clone(pseudo)
+                self.counter += gate.counter
             else:
                 gate.clone(i, pseudo)
 
     def load_to_cluster(self, cluster: set):
-        for i in self.inputs+self.internal+self.outputs:
-            if isinstance(i, IC):
+        for i in self.inputs + self.internal + self.outputs:
+            if i.id == IC_ID:
                 cluster.add(i)
                 i.load_to_cluster(cluster)
             else:
                 cluster.add(i)
 
-    def copy_data(self, cluster):
+    def copy_data(self, cluster: set) -> dict:
         dictionary = {
             "name": self.name,
             "custom_name": self.custom_name,
             "code": self.code,
-            "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
-            "map": []
+            "components": [gate.code for gate in self.internal + self.inputs + self.outputs],
+            "map": [],
         }
-        for i in self.internal+self.inputs+self.outputs:
+        for i in self.internal + self.inputs + self.outputs:
             dictionary["map"].append(i.copy_data(cluster))
         return dictionary
 
-    # builds the connections based on the map
-    def implement(self, pseudo):
+    def implement(self, pseudo: dict):
+        """Build connections from the map (paste path)."""
         for i in self.map:
             code = self.decode(i["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
                 gate.implement(pseudo)
+                self.counter += gate.counter
             else:
                 gate.clone(i, pseudo)
 
-    # disconnects internal logic (used when deleting)
     def hide(self):
-        # Disconnect output pins from their targets
-        for pin in self.outputs:
-            for profile in pin.hitlist:
-                hide(profile)
-        
-        # Disconnect input pins from their sources
-        for pin in self.inputs:
-            for index, source in enumerate(pin.sources):
-                if source:
-                    loc = locate(pin, source)
-                    if loc != -1:
-                        profile = source.hitlist[loc]
-                        remove(profile, index)
-                        pin.sources[index]=source
-                        if not profile.index:
-                            hitlist_del(source.hitlist, loc)
+        """Disconnect output pins from targets, input pins from sources."""
+        for pin_out in self.outputs:
+            for profile in pin_out.hitlist:
+                hide_profile(profile)
 
+        for pin_in in self.inputs:
+            for index, source in enumerate(pin_in.sources):
+                if source is not None:
+                    pop(source.hitlist, pin_in, index)
 
-    # reconnects internal logic
     def reveal(self):
-        # Reconnect output pins to their targets
-        for pin in self.inputs:
-            for index, source in enumerate(pin.sources):
-                if source:
-                    # Re-register with the source's hitlist
-                    loc = locate(pin, source)
-                    if loc != -1:
-                        add(source.hitlist[loc], index)
-                    else:
-                        source.hitlist.append(Profile(pin, index, source.output))
-            # Critical: Ensure input pin knows its value and notifies internal targets
-            pin.process()
+        """Reconnect input/output pins."""
+        for pin_in in self.inputs:
+            source = pin_in.sources[0]
+            if source is not None:
+                source.hitlist.append(Profile(pin_in, 0, source.output))
+            pin_in.process()
 
-        for pin in self.outputs:
-            for profile in pin.hitlist:
-                reveal(profile, pin)
-        
-        # Reconnect input pins to their sources
-
+        for pin_out in self.outputs:
+            for profile in pin_out.hitlist:
+                reveal_profile(profile, pin_out)
 
     def reset(self):
-        for i in self.inputs+self.internal+self.outputs:
-            i.reset()
+        for i in self.inputs + self.internal + self.outputs:
+            if i.id != IC_ID:
+                i.reset()
+            else:
+                i.reset()
 
     def showinputpins(self):
         for i, gate in enumerate(self.inputs):
@@ -197,32 +188,27 @@ class IC:
         print(f"\n  IC: {self.name} (Code: {self.code})")
         print("  " + "-" * 40)
 
-        # Show inputs
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
-                targets = [str(profile.target) for profile in pin.hitlist]
+                targets = [str(p.target) for p in pin.hitlist]
                 print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
-        # Show internal components
         if self.internal:
             print("  INTERNAL:")
             for comp in self.internal:
-                if isinstance(comp, IC):
+                if comp.id == IC_ID:
                     comp.info()
                 else:
-                    # Sources (list with indices)
                     if isinstance(comp.sources, list):
                         ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                         ch_str = ", ".join(ch) if ch else "None"
                     else:
                         ch_str = f"val:{comp.sources}"
-                    # Targets
-                    tgt = [str(profile.target) for profile in comp.hitlist]
+                    tgt = [str(p.target) for p in comp.hitlist]
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
-        # Show outputs
         if self.outputs:
             print("  OUTPUTS:")
             for pin in self.outputs:

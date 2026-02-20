@@ -3,13 +3,9 @@ from Gates cimport Gate, Variable,Profile
 from libcpp.vector cimport vector
 
 ctypedef vector[void*] Queue
-ctypedef vector[Profile*] Fuse
 
-cdef void clear_fuse(Fuse &fuse)
-cdef void propagate(Gate origin,Queue &queue)
-cdef void seq_propagate(Gate origin,Queue &queue,Fuse &fuse)
-cdef void burn(Gate origin,Queue &queue)
-cdef void sync(Gate gate)
+cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limit)
+cdef void burn(Gate origin,Queue &readqueue,Queue &writequeue)
 
 cdef class Circuit:
     cdef public list objlist
@@ -17,8 +13,9 @@ cdef class Circuit:
     cdef public list varlist
     cdef public list iclist
     cdef public list copydata
-    cdef Queue queue
-    cdef Fuse fuse
+    cdef public int counter
+    cdef Queue readqueue
+    cdef Queue writequeue
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef void delobj(self, tuple code)

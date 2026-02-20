@@ -1,317 +1,315 @@
+
 import json
-from collections import deque
-from Gates import Gate, Variable, Profile, hide, reveal
-from Const import TOTAL, DESIGN, SIMULATE, FLIPFLOP, get_MODE, set_MODE, ERROR, UNKNOWN, HIGH, LOW, IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID, VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID
+from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
+from Const import (
+    TOTAL, DESIGN, SIMULATE, set_MODE,
+    ERROR, UNKNOWN, HIGH, LOW,
+    IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
+    VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID,
+)
+import Const
 from IC import IC
 from Store import get
 
-def clear_fuse(fuse: set):
-    fuse.clear()
-
-def sync(gate: Gate):
-    # reset book based on sources
-    gate.book[:] = [0, 0, 0, 0]
-    for source in gate.sources:
-        if source:
-            gate.book[source.output] += 1
-
-def turnoff(gate: Gate, queue: deque, fuse: set):
+def turnoff(gate: Gate, readqueue: list, writequeue: list, wave_limit: int):
+    """Set all targets to UNKNOWN and propagate."""
     for profile in gate.hitlist:
         target = profile.target
-        if target != gate:
-            target.prev_output = target.output
+        if target is not gate:
             target.output = UNKNOWN
-            propagate(target, queue, fuse)
+            propagate(target, readqueue, writequeue, wave_limit)
 
-def burn(origin: Gate, queue: deque):
-    queue.append(origin)
-    while queue:
-        gate = queue.popleft()
-        gate.prev_output = gate.output
-        gate.output = ERROR
-        for profile in gate.hitlist:
-            target = profile.target    
-            profile.output = ERROR
-            sync(target)
-            if target.output != ERROR:
-                queue.append(target)
-
-def propagate(origin: Gate, queue: deque, fuse: set):
-    gate: Gate
-    target: Gate
-    
-    if get_MODE() == SIMULATE:
-        queue.append(origin)
-        while queue:
-            gate = queue.popleft()
-            if gate.listener:
-                for listener in gate.listener:
-                    listener(gate.output)
-            
+def burn(origin: Gate, readqueue: list, writequeue: list):
+    """Error propagation — flood-fill ERROR through the graph."""
+    readqueue.append(origin)
+    while readqueue:
+        for index in range(len(readqueue)):
+            gate = readqueue[index]
+            gate.scheduled = False
+            gate.output = ERROR
             for profile in gate.hitlist:
-                if gate.output != profile.output:
+                if profile.output != ERROR:
                     target = profile.target
-                    # Update book
-                    count = len(profile.index)
-                    target.book[profile.output] -= count
-                    target.book[gate.output] += count
-                    profile.output = gate.output
-                    
-                    target.prev_output = target.output
-                    target.process()
-                    if target.prev_output != target.output:
-                        queue.append(target)
+                    if target.inputlimit != 1:
+                        target.book[profile.output] -= 1
+                        target.book[ERROR] += 1
+                    profile.output = ERROR
+                    if target.output != ERROR:
+                        writequeue.append(target)
+        # swap
+        readqueue[:] = writequeue
+        writequeue.clear()
 
-    elif get_MODE() == FLIPFLOP:
-        if origin.output == ERROR:
-            burn(origin, queue)
+
+def propagate(origin: Gate, readqueue: list, writequeue: list, wave_limit: int):
+    """The core reactor propagation loop.
+    Double-buffered list queue, inline gate evaluation, scheduled flag."""
+
+    if origin.output == ERROR:
+        burn(origin, readqueue, writequeue)
+        return
+
+    readqueue.append(origin)
+    counter = 0
+
+    while readqueue:
+        if counter > wave_limit:
+            readqueue.clear()
+            writequeue.clear()
+            burn(gate, readqueue, writequeue)
             return
-        queue.append(origin)
-        while queue:
-            gate = queue.popleft()
-            if gate.listener:
-                for listener in gate.listener:
-                    listener(gate.output)
+        counter += 1
+
+        for index in range(len(readqueue)):
+            gate = readqueue[index]
+            gate.scheduled = False
+            new_output = gate.output
 
             for profile in gate.hitlist:
-                if gate.output != profile.output:
+                profile_output = profile.output
+                if profile_output != new_output:
                     target = profile.target
-                    # Update book
-                    count = len(profile.index)
-                    target.book[profile.output] -= count
-                    target.book[gate.output] += count
-                    profile.output = gate.output
-                    
-                    target.prev_output = target.output
-                    target.process()
-                    
-                    if target.prev_output != target.output:
-                        # loop detection
-                        # Reactor checks: if <void*>gate==profile.target or profile.index<0 (fused)
-                        # Engine check:
-                        if gate == target:
-                            queue.clear()
-                            burn(gate, queue)
-                            clear_fuse(fuse)
-                            return
-                        if profile in fuse:
-                                queue.clear()
-                                burn(gate, queue)
-                                clear_fuse(fuse)
-                                return
-                        
-                        fuse.add(profile)
-                        queue.append(target)
-        clear_fuse(fuse)
+                    gate_type = target.id
+                    limit = target.inputlimit
+
+                    if limit == 1:
+                        if gate_type == NOT_ID and new_output != UNKNOWN:
+                            target_output = new_output ^ 1
+                        else:
+                            target_output = new_output
+                    else:
+                        book = target.book
+                        book[profile_output] -= 1
+                        book[new_output] += 1
+                        high = book[HIGH]
+                        low = book[LOW]
+                        realsource = high + low
+                        if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                            if gate_type <= NAND_ID:
+                                target_output = int(low == 0)
+                            elif gate_type <= NOR_ID:
+                                target_output = int(high > 0)
+                            else:
+                                target_output = high & 1
+                            target_output ^= (gate_type & 1)
+                        else:
+                            target_output = UNKNOWN
+
+                    if target_output != target.output:
+                        target.output = target_output
+                        if not target.scheduled:
+                            target.scheduled = True
+                            writequeue.append(target)
+
+                    profile.output = new_output
+
+        # swap buffers
+        readqueue[:] = writequeue
+        writequeue.clear()
+
+
+# ─── Circuit ──────────────────────────────────────────────────────
 
 class Circuit:
-    # the main circuit board that holds everything together
-    # it knows about all gates, connections, and states
-    __slots__ = ['objlist', 'canvas', 'varlist', 'iclist', 'copydata', 'queue', 'fuse']
-    def __init__(self):
-        # lookup table for objects by code
-        self.objlist: list[list[Gate | IC]] = [
-            [] for i in range(TOTAL)]  # holds the objects with code name
-        # list of everything visible on the board
-        self.canvas: list[Gate | IC] = []  # displays the components
-        # special list for input/output variables (0/1 switches)
-        self.varlist: list[Variable] = []  # holds variables with 0/1 input
-        # distinct list for Integrated Circuits
-        self.iclist: list[IC] = []
+    """The main circuit board."""
+    __slots__ = [
+        'objlist', 'canvas', 'varlist', 'iclist', 'copydata',
+        'counter', 'readqueue', 'writequeue',
+    ]
 
-        # clipboard for copy/paste
-        self.copydata = []
-        
-        self.queue = deque()
-        self.fuse = set()
+    def __init__(self):
+        self.objlist: list[list] = [[] for _ in range(TOTAL)]
+        self.canvas: list = []
+        self.varlist: list[Variable] = []
+        self.iclist: list[IC] = []
+        self.copydata: list = []
+        self.counter: int = 0
+        self.readqueue: list = []
+        self.writequeue: list = []
 
     def __repr__(self):
         return 'Circuit'
 
-    # creates and adds a new component to the circuit
-    def getcomponent(self, choice, ui_connect=None) -> Gate | IC:
+    def getcomponent(self, choice: int):
+        """Create and register a new component."""
+        self.counter += 1
         gt = get(choice)
         if gt:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
             name = gt.__class__.__name__
-            
-            # give it a nice name like A1, B2 or AND-1
+
             if name == 'Variable':
-                gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+                gt.name = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
             elif name == 'InputPin':
                 gt.name = 'IN-' + str(len(self.objlist[choice]))
             elif name == 'OutputPin':
                 gt.name = 'OUT-' + str(len(self.objlist[choice]))
             else:
-                gt.name = name+'-'+str(len(self.objlist[choice]))
+                gt.name = name + '-' + str(len(self.objlist[choice]))
 
-            if isinstance(gt, Variable):
+            if gt.id == VARIABLE_ID:
                 self.varlist.append(gt)
-            if isinstance(gt, IC):
+            if gt.id == IC_ID:
                 self.iclist.append(gt)
             self.canvas.append(gt)
-        if ui_connect:
-            gt.listener.append(ui_connect)
         return gt
 
-    def getobj(self, code) -> Gate:
+    def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 
-    def delobj(self, code):
+    def delobj(self, code: tuple):
         self.objlist[code[0]][code[1]] = None
 
-    # show component
     def listComponent(self):
-        for i in range(len(self.canvas)):
-            print(f'{i}. {self.canvas[i]}')
+        for i, gate in enumerate(self.canvas):
+            print(f'{i}. {gate}')
 
-    # show variables
     def listVar(self):
-        for i in range(len(self.varlist)):
-            print(f'{i}. {self.varlist[i]}')
+        for i, gate in enumerate(self.varlist):
+            print(f'{i}. {gate}')
 
-    def setlimits(self,gate:Gate,size:int):
+    def setlimits(self, gate: Gate, size: int) -> bool:
         return gate.setlimits(size)
 
-    # connects a target gate to a source (input)
-    def connect(self, target: Gate, source: Gate, index):
-        target.connect(source,index)
-        # if the connection changed something, let everyone know
-        if target.prev_output != target.output:
-            propagate(target, self.queue, self.fuse)
-            
-    # switches a variable on or off
-    def toggle(self, target: Variable, value):
-        target.toggle(value)
-        if target.prev_output != target.output:
-            propagate(target, self.queue, self.fuse)
+    def connect(self, target: Gate, source: Gate, index: int):
+        """Connect source -> target at pin index."""
+        prev = target.output
+        target.connect(source, index)
+        if prev != target.output:
+            propagate(target, self.readqueue, self.writequeue, self.counter)
 
-    # identify target/source
-    def disconnect(self, target: Gate, index):
+    def toggle(self, target: Variable, value: int):
+        """Switch a variable on/off."""
+        if value != target.output:
+            target.value = value
+            target.output = value
+            propagate(target, self.readqueue, self.writequeue, self.counter)
+
+    def disconnect(self, target: Gate, index: int):
+        """Disconnect at pin index."""
+        prev = target.output
         target.disconnect(index)
-        if target.prev_output != target.output:
-            propagate(target, self.queue, self.fuse)
+        if prev != target.output:
+            propagate(target, self.readqueue, self.writequeue, self.counter)
 
-    # removes a component from view (soft delete)
-    def hideComponent(self, gate: Gate | IC):
-        if isinstance(gate, IC):
+    def hideComponent(self, gate):
+        """Soft delete — disconnect and remove from view."""
+        if gate.id == IC_ID:
             gate.hide()
             for pin in gate.outputs:
-                turnoff(pin, self.queue, self.fuse)
+                turnoff(pin, self.readqueue, self.writequeue, self.counter)
+            self.counter -= gate.counter
         else:
             gate.hide()
-            turnoff(gate, self.queue, self.fuse)
-        
+            turnoff(gate, self.readqueue, self.writequeue, self.counter)
+        self.counter -= 1
+
         if gate in self.varlist:
             self.varlist.remove(gate)
         if gate in self.iclist:
             self.iclist.remove(gate)
         self.canvas.remove(gate)
 
-    # completely wipes a component from existence
     def terminate(self, code):
+        """Hard delete."""
         gate = self.getobj(code)
-        if gate in self.varlist:
+        if gate.id == VARIABLE_ID:
             self.varlist.remove(gate)
-        if gate in self.iclist:
+        elif gate.id == IC_ID:
+            self.counter -= gate.counter
             self.iclist.remove(gate)
-        if gate in self.canvas:
-            self.canvas.remove(gate)
+        self.counter -= 1
+        self.canvas.remove(gate)
         self.delobj(code)
 
-    def renewComponent(self, gate: Gate | IC):
-        if isinstance(gate, IC):
+    def renewComponent(self, gate):
+        """Bring a hidden component back."""
+        if gate.id == IC_ID:
             gate.reveal()
+            self.counter += gate.counter
             for pin in gate.outputs:
-                propagate(pin, self.queue, self.fuse)
+                propagate(pin, self.readqueue, self.writequeue, self.counter)
         else:
             gate.reveal()
-            propagate(gate, self.queue, self.fuse)
+            propagate(gate, self.readqueue, self.writequeue, self.counter)
+        self.counter += 1
 
-        if isinstance(gate, Variable):
+        if gate.id == VARIABLE_ID:
             self.varlist.append(gate)
         self.canvas.append(gate)
-        if isinstance(gate, IC):
+        if gate.id == IC_ID:
             self.iclist.append(gate)
 
-    # Result
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
 
-    # generates a truth table for all possible inputs
-    def truthTable(self):
-        if len(self.varlist) == 0:
-            return
-        
-        # logic from old table() or reactor truthTable()
+    def truthTable(self) -> str:
+        """Generate a truth table."""
+        if not self.varlist:
+            return ''
+
         gate_list = []
         for item in self.canvas:
-            if isinstance(item, Variable): 
+            gate_type = item.id
+            if gate_type == VARIABLE_ID:
                 continue
-            elif isinstance(item, IC):
+            elif gate_type != IC_ID:
+                gate_list.append(item)
+            else:
                 for pin in item.outputs:
                     gate_list.append(pin)
-            else:
-                gate_list.append(item)
 
         n = len(self.varlist)
         rows_count = 1 << n
+
         var_names = [v.name for v in self.varlist]
-        gate_names = [v.name for v in gate_list] # IC pins might need better names?
+        gate_names = [v.name for v in gate_list]
         all_names = var_names + gate_names
 
-        if len(all_names) > 0:
-            col_width = max([len(name) for name in all_names]) + 2
-        else:
-            col_width = 4
+        col_width = max((len(name) for name in all_names), default=4) + 2
 
         header_parts = [name.center(col_width) for name in all_names]
         header = " | ".join(header_parts)
         separator = "─" * len(header)
-        
-        Table = []
-        Table.append(separator + '\n')
-        Table.append(header + '\n')
-        Table.append(separator + '\n')
-        
+
+        Table = [separator + '\n', header + '\n', separator + '\n']
+
         for i in range(rows_count):
             inputs = []
             for j in range(n):
                 var = self.varlist[j]
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
-                
-                var.toggle(bit)
-                if var.prev_output != var.output:
-                     propagate(var, self.queue, self.fuse)
-                
-                inputs.append("1" if bit else "0")
-            
+                if bit != var.output:
+                    var.output = bit
+                    propagate(var, self.readqueue, self.writequeue, self.counter)
+                inputs.append(str(bit))
+
             output_vals = [str(gate.getoutput()) for gate in gate_list]
             row_data = inputs + output_vals
             row_parts = [val.center(col_width) for val in row_data]
             row = " | ".join(row_parts)
             Table.append(row + '\n')
-            
+
+        self.simulate(SIMULATE)
         Table.append(separator + '\n')
         return "".join(Table)
 
-    # prints a detailed report of everything going on
     def diagnose(self):
+        """Print a detailed report."""
         print("=" * 90)
         print(" " * 35 + "CIRCUIT DIAGNOSIS")
         print("=" * 90)
 
-        # Diagnose regular gates
-        gates = [c for c in self.canvas if not isinstance(c, IC)]
+        gates = [c for c in self.canvas if c.id != IC_ID]
         if gates:
             columns = [
                 ("Component", 14),
                 ("Sources", 28),
                 ("Book[L,H,E,U]", 15),
                 ("Targets", 25),
-                ("Out", 6)
+                ("Out", 6),
             ]
             total_width = sum(w for _, w in columns)
             fmt = "".join(f"{{:<{w}}}" for _, w in columns)
@@ -320,21 +318,17 @@ class Circuit:
             print("-" * total_width)
 
             for comp in gates:
-                # Sources (inputs) - list with indices
                 if isinstance(comp.sources, list):
                     ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{comp.sources}"
 
-                # Book counts
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
-                # Targets (outputs to) - using hitlist with Profile objects
-                tgt = [f"{profile.target} ({profile.index})" for profile in comp.hitlist]
+                tgt = [f"{p.target} " for p in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
-                # Truncate long strings
                 ch_str = ch_str[:26] + ".." if len(ch_str) > 28 else ch_str
                 tgt_str = tgt_str[:23] + ".." if len(tgt_str) > 25 else tgt_str
 
@@ -342,72 +336,85 @@ class Circuit:
 
             print("-" * total_width)
 
-        # Diagnose ICs
         if self.iclist:
             print("\n" + "=" * 90)
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in self.iclist:
-                ic.info()
+                print(f"\n  IC: {ic.name} (Code: {ic.code})")
+                print("  " + "-" * 50)
+
+                if ic.inputs:
+                    print("  INPUT PINS:")
+                    for pin in ic.inputs:
+                        targets = [f"{p.target} " for p in pin.hitlist]
+                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+
+                if ic.outputs:
+                    print("  OUTPUT PINS:")
+                    for pin in ic.outputs:
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
+                        print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
 
-    def writetojson(self, location):
-        circuit = []
-        for gate in self.canvas:
-            circuit.append(gate.json_data())
+    def writetojson(self, location: str):
+        circuit = [gate.json_data() for gate in self.canvas]
         with open(location, 'w') as file:
             json.dump(circuit, file)
 
-    def decode(self, code):
+    def decode(self, code) -> tuple:
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    def readfromjson(self, location):
+    def readfromjson(self, location: str):
         with open(location, 'r') as file:
             circuit = json.load(file)
-        if isinstance(circuit,dict):
+        if isinstance(circuit, dict):
             return
         pseudo = {}
         pseudo[('X', 'X')] = None
-        for i in circuit:  # load to pseudo
+        for i in circuit:
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.custom_name = i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 
-        for gate_dict in circuit:  # connect components or build the circuit
+        for gate_dict in circuit:
             code = self.decode(gate_dict["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.clone(pseudo)
+                self.counter += gate.counter
             else:
                 gate.clone(gate_dict, pseudo)
 
-    # packages the current circuit into an IC
-    def save_as_ic(self, location, ic_name="IC"):
+    def save_as_ic(self, location: str, ic_name: str = "IC"):
         if self.varlist:
             print('Delete Variables First')
             return
-        lst = [i for i in self.canvas]
+        lst = list(self.canvas)
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
-        myIC.custom_name = ic_name  # Ensure it has a custom name
+        myIC.custom_name = ic_name
         for component in lst:
             myIC.addgate(component)
         with open(location, 'w') as file:
             json.dump(myIC.json_data(), file)
+        self.clearcircuit()
+        self.getIC(location)
 
-    def getIC(self, location):
+    def getIC(self, location: str):
         myIC = self.getcomponent(IC_ID)
         with open(location, 'r') as file:
             crct = json.load(file)
             if isinstance(crct, dict) and "map" in crct:
                 myIC.configure(crct)
+                self.counter += myIC.counter
                 return myIC
             else:
                 print('Cannot Convert to IC')
@@ -415,22 +422,22 @@ class Circuit:
 
     def rank_reset(self):
         for i in range(TOTAL):
-            while self.objlist[i] and self.objlist[i][-1] == None:
+            while self.objlist[i] and self.objlist[i][-1] is None:
                 self.objlist[i].pop()
 
     def clearcircuit(self):
-        for i, _ in enumerate(self.objlist):
-            self.objlist[i] = []
-        self.varlist = []
-        self.canvas = []
-        self.iclist = []
+        for i in range(TOTAL):
+            self.objlist[i].clear()
+        self.varlist.clear()
+        self.canvas.clear()
+        self.iclist.clear()
+        self.counter = 0
 
-    # copies selected components to clipboard
-    def copy(self, components: list["Gate"]):
-        if len(components) == 0:
+    def copy(self, components: list):
+        if not components:
             return
         self.copydata = []
-        cluster: set["Gate"] = set()
+        cluster = set()
         for i in components:
             i.load_to_cluster(cluster)
         for i in components:
@@ -439,42 +446,44 @@ class Circuit:
             json.dump(self.copydata, file)
         self.copydata = [i.code for i in components]
 
-    # pastes components from clipboard
     def paste(self):
         with open('clipboard.json', 'r') as file:
             circuit = json.load(file)
         pseudo = {}
         pseudo[('X', 'X')] = None
         new_items = []
-        for i in circuit:  # load to pseudo
+        for i in circuit:
             code = self.decode(i["code"])
             gate = self.getcomponent(code[0])
             new_items.append(gate.code)
-            if isinstance(gate, IC):
-                gate.custom_name=i["custom_name"]
+            if gate.id == IC_ID:
+                gate.custom_name = i["custom_name"]
                 gate.map = i["map"]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 
-        for gate_dict in circuit:  # connect components or build the circuit
+        for gate_dict in circuit:
             code = self.decode(gate_dict["code"])
             gate = pseudo[code]
-            if isinstance(gate, IC):
+            if gate.id == IC_ID:
                 gate.implement(pseudo)
+                self.counter += gate.counter
             elif gate:
                 gate.clone(gate_dict, pseudo)
         return new_items
 
-    # runs the simulation
-    def simulate(self, Mode):
-        if get_MODE() != DESIGN:
-            self.reset()
+    def simulate(self, Mode: int):
+        """Run the simulation."""
         set_MODE(Mode)
         for variable in self.varlist:
-            variable.output=variable.value
-            propagate(variable, self.queue, self.fuse)
+            variable.output = variable.value
+            propagate(variable, self.readqueue, self.writequeue, self.counter)
 
     def reset(self):
+        """Reset to design mode."""
         set_MODE(DESIGN)
         for i in self.canvas:
-            i.reset()
+            if i.id != IC_ID:
+                i.reset()
+            else:
+                i.reset()
