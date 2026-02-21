@@ -16,24 +16,32 @@ from engine.Gates import Gate
 
 
 
-class LabelItem(QGraphicsTextItem):
-	def __init__(self, text: str, parent: CompItem):
-		super().__init__(text, parent)
-		self.setFont(Font.default)
-		
-
-
-class CompItem(QGraphicsRectItem):
+class CompItem(QGraphicsItem):
 	def __init__(
 			self,
-			pos: QPointF,
-			size: QPoint = QPoint(2, 2),
-			padding: QPointF = QPointF(0, 9)
+			pos: QPointF
 		):
+		
+		# Properties
+		self.tag = "COMP"
+		self.state = False
+		self.facing = Facing.EAST
+		self.isMirrored = False
+
+		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
+		# INPUT-OUTPUT edges, as doing so will make the component
+		# visually face the opposite way, ultimately making
+		# self.facing sound STUPID!
+		
+		self._pinslist: dict[CompEdge, list[PinItem]] = {
+			CompEdge.OUTPUT : [],
+			CompEdge.BOTTOM : [],
+			CompEdge.INPUT  : [],
+			CompEdge.TOP    : [],
+		}
+
 		x, y = GRID.snapF(pos).toTuple()
-		w, h = size.toTuple()
-		dx, dy = padding.toTuple()
-		super().__init__(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
+		super().__init__()
 		
 		# Behavior
 		self.setPos(x, y)
@@ -46,11 +54,10 @@ class CompItem(QGraphicsRectItem):
 		)
 		self.setAcceptHoverEvents(True)
 		self._dirty = True
+		self._rect = self.getRect()
 		self._cached_hitbox = QPainterPath()
-		self._cached_hitbox.addRect(self.rect())
+		self._cached_hitbox.addRect(self._rect)
 		self._hover_count = 0
-		self._size = size.toTuple()    # (Length, Width) independent of facing
-		self._padding = padding.toTuple()
 		self._unit: Gate|None = None
 
 		# Proxy & Hovering
@@ -59,31 +66,7 @@ class CompItem(QGraphicsRectItem):
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
 
-		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
-		# INPUT-OUTPUT edges, as doing so will make the component
-		# visually face the opposite way, ultimately making
-		# self.facing sound STUPID!
-
-		# Properties
-		self.tag = "COMP"
-		self.state = False
-		self.facing = Facing.EAST
-		self.isMirrored = False
-		
-		self._pinslist: dict[CompEdge, list[PinItem]] = {
-			CompEdge.OUTPUT : [],
-			CompEdge.BOTTOM : [],
-			CompEdge.INPUT  : [],
-			CompEdge.TOP    : [],
-		}
-
-		# Visual
-		self.setPen(QPen(Color.outline, 2))
-		self.setBrush(Color.comp_body)
-
-		# Label
-		self.labelItem = LabelItem(self.tag, self)
-		self.labelItem.setPos(5, 5)
+		self.updateShape()
 	
 
 	@property
@@ -108,14 +91,9 @@ class CompItem(QGraphicsRectItem):
 			}
 		}
 
-	def setTag(self, tag: str):
-		self.tag = tag
-		self.labelItem.setPlainText(tag)
-	
 
 	### Facing and Rotation
 	def setFacing(self, facing: Facing):
-		"""Don't forget to run updateShape() afterwards"""
 		if facing == self.facing:
 			return
 		
@@ -123,19 +101,15 @@ class CompItem(QGraphicsRectItem):
 		self.updateOrientation()
 
 	def rotate(self, clockwise: bool = True):
-		"""Don't forget to run updateShape() afterwards"""
 		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
 	def mirror(self):
-		"""Don't forget to run updateShape() afterwards"""
 		self.isMirrored = not self.isMirrored
 		self.updateOrientation()
 	def flip(self):
-		"""Don't forget to run updateShape() afterwards"""
 		self.isMirrored = not self.isMirrored
 		self.setFacing(Facing(self.facing+2))
 	
 	def updateOrientation(self):
-		"""Don't forget to run updateShape() afterwards"""
 		# print("---------------")
 		for edge, pins in self._pinslist.items():
 			# print(f"Edge {edge} facing to ", end="")
@@ -143,6 +117,7 @@ class CompItem(QGraphicsRectItem):
 			for i, pin in enumerate(pins):
 				pin.facing = fa
 				self.setPinPos(pin, gen(i))
+		self.updateShape()
 	
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
 		mirrored = (edge%2 == 1) and self.isMirrored
@@ -168,7 +143,7 @@ class CompItem(QGraphicsRectItem):
 	def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
 		"""Set `facing` and `size` before calling"""
 		# This was way too complicated then expected
-		w, h = self.getDimension()
+		w, h = self.getAbsSize()
 		M = self.isMirrored
 
 		# Final Facing (fa)
@@ -247,22 +222,11 @@ class CompItem(QGraphicsRectItem):
 	### Shape Updating
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
-		if self.facing%2 == 0:
-			# Horizontal
-			w, h = self._size
-			dx, dy = self._padding
-		else:
-			# Vertical
-			h, w = self._size
-			dy, dx = self._padding
-
-		rect = QRectF(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
-		self.setRect(rect)
-	
 		# This part changes the bounding rect and "shape" of the compItem
 		# For when you're changing number of pins. Edges without any pins will not have any "hitbox"
+		self._rect = self.getRect()
 		girth = GRID.SIZE
-		hitbox_rect = rect.adjusted(
+		hitbox_rect = self._rect.adjusted(
 			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
 			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
 			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
@@ -277,7 +241,34 @@ class CompItem(QGraphicsRectItem):
 		return self._cached_hitbox
 	def boundingRect(self) -> QRectF:
 		return self._cached_hitbox.boundingRect()
+
+
+	### Dimension
+	def getRect(self):
+		w, h = self.getAbsSize()
+		dx, dy = self.getAbsPadding()
+		return QRectF(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
+
+	def getRelSize(self) -> tuple[int, int]:
+		"""Calculates relative size in GRID units regardless of facing: `(length, breadth)`"""
+		...    # ABSTRACTE METHOD
 	
+	def getRelPadding(self) -> tuple[float, float]:
+		"""Calculates relative padding regardless of facing: `(length, breadth)`"""
+		...    # ABSTRACTE METHOD
+	
+	def getAbsSize(self) -> tuple[int, int]:
+		"""Calculates absolute size in GRID units: `(width, height)`"""
+		a, b = self.getRelSize()
+		if self.facing%2 == 0: return (a, b)
+		else:                  return (b, a)
+	
+	def getAbsPadding(self) -> tuple[float, float]:
+		"""Calculates absolute padding: `(width, height)`"""
+		a, b = self.getRelPadding()
+		if self.facing%2 == 0: return (a, b)
+		else:                  return (b, a)
+
 
 	### Events
 	def itemChange(self, change: GraphicsItemChange, value):
@@ -289,16 +280,23 @@ class CompItem(QGraphicsRectItem):
 	def updateShape(self):
 		"""No need to call `setHitbox()` afterwards"""
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
+	
+	def draw(self, painter, option, widget):
+		...    # ABSTRACT METHOD
 	def paint(self, painter, option, widget):
 		if self._dirty: self._updateShape(); self._dirty = False
-		return super().paint(painter, option, widget)
-	
-	def setDimension(self, width: int, height: int):
-		self._size = (width, height)
-	def getDimension(self) -> tuple[int, int]:
-		if self.facing%2 == 0:
-			# Horizontal
-			return self._size
+
+
+		if option.state & QStyle.StateFlag.State_Selected:
+			painter.setPen(QPen(Color.hl_text_bg, 2, Qt.PenStyle.DashLine))
 		else:
-			# Vertical
-			return self._size[::-1]  # pyright: ignore[reportReturnType]
+			painter.setPen(QPen(Color.outline, 2))
+		painter.setBrush(Color.comp_body)
+
+		self.draw(painter, option, widget)
+		painter.drawRect(self._rect)
+
+
+		painter.setPen(Color.text)
+		painter.setFont(Font.default)
+		painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)

@@ -5,7 +5,7 @@ from core.Enums import Facing, EditorState
 import core.grid as GRID
 
 from .catalog import (
-	LOOKUP, CompItem, LabelItem, WireItem, InputPinItem, OutputPinItem,
+	LOOKUP, CompItem, WireItem, InputPinItem, OutputPinItem,
 	GateItem
 )
 
@@ -77,7 +77,7 @@ class CircuitScene(QGraphicsScene):
 	def addComp(self, x: float, y:float, comp_id: int):
 		cd = LOOKUP[comp_id]
 		comp = cd.skin(QPointF(x, y))
-		comp.labelItem.setPlainText(cd.tag)
+		comp.tag = cd.tag
 		# horse-egg
 		# self.logic.getcomponent(cd.logic, )
 		
@@ -189,7 +189,6 @@ class CircuitScene(QGraphicsScene):
 		# RMB drag has been handled
 		btn = event.button()
 		target = self.itemAt(event.scenePos(), QTransform())
-		if isinstance(target, LabelItem): target = target.parentItem()
 
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
@@ -241,19 +240,16 @@ class CircuitScene(QGraphicsScene):
 		# 	for item in self.selectedItems():
 		# 		if isinstance(item, CompItem):
 		# 			item.mirror()
-		# 			item.updateShape()
 		
 		if key == Key.Key_F:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					item.flip()
-					item.updateShape()
 		
 		if key == Key.Key_R:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					item.rotate(not mod & KeyMod.ShiftModifier)
-					item.updateShape()
 		
 		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
 		and mod & KeyMod.ControlModifier:
@@ -264,10 +260,13 @@ class CircuitScene(QGraphicsScene):
 						case Key.Key_Down:  item.setFacing(Facing.SOUTH)
 						case Key.Key_Left:  item.setFacing(Facing.WEST)
 						case Key.Key_Up:    item.setFacing(Facing.NORTH)
-					item.updateShape()
 		
 		# if key == Key.Key_C and mod & KeyMod.ControlModifier:
 		# 	comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
+		if key == Key.Key_A and mod & KeyMod.ControlModifier:
+			self.clearSelection()
+			for item in self.comps:
+				item.setSelected(True)
 		# # DEBUG
 		# if key == Key.Key_Space:
 		# 	for item in self.selectedItems():

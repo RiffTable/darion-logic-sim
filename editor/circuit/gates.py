@@ -14,11 +14,21 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 
 ### Gate Item
 class GateItem(CompItem):
+	def getRelSize(self):
+		n = len(self._pinslist[CompEdge.INPUT])
+		if   n < 5:  w = 6
+		elif n < 10: w = 8
+		else:        w = 10
+
+		h = 2*(n-1) if n > 3 else 4
+		return (w, h)
+	
+	def getRelPadding(self): return (0, 9)
 	def __init__(self, pos: QPointF):
-		super().__init__(pos, QPoint(6, 4))
+		super().__init__(pos)
 		
 		# Behavior
-		self.setTag("GATE")
+		self.tag = "GATE"
 
 		# Pins
 		self.addPin(0, CompEdge.INPUT, InputPinItem)
@@ -33,7 +43,7 @@ class GateItem(CompItem):
 		# Properties
 		self.minInput = 2
 		self.maxInput = 69
-	
+
 
 	### Properties Data
 	def getData(self):
@@ -117,13 +127,8 @@ class GateItem(CompItem):
 	# Events
 	def _updateShape(self):
 		n = len(self.inputPins)
-		w = 0
-		if   n < 5:  w = 6
-		elif n < 10: w = 8
-		else:        w = 10
-		h = 2*(n-1) if n > 3 else 4
+		_, h = self.getRelSize()
 		m = h//(n-1)
-		self.setDimension(w, h)
 
 		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 		for i, p in enumerate(self.inputPins):
@@ -140,13 +145,14 @@ class GateItem(CompItem):
 
 ### Gate Item
 class UnaryGateItem(CompItem):
+	def getRelSize(self): return (4, 2)
+	def getRelPadding(self): return (0, 4)
 	def __init__(self, pos: QPointF):
-		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
+		super().__init__(pos)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.setTag("NOT")
-		self.labelItem.setPos(5, -5)
+		self.tag = "NOT"
 
 		# Pins
 		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
@@ -159,53 +165,52 @@ class UnaryGateItem(CompItem):
 
 
 
+
 class InputItem(CompItem):
+	def getRelSize(self): return (4, 2)
+	def getRelPadding(self): return (0, 4)
 	def __init__(self, pos: QPointF):
-		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
+		super().__init__(pos)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.setTag("IN")
-		self.labelItem.setPos(5, -5)
+		self.tag = "IN"
 		
 		# Pins
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.updateShape()
 
-		# Properties
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		if event.button() == MouseBtn.LeftButton:
 			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
 			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
 				self.state = not self.state
-				self.updateVisual()
 			return super().mouseReleaseEvent(event)
 	
-	def updateVisual(self):
-		self.setPen(QPen(Color.outline, 2))
-		if self.state: self.setBrush(Color.comp_on)
-		else:          self.setBrush(Color.comp_body)
+	def draw(self, painter, option, widget):
+		# painter.setPen(QPen(Color.outline, 2))
+		if self.state: painter.setBrush(Color.comp_on)
+		else:          painter.setBrush(Color.comp_body)
 
 
 
 class OutputItem(CompItem):
+	def getRelSize(self): return (4, 2)
+	def getRelPadding(self): return (0, 4)
 	def __init__(self, pos: QPointF):
-		super().__init__(pos, QPoint(4, 2), QPointF(0, 4))
+		super().__init__(pos)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
-		self.setTag("OUT")
-		self.labelItem.setPos(5, -5)
+		self.tag = "OUT"
 		
 		# Pins
 		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
 		self.updateShape()
-
-		# Properties
 	
 
-	def updateVisual(self):
-		self.setPen(QPen(Color.outline, 2))
-		if self.state: self.setBrush(Color.LED_on)
-		else:          self.setBrush(Color.LED_off)
+	def draw(self, painter, option, widget):
+		# painter.setPen(QPen(Color.outline, 2))
+		if self.state: painter.setBrush(Color.LED_on)
+		else:          painter.setBrush(Color.LED_off)

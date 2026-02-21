@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from .compitem import CompItem, LabelItem
+from .compitem import CompItem
 from .gates import GateItem, UnaryGateItem, InputItem, OutputItem
 from .wireitem import WireItem
 from .pins import PinItem, InputPinItem, OutputPinItem
