@@ -11,20 +11,22 @@ import Const
 from IC import IC
 from Store import get
 
-def turnoff(gate: Gate, readqueue: list, writequeue: list, wave_limit: int):
+def turnoff(gate: Gate, queue: list, wave_limit: int):
     """Set all targets to UNKNOWN and propagate."""
     for profile in gate.hitlist:
         target = profile.target
         if target is not gate:
             target.output = UNKNOWN
-            propagate(target, readqueue, writequeue, wave_limit)
+            propagate(target, queue, wave_limit)
 
-def burn(origin: Gate, readqueue: list, writequeue: list):
+def burn(origin: Gate, queue: list):
     """Error propagation — flood-fill ERROR through the graph."""
-    readqueue.append(origin)
-    while readqueue:
-        for index in range(len(readqueue)):
-            gate = readqueue[index]
+    index = 0
+    size = 1
+    queue.append(origin)
+    while index < size:
+        while index < size:
+            gate = queue[index]
             gate.scheduled = False
             gate.output = ERROR
             for profile in gate.hitlist:
@@ -35,33 +37,34 @@ def burn(origin: Gate, readqueue: list, writequeue: list):
                         target.book[ERROR] += 1
                     profile.output = ERROR
                     if target.output != ERROR:
-                        writequeue.append(target)
-        # swap
-        readqueue[:] = writequeue
-        writequeue.clear()
+                        queue.append(target)
+            index += 1
+        size = len(queue)
+    queue.clear()
 
 
-def propagate(origin: Gate, readqueue: list, writequeue: list, wave_limit: int):
+def propagate(origin: Gate, queue: list, wave_limit: int):
     """The core reactor propagation loop.
-    Double-buffered list queue, inline gate evaluation, scheduled flag."""
+    Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
 
     if origin.output == ERROR:
-        burn(origin, readqueue, writequeue)
+        burn(origin, queue)
         return
 
-    readqueue.append(origin)
+    queue.append(origin)
     counter = 0
+    index = 0
+    size = 1
 
-    while readqueue:
+    while index < size:
         if counter > wave_limit:
-            readqueue.clear()
-            writequeue.clear()
-            burn(gate, readqueue, writequeue)
+            queue.clear()
+            burn(gate, queue)
             return
         counter += 1
 
-        for index in range(len(readqueue)):
-            gate = readqueue[index]
+        while index < size:
+            gate = queue[index]
             gate.scheduled = False
             new_output = gate.output
 
@@ -99,13 +102,13 @@ def propagate(origin: Gate, readqueue: list, writequeue: list, wave_limit: int):
                         target.output = target_output
                         if not target.scheduled:
                             target.scheduled = True
-                            writequeue.append(target)
+                            queue.append(target)
 
                     profile.output = new_output
 
-        # swap buffers
-        readqueue[:] = writequeue
-        writequeue.clear()
+            index += 1
+        size = len(queue)
+    queue.clear()
 
 
 # ─── Circuit ──────────────────────────────────────────────────────
@@ -114,7 +117,7 @@ class Circuit:
     """The main circuit board."""
     __slots__ = [
         'objlist', 'canvas', 'varlist', 'iclist', 'copydata',
-        'counter', 'readqueue', 'writequeue',
+        'counter', 'queue',
     ]
 
     def __init__(self):
@@ -124,8 +127,7 @@ class Circuit:
         self.iclist: list[IC] = []
         self.copydata: list = []
         self.counter: int = 0
-        self.readqueue: list = []
-        self.writequeue: list = []
+        self.queue: list = []
 
     def __repr__(self):
         return 'Circuit'
@@ -178,32 +180,32 @@ class Circuit:
         prev = target.output
         target.connect(source, index)
         if prev != target.output:
-            propagate(target, self.readqueue, self.writequeue, self.counter)
+            propagate(target, self.queue, self.counter)
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
         if value != target.output:
             target.value = value
-            target.output = value
-            propagate(target, self.readqueue, self.writequeue, self.counter)
+            target.output = value if Const.MODE == SIMULATE else UNKNOWN
+            propagate(target, self.queue, self.counter)
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""
         prev = target.output
         target.disconnect(index)
         if prev != target.output:
-            propagate(target, self.readqueue, self.writequeue, self.counter)
+            propagate(target, self.queue, self.counter)
 
     def hideComponent(self, gate):
         """Soft delete — disconnect and remove from view."""
         if gate.id == IC_ID:
             gate.hide()
             for pin in gate.outputs:
-                turnoff(pin, self.readqueue, self.writequeue, self.counter)
+                turnoff(pin, self.queue, self.counter)
             self.counter -= gate.counter
         else:
             gate.hide()
-            turnoff(gate, self.readqueue, self.writequeue, self.counter)
+            turnoff(gate, self.queue, self.counter)
         self.counter -= 1
 
         if gate in self.varlist:
@@ -230,10 +232,10 @@ class Circuit:
             gate.reveal()
             self.counter += gate.counter
             for pin in gate.outputs:
-                propagate(pin, self.readqueue, self.writequeue, self.counter)
+                propagate(pin, self.queue, self.counter)
         else:
             gate.reveal()
-            propagate(gate, self.readqueue, self.writequeue, self.counter)
+            propagate(gate, self.queue, self.counter)
         self.counter += 1
 
         if gate.id == VARIABLE_ID:
@@ -283,7 +285,7 @@ class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit != var.output:
                     var.output = bit
-                    propagate(var, self.readqueue, self.writequeue, self.counter)
+                    propagate(var, self.queue, self.counter)
                 inputs.append(str(bit))
 
             output_vals = [str(gate.getoutput()) for gate in gate_list]
@@ -477,7 +479,7 @@ class Circuit:
         set_MODE(Mode)
         for variable in self.varlist:
             variable.output = variable.value
-            propagate(variable, self.readqueue, self.writequeue, self.counter)
+            propagate(variable, self.queue, self.counter)
 
     def reset(self):
         """Reset to design mode."""

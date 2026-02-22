@@ -11,8 +11,7 @@ from IC cimport IC
 from Store cimport get
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
-
-cdef inline void turnoff(Gate gate,Queue &readqueue,Queue &writequeue,int wave_limit):
+cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit):
     cdef Profile* profile = gate.hitlist.data()
     cdef Profile* end = profile+gate.hitlist.size()
     cdef Gate target
@@ -20,20 +19,20 @@ cdef inline void turnoff(Gate gate,Queue &readqueue,Queue &writequeue,int wave_l
         target = <Gate>profile.target
         if <void*>target != <void*>gate:
             target.output = UNKNOWN
-            propagate(target,readqueue,writequeue,wave_limit)
+            propagate(target,queue,wave_limit)
         profile+=1
 
-cdef void burn(Gate origin, Queue &readqueue,Queue &writequeue):
+cdef void burn(Gate origin, Queue &queue):
     cdef Gate gate,target
     cdef Profile* profile
     cdef Profile* end
-    cdef Py_ssize_t index,size=1
+    cdef Py_ssize_t index=0,size=1
     cdef int* book
-    readqueue.push_back(<void*>origin)
+    queue.push_back(<void*>origin)
     # keep propagating until everything settles
-    while size>0:
-        for index in range(size):
-            gate = <Gate>readqueue[index]
+    while index<size:
+        while index<size:
+            gate = <Gate>queue[index]
             gate.scheduled=False
             profile = gate.hitlist.data()
             end = profile+gate.hitlist.size()
@@ -47,35 +46,33 @@ cdef void burn(Gate origin, Queue &readqueue,Queue &writequeue):
                         book[ERROR]+=1
                     profile.output = ERROR
                     if target.output!=ERROR:
-                        writequeue.push_back(<void*>target)
+                        queue.push_back(<void*>target)
                 profile+=1
-        readqueue.swap(writequeue)
-        writequeue.clear()
-        size = readqueue.size()
+            index+=1
+        size = queue.size()
+    queue.clear()
 
-
-cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limit):
+cdef void propagate(Gate origin,Queue &queue,int wave_limit):
     cdef Gate gate,target
     cdef Profile* profile
     cdef Profile* end
     cdef int* book
     cdef int gate_type, realsource, high, low, limit
     cdef int old_output, new_output, profile_output,target_output
-    cdef Py_ssize_t index,size=1
+    cdef Py_ssize_t index=0,size=1
     cdef int counter=0
     if origin.output==ERROR:
-        burn(origin,readqueue,writequeue)
+        burn(origin,queue)
         return
-    readqueue.push_back(<void*>origin)
-    while size:
+    queue.push_back(<void*>origin)
+    while index<size:
         if counter>wave_limit:
-            readqueue.clear()
-            writequeue.clear()
-            burn(gate,readqueue,writequeue)
+            queue.clear()
+            burn(gate,queue)
             return
         counter+=1
-        for index in range(size):
-            gate = <Gate>readqueue[index]
+        while index<size:
+            gate = <Gate>queue[index]
             gate.scheduled=False
             new_output=gate.output
             profile = gate.hitlist.data()
@@ -97,7 +94,7 @@ cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limi
                         book[new_output]+=1
                         high=book[HIGH]
                         low=book[LOW]
-                        realsource=high+low
+                        realsource = high+low
                         if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
                             if gate_type<=NAND_ID:target_output = low==0
                             elif gate_type<=NOR_ID:target_output = high>0
@@ -108,19 +105,16 @@ cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limi
                         target.output = target_output
                         if not target.scheduled:
                             target.scheduled=True
-                            writequeue.push_back(<void*>target)
+                            queue.push_back(<void*>target)
                     profile.output = new_output
                 profile+=1
-        readqueue.swap(writequeue)
-        writequeue.clear()
-        size = readqueue.size()
-
-
+            index+=1
+        size = queue.size()
+    queue.clear()
 cdef class Circuit:
     def __cinit__(self):
         self.counter=0
-        self.readqueue.reserve(64000)
-        self.writequeue.reserve(64000)
+        self.queue.reserve(1310720)
     def __init__(self):
         # lookup table for objects by code
         self.objlist = [
@@ -128,7 +122,6 @@ cdef class Circuit:
         self.canvas = []
         self.varlist = []
         self.iclist = []
-
         self.copydata = []
 
     def __repr__(self):
@@ -183,20 +176,20 @@ cdef class Circuit:
         cdef int prev=target.output
         target.connect(source,index)
         if prev != target.output:
-            propagate(target,self.readqueue,self.writequeue,self.counter)
+            propagate(target,self.queue,self.counter)
 
             
     cpdef void toggle(self, Variable target,int value):
         if value != target.output:
             target.value=value
             target.output=value if MODE==SIMULATE else UNKNOWN
-            propagate(target,self.readqueue,self.writequeue,self.counter)
+            propagate(target,self.queue,self.counter)
 
     cpdef void disconnect(self, Gate target,int index):
         cdef int prev=target.output
         target.disconnect(index)
         if prev != target.output:
-            propagate(target,self.readqueue,self.writequeue,self.counter)
+            propagate(target,self.queue,self.counter)
 
     cpdef void hideComponent(self, object gate):
         cdef Gate pin
@@ -205,12 +198,12 @@ cdef class Circuit:
             ic=<IC>gate
             ic.hide()
             for pin in ic.outputs:
-                turnoff(pin,self.readqueue,self.writequeue,self.counter)
+                turnoff(pin,self.queue,self.counter)
             self.counter-=ic.counter
         else:
             pin=<Gate>gate
             pin.hide()
-            turnoff(pin,self.readqueue,self.writequeue,self.counter)
+            turnoff(pin,self.queue,self.counter)
         self.counter-=1        
         if gate in self.varlist:
             self.varlist.remove(gate)
@@ -239,11 +232,11 @@ cdef class Circuit:
             ic.reveal()
             self.counter+=ic.counter
             for pin in ic.outputs:
-                propagate(pin,self.readqueue,self.writequeue,self.counter)
+                propagate(pin,self.queue,self.counter)
         else:
             pin=<Gate>gate
             pin.reveal()
-            propagate(pin,self.readqueue,self.writequeue,self.counter)
+            propagate(pin,self.queue,self.counter)
         self.counter+=1
         if gate.id==VARIABLE_ID:
             self.varlist.append(gate)
@@ -311,7 +304,7 @@ cdef class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit!=var.output:
                     var.output=bit
-                    propagate(var,self.readqueue,self.writequeue,self.counter)
+                    propagate(var,self.queue,self.counter)
                 inputs.append(str(bit))                
             # Calculate outputs
             output_vals = [str(gate.getoutput()) for gate in gate_list]
@@ -508,13 +501,10 @@ cdef class Circuit:
 
     cpdef void simulate(self, int Mod):
         set_MODE(Mod)
-        if self.readqueue.capacity()<self.counter:
-            self.readqueue.reserve(self.counter)
-            self.writequeue.reserve(self.counter)
         cdef Variable variable
         for variable in self.varlist:
             variable.output=variable.value
-            propagate(variable,self.readqueue,self.writequeue,self.counter)
+            propagate(variable,self.queue,self.counter)
 
     cpdef void reset(self):
         set_MODE(DESIGN)

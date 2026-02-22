@@ -87,7 +87,7 @@ class Gate:
             high = self.book[HIGH]
             low = self.book[LOW]
             realsource = high + low
-            if realsource and realsource + self.book[ERROR] + self.book[UNKNOWN] == self.inputlimit:
+            if realsource == self.inputlimit or (realsource and realsource + self.book[ERROR] + self.book[UNKNOWN] == self.inputlimit):
                 gate_type = self.id
                 if gate_type <= NAND_ID:
                     target_output = int(low == 0)
@@ -141,11 +141,10 @@ class Gate:
         for profile in self.hitlist:
             hide_profile(profile)
 
-
         for i, source in enumerate(self.sources):
             if source is not None:
                 pop(source.hitlist, self, i)
-
+        self.output = UNKNOWN
         self.book[:] = [0, 0, 0, 0]
 
     def reveal(self):
@@ -154,10 +153,10 @@ class Gate:
             if source is not None:
                 source.hitlist.append(Profile(self, i, source.output))
                 self.book[source.output] += 1
-        self.process()
 
         for profile in self.hitlist:
             reveal_profile(profile, self)
+        self.process()
 
     def setlimits(self, size: int) -> bool:
         if size < 2:
@@ -303,10 +302,7 @@ class Probe(Gate):
     def connect(self, source: Gate, index: int):
         source.hitlist.append(Profile(self, index, source.output))
         self.sources[index] = source
-        if source.output == ERROR:
-            self.output = ERROR
-        else:
-            self.process()
+        self.output = source.output
 
     def disconnect(self, index: int):
         source = self.sources[index]
@@ -314,7 +310,7 @@ class Probe(Gate):
             return
         pop(source.hitlist, self, index)
         self.sources[index] = None
-        self.process()
+        self.output = UNKNOWN
 
     def reset(self):
         self.output = UNKNOWN
@@ -327,12 +323,13 @@ class Probe(Gate):
         for i, source in enumerate(self.sources):
             if source is not None:
                 pop(source.hitlist, self, i)
+        self.output = UNKNOWN
 
     def reveal(self):
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                source.hitlist.append(Profile(self, i, source.output))
-        self.process()
+        source = self.sources[0]
+        if source is not None:
+            source.hitlist.append(Profile(self, 0, source.output))
+            self.output = source.output
         for profile in self.hitlist:
             reveal_profile(profile, self)
 
@@ -391,10 +388,10 @@ class NOT(Gate):
     def connect(self, source: Gate, index: int):
         source.hitlist.append(Profile(self, index, source.output))
         self.sources[index] = source
-        if source.output == ERROR:
-            self.output = ERROR
+        if source.output >= ERROR:
+            self.output = source.output
         else:
-            self.process()
+            self.output = source.output ^ 1
 
     def disconnect(self, index: int):
         source = self.sources[index]
@@ -402,7 +399,7 @@ class NOT(Gate):
             return
         pop(source.hitlist, self, index)
         self.sources[index] = None
-        self.process()
+        self.output = UNKNOWN
 
     def reset(self):
         self.output = UNKNOWN
@@ -412,15 +409,19 @@ class NOT(Gate):
     def hide(self):
         for profile in self.hitlist:
             hide_profile(profile)
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                pop(source.hitlist, self, i)
+        source = self.sources[0]
+        if source is not None:
+            pop(source.hitlist, self, 0)
+        self.output = UNKNOWN
 
     def reveal(self):
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                source.hitlist.append(Profile(self, i, source.output))
-        self.process()
+        source = self.sources[0]
+        if source is not None:
+            source.hitlist.append(Profile(self, 0, source.output))
+            if source.output >= ERROR:
+                self.output = source.output
+            else:
+                self.output = source.output ^ 1
         for profile in self.hitlist:
             reveal_profile(profile, self)
 

@@ -274,15 +274,12 @@ cdef class Probe(Gate):
     cdef void connect(self, Gate source, int index):
         source.hitlist.emplace_back(<void*>self, index, source.output)
         self.sources[index] = source
-        if source.output==ERROR:
-            self.output = ERROR
-        else:
-            self.process()
+        self.output=source.output
     cdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         pop(source.hitlist, <void*>self, index)
         self.sources[index] = None
-        self.process()
+        self.output=UNKNOWN
    
     cdef void reset(self):
         self.output = UNKNOWN
@@ -307,21 +304,20 @@ cdef class Probe(Gate):
             source=<Gate>PyList_GET_ITEM(sources,i)
             if source is not None:
                 pop(source.hitlist, <void*>self, i)
+        self.output=UNKNOWN
 
     cdef void reveal(self):
         cdef Profile* hitlist = self.hitlist.data()
         cdef Py_ssize_t i
         cdef list sources=self.sources
         cdef Py_ssize_t n=len(sources)
-        cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                source.hitlist.emplace_back(<void*>self, i, source.output)
-        self.process()
+        cdef Gate source=self.sources[0]
+        if source:
+            source.hitlist.emplace_back(<void*>self, 0, source.output)
+            self.output=source.output
         n=self.hitlist.size()
         for i in range(n):
-            reveal(hitlist[i], self)
+            reveal(hitlist[i], self)        
 
     cpdef bint setlimits(self,int size):
         return False
@@ -361,8 +357,6 @@ cdef class OutputPin(Probe):
     def __cinit__(self):
         self.id = OUTPUT_PIN_ID
 
-
-
 cdef class NOT(Gate):
     """NOT gate - inverts the input"""
     def __cinit__(self):
@@ -375,15 +369,15 @@ cdef class NOT(Gate):
     cdef void connect(self, Gate source, int index):
         source.hitlist.emplace_back(<void*>self, index, source.output)
         self.sources[index] = source
-        if source.output==ERROR:
-            self.output = ERROR
+        if source.output>=ERROR:
+            self.output=source.output
         else:
-            self.process()
+            self.output=source.output^1
     cdef void disconnect(self,int index):
         cdef Gate source = self.sources[index]
         pop(source.hitlist, <void*>self, index)
         self.sources[index] = None
-        self.process()
+        self.output=UNKNOWN
    
     cdef void reset(self):
         self.output = UNKNOWN
@@ -400,26 +394,23 @@ cdef class NOT(Gate):
         for i in range(n):
             hide(hitlist[i])
         
-        cdef Profile* src_hitlist
-        cdef list sources=self.sources
-        n=len(sources)
-        cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                pop(source.hitlist, <void*>self, i)
+        cdef Gate source=self.sources[0]
+        if source:
+            pop(source.hitlist, <void*>self, 0)
+        self.output=UNKNOWN
 
     cdef void reveal(self):
         cdef Profile* hitlist = self.hitlist.data()
         cdef Py_ssize_t i
         cdef list sources=self.sources
         cdef Py_ssize_t n=len(sources)
-        cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                source.hitlist.emplace_back(<void*>self, i, source.output)
-        self.process()
+        cdef Gate source=self.sources[0]
+        if source:
+            source.hitlist.emplace_back(<void*>self, 0, source.output)
+            if source.output>=ERROR:
+                self.output=source.output
+            else:
+                self.output=source.output^1
         n=self.hitlist.size()
         for i in range(n):
             reveal(hitlist[i], self)   
@@ -427,16 +418,14 @@ cdef class NOT(Gate):
     cdef void process(self):
         cdef Gate source=self.sources[0]
         cdef int output
-        if MODE == DESIGN:
+        if MODE == DESIGN or source is None:
             self.output = UNKNOWN
-        elif source is not None:
+        else:
             output=source.output
             if output == UNKNOWN:
                 self.output = UNKNOWN
             else:
                 self.output = output^1
-        else:
-            self.output = UNKNOWN
 
 cdef class AND(Gate):
     """AND gate - outputs 1 only if all inputs are 1"""

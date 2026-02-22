@@ -116,6 +116,18 @@ class AggressiveTestSuite:
             
         return (end - start) / 1_000_000
 
+    @staticmethod
+    def format_time(ms):
+        """Format a time value (in ms) with adaptive units."""
+        if ms >= 1000:
+            return f"{ms / 1000:.2f} s"
+        elif ms >= 0.1:
+            return f"{ms:.2f} ms"
+        elif ms >= 0.001:
+            return f"{ms * 1000:.1f} µs"
+        else:
+            return f"{ms * 1_000_000:.0f} ns"
+
     def assert_test(self, condition, test_name, details=""):
         self.test_count += 1
         self._subsection_tests += 1
@@ -426,37 +438,48 @@ class AggressiveTestSuite:
             out(f"    CPU Datapath ({cd['gates']//1000}K):        {cd['time']:.2f} ms")
 
         # Real-world stress results
+        ft = self.format_time
         out(f"\n  Real-World Stress:")
         if 'ripple_adder' in self.perf_metrics:
             ra = self.perf_metrics['ripple_adder']
-            out(f"    Ripple Adder ({ra['gates']} gates):    verified")
+            label = f"Ripple Adder ({ra['gates']} gates)"
+            out(f"    {label:<34s} verified")
         if 'sr_latch' in self.perf_metrics:
             sl = self.perf_metrics['sr_latch']
-            out(f"    SR Latch ({sl['gates']//2} latches):     all states verified")
+            label = f"SR Latch ({sl['gates']//2} latches)"
+            out(f"    {label:<34s} all states verified")
         if 'mux_tree' in self.perf_metrics:
             mt = self.perf_metrics['mux_tree']
-            out(f"    Mux Tree ({mt['gates']} gates):       {mt['time']:.2f} ms")
+            label = f"Mux Tree ({mt['gates']} gates)"
+            out(f"    {label:<34s} {ft(mt['time'])}")
         if 'ring_osc' in self.perf_metrics:
             ro = self.perf_metrics['ring_osc']
-            out(f"    Ring Oscillator:            ERROR in {ro['time']:.2f} ms")
+            label = "Ring Oscillator"
+            out(f"    {label:<34s} ERROR in {ft(ro['time'])}")
         if 'decoder_encoder' in self.perf_metrics:
             de = self.perf_metrics['decoder_encoder']
-            out(f"    Decoder ({de['gates']} gates):        verified")
+            label = f"Decoder ({de['gates']} gates)"
+            out(f"    {label:<34s} verified")
         if 'cascade_pipeline' in self.perf_metrics:
             cp = self.perf_metrics['cascade_pipeline']
-            out(f"    Cascade Pipeline ({cp['gates']} gates): verified")
+            label = f"Cascade Pipeline ({cp['gates']} gates)"
+            out(f"    {label:<34s} verified")
         if 'xor_parity' in self.perf_metrics:
             xp = self.perf_metrics['xor_parity']
-            out(f"    XOR Parity ({xp['gates']} gates):     {xp['time']:.2f} ms")
+            label = f"XOR Parity ({xp['gates']} gates)"
+            out(f"    {label:<34s} {ft(xp['time'])}")
         if 'glitch_prop' in self.perf_metrics:
             gp = self.perf_metrics['glitch_prop']
-            out(f"    Glitch Propagation:         {gp['time']:.2f} ms")
+            label = "Glitch Propagation"
+            out(f"    {label:<34s} {ft(gp['time'])}")
         if 'hot_swap' in self.perf_metrics:
             hs = self.perf_metrics['hot_swap']
-            out(f"    Hot Swap:                   {hs['time']:.2f} ms")
+            label = "Hot Swap"
+            out(f"    {label:<34s} {ft(hs['time'])}")
         if 'reconvergent' in self.perf_metrics:
             rc = self.perf_metrics['reconvergent']
-            out(f"    Reconvergent Fanout:        {rc['time']:.2f} ms")
+            label = "Reconvergent Fanout"
+            out(f"    {label:<34s} {ft(rc['time'])}")
 
         # Final result
         out(f"\n{'='*70}")
@@ -2746,12 +2769,11 @@ class AggressiveTestSuite:
         # Select input 7: set sel = 0b0000000111
         c.toggle(data_vars[0], Const.LOW)
         c.toggle(data_vars[7], Const.HIGH)
-        for i in range(select_bits):
-            c.toggle(sel_vars[i], (7 >> i) & 1)
 
         gc.disable()
         start = time.perf_counter_ns()
-        # The propagation from select changes should settle
+        for i in range(select_bits):
+            c.toggle(sel_vars[i], (7 >> i) & 1)
         result = mux_output.output
         duration = (time.perf_counter_ns() - start) / 1_000_000
         gc.enable()

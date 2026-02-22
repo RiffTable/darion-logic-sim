@@ -4,8 +4,8 @@ from libcpp.vector cimport vector
 
 ctypedef vector[void*] Queue
 
-cdef void propagate(Gate origin,Queue &readqueue,Queue &writequeue,int wave_limit)
-cdef void burn(Gate origin,Queue &readqueue,Queue &writequeue)
+cdef void propagate(Gate origin,Queue &queue,int wave_limit)
+cdef void burn(Gate origin,Queue &queue)
 
 cdef class Circuit:
     cdef public list objlist
@@ -14,8 +14,7 @@ cdef class Circuit:
     cdef public list iclist
     cdef public list copydata
     cdef public int counter
-    cdef Queue readqueue
-    cdef Queue writequeue
+    cdef Queue queue
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef void delobj(self, tuple code)
