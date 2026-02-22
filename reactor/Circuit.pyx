@@ -22,13 +22,12 @@ cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit):
             propagate(target,queue,wave_limit)
         profile+=1
 
-cdef void burn(Gate origin, Queue &queue):
+cdef void burn(Queue &queue,int index):
     cdef Gate gate,target
     cdef Profile* profile
     cdef Profile* end
-    cdef Py_ssize_t index=0,size=1
+    cdef Py_ssize_t size=queue.size()
     cdef int* book
-    queue.push_back(<void*>origin)
     # keep propagating until everything settles
     while index<size:
         while index<size:
@@ -41,19 +40,18 @@ cdef void burn(Gate origin, Queue &queue):
                 if profile.output!=ERROR:
                     target=<Gate>profile.target
                     if target.inputlimit!=1:
-                        book = target.book
-                        book[profile.output]-=1
-                        book[ERROR]+=1
+                        target.book[profile.output]-=1
+                        target.book[gate.output]+=1
+                        if target.output!=ERROR:
+                            queue.push_back(<void*>target)
                     profile.output = ERROR
-                    if target.output!=ERROR:
-                        queue.push_back(<void*>target)
                 profile+=1
             index+=1
         size = queue.size()
     queue.clear()
 
 cdef void propagate(Gate origin,Queue &queue,int wave_limit):
-    cdef Gate gate,target
+    cdef Gate gate=origin,target
     cdef Profile* profile
     cdef Profile* end
     cdef int* book
@@ -62,13 +60,12 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
     cdef Py_ssize_t index=0,size=1
     cdef int counter=0
     if origin.output==ERROR:
-        burn(origin,queue)
+        burn(queue,index)
         return
     queue.push_back(<void*>origin)
     while index<size:
         if counter>wave_limit:
-            queue.clear()
-            burn(gate,queue)
+            burn(queue,index)
             return
         counter+=1
         while index<size:
@@ -117,6 +114,7 @@ cdef class Circuit:
         self.queue.reserve(30*1024*1024)
     def __init__(self):
         # lookup table for objects by code
+        set_MODE(DESIGN)
         self.objlist = [
             [] for i in range(TOTAL)]
         self.canvas = []
@@ -409,6 +407,8 @@ cdef class Circuit:
                 gate.custom_name = i[CUSTOM_NAME]
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
+            elif gate.id == VARIABLE_ID:
+                gate.output=UNKNOWN
             pseudo[code] = gate
 
         for gate_info in circuit:  # connect components or build the circuit
@@ -489,6 +489,8 @@ cdef class Circuit:
                 gate.custom_name=i[CUSTOM_NAME]
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
+            elif gate.id==VARIABLE_ID:
+                gate.output=UNKNOWN
             pseudo[code] = gate
 
         for gate_info in circuit:  # connect components or build the circuit

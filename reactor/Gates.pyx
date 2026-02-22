@@ -209,6 +209,7 @@ cdef class Variable(Gate):
         Gate.__init__(self)
         self.value = 0
         self.inputlimit = 1
+        self.output = UNKNOWN if MODE == DESIGN else self.value
         self.sources.pop()
     cpdef bint setlimits(self,int size):
         return False

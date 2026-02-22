@@ -5,7 +5,7 @@ from libcpp.vector cimport vector
 ctypedef vector[void*] Queue
 
 cdef void propagate(Gate origin,Queue &queue,int wave_limit)
-cdef void burn(Gate origin,Queue &queue)
+cdef void burn(Queue &queue,int index)
 
 cdef class Circuit:
     cdef public list objlist

@@ -794,9 +794,9 @@ class AggressiveTestSuite:
 
         # --- Variable ---
         c = Circuit()
-        c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
         self.assert_test(v.output == Const.UNKNOWN, "Variable initial=UNKNOWN")
+        c.simulate(Const.SIMULATE)
         c.toggle(v, Const.HIGH)
         self.assert_test(v.output == Const.HIGH, "Variable toggle HIGH")
         c.toggle(v, Const.LOW)
@@ -1009,9 +1009,9 @@ class AggressiveTestSuite:
 
         # --- Variable methods ---
         c = Circuit()
-        c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
         self.assert_test(v.getoutput() == 'X', "Variable.getoutput() = 'X' initially")
+        c.simulate(Const.SIMULATE)
         c.toggle(v, Const.HIGH)
         self.assert_test(v.getoutput() == 'T', "Variable.getoutput() = 'T'")
         v.rename("my_var")
