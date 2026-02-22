@@ -63,11 +63,11 @@ cdef class IC:
             source.name = source.__class__.__name__+'-'+str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
-    cpdef configure(self, dict dictionary):
+    cpdef configure(self, list dictionary):
         cdef dict pseudo = {}
         pseudo[('X', 'X')] = None
-        self.custom_name = dictionary["custom_name"]
-        self.map = dictionary["map"]
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.map = dictionary[MAP]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
@@ -76,32 +76,32 @@ cdef class IC:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    cpdef load_components(self, dict dictionary, dict pseudo):
+    cpdef load_components(self, list dictionary, dict pseudo):
         cdef object gate
-        for comp_code in dictionary["components"]:
+        for comp_code in dictionary[COMPONENTS]:
             gate = self.getcomponent(comp_code[0])
             pseudo[self.decode(comp_code)] = gate
 
     cpdef json_data(self):
-        cdef dict dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
-            "map": []
-        }
+        cdef list dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            [gate.code for gate in self.internal+self.inputs+self.outputs],
+            []
+        ]
         for i in self.internal+self.inputs+self.outputs:
-            dictionary["map"].append(i.json_data())
+            dictionary[MAP].append(i.json_data())
         return dictionary
 
     cpdef clone(self, dict pseudo):
         cdef object gate
         cdef object code
         for i in self.map:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
-                gate.map = i["map"]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
                 (<IC>gate).clone(pseudo)
                 self.counter+=gate.counter
@@ -117,25 +117,25 @@ cdef class IC:
                 cluster.add(i)
 
     cpdef copy_data(self, set cluster):
-        cdef dict dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "components": [gate.code for gate in self.internal+self.inputs+self.outputs],
-            "map": [],
-        }
+        cdef list dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            [gate.code for gate in self.internal+self.inputs+self.outputs],
+            [],
+        ]
         for i in self.internal+self.inputs+self.outputs:
-            dictionary["map"].append(i.copy_data(cluster))
+            dictionary[MAP].append(i.copy_data(cluster))
         return dictionary
 
     cpdef implement(self, dict pseudo):
         cdef object gate
         cdef object code
         for i in self.map:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
-                gate.map = i["map"]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
                 gate.implement(pseudo)
                 self.counter+=gate.counter

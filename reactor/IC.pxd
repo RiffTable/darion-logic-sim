@@ -15,9 +15,9 @@ cdef class IC:
 
     cpdef getcomponent(self, int choice)
     cpdef addgate(self, object source)
-    cpdef configure(self, dict dictionary)
+    cpdef configure(self, list dictionary)
     cdef decode(self, list code)
-    cpdef load_components(self, dict dictionary, dict pseudo)
+    cpdef load_components(self, list dictionary, dict pseudo)
     cpdef json_data(self)
     cpdef clone(self, dict pseudo)
     cpdef load_to_cluster(self, set cluster)

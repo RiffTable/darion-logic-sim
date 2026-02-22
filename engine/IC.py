@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
-from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES
 
 
 class IC:
@@ -67,12 +67,12 @@ class IC:
             source.name = source.__class__.__name__ + '-' + str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
-    def configure(self, dictionary: dict):
+    def configure(self, dictionary: list):
         """Set up the IC from a saved plan."""
         pseudo = {}
         pseudo[('X', 'X')] = None
-        self.custom_name = dictionary["custom_name"]
-        self.map = dictionary["map"]
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.map = dictionary[MAP]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
@@ -81,31 +81,31 @@ class IC:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    def load_components(self, dictionary: dict, pseudo: dict):
+    def load_components(self, dictionary: list, pseudo: dict):
         """Instantiate components from the plan."""
-        for comp_code in dictionary["components"]:
+        for comp_code in dictionary[COMPONENTS]:
             gate = self.getcomponent(comp_code[0])
             pseudo[self.decode(comp_code)] = gate
 
-    def json_data(self) -> dict:
-        dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "components": [gate.code for gate in self.internal + self.inputs + self.outputs],
-            "map": [],
-        }
+    def json_data(self) -> list:
+        dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            [gate.code for gate in self.internal + self.inputs + self.outputs],
+            [],
+        ]
         for i in self.internal + self.inputs + self.outputs:
-            dictionary["map"].append(i.json_data())
+            dictionary[MAP].append(i.json_data())
         return dictionary
 
     def clone(self, pseudo: dict):
         """Wire up all sub-components."""
         for i in self.map:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
-                gate.map = i["map"]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
                 gate.clone(pseudo)
                 self.counter += gate.counter
@@ -120,25 +120,25 @@ class IC:
             else:
                 cluster.add(i)
 
-    def copy_data(self, cluster: set) -> dict:
-        dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "components": [gate.code for gate in self.internal + self.inputs + self.outputs],
-            "map": [],
-        }
+    def copy_data(self, cluster: set) -> list:
+        dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            [gate.code for gate in self.internal + self.inputs + self.outputs],
+            [],
+        ]
         for i in self.internal + self.inputs + self.outputs:
-            dictionary["map"].append(i.copy_data(cluster))
+            dictionary[MAP].append(i.copy_data(cluster))
         return dictionary
 
     def implement(self, pseudo: dict):
         """Build connections from the map (paste path)."""
         for i in self.map:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
-                gate.map = i["map"]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
                 gate.implement(pseudo)
                 self.counter += gate.counter

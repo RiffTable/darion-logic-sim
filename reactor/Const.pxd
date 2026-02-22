@@ -35,6 +35,15 @@ cpdef enum:
     IC_ID = 11
     TOTAL = 12
 
+    NAME=0
+    CUSTOM_NAME=1
+    CODE=2
+    COMPONENTS=3
+    INPUTLIMIT=3
+    SOURCES=4
+    VALUE=4
+    MAP=4
+    
 cdef public int MODE 
 cpdef void set_MODE(int mode)
 cpdef int get_MODE()

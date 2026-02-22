@@ -74,10 +74,10 @@ cdef class Gate:
     cdef void reveal(self)
     cpdef bint setlimits(self, int size)
     cpdef str getoutput(self)
-    cpdef dict json_data(self)
-    cpdef dict copy_data(self, set cluster)
+    cpdef list json_data(self)
+    cpdef list copy_data(self, set cluster)
     cdef tuple decode(self, list code)
-    cpdef void clone(self, dict dictionary, dict pseudo)
+    cpdef void clone(self, list dictionary, dict pseudo)
     cpdef void load_to_cluster(self, set cluster)
 
 cdef class Variable(Gate):

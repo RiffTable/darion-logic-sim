@@ -167,24 +167,24 @@ cdef class Gate:
             return 'X'
         return 'T' if self.output == HIGH else 'F'
 
-    cpdef dict json_data(self):
-        dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [source.code if source else ('X', 'X') for source in self.sources],
-        }
+    cpdef list json_data(self):
+        dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            self.inputlimit,
+            [source.code if source else ('X', 'X') for source in self.sources],
+            ]
         return dictionary
 
-    cpdef dict copy_data(self, set cluster):
-        dictionary = {
-            "name": self.name,
-            "custom_name": "",
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
-            }
+    cpdef list copy_data(self, set cluster):
+        dictionary = [
+            self.name,
+            "",
+            self.code,
+            self.inputlimit,
+            [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
+            ]
         return dictionary
 
     cdef tuple decode(self,list code):
@@ -192,10 +192,10 @@ cdef class Gate:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    cpdef void clone(self, dict dictionary,dict pseudo):
-        self.custom_name = dictionary["custom_name"]
-        self.setlimits(dictionary["inputlimit"])
-        for index,source in enumerate(dictionary["source"]):
+    cpdef void clone(self, list dictionary,dict pseudo):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.setlimits(dictionary[INPUTLIMIT])
+        for index,source in enumerate(dictionary[SOURCES]):
             if source[0]!='X':
                 self.connect(pseudo[self.decode(source)],index)
 
@@ -231,26 +231,28 @@ cdef class Variable(Gate):
         else:
             self.output = self.value
 
-    cpdef dict json_data(self):
-        dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "value": self.value,
-        }
+    cpdef list json_data(self):
+        dictionary = [
+            self.name,
+            self.custom_name,
+            self.code,
+            self.inputlimit,
+            self.value,
+        ]
         return dictionary
 
-    cpdef void clone(self,dict dictionary, dict pseudo):
-        self.custom_name = dictionary["custom_name"]
-        self.value = dictionary["value"]
+    cpdef void clone(self,list dictionary, dict pseudo):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.value = dictionary[VALUE]
 
-    cpdef dict copy_data(self,set cluster):
-        dictionary = {
-            "name": self.name,
-            "custom_name": "",
-            "code": self.code,
-            "value": self.value,
-            }
+    cpdef list copy_data(self,set cluster):
+        dictionary = [
+            self.name,
+            "",
+            self.code,
+            self.inputlimit,
+            self.value,
+            ]
         return dictionary
 
     cdef void hide(self):
@@ -323,20 +325,20 @@ cdef class Probe(Gate):
         return False
 
 
-    cpdef dict copy_data(self, set cluster):
-        dictionary = {
-            "name": self.name,
-            "custom_name": self.custom_name, 
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
-            }
+    cpdef list copy_data(self, set cluster):
+        dictionary = [
+            self.name,
+            self.custom_name, 
+            self.code,
+            self.inputlimit,
+            [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
+            ]
         return dictionary
 
-    cpdef void clone(self, dict dictionary, dict pseudo):
-        self.custom_name = dictionary["custom_name"]
-        self.setlimits(dictionary["inputlimit"])
-        for index,source in enumerate(dictionary["source"]):
+    cpdef void clone(self, list dictionary, dict pseudo):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.setlimits(dictionary[INPUTLIMIT])
+        for index,source in enumerate(dictionary[SOURCES]):
             if source[0]!='X':
                 self.connect(pseudo[self.decode(source)],index)
 

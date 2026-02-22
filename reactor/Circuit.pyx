@@ -3,7 +3,7 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
-import json
+import orjson
 from Gates cimport Gate, Variable, Profile
 from libcpp.vector cimport vector
 from Const cimport *
@@ -114,7 +114,7 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
 cdef class Circuit:
     def __cinit__(self):
         self.counter=0
-        self.queue.reserve(1310720)
+        self.queue.reserve(30*1024*1024)
     def __init__(self):
         # lookup table for objects by code
         self.objlist = [
@@ -249,8 +249,8 @@ cdef class Circuit:
         print(f'{gate} output is {gate.getoutput()}')
 
     cpdef str truthTable(self):
-        if len(self.varlist) == 0:
-            return
+        if len(self.varlist) == 0 or len(self.varlist)>16 or MODE==DESIGN:
+            return 
         cdef list gate_list = []
         cdef list var_names, gate_names, inputs, output_vals, all_names, row_data, header_parts
         cdef list Table = []
@@ -387,8 +387,8 @@ cdef class Circuit:
         circuit = []
         for gate in self.canvas:
             circuit.append(gate.json_data())
-        with open(location, 'w') as file:
-            json.dump(circuit, file)
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(circuit))
 
     cpdef tuple decode(self, code):
         if len(code) == 2:
@@ -396,29 +396,31 @@ cdef class Circuit:
         return (code[0], code[1], self.decode(code[2]))
 
     def readfromjson(self, location):
-        with open(location, 'r') as file:
-            circuit = json.load(file)
+        with open(location, 'rb') as file:
+            circuit = orjson.loads(file.read())
         if isinstance(circuit,dict):
             return
         pseudo = {}
         pseudo[('X', 'X')] = None
         for i in circuit:  # load to pseudo
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
             if gate.id == IC_ID:
-                gate.custom_name = i["custom_name"]
-                gate.map = i["map"]
+                gate.custom_name = i[CUSTOM_NAME]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 
-        for gate_dict in circuit:  # connect components or build the circuit
-            code = self.decode(gate_dict["code"])
+        for gate_info in circuit:  # connect components or build the circuit
+            code = self.decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
                 (<IC>gate).clone(pseudo)
                 self.counter+=(<IC>gate).counter
             else:
-                gate.clone(gate_dict, pseudo)
+                gate.clone(gate_info, pseudo)
+        if MODE!=DESIGN:
+            self.simulate(SIMULATE)
 
     def save_as_ic(self, location, ic_name="IC"):
         if self.varlist:
@@ -430,16 +432,16 @@ cdef class Circuit:
         myIC.custom_name = ic_name  # Ensure it has a custom name
         for component in lst:
             myIC.addgate(component)
-        with open(location, 'w') as file:
-            json.dump(myIC.json_data(), file)
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
         self.getIC(location)
 
     def getIC(self, location):
         myIC = self.getcomponent(IC_ID)
-        with open(location, 'r') as file:
-            crct = json.load(file)
-            if isinstance(crct, dict) and "map" in crct:
+        with open(location, 'rb') as file:
+            crct = orjson.loads(file.read())
+            if isinstance(crct[COMPONENTS], list):
                 myIC.configure(crct)
                 self.counter+=myIC.counter
                 return myIC
@@ -460,43 +462,46 @@ cdef class Circuit:
         self.iclist.clear()
         self.counter = 0
 
-    def copy(self, components: list["Gate"]):
+    def copy(self, components: list):
         if len(components) == 0:
             return
         self.copydata = []
-        cluster: set["Gate"] = set()
+        cluster: set = set()
         for i in components:
             i.load_to_cluster(cluster)
         for i in components:
             self.copydata.append(i.copy_data(cluster))
-        with open('clipboard.json', 'w') as file:
-            json.dump(self.copydata, file)
+        with open('clipboard.json', 'wb') as file:
+            file.write(orjson.dumps(self.copydata))
         self.copydata = [i.code for i in components]
 
     def paste(self):
-        with open('clipboard.json', 'r') as file:
-            circuit = json.load(file)
+        with open('clipboard.json', 'rb') as file:
+            circuit = orjson.loads(file.read())
         pseudo = {}
         pseudo[('X', 'X')] = None
         new_items = []
         for i in circuit:  # load to pseudo
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
             new_items.append(gate.code)
             if gate.id==IC_ID:
-                gate.custom_name=i["custom_name"]
-                gate.map = i["map"]
+                gate.custom_name=i[CUSTOM_NAME]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 
-        for gate_dict in circuit:  # connect components or build the circuit
-            code = self.decode(gate_dict["code"])
+        for gate_info in circuit:  # connect components or build the circuit
+            code = self.decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
                 gate.implement(pseudo)
                 self.counter+=(<IC>gate).counter
             elif gate:
-                gate.clone(gate_dict, pseudo)
+                gate.clone(gate_info, pseudo)
+
+        if MODE!=DESIGN:
+            self.simulate(SIMULATE)
         return new_items
 
     cpdef void simulate(self, int Mod):
@@ -508,7 +513,6 @@ cdef class Circuit:
 
     cpdef void reset(self):
         set_MODE(DESIGN)
-
         for i in self.canvas:
             if i.id!=IC_ID:
                 (<Gate>i).reset()

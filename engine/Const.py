@@ -35,6 +35,15 @@ OUTPUT_PIN_ID = 10
 IC_ID = 11
 TOTAL = 12
 
+# List-based serialization indices
+NAME = 0
+CUSTOM_NAME = 1
+CODE = 2
+INPUTLIMIT = 3
+COMPONENTS = 3
+SOURCES = 4
+VALUE = 4
+MAP = 4
 
 MODE = DESIGN
 

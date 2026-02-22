@@ -1,11 +1,12 @@
 
-import json
+import orjson
 from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import (
-    TOTAL, DESIGN, SIMULATE, set_MODE,
+    TOTAL, DESIGN, SIMULATE, set_MODE,MODE,
     ERROR, UNKNOWN, HIGH, LOW,
     IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
     VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID,
+    NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE,
 )
 import Const
 from IC import IC
@@ -362,8 +363,8 @@ class Circuit:
 
     def writetojson(self, location: str):
         circuit = [gate.json_data() for gate in self.canvas]
-        with open(location, 'w') as file:
-            json.dump(circuit, file)
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(circuit))
 
     def decode(self, code) -> tuple:
         if len(code) == 2:
@@ -371,23 +372,25 @@ class Circuit:
         return (code[0], code[1], self.decode(code[2]))
 
     def readfromjson(self, location: str):
-        with open(location, 'r') as file:
-            circuit = json.load(file)
+        with open(location, 'rb') as file:
+            circuit = orjson.loads(file.read())
         if isinstance(circuit, dict):
             return
         pseudo = {}
         pseudo[('X', 'X')] = None
         for i in circuit:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
             if gate.id == IC_ID:
-                gate.custom_name = i["custom_name"]
-                gate.map = i["map"]
+                gate.custom_name = i[CUSTOM_NAME]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
+        if MODE!=DESIGN:
+            self.simulate(SIMULATE)
 
         for gate_dict in circuit:
-            code = self.decode(gate_dict["code"])
+            code = self.decode(gate_dict[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
                 gate.clone(pseudo)
@@ -405,16 +408,16 @@ class Circuit:
         myIC.custom_name = ic_name
         for component in lst:
             myIC.addgate(component)
-        with open(location, 'w') as file:
-            json.dump(myIC.json_data(), file)
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
         self.getIC(location)
 
     def getIC(self, location: str):
         myIC = self.getcomponent(IC_ID)
-        with open(location, 'r') as file:
-            crct = json.load(file)
-            if isinstance(crct, dict) and "map" in crct:
+        with open(location, 'rb') as file:
+            crct = orjson.loads(file.read())
+            if isinstance(crct[COMPONENTS], list):
                 myIC.configure(crct)
                 self.counter += myIC.counter
                 return myIC
@@ -444,34 +447,36 @@ class Circuit:
             i.load_to_cluster(cluster)
         for i in components:
             self.copydata.append(i.copy_data(cluster))
-        with open('clipboard.json', 'w') as file:
-            json.dump(self.copydata, file)
+        with open('clipboard.json', 'wb') as file:
+            file.write(orjson.dumps(self.copydata))
         self.copydata = [i.code for i in components]
 
     def paste(self):
-        with open('clipboard.json', 'r') as file:
-            circuit = json.load(file)
+        with open('clipboard.json', 'rb') as file:
+            circuit = orjson.loads(file.read())
         pseudo = {}
         pseudo[('X', 'X')] = None
         new_items = []
         for i in circuit:
-            code = self.decode(i["code"])
+            code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
             new_items.append(gate.code)
             if gate.id == IC_ID:
-                gate.custom_name = i["custom_name"]
-                gate.map = i["map"]
+                gate.custom_name = i[CUSTOM_NAME]
+                gate.map = i[MAP]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 
         for gate_dict in circuit:
-            code = self.decode(gate_dict["code"])
+            code = self.decode(gate_dict[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
                 gate.implement(pseudo)
                 self.counter += gate.counter
             elif gate:
                 gate.clone(gate_dict, pseudo)
+        if MODE!=DESIGN:
+            self.simulate(SIMULATE)
         return new_items
 
     def simulate(self, Mode: int):

@@ -4,6 +4,7 @@ from Const import (
     HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE,
     AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
     VARIABLE_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID,
+    NAME, CUSTOM_NAME, CODE, INPUTLIMIT, SOURCES, VALUE,
 )
 import Const
 
@@ -182,33 +183,33 @@ class Gate:
             return 'X'
         return 'T' if self.output == HIGH else 'F'
 
-    def json_data(self) -> dict:
-        return {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [s.code if s else ('X', 'X') for s in self.sources],
-        }
+    def json_data(self) -> list:
+        return [
+            self.name,
+            self.custom_name,
+            self.code,
+            self.inputlimit,
+            [s.code if s else ('X', 'X') for s in self.sources],
+        ]
 
-    def copy_data(self, cluster: set) -> dict:
-        return {
-            "name": self.name,
-            "custom_name": "",
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
-        }
+    def copy_data(self, cluster: set) -> list:
+        return [
+            self.name,
+            "",
+            self.code,
+            self.inputlimit,
+            [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
+        ]
 
     def decode(self, code: list) -> tuple:
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
 
-    def clone(self, dictionary: dict, pseudo: dict):
-        self.custom_name = dictionary["custom_name"]
-        self.setlimits(dictionary["inputlimit"])
-        for index, source in enumerate(dictionary["source"]):
+    def clone(self, dictionary: list, pseudo: dict):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.setlimits(dictionary[INPUTLIMIT])
+        for index, source in enumerate(dictionary[SOURCES]):
             if source[0] != 'X':
                 self.connect(pseudo[self.decode(source)], index)
 
@@ -248,25 +249,27 @@ class Variable(Gate):
         for profile in self.hitlist:
             profile.output = UNKNOWN
 
-    def json_data(self) -> dict:
-        return {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "value": self.value,
-        }
+    def json_data(self) -> list:
+        return [
+            self.name,
+            self.custom_name,
+            self.code,
+            self.inputlimit,
+            self.value,
+        ]
 
-    def clone(self, dictionary: dict, pseudo: dict):
-        self.custom_name = dictionary["custom_name"]
-        self.value = dictionary["value"]
+    def clone(self, dictionary: list, pseudo: dict):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.value = dictionary[VALUE]
 
-    def copy_data(self, cluster: set) -> dict:
-        return {
-            "name": self.name,
-            "custom_name": "",
-            "code": self.code,
-            "value": self.value,
-        }
+    def copy_data(self, cluster: set) -> list:
+        return [
+            self.name,
+            "",
+            self.code,
+            self.inputlimit,
+            self.value,
+        ]
 
     def hide(self):
         for profile in self.hitlist:
@@ -333,19 +336,19 @@ class Probe(Gate):
         for profile in self.hitlist:
             reveal_profile(profile, self)
 
-    def copy_data(self, cluster: set) -> dict:
-        return {
-            "name": self.name,
-            "custom_name": self.custom_name,
-            "code": self.code,
-            "inputlimit": self.inputlimit,
-            "source": [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
-        }
+    def copy_data(self, cluster: set) -> list:
+        return [
+            self.name,
+            self.custom_name,
+            self.code,
+            self.inputlimit,
+            [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
+        ]
 
-    def clone(self, dictionary: dict, pseudo: dict):
-        self.custom_name = dictionary["custom_name"]
-        self.setlimits(dictionary["inputlimit"])
-        for index, source in enumerate(dictionary["source"]):
+    def clone(self, dictionary: list, pseudo: dict):
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.setlimits(dictionary[INPUTLIMIT])
+        for index, source in enumerate(dictionary[SOURCES]):
             if source[0] != 'X':
                 self.connect(pseudo[self.decode(source)], index)
 
