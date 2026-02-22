@@ -1,98 +1,115 @@
 # Darion Logic Sim
 
-A Python-based Digital Logic Simulator made in PySide6 (Python binding for Qt).
+A Python-based Digital Logic Simulator with a PySide6 GUI editor and a dual-backend simulation engine.
 
 ## Features
 
-- A fast lightweight simulator that only propagates signal when input changes.
-- Specialized **Flip-Flop Mode** for sequential logic analysis (default is **Simulation Mode**.)
-- Gates can handle multiple inputs in O(1) constant time.
-- Projects can be imported as integrated circuits (IC), which can help build using other ICs via "nesting".
-- Logic circuits are simulated using the isolated "Darion logic engine" and simulations can be run without the GUI editor.
-- Stack-based undo/redo feature.
-- Save/load feature using JSON.
+- **Dual-Backend Architecture:** Choose between a pure **Python Engine** or a high-performance **Cython/C++ Reactor** for simulation.
+- **Event-Driven Propagation:** Only propagates signals when an input actually changes — no polling.
+- **O(1) Gate Evaluation:** Gates handle any number of inputs in constant time using the "Book" algorithm.
+- **Unified Simulation Mode:** A single mode handles both combinatorial and sequential logic, with a built-in wave limiter that detects infinite oscillations and burns them to `ERROR`.
+- **Recursive Integrated Circuits (ICs):** Circuits can be saved as ICs and nested arbitrarily deep (e.g., a CPU built from ALUs built from Adders built from XOR/AND gates).
+- **Stack-Based Undo/Redo:** Every action is recorded as a reversible transaction.
+- **Save/Load:** Circuits and ICs are serialized to JSON.
+- **Comprehensive Test Suite:** Over 3,000 lines of aggressive unit tests and real-world benchmarks (ripple adders, mux trees, barrel shifters, etc.).
 
 ## Build
 
-The project requires the pip package manager to run. To build and run the project, first create an python virtual environment:
+Create and activate a Python virtual environment:
 
 ```bash
 python -m venv env
-```
-
-Then activate the environment using the specific command for your OS:
-
-```bash
-source env/bin/activate    # Linux and MacOS
+source env/bin/activate    # Linux / macOS
 env\Scripts\activate.bat   # Windows
 ```
 
-Now install the required modules using pip (hopefully you have pip installed):
+Install dependencies:
 
 ```bash
 pip install pyside6 setuptools cython psutil
 ```
 
-Finally, run the build script. After building, you can read usage to run the project.
+Build the Cython reactor (optional — only needed if you want the high-performance backend):
 
 ```bash
-bash scripts/build.sh    # Linux and MacOS
+bash scripts/build.sh    # Linux / macOS
 scripts\build.bat        # Windows
 ```
 
+> **Note:** The pure Python engine (`engine/`) works without building. The reactor (`reactor/`) requires Cython compilation.
+
 ## Usage
 
-### CLI Version
-
-Run the simulator using its command-line interface (CLI):
+### CLI
 
 ```bash
-python engine/CLI.py
+python interface/CLI.py              # Interactive backend selection
+python interface/CLI.py --engine     # Force Python engine
+python interface/CLI.py --reactor    # Force Cython reactor
 ```
 
-### GUI Version
-
-Run the simulator (with the GUI editor):
+### GUI
 
 ```bash
 python main.py
 ```
 
-## How It Works
+### Speed Tests
+
+```bash
+python interface/speed_test.py --engine     # Benchmark the Python engine
+python interface/speed_test.py --reactor    # Benchmark the Cython reactor
+```
+
+## Architecture
+
+### Dual Backends
+
+The simulator has two interchangeable backends that share the same API:
+
+| | **Engine** (`engine/`) | **Reactor** (`reactor/`) |
+|---|---|---|
+| Language | Pure Python | Cython / C++ |
+| Build Step | None | `scripts/build.sh` |
+| Use Case | Development, portability | Production, benchmarking |
+| Data Structures | Python `list` | C++ `vector<void*>` |
+| Gate Evaluation | Python method calls | Inline C-level evaluation |
+
+Both backends implement the same core modules: `Circuit`, `Gates`, `IC`, `Const`, and `Store`.
 
 ### The "Book" Algorithm (O(1) Logic)
 
-Instead of iterating through every input pin to calculate a gate's state, **Darion Logic Sim** uses a specialized accounting system called the "Book".
+Instead of iterating through every input pin to evaluate a gate, each gate maintains a 4-element "book": `[Count_Low, Count_High, Count_Error, Count_Unknown]`.
 
-- Every gate maintains a list of size 4: `[Count_Low, Count_High, Count_Error, Count_Unknown]`.
-- When an input signal changes (e.g., from Low to High), the gate updates its book in constant time: `Book[Low]--` and `Book[High]++`.
-- **Decision Logic:** An AND gate simply checks `if Book[Low] == 0`. An OR gate checks `if Book[High] > 0`.
-- **Result:** A 1,000-input AND gate calculates its output as instantly as a 2-input gate.
+- When an input changes (e.g., Low → High), the book updates in O(1): `Book[Low]--`, `Book[High]++`.
+- **Decision logic is a single comparison:**
+  - AND: `low == 0` → HIGH
+  - OR: `high > 0` → HIGH
+  - XOR: `high & 1` → HIGH
+  - Inverted gates (NAND, NOR, XNOR) flip the result with `output ^= (gate_type & 1)`.
+- **Result:** A 100,000-input AND gate evaluates as fast as a 2-input gate.
 
 ### Event-Driven Propagation
 
-The engine does not poll components. It uses a **Hybrid Propagation** model:
+The propagation loop uses a **single flat queue** with index-based traversal (not `deque.popleft()`). Each gate carries a `scheduled` flag to prevent duplicate enqueuing.
 
-1. **BFS (Breadth-First Search):** Standard signal propagation uses a `deque` (Double Ended Queue). When a gate changes, it pushes its connected targets into the queue. This ensures signals spread in layers, simulating electrical wavefronts.
-2. **DFS (Depth-First Search):** Inside Integrated Circuits (ICs), logic is encapsulated. The engine "tunnels" into the IC using recursion to resolve internal states before returning the result to the main circuit.
-
-### Simulation Modes
-
-- **Simulation Mode (Combinatorial):** Optimized for DAGs (Directed Acyclic Graphs). It processes the queue strictly. Since it assumes no loops, it skips cycle detection overhead for maximum speed.
-- **Flip-Flop Mode (Sequential):** Enables handling of feedback loops (like Latches and Clocks). It introduces a `fuse` set mechanism during propagation to detect and break infinite oscillations within a single tick, preventing the engine from freezing while maintaining state memory.
+1. **Wavefront BFS:** When a gate's output changes, it scans its `hitlist` (list of `Profile` structs: `{target, pin_index, last_known_output}`). If a target's book changes its output, the target is appended to the queue.
+2. **Wave Limiter:** A counter tracks propagation waves. If the counter exceeds the circuit's component count, it assumes an infinite oscillation, clears the queue, and flood-fills `ERROR` from the offending gate via the `burn()` function.
+3. **Not gate & Buffer shortcircuit:** These type of gates bypass book management and follow a simpler logic flow
 
 ### Recursive IC Architecture
 
-Integrated Circuits are implemented using the **Composite Design Pattern**.
+Integrated Circuits use the **Composite Design Pattern**:
 
-- An `IC` class is treated exactly like a `Gate` class by the engine.
-- Every IC contains its own internal `map` of components.
-- Since an IC is just a component, it can be placed inside _another_ IC. This allows for infinite recursion (e.g., A 4-bit Adder built from Full Adders, which are built from Half Adders, which are built from XOR/AND gates).
+- An `IC` is treated identically to a `Gate` by the engine.
+- Every IC encapsulates its own internal components, input pins, and output pins.
+- `IC` has a map which is the blueprint used during copy-paste and also used to build the `IC` from scratch 
+- ICs can be nested inside other ICs to arbitrary depth (e.g., a 4-bit Adder built from Full Adders, built from Half Adders, built from XOR/AND gates).
 
 ### Time Travel (Undo/Redo)
 
-The project implements the **Command Pattern** to manage history.
+The project implements the **Command Pattern** for history management:
 
 - Every user action (Create, Delete, Wire, Toggle) is encapsulated as a "Transaction" tuple.
-- These transactions are pushed onto an Undo Stack.
+- Transactions are pushed onto an Undo Stack.
 - Reversing an action pops the transaction and executes its mathematical inverse (e.g., the inverse of "Delete Gate A" is "Restore Gate A at Index X").
