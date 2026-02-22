@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 	from .compitem import CompItem
 	from .wireitem import WireItem
 
+from engine import Const
 from engine.Gates import Gate, InputPin, OutputPin
 
 
@@ -33,7 +34,7 @@ class PinItem(QGraphicsRectItem):
 		self.setAcceptHoverEvents(True)
 		self.setZValue(1)
 
-		self.state = False
+		self.state: int = Const.LOW
 		self._wire: WireItem|None = None
 		self.isHighlighted = False
 		self.proxyHighlight = False
@@ -113,7 +114,7 @@ class PinItem(QGraphicsRectItem):
 			self.setBrush(Qt.BrushStyle.NoBrush)
 		
 		else:
-			if self.state:
+			if self.state == Const.HIGH:
 				self.setBrush(QBrush(Color.pin_on))
 			else:
 				self.setBrush(QBrush(Color.pin_off))
@@ -161,6 +162,12 @@ class OutputPinItem(PinItem):
 		if not isinstance(input, (Gate, InputPin)):
 			raise TypeError(f"Invalid logical value 'output' = {output}")
 		self.logical = output
+	
+	def logicalStateChanged(self, state: int):
+		self.state = state
+		self.updateVisual()
+		w = self._wire
+		if w: w.setState(state)
 	
 	def disconnect(self):
 		if not self._wire: return

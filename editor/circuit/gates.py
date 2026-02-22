@@ -9,6 +9,9 @@ from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 
+from engine import Const
+
+
 
 
 
@@ -51,6 +54,11 @@ class GateItem(CompItem):
 			"maxInput" : self.maxInput,
 			"minInput" : self.minInput,
 		}
+	
+
+	def unitStateChanged(self, state: int):
+		self.state = state
+		self.outputPin.logicalStateChanged(state)
 
 
 	# Proxying
@@ -162,6 +170,11 @@ class UnaryGateItem(CompItem):
 		# Properties
 		self.minInput = 1
 		self.maxInput = 1
+	
+
+	def unitStateChanged(self, state: int):
+		self.state = state
+		self.outputPin.logicalStateChanged(state)
 
 
 
@@ -179,19 +192,30 @@ class InputItem(CompItem):
 		# Pins
 		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
 		self.updateShape()
+	
+
+	def unitStateChanged(self, state: int):
+		self.state = state
+		self.outputPin.logicalStateChanged(state)
+	
+
+	def setState(self, state: int):
+		self.state = state
 
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		if event.button() == MouseBtn.LeftButton:
 			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
 			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
-				self.state = not self.state
+				self.setState(Const.HIGH if self.state == Const.LOW else Const.HIGH)
 			return super().mouseReleaseEvent(event)
 	
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
-		if self.state: painter.setBrush(Color.comp_on)
-		else:          painter.setBrush(Color.comp_body)
+		if self.state == Const.HIGH:
+			painter.setBrush(Color.comp_on)
+		else:
+			painter.setBrush(Color.comp_body)
 
 
 
@@ -210,7 +234,13 @@ class OutputItem(CompItem):
 		self.updateShape()
 	
 
+	def unitStateChanged(self, state: int):
+		self.state = state
+	
+
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
-		if self.state: painter.setBrush(Color.LED_on)
-		else:          painter.setBrush(Color.LED_off)
+		if self.state == Const.HIGH:
+			painter.setBrush(Color.LED_on)
+		else:
+			painter.setBrush(Color.LED_off)

@@ -8,6 +8,8 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .pins import InputPinItem, OutputPinItem
 
+from engine import Const
+
 
 
 
@@ -28,7 +30,7 @@ class WireItem(QGraphicsPathItem):
 
 		# Properties
 		self._id = WireItem.COUNT
-		self.state = False
+		self.state: int = Const.LOW
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
@@ -74,10 +76,15 @@ class WireItem(QGraphicsPathItem):
 			supply.setWire(None)
 	
 	# Events
+	def setState(self, state: int):
+		self.state = state
+		self.updateVisual()
+	
 	def updateVisual(self):
-		color = Color.signal_on if self.state else Color.signal_off
+		match self.state:
+			case Const.HIGH: self.setPen(QPen(Color.signal_on, 3))
+			case _:          self.setPen(QPen(Color.signal_off, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
-		self.setPen(QPen(color, 3))
 	
 	def updateShape(self):
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True

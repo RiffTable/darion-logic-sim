@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 	from .pins import PinItem, InputPinItem, OutputPinItem
 
 from engine.Gates import Gate
+from engine import Const
 
 
 
@@ -23,8 +24,9 @@ class CompItem(QGraphicsItem):
 		):
 		
 		# Properties
+		self.id = 9999
 		self.tag = "COMP"
-		self.state = False
+		self.state: int = Const.LOW
 		self.facing = Facing.EAST
 		self.isMirrored = False
 
@@ -54,9 +56,8 @@ class CompItem(QGraphicsItem):
 		)
 		self.setAcceptHoverEvents(True)
 		self._dirty = True
-		self._rect = self.getRect()
+		self._rect = QRectF()
 		self._cached_hitbox = QPainterPath()
-		self._cached_hitbox.addRect(self._rect)
 		self._hover_count = 0
 		self._unit: Gate|None = None
 
@@ -81,6 +82,7 @@ class CompItem(QGraphicsItem):
 	### Properties Data
 	def getData(self):
 		return {
+			"id"       : self.id,
 			"pos"      : self.pos().toTuple(),
 			"tag"      : self.tag,
 			"facing"   : self.facing.value,
@@ -88,8 +90,12 @@ class CompItem(QGraphicsItem):
 			"pinslist" : {
 				edge.value: [p.getData() for p in pins]
 				for edge, pins in self._pinslist.items()
-			}
+			},
 		}
+	
+
+	def unitStateChanged(self, state: int):
+		...    # ABSTRACT METHOD
 
 
 	### Facing and Rotation

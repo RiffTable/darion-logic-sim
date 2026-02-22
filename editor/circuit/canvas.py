@@ -77,6 +77,7 @@ class CircuitScene(QGraphicsScene):
 	def addComp(self, x: float, y:float, comp_id: int):
 		cd = LOOKUP[comp_id]
 		comp = cd.skin(QPointF(x, y))
+		comp.id = comp_id
 		comp.tag = cd.tag
 		# horse-egg
 		# self.logic.getcomponent(cd.logic, )
