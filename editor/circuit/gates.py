@@ -27,25 +27,26 @@ class GateItem(CompItem):
 		return (w, h)
 	
 	def getRelPadding(self): return (0, 9)
-	def __init__(self, pos: QPointF):
-		super().__init__(pos)
-		
-		# Behavior
-		self.tag = "GATE"
+	def __init__(self, pos: QPointF, **kwargs):
+		super().__init__(pos, **kwargs)
 
 		# Pins
-		self.addPin(0, CompEdge.INPUT, InputPinItem)
-		self.addPin(2, CompEdge.INPUT, InputPinItem)
+		if self._setupDefaultPins:
+			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
+			self.updateOrientation()
+		
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
-		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.updateShape()
+		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
 
 		# Properties
-		self.minInput = 2
-		self.maxInput = 69
+		self.minInput = kwargs.get("minInput", 2)
+		self.maxInput = kwargs.get("maxInput", 69)
+
 
 
 	### Properties Data
@@ -155,21 +156,25 @@ class GateItem(CompItem):
 class UnaryGateItem(CompItem):
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF):
-		super().__init__(pos)
+	def __init__(self, pos: QPointF, **kwargs):
+		super().__init__(pos, **kwargs)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
 		self.tag = "NOT"
 
 		# Pins
-		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
-		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.updateShape()
-
+		if self._setupDefaultPins:
+			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
+		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
+		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+		
 		# Properties
 		self.minInput = 1
 		self.maxInput = 1
+
+		self.updateOrientation()
 	
 
 	def unitStateChanged(self, state: int):
@@ -182,16 +187,18 @@ class UnaryGateItem(CompItem):
 class InputItem(CompItem):
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF):
-		super().__init__(pos)
+	def __init__(self, pos: QPointF, **kwargs):
+		super().__init__(pos, **kwargs)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
 		self.tag = "IN"
 		
-		# Pins
-		self.outputPin = cast(OutputPinItem, self.addPin(1, CompEdge.OUTPUT, OutputPinItem))
-		self.updateShape()
+		if self._setupDefaultPins:
+			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
+		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+		
+		self.updateOrientation()
 	
 
 	def unitStateChanged(self, state: int):
@@ -201,13 +208,14 @@ class InputItem(CompItem):
 
 	def setState(self, state: int):
 		self.state = state
+		self.update()
 
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		if event.button() == MouseBtn.LeftButton:
 			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
 			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
-				self.setState(Const.HIGH if self.state == Const.LOW else Const.HIGH)
+				self.setState(Const.HIGH if self.state == Const.LOW else Const.LOW)
 			return super().mouseReleaseEvent(event)
 	
 	def draw(self, painter, option, widget):
@@ -222,20 +230,24 @@ class InputItem(CompItem):
 class OutputItem(CompItem):
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF):
-		super().__init__(pos)
+	def __init__(self, pos: QPointF, **kwargs):
+		super().__init__(pos, **kwargs)
 		
 		# Behavior
 		self.setAcceptHoverEvents(True)
 		self.tag = "OUT"
 		
 		# Pins
-		self.inputPin = cast(InputPinItem, self.addPin(1, CompEdge.INPUT, InputPinItem))
-		self.updateShape()
+		if self._setupDefaultPins:
+			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
+		
+		self.updateOrientation()
 	
 
 	def unitStateChanged(self, state: int):
 		self.state = state
+		self.update()
 	
 
 	def draw(self, painter, option, widget):

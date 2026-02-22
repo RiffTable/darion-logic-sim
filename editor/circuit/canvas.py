@@ -76,9 +76,13 @@ class CircuitScene(QGraphicsScene):
 	# Components Management
 	def addComp(self, x: float, y:float, comp_id: int):
 		cd = LOOKUP[comp_id]
-		comp = cd.skin(QPointF(x, y))
+		data = {
+			"tag"   : cd.tag,
+			"facing": self.defaultFacing,
+			"mirror": self.defaultMirror,
+		}
+		comp = cd.skin(QPointF(x, y), **data)
 		comp.id = comp_id
-		comp.tag = cd.tag
 		# horse-egg
 		# self.logic.getcomponent(cd.logic, )
 		
@@ -93,6 +97,21 @@ class CircuitScene(QGraphicsScene):
 		self.comps.remove(comp)
 		self.removeItem(comp)
 		# run_logic()
+	
+	def deserialize(self, data) -> CompItem:
+		pos = QPointF(*data.pop("pos"))
+		offset = GRID.SQUARE*5
+		comp_id = data.pop("id")
+		cd = LOOKUP[comp_id]
+		
+		comp = cd.skin(pos+offset, **data)
+		comp.id = comp_id
+		comp.updateOrientation()
+		
+		self.addItem(comp)
+		self.comps.append(comp)
+		return comp
+	
 	
 	# Wires	Management
 	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
@@ -268,6 +287,20 @@ class CircuitScene(QGraphicsScene):
 			self.clearSelection()
 			for item in self.comps:
 				item.setSelected(True)
+		
+		if key == Key.Key_C and mod & KeyMod.ControlModifier:
+			comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
+			self.clipboard = {
+				"comps": comps,
+				"wires": []
+			}
+		
+		if key == Key.Key_V and mod & KeyMod.ControlModifier:
+			self.clearSelection()
+			for comp_data in self.clipboard.get("comps", []):
+				comp = self.deserialize(comp_data)
+				comp.setSelected(True)
+
 		# # DEBUG
 		# if key == Key.Key_Space:
 		# 	for item in self.selectedItems():

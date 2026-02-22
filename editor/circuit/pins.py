@@ -27,7 +27,7 @@ class PinItem(QGraphicsRectItem):
 			parentComp
 		)
 		self.setFlags(
-			# GraphicsItemFlag.ItemIsSelectable |
+			GraphicsItemFlag.ItemIsSelectable |
 			GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setPen(Qt.PenStyle.NoPen)

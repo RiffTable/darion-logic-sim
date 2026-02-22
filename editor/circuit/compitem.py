@@ -5,10 +5,10 @@ from core.Enums import Facing, CompEdge
 import core.grid as GRID
 
 from editor.styles import Color, Font
+from .pins import PinItem, InputPinItem, OutputPinItem
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
-	from .pins import PinItem, InputPinItem, OutputPinItem
 
 from engine.Gates import Gate
 from engine import Const
@@ -20,15 +20,16 @@ from engine import Const
 class CompItem(QGraphicsItem):
 	def __init__(
 			self,
-			pos: QPointF
+			pos: QPointF,
+			**kwargs
 		):
 		
 		# Properties
 		self.id = 9999
-		self.tag = "COMP"
+		self.tag = kwargs.get("tag", "")
 		self.state: int = Const.LOW
-		self.facing = Facing.EAST
-		self.isMirrored = False
+		self.facing = Facing(kwargs.get("facing", Facing.EAST))
+		self.isMirrored = kwargs.get("mirror", False)
 
 		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
 		# INPUT-OUTPUT edges, as doing so will make the component
@@ -60,14 +61,33 @@ class CompItem(QGraphicsItem):
 		self._cached_hitbox = QPainterPath()
 		self._hover_count = 0
 		self._unit: Gate|None = None
+		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
+		if not self._setupDefaultPins:
+			# fuck
+			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
+			for edge, pins in new_pinslist.items():
+				facing = self.edgeToFacing(edge)
+				pinslist = self._pinslist[edge]
+				for pin in pins:
+					if pin.get("isInput"):
+						newpin = InputPinItem(
+							self,
+							QPointF(*pin.get("pos")),
+							facing
+						)
+					else:
+						newpin = OutputPinItem(
+							self,
+							QPointF(*pin.get("pos")),
+							facing
+						)
+					pinslist.append(newpin)
 
 		# Proxy & Hovering
 		self.hoverLeaveTimer = QTimer()
 		self.hoverLeaveTimer.setSingleShot(True)
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
-
-		self.updateShape()
 	
 
 	@property
@@ -116,6 +136,7 @@ class CompItem(QGraphicsItem):
 		self.setFacing(Facing(self.facing+2))
 	
 	def updateOrientation(self):
+		"""Automatically calls `updateShape()` right after"""
 		# print("---------------")
 		for edge, pins in self._pinslist.items():
 			# print(f"Edge {edge} facing to ", end="")
@@ -144,6 +165,12 @@ class CompItem(QGraphicsItem):
 		fa, gen = self.getPinPosGenerator(edge)
 		newpin = type(self, gen(index), fa)
 		pinslist.append(newpin)
+		return newpin
+
+	def _addToPinsList(self, edge: CompEdge, type: type[InputPinItem] | type[OutputPinItem]) -> InputPinItem | OutputPinItem:
+		"""Don't forget to call updateOrientation() afterwards."""
+		newpin = type(self, QPointF(), Facing.EAST)
+		self._pinslist[edge].append(newpin)
 		return newpin
 
 	def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
