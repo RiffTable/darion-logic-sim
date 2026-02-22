@@ -7,11 +7,10 @@ A Python-based Digital Logic Simulator with a PySide6 GUI editor and a dual-back
 - **Dual-Backend Architecture:** Choose between a pure **Python Engine** or a high-performance **Cython/C++ Reactor** for simulation.
 - **Event-Driven Propagation:** Only propagates signals when an input actually changes — no polling.
 - **O(1) Gate Evaluation:** Gates handle any number of inputs in constant time using the "Book" algorithm.
-- **Unified Simulation Mode:** A single mode handles both combinatorial and sequential logic, with a built-in wave limiter that detects infinite oscillations and burns them to `ERROR`.
+- **Oscillation Protection:** A dynamic wave limiter that detects infinite oscillations intelligently and burns them to `ERROR`.
 - **Recursive Integrated Circuits (ICs):** Circuits can be saved as ICs and nested arbitrarily deep (e.g., a CPU built from ALUs built from Adders built from XOR/AND gates).
 - **Stack-Based Undo/Redo:** Every action is recorded as a reversible transaction.
 - **Save/Load:** Circuits and ICs are serialized to JSON.
-- **Comprehensive Test Suite:** Over 3,000 lines of aggressive unit tests and real-world benchmarks (ripple adders, mux trees, barrel shifters, etc.).
 
 ## Build
 
