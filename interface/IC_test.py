@@ -256,7 +256,7 @@ class ThoroughICTest:
         c.connect(out, not_g, 0)
         
         v = c.getcomponent(VARIABLE_ID)
-        v.value=UNKNOWN
+        v.value=v.output=UNKNOWN
         c.connect(inp, v, 0)
         c.simulate(SIMULATE)
         

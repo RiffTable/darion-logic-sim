@@ -42,8 +42,8 @@ cdef void burn(Queue &queue,int index):
                     if target.inputlimit!=1:
                         target.book[profile.output]-=1
                         target.book[gate.output]+=1
-                        if target.output!=ERROR:
-                            queue.push_back(<void*>target)
+                    if target.output!=ERROR:
+                        queue.push_back(<void*>target)
                     profile.output = ERROR
                 profile+=1
             index+=1

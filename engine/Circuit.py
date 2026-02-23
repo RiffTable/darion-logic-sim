@@ -20,11 +20,10 @@ def turnoff(gate: Gate, queue: list, wave_limit: int):
             target.output = UNKNOWN
             propagate(target, queue, wave_limit)
 
-def burn(origin: Gate, queue: list):
+def burn(queue: list, index: int):
     """Error propagation — flood-fill ERROR through the graph."""
-    index = 0
-    size = 1
-    queue.append(origin)
+    size = len(queue)
+    # keep propagating until everything settles
     while index < size:
         while index < size:
             gate = queue[index]
@@ -35,10 +34,10 @@ def burn(origin: Gate, queue: list):
                     target = profile.target
                     if target.inputlimit != 1:
                         target.book[profile.output] -= 1
-                        target.book[ERROR] += 1
-                    profile.output = ERROR
+                        target.book[gate.output] += 1
                     if target.output != ERROR:
                         queue.append(target)
+                    profile.output = ERROR
             index += 1
         size = len(queue)
     queue.clear()
@@ -47,20 +46,19 @@ def burn(origin: Gate, queue: list):
 def propagate(origin: Gate, queue: list, wave_limit: int):
     """The core reactor propagation loop.
     Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
+    index = 0
+    size = 1
+    counter = 0
 
     if origin.output == ERROR:
-        burn(origin, queue)
+        burn(queue, index)
         return
 
     queue.append(origin)
-    counter = 0
-    index = 0
-    size = 1
 
     while index < size:
         if counter > wave_limit:
-            queue.clear()
-            burn(gate, queue)
+            burn(queue, index)
             return
         counter += 1
 
