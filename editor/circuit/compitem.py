@@ -61,24 +61,18 @@ class CompItem(QGraphicsItem):
 		self._unit = None
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
-			# fuck
 			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
+			_map = self.edgeToFacingMap()
 			for edge, pins in new_pinslist.items():
-				facing = self.edgeToFacing(edge)
+				facing = _map[edge]
 				pinslist = self._pinslist[edge]
+				PinType = InputPinItem if pin.get("isInput") else OutputPinItem
 				for pin in pins:
-					if pin.get("isInput"):
-						newpin = InputPinItem(
-							self,
-							QPointF(*pin.get("pos")),
-							facing
-						)
-					else:
-						newpin = OutputPinItem(
-							self,
-							QPointF(*pin.get("pos")),
-							facing
-						)
+					newpin = PinType(
+						self,
+						QPointF(*pin["pos"]),
+						facing
+					)
 					pinslist.append(newpin)
 
 		# Proxy & Hovering
@@ -123,54 +117,72 @@ class CompItem(QGraphicsItem):
 			return
 		
 		self.facing = facing
-		self.updateOrientation()
+		self.readjustPins()
 
 	def rotate(self, clockwise: bool = True):
 		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
 	def mirror(self):
 		self.isMirrored = not self.isMirrored
-		self.updateOrientation()
+		self.readjustPins()
 	def flip(self):
 		self.isMirrored = not self.isMirrored
 		self.setFacing(Facing(self.facing+2))
 	
-	def updateOrientation(self):
+	def readjustPins(self):
 		"""Automatically calls `updateShape()` right after"""
-		# print("---------------")
 		for edge, pins in self._pinslist.items():
-			# print(f"Edge {edge} facing to ", end="")
 			fa, gen = self.getPinPosGenerator(edge)
+
 			for i, pin in enumerate(pins):
 				pin.facing = fa
 				self.setPinPos(pin, gen(i))
 		self.updateShape()
 	
-	def edgeToFacing(self, edge: CompEdge) -> Facing:
-		mirrored = (edge%2 == 1) and self.isMirrored
-		return Facing(edge + self.facing + (2 if mirrored else 0))
-
-	def facingToEdge(self, facing: Facing) -> CompEdge:
-		res = self.facing - facing
-		mirrored = (res%2 == 1) and self.isMirrored
-		
-		return CompEdge(res + (2 if mirrored else 0))
+	def edgeToFacingMap(self) -> dict[CompEdge, Facing]:
+		fa = self.facing
+		M = self.isMirrored
+		return {
+			CompEdge(e): Facing(fa + (-e if M else e))
+			for e in range(4)
+		}
+	
+	def facingToEdgeMap(self) -> dict[Facing, CompEdge]:
+		fa = self.facing
+		M = self.isMirrored
+		return {
+			Facing(f): CompEdge((f - fa) * (-1 if M else 1))
+			for f in range(4)
+		}
 
 
 	### Pin Configuration
-	def addPin(self, index: int, edge: CompEdge, type: type[InputPinItem] | type[OutputPinItem]) -> InputPinItem | OutputPinItem:
+	def addInPin(self, edge: CompEdge, index: int) -> InputPinItem:
 		"""Don't forget to call updateShape() afterwards."""
 		pinslist = self._pinslist[edge]
 
 		fa, gen = self.getPinPosGenerator(edge)
-		newpin = type(self, gen(index), fa)
+		newpin = InputPinItem(self, gen(index), fa)
 		pinslist.append(newpin)
 		return newpin
+	
+	def addOutPin(self, edge: CompEdge, index: int) -> OutputPinItem:
+		"""Don't forget to call updateShape() afterwards."""
+		pinslist = self._pinslist[edge]
 
-	def _addToPinsList(self, edge: CompEdge, type: type[InputPinItem] | type[OutputPinItem]) -> InputPinItem | OutputPinItem:
-		"""Don't forget to call updateOrientation() afterwards."""
-		newpin = type(self, QPointF(), Facing.EAST)
-		self._pinslist[edge].append(newpin)
+		fa, gen = self.getPinPosGenerator(edge)
+		newpin = OutputPinItem(self, gen(index), fa)
+		pinslist.append(newpin)
 		return newpin
+	
+	def removePin(self, edge: CompEdge, index: int):
+		"""Call `updateShape()` afterwards if needed"""
+		pinlist = self._pinslist[edge]
+		pin = pinlist[index]
+		pin.disconnect()
+		
+		pinlist.pop(index)
+		pin.setParentItem(None)  # pyright: ignore[reportArgumentType]
+		self.cscene.removeItem(pin)
 
 	def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
 		"""Set `facing` and `size` before calling"""
@@ -201,23 +213,10 @@ class CompItem(QGraphicsItem):
 		pin.setPos(placement)
 		if pin._wire: pin._wire.updateShape()
 	
-	def allPins(self):
+	def cutConnections(self):
 		list_of_pinlists = self._pinslist.values()
 		pins = [pin for pinlist in list_of_pinlists for pin in pinlist]    # Funniest line ever
-		return pins
-	
-	def removePin(self, edge: CompEdge, index: int):
-		"""Call `updateShape()` afterwards if needed"""
-		pinlist = self._pinslist[edge]
-		pin = pinlist[index]
-		pin.disconnect()
-		
-		pinlist.pop(index)
-		pin.setParentItem(None)  # pyright: ignore[reportArgumentType]
-		self.cscene.removeItem(pin)
-	
-	def cutConnections(self):
-		for p in self.allPins():
+		for p in pins:
 			p.disconnect()
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
@@ -257,12 +256,14 @@ class CompItem(QGraphicsItem):
 		# This part changes the bounding rect and "shape" of the compItem
 		# For when you're changing number of pins. Edges without any pins will not have any "hitbox"
 		self._rect = self.getRect()
+
 		girth = GRID.SIZE
+		_map = self.facingToEdgeMap()
 		hitbox_rect = self._rect.adjusted(
-			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
-			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
-			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
-			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
+			-girth if len(self._pinslist[_map[Facing.WEST]])  > 0 else 0,
+			-girth if len(self._pinslist[_map[Facing.NORTH]]) > 0 else 0,
+			+girth if len(self._pinslist[_map[Facing.EAST]])  > 0 else 0,
+			+girth if len(self._pinslist[_map[Facing.SOUTH]]) > 0 else 0
 		)
 		
 		path = QPainterPath()

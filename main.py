@@ -11,7 +11,7 @@ from editor.circuit.canvas import CircuitScene
 import os
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine.Circuit import Circuit
-import engine.Const as Const
+from engine import Const
 
 
 

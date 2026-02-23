@@ -44,9 +44,9 @@ class GateItem(CompItem):
 		# Pins
 		if self._setupDefaultPins:
 			for _ in range(self.minInput):
-				self._addToPinsList(CompEdge.INPUT, InputPinItem)
-			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
-			self.updateOrientation()
+				self.addInPin(CompEdge.INPUT, 0)
+			self.addOutPin(CompEdge.OUTPUT, 0)
+			self.readjustPins()   # fuck
 		
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
@@ -71,7 +71,7 @@ class GateItem(CompItem):
 			if not p.hasWire():
 				return i
 		return len(self.inputPins)
-	
+
 
 	# Pin Configuration
 	def pushGatePin(self):
@@ -93,7 +93,7 @@ class GateItem(CompItem):
 		n = len(self.inputPins)
 		if size >= n:
 			for _ in range(size-n):
-				self.addPin(0, CompEdge.INPUT, InputPinItem)
+				self.addInPin(CompEdge.INPUT, 0)    # fuck
 		else:
 			left = n - size
 
@@ -119,14 +119,16 @@ class GateItem(CompItem):
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.addPin(0, CompEdge.INPUT, InputPinItem)
+			self.peekingPin = self.addInPin(CompEdge.INPUT, 0)
 			self.updateShape()
+			# fuck
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
 		if self.peekingPin and not self.peekingPin.hasWire():
 			self.removePin(CompEdge.INPUT, self.proxyIndex)
 			self.updateShape()
+			# fuck
 		self.peekingPin = None
 	
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):

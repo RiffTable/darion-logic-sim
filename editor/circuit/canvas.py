@@ -76,15 +76,14 @@ class CircuitScene(QGraphicsScene):
 	# Components Management
 	def addComp(self, x: float, y:float, comp_id: int):
 		comp_type = LOOKUP[comp_id]
-		data = {
-			"facing": self.defaultFacing,
-			"mirror": self.defaultMirror,
-		}
-		comp = comp_type(QPointF(x, y), **data)
+		comp = comp_type(
+			QPointF(x, y),
+			facing = self.defaultFacing,
+			mirror = self.defaultMirror,
+		)
 		
 		self.addItem(comp)
 		self.comps.append(comp)
-		# run_logic()
 		return comp
 
 	def removeComp(self, comp: CompItem):
@@ -93,14 +92,12 @@ class CircuitScene(QGraphicsScene):
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
-		# run_logic()
 	
 	def addCompFromData(self, data) -> CompItem:
 		comp_type = LOOKUP[data.pop("id")]
 		pos = QPointF(*data.pop("pos")) + QPoint(5, 5)*GRID.SIZE
 		
 		comp = comp_type(pos, **data)
-		comp.updateOrientation()    # fuck
 		
 		self.addItem(comp)
 		self.comps.append(comp)

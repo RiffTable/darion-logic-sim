@@ -27,10 +27,10 @@ class OutputItem(CompItem):
 		
 		# Pins
 		if self._setupDefaultPins:
-			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+			self.addInPin(CompEdge.INPUT, 0)
 		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
 		
-		self.updateOrientation()
+		self.readjustPins()   # fuck
 	
 
 	def unitStateChanged(self, state: int):
