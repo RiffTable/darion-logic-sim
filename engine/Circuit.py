@@ -1,14 +1,7 @@
 
 import orjson
 from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
-from Const import (
-    TOTAL, DESIGN, SIMULATE, set_MODE,MODE,
-    ERROR, UNKNOWN, HIGH, LOW,
-    IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
-    VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID,
-    NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE,
-)
-import Const
+from Const import *
 from IC import IC
 from Store import get
 
@@ -185,7 +178,7 @@ class Circuit:
         """Switch a variable on/off."""
         if value != target.output:
             target.value = value
-            target.output = value if Const.MODE == SIMULATE else UNKNOWN
+            target.output = value if get_MODE() == SIMULATE else UNKNOWN
             propagate(target, self.queue, self.counter)
 
     def disconnect(self, target: Gate, index: int):
@@ -384,7 +377,7 @@ class Circuit:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
-        if MODE!=DESIGN:
+        if get_MODE()!=DESIGN:
             self.simulate(SIMULATE)
 
         for gate_dict in circuit:
@@ -473,7 +466,7 @@ class Circuit:
                 self.counter += gate.counter
             elif gate:
                 gate.clone(gate_dict, pseudo)
-        if MODE!=DESIGN:
+        if get_MODE()!=DESIGN:
             self.simulate(SIMULATE)
         return new_items
 

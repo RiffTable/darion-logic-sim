@@ -9,9 +9,7 @@ from editor.circuit.viewport import CircuitView
 # Add engine to path
 import os
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine.Circuit import Circuit
-
-
+from Circuit import Circuit
 
 class AppWindow(QMainWindow):
 	def __init__(self):

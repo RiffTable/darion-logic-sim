@@ -1,12 +1,6 @@
 
 from __future__ import annotations
-from Const import (
-    HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE,
-    AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID,
-    VARIABLE_ID, PROBE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, IC_ID,
-    NAME, CUSTOM_NAME, CODE, INPUTLIMIT, SOURCES, VALUE,
-)
-import Const
+from Const import *
 
 
 # ─── Profile ──────────────────────────────────────────────────────
@@ -60,6 +54,7 @@ class Gate:
     ]
 
     def __init__(self):
+
         self.sources: list[Gate | None] = [None, None]
         self.hitlist: list[Profile] = []
         self.inputlimit: int = 2
@@ -82,7 +77,7 @@ class Gate:
 
     def process(self):
         """Calculate output from book counts."""
-        if Const.MODE == DESIGN:
+        if get_MODE() == DESIGN:
             self.output = UNKNOWN
         else:
             high = self.book[HIGH]
@@ -239,7 +234,7 @@ class Variable(Gate):
         pass
 
     def process(self):
-        if Const.MODE == DESIGN:
+        if get_MODE() == DESIGN:
             self.output = UNKNOWN
         else:
             self.output = self.value
@@ -295,7 +290,7 @@ class Probe(Gate):
 
 
     def process(self):
-        if Const.MODE == DESIGN:
+        if get_MODE() == DESIGN:
             self.output = UNKNOWN
         elif self.sources[0] is not None:
             self.output = self.sources[0].output
@@ -377,7 +372,7 @@ class NOT(Gate):
         self.sources = [None]
 
     def process(self):
-        if Const.MODE == DESIGN:
+        if get_MODE() == DESIGN:
             self.output = UNKNOWN
         elif self.sources[0] is not None:
             output = self.sources[0].output
