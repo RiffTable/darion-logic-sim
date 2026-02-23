@@ -66,8 +66,8 @@ class CompItem(QGraphicsItem):
 			for edge, pins in new_pinslist.items():
 				facing = _map[edge]
 				pinslist = self._pinslist[edge]
-				PinType = InputPinItem if pin.get("isInput") else OutputPinItem
 				for pin in pins:
+					PinType = InputPinItem if pin["isInput"] else OutputPinItem
 					newpin = PinType(
 						self,
 						QPointF(*pin["pos"]),
@@ -86,8 +86,6 @@ class CompItem(QGraphicsItem):
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
 
-	def setUnit(self, unit: Gate):
-		self._unit = unit
 	def getUnit(self):
 		return self._unit
 
@@ -157,7 +155,7 @@ class CompItem(QGraphicsItem):
 
 	### Pin Configuration
 	def addInPin(self, edge: CompEdge, index: int) -> InputPinItem:
-		"""Don't forget to call updateShape() afterwards."""
+		"""Call updateShape() afterwards if needed"""
 		pinslist = self._pinslist[edge]
 
 		fa, gen = self.getPinPosGenerator(edge)
@@ -166,7 +164,7 @@ class CompItem(QGraphicsItem):
 		return newpin
 	
 	def addOutPin(self, edge: CompEdge, index: int) -> OutputPinItem:
-		"""Don't forget to call updateShape() afterwards."""
+		"""Call updateShape() afterwards if needed"""
 		pinslist = self._pinslist[edge]
 
 		fa, gen = self.getPinPosGenerator(edge)
@@ -250,7 +248,7 @@ class CompItem(QGraphicsItem):
 		...    # ABSTRACT METHOD
 	
 	
-	### Shape Updating
+	### Updating Overall Shape
 	def _updateShape(self):
 		"""DO NOT set _dirty to False before call this"""
 		# This part changes the bounding rect and "shape" of the compItem

@@ -88,10 +88,14 @@ class GateItem(CompItem):
 			self.proxyIndex = min(self.proxyIndex, index)
 	
 	def setInputCount(self, size: int) -> bool:
-		if size > self.maxInput or size < self.minInput:
-			return False
+		# This is never called for NOT gates
 		n = len(self.inputPins)
-		if size >= n:
+		if size < self.minInput \
+		or size > self.maxInput \
+		or size == n:
+			return False
+		
+		if size > n:
 			for _ in range(size-n):
 				self.addInPin(CompEdge.INPUT, 0)    # fuck
 		else:
