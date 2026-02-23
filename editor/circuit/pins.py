@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
@@ -8,8 +8,14 @@ from editor.styles import Color
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
-	from .components import CompItem
-	from .wires import WireItem
+	from .compitem import CompItem
+	from .wireitem import WireItem
+
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
+from engine import Const
+from engine.Gates import Gate, InputPin, OutputPin
 
 
 
@@ -17,7 +23,7 @@ if TYPE_CHECKING:
 
 ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
-	def __init__(self, parentComp: CompItem, relpos: QPointF, facing: Facing):
+	def __init__(self, parentComp: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(
 			-GRID.SIZE, -GRID.SIZE,
 			GRID.DSIZE, GRID.DSIZE,
@@ -31,8 +37,8 @@ class PinItem(QGraphicsRectItem):
 		self.setAcceptHoverEvents(True)
 		self.setZValue(1)
 
-		self.state = False
-		self._wire: WireItem = None
+		self.state: int = Const.LOW
+		self._wire: WireItem|None = None
 		self.isHighlighted = False
 		self.proxyHighlight = False
 		self.facing = facing
@@ -42,9 +48,9 @@ class PinItem(QGraphicsRectItem):
 		self.setPos(relpos)
 	
 	@property
-	def cscene(self) -> CircuitScene: return self.scene()
+	def cscene(self):     return cast('CircuitScene', self.scene())
 	@property
-	def parentComp(self) -> CompItem: return self.parentItem()
+	def parentComp(self): return cast('CompItem', self.parentItem())
 	
 	def highlight(self, isHovered: bool) -> None:
 		...    # ABSTRACT METHOD
@@ -52,8 +58,16 @@ class PinItem(QGraphicsRectItem):
 		...    # ABSTRACT METHOD
 	
 	
+	# Serialization
+	def getData(self):
+		return {
+			"pos"     : self.pos().toTuple(),
+			"wire"    : self.getWireID(),
+			"isInput" : isinstance(self, InputPinItem)
+		}
+
 	# Wire configuration
-	def setWire(self, wire: WireItem):
+	def setWire(self, wire: WireItem|None):
 		"""Doesn't remove its reference from its wire. Use disconnect() then"""
 		if self._wire is wire: return
 
@@ -66,6 +80,9 @@ class PinItem(QGraphicsRectItem):
 	
 	def getWire(self): return self._wire
 	def hasWire(self): return self._wire != None
+	def getWireID(self):
+		if self._wire: return self._wire.getID()
+		else:          return 0
 
 
 	# Events
@@ -100,7 +117,7 @@ class PinItem(QGraphicsRectItem):
 			self.setBrush(Qt.BrushStyle.NoBrush)
 		
 		else:
-			if self.state:
+			if self.state == Const.HIGH:
 				self.setBrush(QBrush(Color.pin_on))
 			else:
 				self.setBrush(QBrush(Color.pin_off))
@@ -111,8 +128,15 @@ class PinItem(QGraphicsRectItem):
 
 ###======= INPUT PIN =======###
 class InputPinItem(PinItem):
-	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
+		self.logical: tuple[Gate, int] | tuple[InputPin, int] | None = None
+
+	def setLogical(self, input: Gate | InputPin, index: int = 0):
+		if isinstance(input, InputPin):
+			self.logical = (input, 0)
+		else:
+			self.logical = (input, index)
 
 	def disconnect(self):
 		if not self._wire: return
@@ -133,8 +157,20 @@ class InputPinItem(PinItem):
 
 ###======= OUTPUT PIN =======###
 class OutputPinItem(PinItem):
-	def __init__(self, parent: CompItem, relpos: tuple[float, float], facing: int):
+	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
+		self.logical: Gate | OutputPin | None = None
+
+	def setLogical(self, output: Gate | OutputPin):
+		if not isinstance(input, (Gate, InputPin)):
+			raise TypeError(f"Invalid logical value 'output' = {output}")
+		self.logical = output
+	
+	def logicalStateChanged(self, state: int):
+		self.state = state
+		self.updateVisual()
+		w = self._wire
+		if w: w.setState(state)
 	
 	def disconnect(self):
 		if not self._wire: return

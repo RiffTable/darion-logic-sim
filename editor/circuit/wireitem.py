@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 
 from editor.styles import Color
@@ -8,17 +8,23 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .pins import InputPinItem, OutputPinItem
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
+from engine import Const
+
 
 
 
 
 class WireItem(QGraphicsPathItem):
+	COUNT = 1    # NO CONNECTION = ZERO (0)
 	MINWALK = 2
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
 
 		# Behavior
-		self.setFlags(QGraphicsItem.ItemIsSelectable)
+		self.setFlags(GraphicsItemFlag.ItemIsSelectable)
 		self.setZValue(-1)
 		self._dirty = False
 
@@ -26,15 +32,25 @@ class WireItem(QGraphicsPathItem):
 		end.setWire(self)
 
 		# Properties
-		self.state = False
+		self._id = WireItem.COUNT
+		self.state: int = Const.LOW
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
 		# self.updateVisual()
 		# self.updateShape()
+		WireItem.COUNT += 1
 	
 	@property
-	def cscene(self) -> CircuitScene: return self.scene()
+	def cscene(self): return cast('CircuitScene', self.scene())
+	def getID(self):
+		return self._id
+
+	
+	## Properties Data
+	def getData(self):
+		return {}
+
 
 	# Connection configuration
 	def addSupply(self, pin: InputPinItem):
@@ -63,10 +79,15 @@ class WireItem(QGraphicsPathItem):
 			supply.setWire(None)
 	
 	# Events
+	def setState(self, state: int):
+		self.state = state
+		self.updateVisual()
+	
 	def updateVisual(self):
-		color = Color.signal_on if self.state else Color.signal_off
+		match self.state:
+			case Const.HIGH: self.setPen(QPen(Color.signal_on, 3))
+			case _:          self.setPen(QPen(Color.signal_off, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
-		self.setPen(QPen(color, 3))
 	
 	def updateShape(self):
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True

@@ -5,11 +5,13 @@ from core.QtCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
+from editor.circuit.canvas import CircuitScene
 
 # Add engine to path
 import os
 sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from Circuit import Circuit
+from engine.Circuit import Circuit
+from engine import Const
 
 class AppWindow(QMainWindow):
 	def __init__(self):
@@ -21,11 +23,13 @@ class AppWindow(QMainWindow):
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
 		
-		
-		###======= CIRCUIT VIEW =======###
-		self.view = CircuitView()
-		self.scene = self.view.scene
+
+		###======= CIRCUIT =======###
 		self.logic = Circuit()
+		self.logic.simulate(Const.FLIPFLOP)
+		
+		self.scene = CircuitScene(self.logic)
+		self.view = CircuitView(self.scene)
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
@@ -39,8 +43,8 @@ class AppWindow(QMainWindow):
 			"NOR Gate": 4,
 			"XOR Gate": 5,
 			"XNOR Gate": 6,
-			"Input (Toggle)": 7,
-			"LED": 8,
+			# "Input (Toggle)": 7,
+			# "LED": 8,
 		}
 
 		for text, comp_id in gatelists.items():
@@ -87,6 +91,6 @@ if __name__ == "__main__":
 	window.show()
 
 	window.scene.addComp(100, 100, 5)
-	window.scene.addComp(100, 200, 7)
+	# window.scene.addComp(100, 200, 7)
 
 	sys.exit(app.exec())

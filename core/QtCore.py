@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 	QPushButton, 
 	QGraphicsScene, QGraphicsView,
 	QVBoxLayout, QHBoxLayout,
-	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
+	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent, QStyle
 )
 from PySide6.QtCore import (
 	Qt, QObject, QEvent, QTimer,

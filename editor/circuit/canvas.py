@@ -1,32 +1,45 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from typing import cast
 from core.QtCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from .components import CompItem, LabelItem
-from .pins import InputPinItem, OutputPinItem
-from .wires import WireItem
-from .gates import GateItem
-from .lookup import LOOKUP
+from .catalog import (
+	LOOKUP, CompItem, WireItem, InputPinItem, OutputPinItem,
+	GateItem
+)
+
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
+from engine.Circuit import Circuit
+from engine.Gates import Gate, InputPin, OutputPin
+
 
 
 
 
 
 class CircuitScene(QGraphicsScene):
-	def __init__(self):
+	def __init__(self, logic: Circuit):
 		super().__init__()
 
-		self.SIZE = 12
+		self.logic = logic
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
-		self._state = EditorState.NORMAL
 
 		self._rmb_last_pos = QPointF()
 
+		# Clipboard
+		self.clipboard = { "comps": [], "wires": [] }
+
+		# Editor Stuffs
+		self._state = EditorState.NORMAL
+		self.defaultFacing = Facing.EAST
+		self.defaultMirror = False
+
 		# Wiring logic
-		self.ghostWire: WireItem = None
+		self.ghostWire: WireItem|None = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 
 		self.ghostPin.hide()    # These three lines does the same thing but still...
@@ -65,38 +78,56 @@ class CircuitScene(QGraphicsScene):
 
 	# Components Management
 	def addComp(self, x: float, y:float, comp_id: int):
-		cd = LOOKUP[comp_id]
-		comp = cd.skin(QPointF(x, y))
-		comp.labelItem.setPlainText(cd.tag)
+		comp_type = LOOKUP[comp_id]
+		comp = comp_type(
+			QPointF(x, y),
+			facing = self.defaultFacing,
+			mirror = self.defaultMirror,
+		)
 		
 		self.addItem(comp)
 		self.comps.append(comp)
-		# run_logic()
-	
+		return comp
+
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
 		comp.cutConnections()
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
-		# run_logic()
+	
+	def addCompFromData(self, data) -> CompItem:
+		comp_type = LOOKUP[data.pop("id")]
+		pos = QPointF(*data.pop("pos")) + QPoint(5, 5)*GRID.SIZE
+		
+		comp = comp_type(pos, **data)
+		
+		self.addItem(comp)
+		self.comps.append(comp)
+		return comp
+	
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem, modifiers: KeyMod):
+	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
 		g_wire = self.ghostWire
+
+		if g_wire == None:
+			self.setState(EditorState.NORMAL)
+			return
 		g_pin = self.ghostPin
+		source = g_wire.source
 		finishing = False
 
 		# Wiring: Finish!
-		if isinstance(target, CompItem) and hasattr(target, "proxyPin"):
+		if isinstance(target, CompItem):
 			# Proxying: Wire is connected to the gate's *favorite* pin
 			target = target.proxyPin()
 			if target is None: return
 		
 		if isinstance(target, InputPinItem):
-			if target.hasWire():
+			t_wire = target.getWire()
+			if t_wire:
 				# Swap Connections
-				t_wire = target.getWire()
 				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
 				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
 				
@@ -110,14 +141,24 @@ class CircuitScene(QGraphicsScene):
 				finishing = True
 		
 		if finishing:
+			target = cast(InputPinItem, target)
 			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 
-			if not (modifiers & KeyMod.ShiftModifier):
+			if not multiWireMode:
 				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 				self.setState(EditorState.NORMAL)
 				self.ghostWire = None
+			self.clearSelection()
+			g_wire.setSelected(True)    # Solo select the finished wire
 			
 			g_wire.supplies.append(target); target.setWire(g_wire)
+
+			# horse-egg
+			# g, idx = target.logical
+			# if isinstance(g, Gate) and idx < g.inputlimit:
+			# 	g.setlimits(idx)
+			# self.logic.connect(g, source.logical, idx)
+
 			g_wire.updateShape()
 			target.highlight(False)
 			
@@ -144,14 +185,15 @@ class CircuitScene(QGraphicsScene):
 		# Wiring: Start!
 		if self.checkState(EditorState.NORMAL):
 			if isinstance(item, OutputPinItem) and event.button() == MouseBtn.LeftButton:
-				if event.button() == Qt.LeftButton:
+				if event.button() == MouseBtn.LeftButton:
 					self.setState(EditorState.WIRING)
-					if not item.hasWire():
+					w = item.getWire()
+					if w == None:
 						self.ghostWire = WireItem(item, self.ghostPin)
 						# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
 						self.addItem(self.ghostWire)
 					else:
-						self.ghostWire = item.getWire()
+						self.ghostWire = w
 						self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
@@ -161,16 +203,20 @@ class CircuitScene(QGraphicsScene):
 		# RMB drag has been handled
 		btn = event.button()
 		target = self.itemAt(event.scenePos(), QTransform())
-		if isinstance(target, LabelItem): target = target.parentItem()
 
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
 			if btn == MouseBtn.LeftButton:
-				self.finishWiring(target, event.modifiers())
+				self.finishWiring(
+					target,
+					bool(event.modifiers() & KeyMod.ShiftModifier)
+				)
 
 			# Wiring: Skip!
 			if btn == MouseBtn.RightButton:   # RMB click
 				self.skipWiring()
+				event.accept()
+				return
 		
 		super().mouseReleaseEvent(event)
 
@@ -180,6 +226,8 @@ class CircuitScene(QGraphicsScene):
 	
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
+		mod = event.modifiers()
+
 		if key in (Key.Key_Delete, Key.Key_Backspace, Key.Key_X):
 			for item in self.selectedItems():
 				if isinstance(item, WireItem):
@@ -199,27 +247,26 @@ class CircuitScene(QGraphicsScene):
 					is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
+					u = item.getUnit()
+					if u: self.logic.setlimits(u, new_size)
 		
 		# if key == Key.Key_M:
 		# 	for item in self.selectedItems():
 		# 		if isinstance(item, CompItem):
 		# 			item.mirror()
-		# 			item.updateShape()
 		
 		if key == Key.Key_F:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					item.flip()
-					item.updateShape()
 		
 		if key == Key.Key_R:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
-					item.rotate(not event.modifiers() & KeyMod.ShiftModifier)
-					item.updateShape()
+					item.rotate(not mod & KeyMod.ShiftModifier)
 		
 		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
-		and event.modifiers() & KeyMod.ControlModifier:
+		and mod & KeyMod.ControlModifier:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
 					match key:
@@ -227,6 +274,33 @@ class CircuitScene(QGraphicsScene):
 						case Key.Key_Down:  item.setFacing(Facing.SOUTH)
 						case Key.Key_Left:  item.setFacing(Facing.WEST)
 						case Key.Key_Up:    item.setFacing(Facing.NORTH)
-					item.updateShape()
+		
+		# if key == Key.Key_C and mod & KeyMod.ControlModifier:
+		# 	comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
+		if key == Key.Key_A and mod & KeyMod.ControlModifier:
+			self.clearSelection()
+			for item in self.comps:
+				item.setSelected(True)
+		
+		if key == Key.Key_C and mod & KeyMod.ControlModifier:
+			comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
+			self.clipboard = {
+				"comps": comps,
+				"wires": []
+			}
+		
+		if key == Key.Key_V and mod & KeyMod.ControlModifier:
+			self.clearSelection()
+			for comp_data in self.clipboard.get("comps", []):
+				comp = self.addCompFromData(comp_data)
+				comp.setSelected(True)
+
+		# # DEBUG
+		# if key == Key.Key_Space:
+		# 	for item in self.selectedItems():
+		# 		if isinstance(item, CompItem):
+		# 			print(item.getData())
+		# 			break
+
 
 		super().keyPressEvent(event)
