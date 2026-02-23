@@ -99,15 +99,17 @@ class IC:
             dictionary[MAP].append(i.json_data())
         return dictionary
 
-    def clone(self, pseudo: dict):
+    def clone(self, pseudo: dict, depth: int = 0):
         """Wire up all sub-components."""
+        if depth > 250:
+            raise RecursionError("IC depth limit exceeded")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
-                gate.clone(pseudo)
+                gate.clone(pseudo, depth + 1)
                 self.counter += gate.counter
             else:
                 gate.clone(i, pseudo)
@@ -132,15 +134,17 @@ class IC:
             dictionary[MAP].append(i.copy_data(cluster))
         return dictionary
 
-    def implement(self, pseudo: dict):
+    def implement(self, pseudo: dict, depth: int = 0):
         """Build connections from the map (paste path)."""
+        if depth > 250:
+            raise RecursionError("IC depth limit exceeded")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
-                gate.implement(pseudo)
+                gate.implement(pseudo, depth + 1)
                 self.counter += gate.counter
             else:
                 gate.clone(i, pseudo)

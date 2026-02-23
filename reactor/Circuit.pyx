@@ -415,7 +415,7 @@ cdef class Circuit:
             code = self.decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
-                (<IC>gate).clone(pseudo)
+                (<IC>gate).clone(pseudo,0)
                 self.counter+=(<IC>gate).counter
             else:
                 gate.clone(gate_info, pseudo)
@@ -451,7 +451,7 @@ cdef class Circuit:
 
     cpdef void rank_reset(self):
         for i in range(TOTAL):
-            while self.objlist[i] and self.objlist[i][-1] == None:
+            while self.objlist[i] and self.objlist[i][len(self.objlist[i])-1] is None:
                 self.objlist[i].pop()
 
     cpdef void clearcircuit(self):

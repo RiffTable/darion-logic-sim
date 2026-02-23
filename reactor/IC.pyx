@@ -69,7 +69,7 @@ cdef class IC:
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
         self.load_components(dictionary, pseudo)
-        self.clone(pseudo)
+        self.clone(pseudo, 0)
 
     cdef decode(self, list code):
         if len(code) == 2:
@@ -94,16 +94,18 @@ cdef class IC:
             dictionary[MAP].append(i.json_data())
         return dictionary
 
-    cpdef clone(self, dict pseudo):
+    cpdef clone(self, dict pseudo,int depth):
         cdef object gate
         cdef object code
+        if depth>250:
+            raise RecursionError("Infinite recursion detected, map is corrupted")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
-                (<IC>gate).clone(pseudo)
+                (<IC>gate).clone(pseudo,depth+1)
                 self.counter+=gate.counter
             else:
                 gate.clone(i, pseudo)
@@ -128,16 +130,18 @@ cdef class IC:
             dictionary[MAP].append(i.copy_data(cluster))
         return dictionary
 
-    cpdef implement(self, dict pseudo):
+    cpdef implement(self, dict pseudo,int depth):
         cdef object gate
         cdef object code
+        if depth>250:
+            raise RecursionError("Infinite recursion detected, map is corrupted")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
-                gate.implement(pseudo)
+                gate.implement(pseudo,depth+1)
                 self.counter+=gate.counter
             else:
                 gate.clone(i, pseudo)
