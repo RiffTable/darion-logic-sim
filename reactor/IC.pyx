@@ -141,7 +141,7 @@ cdef class IC:
             if gate.id==IC_ID:
                 gate.map = i[MAP]
                 gate.load_components(i, pseudo)
-                gate.implement(pseudo,depth+1)
+                (<IC>gate).implement(pseudo,depth+1)
                 self.counter+=gate.counter
             else:
                 gate.clone(i, pseudo)

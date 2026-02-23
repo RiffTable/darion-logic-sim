@@ -43,7 +43,20 @@ cpdef enum:
     SOURCES=4
     VALUE=4
     MAP=4
-    
+
+cdef extern from *:
+    """
+    #if defined(__GNUC__) || defined(__clang__)
+        #define likely(x)       __builtin_expect(!!(x), 1)
+        #define unlikely(x)     __builtin_expect(!!(x), 0)
+    #else
+        #define likely(x)       (x)
+        #define unlikely(x)     (x)
+    #endif
+    """
+    bint likely(bint condition) nogil
+    bint unlikely(bint condition) nogil
+
 cdef public int MODE 
 cpdef void set_MODE(int mode)
 cpdef int get_MODE()

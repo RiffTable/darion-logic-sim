@@ -41,7 +41,7 @@ cdef void burn(Queue &queue,int index):
                     target=<Gate>profile.target
                     if target.inputlimit!=1:
                         target.book[profile.output]-=1
-                        target.book[gate.output]+=1
+                        target.book[ERROR]+=1
                     if target.output!=ERROR:
                         queue.push_back(<void*>target)
                     profile.output = ERROR
@@ -59,12 +59,12 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
     cdef int old_output, new_output, profile_output,target_output
     cdef Py_ssize_t index=0,size=1
     cdef int counter=0
-    if origin.output==ERROR:
+    if unlikely(origin.output==ERROR):
         burn(queue,index)
         return
     queue.push_back(<void*>origin)
     while index<size:
-        if counter>wave_limit:
+        if unlikely(counter>wave_limit):
             burn(queue,index)
             return
         counter+=1
@@ -92,7 +92,7 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
                         high=book[HIGH]
                         low=book[LOW]
                         realsource = high+low
-                        if realsource==limit or (realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
+                        if likely(realsource==limit) or unlikely(realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
                             if gate_type<=NAND_ID:target_output = low==0
                             elif gate_type<=NOR_ID:target_output = high>0
                             else:target_output = high&1
@@ -108,10 +108,11 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
             index+=1
         size = queue.size()
     queue.clear()
+
 cdef class Circuit:
     def __cinit__(self):
         self.counter=0
-        self.queue.reserve(30*1024*1024)
+        self.queue.reserve(3*1024*1024)
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
@@ -497,7 +498,7 @@ cdef class Circuit:
             code = self.decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
-                gate.implement(pseudo)
+                gate.implement(pseudo,0)
                 self.counter+=(<IC>gate).counter
             elif gate:
                 gate.clone(gate_info, pseudo)
