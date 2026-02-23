@@ -75,21 +75,18 @@ class CircuitScene(QGraphicsScene):
 
 	# Components Management
 	def addComp(self, x: float, y:float, comp_id: int):
-		cd = LOOKUP[comp_id]
+		comp_type = LOOKUP[comp_id]
 		data = {
-			"tag"   : cd.tag,
 			"facing": self.defaultFacing,
 			"mirror": self.defaultMirror,
 		}
-		comp = cd.skin(QPointF(x, y), **data)
-		comp.id = comp_id
-		# horse-egg
-		# self.logic.getcomponent(cd.logic, )
+		comp = comp_type(QPointF(x, y), **data)
 		
 		self.addItem(comp)
 		self.comps.append(comp)
 		# run_logic()
-	
+		return comp
+
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
 		comp.cutConnections()
@@ -98,15 +95,12 @@ class CircuitScene(QGraphicsScene):
 		self.removeItem(comp)
 		# run_logic()
 	
-	def deserialize(self, data) -> CompItem:
-		pos = QPointF(*data.pop("pos"))
-		offset = GRID.SQUARE*5
-		comp_id = data.pop("id")
-		cd = LOOKUP[comp_id]
+	def addCompFromData(self, data) -> CompItem:
+		comp_type = LOOKUP[data.pop("id")]
+		pos = QPointF(*data.pop("pos")) + QPoint(5, 5)*GRID.SIZE
 		
-		comp = cd.skin(pos+offset, **data)
-		comp.id = comp_id
-		comp.updateOrientation()
+		comp = comp_type(pos, **data)
+		comp.updateOrientation()    # fuck
 		
 		self.addItem(comp)
 		self.comps.append(comp)
@@ -298,7 +292,7 @@ class CircuitScene(QGraphicsScene):
 		if key == Key.Key_V and mod & KeyMod.ControlModifier:
 			self.clearSelection()
 			for comp_data in self.clipboard.get("comps", []):
-				comp = self.deserialize(comp_data)
+				comp = self.addCompFromData(comp_data)
 				comp.setSelected(True)
 
 		# # DEBUG

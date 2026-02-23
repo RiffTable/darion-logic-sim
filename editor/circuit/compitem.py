@@ -18,15 +18,15 @@ from engine import Const
 
 
 class CompItem(QGraphicsItem):
-	def __init__(
-			self,
-			pos: QPointF,
-			**kwargs
-		):
-		
+	TAG: str
+	ID: int    # Value assigned via `catalog.py`
+	DESC: str
+	NAME: str
+	LOGIC = int
+	def __init__(self, pos: QPointF, **kwargs):
+
 		# Properties
-		self.id = 9999
-		self.tag = kwargs.get("tag", "")
+		self.tag = self.TAG
 		self.state: int = Const.LOW
 		self.facing = Facing(kwargs.get("facing", Facing.EAST))
 		self.isMirrored = kwargs.get("mirror", False)
@@ -43,11 +43,8 @@ class CompItem(QGraphicsItem):
 			CompEdge.TOP    : [],
 		}
 
-		x, y = GRID.snapF(pos).toTuple()
 		super().__init__()
-		
-		# Behavior
-		self.setPos(x, y)
+		self.setPos(GRID.snapF(pos))
 		self.setZValue(0)
 		self.setFlags(
 			GraphicsItemFlag.ItemIsMovable |
@@ -56,11 +53,12 @@ class CompItem(QGraphicsItem):
 			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setAcceptHoverEvents(True)
+
+		# Behavior
 		self._dirty = True
 		self._rect = QRectF()
 		self._cached_hitbox = QPainterPath()
-		self._hover_count = 0
-		self._unit: Gate|None = None
+		self._unit = None
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
 			# fuck
@@ -84,6 +82,7 @@ class CompItem(QGraphicsItem):
 					pinslist.append(newpin)
 
 		# Proxy & Hovering
+		self._hover_count = 0
 		self.hoverLeaveTimer = QTimer()
 		self.hoverLeaveTimer.setSingleShot(True)
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
@@ -102,7 +101,7 @@ class CompItem(QGraphicsItem):
 	### Properties Data
 	def getData(self):
 		return {
-			"id"       : self.id,
+			"id"       : self.ID,
 			"pos"      : self.pos().toTuple(),
 			"tag"      : self.tag,
 			"facing"   : self.facing.value,

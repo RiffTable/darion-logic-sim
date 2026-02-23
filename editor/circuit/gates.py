@@ -10,13 +10,18 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 
 
 from engine import Const
-
+from engine.Gates import (
+	Gate, NOT, AND, NAND, OR, NOR, XOR, XNOR
+)
 
 
 
 
 ### Gate Item
 class GateItem(CompItem):
+	MIN_INPUT = 2
+	MAX_INPUT = 69
+
 	def getRelSize(self):
 		n = len(self._pinslist[CompEdge.INPUT])
 		if   n < 5:  w = 6
@@ -27,13 +32,19 @@ class GateItem(CompItem):
 		return (w, h)
 	
 	def getRelPadding(self): return (0, 9)
+
+
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 
+		# Properties
+		self.minInput = self.MIN_INPUT
+		self.maxInput = self.MAX_INPUT
+
 		# Pins
 		if self._setupDefaultPins:
-			self._addToPinsList(CompEdge.INPUT, InputPinItem)
-			self._addToPinsList(CompEdge.INPUT, InputPinItem)
+			for _ in range(self.minInput):
+				self._addToPinsList(CompEdge.INPUT, InputPinItem)
 			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
 			self.updateOrientation()
 		
@@ -42,19 +53,6 @@ class GateItem(CompItem):
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
-
-		# Properties
-		self.minInput = kwargs.get("minInput", 2)
-		self.maxInput = kwargs.get("maxInput", 69)
-
-
-
-	### Properties Data
-	def getData(self):
-		return super().getData() | {
-			"maxInput" : self.maxInput,
-			"minInput" : self.minInput,
-		}
 	
 
 	def unitStateChanged(self, state: int):
@@ -67,6 +65,27 @@ class GateItem(CompItem):
 		if self.proxyIndex < len(self.inputPins):
 			return self.inputPins[self.proxyIndex]
 		else: return None
+	
+	def findFirstEmptyPin(self):
+		for i, p in enumerate(self.inputPins):
+			if not p.hasWire():
+				return i
+		return len(self.inputPins)
+	
+
+	# Pin Configuration
+	def pushGatePin(self):
+		...
+	def popGatePin(self):
+		...
+	
+	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
+		if (activePinCountChange == +1) and pin is self.proxyPin():
+			self.proxyIndex = self.findFirstEmptyPin()
+		
+		if (activePinCountChange == -1) and pin in self.inputPins:
+			index = self.inputPins.index(cast(InputPinItem, pin))
+			self.proxyIndex = min(self.proxyIndex, index)
 	
 	def setInputCount(self, size: int) -> bool:
 		if size > self.maxInput or size < self.minInput:
@@ -118,32 +137,24 @@ class GateItem(CompItem):
 		if proxy:
 			proxy.proxyHighlight = True if (self._hover_count == 1) else False
 			proxy.highlight(proxy is hoveredPin)
-	
-	def findFirstEmptyPin(self):
-		for i, p in enumerate(self.inputPins):
-			if not p.hasWire():
-				return i
-		return len(self.inputPins)
-	
-	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
-		if (activePinCountChange == +1) and pin is self.proxyPin():
-			self.proxyIndex = self.findFirstEmptyPin()
-		
-		if (activePinCountChange == -1) and pin in self.inputPins:
-			index = self.inputPins.index(cast(InputPinItem, pin))
-			self.proxyIndex = min(self.proxyIndex, index)
 
 	# Events
 	def _updateShape(self):
 		n = len(self.inputPins)
 		_, h = self.getRelSize()
-		m = h//(n-1)
-
 		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
-		for i, p in enumerate(self.inputPins):
+
+		if n == 1:
+			p = self.inputPins[0]
 			p.facing = fa
-			self.setPinPos(p, gen(m*i))
-		
+			self.setPinPos(p, gen(h//2))
+		else:
+			m = h//(n-1)
+
+			for i, p in enumerate(self.inputPins):
+				p.facing = fa
+				self.setPinPos(p, gen(m*i))
+			
 		opin = self.outputPin
 		fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
 		opin.facing = fa
@@ -152,107 +163,16 @@ class GateItem(CompItem):
 
 
 
-### Gate Item
-class UnaryGateItem(CompItem):
+class NOTGate  (GateItem):
+	TAG = "NOT"
+	LOGIC = Const.NOT_ID
+	NAME = DESC = "NOT Gate"
+	MIN_INPUT = MAX_INPUT = 1
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF, **kwargs):
-		super().__init__(pos, **kwargs)
-		
-		# Behavior
-		self.setAcceptHoverEvents(True)
-		self.tag = "NOT"
-
-		# Pins
-		if self._setupDefaultPins:
-			self._addToPinsList(CompEdge.INPUT, InputPinItem)
-			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
-		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
-		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
-		
-		# Properties
-		self.minInput = 1
-		self.maxInput = 1
-
-		self.updateOrientation()
-	
-
-	def unitStateChanged(self, state: int):
-		self.state = state
-		self.outputPin.logicalStateChanged(state)
-
-
-
-
-class InputItem(CompItem):
-	def getRelSize(self): return (4, 2)
-	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF, **kwargs):
-		super().__init__(pos, **kwargs)
-		
-		# Behavior
-		self.setAcceptHoverEvents(True)
-		self.tag = "IN"
-		
-		if self._setupDefaultPins:
-			self._addToPinsList(CompEdge.OUTPUT, OutputPinItem)
-		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
-		
-		self.updateOrientation()
-	
-
-	def unitStateChanged(self, state: int):
-		self.state = state
-		self.outputPin.logicalStateChanged(state)
-	
-
-	def setState(self, state: int):
-		self.state = state
-		self.update()
-
-	
-	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-		if event.button() == MouseBtn.LeftButton:
-			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
-			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
-				self.setState(Const.HIGH if self.state == Const.LOW else Const.LOW)
-			return super().mouseReleaseEvent(event)
-	
-	def draw(self, painter, option, widget):
-		# painter.setPen(QPen(Color.outline, 2))
-		if self.state == Const.HIGH:
-			painter.setBrush(Color.comp_on)
-		else:
-			painter.setBrush(Color.comp_body)
-
-
-
-class OutputItem(CompItem):
-	def getRelSize(self): return (4, 2)
-	def getRelPadding(self): return (0, 4)
-	def __init__(self, pos: QPointF, **kwargs):
-		super().__init__(pos, **kwargs)
-		
-		# Behavior
-		self.setAcceptHoverEvents(True)
-		self.tag = "OUT"
-		
-		# Pins
-		if self._setupDefaultPins:
-			self._addToPinsList(CompEdge.INPUT, InputPinItem)
-		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
-		
-		self.updateOrientation()
-	
-
-	def unitStateChanged(self, state: int):
-		self.state = state
-		self.update()
-	
-
-	def draw(self, painter, option, widget):
-		# painter.setPen(QPen(Color.outline, 2))
-		if self.state == Const.HIGH:
-			painter.setBrush(Color.LED_on)
-		else:
-			painter.setBrush(Color.LED_off)
+class ANDGate  (GateItem): TAG="AND";  LOGIC=Const.AND_ID;  NAME=DESC="AND Gate"
+class NANDGate (GateItem): TAG="NAND"; LOGIC=Const.NAND_ID; NAME=DESC="NAND Gate"
+class ORGate   (GateItem): TAG="OR";   LOGIC=Const.OR_ID;   NAME=DESC="OR Gate"
+class NORGate  (GateItem): TAG="NOR";  LOGIC=Const.NOR_ID;  NAME=DESC="NOR Gate"
+class XORGate  (GateItem): TAG="XOR";  LOGIC=Const.XOR_ID;  NAME=DESC="XOR Gate"
+class XNORGate (GateItem): TAG="XNOR"; LOGIC=Const.XNOR_ID; NAME=DESC="XNOR Gate"
