@@ -1,6 +1,6 @@
 from __future__ import annotations
-from .Gates import Gate, InputPin, OutputPin, Profile, hitlist_del, add, hide, reveal, locate, remove
-from .Const import IC_ID
+from Gates import Gate, InputPin, OutputPin, Profile, hitlist_del, add, hide, reveal, locate, remove
+from Const import IC_ID
 
 class IC:
     # Integrated Circuit: a custom chip made of other gates

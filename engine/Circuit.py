@@ -1,9 +1,9 @@
 import json
 from collections import deque
-from .Gates import Gate, Variable, Profile, hide, reveal
-from .Const import TOTAL, DESIGN, SIMULATE, FLIPFLOP, get_MODE, set_MODE, ERROR, UNKNOWN, HIGH, LOW, IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID, VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID
-from .IC import IC
-from .Store import get
+from Gates import Gate, Variable, Profile, hide, reveal
+from Const import TOTAL, DESIGN, SIMULATE, FLIPFLOP, get_MODE, set_MODE, ERROR, UNKNOWN, HIGH, LOW, IC_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID, NOT_ID, VARIABLE_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, PROBE_ID
+from IC import IC
+from Store import get
 
 def clear_fuse(fuse: set):
     fuse.clear()

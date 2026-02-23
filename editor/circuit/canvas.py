@@ -9,6 +9,9 @@ from .catalog import (
 	GateItem
 )
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine.Circuit import Circuit
 from engine.Gates import Gate, InputPin, OutputPin
 

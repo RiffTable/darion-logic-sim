@@ -9,6 +9,9 @@ from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine import Const
 
 

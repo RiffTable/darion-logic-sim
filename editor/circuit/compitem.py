@@ -10,6 +10,9 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine.Gates import Gate
 from engine import Const
 

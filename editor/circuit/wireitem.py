@@ -8,6 +8,9 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .pins import InputPinItem, OutputPinItem
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine import Const
 
 

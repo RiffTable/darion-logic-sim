@@ -1,6 +1,6 @@
 
-from .Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin, OutputPin
-from .IC import IC
+from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin, OutputPin
+from IC import IC
 
 # Define the map at the module level for efficiency
 _gateobjects = (

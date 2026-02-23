@@ -11,6 +11,9 @@ if TYPE_CHECKING:
 	from .compitem import CompItem
 	from .wireitem import WireItem
 
+import sys
+import os
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 from engine import Const
 from engine.Gates import Gate, InputPin, OutputPin
 
