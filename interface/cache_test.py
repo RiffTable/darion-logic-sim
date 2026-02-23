@@ -1,7 +1,6 @@
 """
-DARION LOGIC SIM - CACHE & MEMORY BOUNDARY PROFILER
-Finds the 0-10% cache sweet spot, stops at 50% degradation,
-and specifies CPU hardware limits.
+DARION LOGIC SIM - REAL-WORLD CACHE PROFILER
+Finds the 0-10% cache sweet spot using realistic UI memory fragmentation.
 """
 
 import time
@@ -23,7 +22,8 @@ except ImportError:
 parser = argparse.ArgumentParser(description='Run Cache Profiler')
 parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
-parser.add_argument('--linear', action='store_true', help='Use linear chaining (allows hardware prefetching)')
+parser.add_argument('--mode', type=str, choices=['linear', 'realistic', 'chaotic'], default='realistic',
+                    help="Memory fragmentation mode (default: realistic)")
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -60,16 +60,13 @@ except ImportError:
     sys.exit(1)
 
 def get_cpu_info():
-    """Fetches exact CPU Name and Hardware Cache Limits from the OS."""
     cpu_name = platform.processor()
     l2, l3 = "Unknown", "Unknown"
     try:
         if platform.system() == "Windows":
             out_name = subprocess.check_output(["wmic", "cpu", "get", "Name"], text=True)
             lines_name = [l.strip() for l in out_name.split('\n') if l.strip()]
-            if len(lines_name) > 1:
-                cpu_name = lines_name[1]
-            
+            if len(lines_name) > 1: cpu_name = lines_name[1]
             out_cache = subprocess.check_output(["wmic", "cpu", "get", "L2CacheSize,L3CacheSize"], text=True)
             lines_cache = [l.strip() for l in out_cache.split('\n') if l.strip()]
             if len(lines_cache) > 1:
@@ -87,7 +84,7 @@ def get_cpu_info():
         pass
     return cpu_name, l2, l3
 
-def build_chain(active_size, linear=False):
+def build_chain(active_size, mode='realistic'):
     c = Circuit()
     first_gate = c.getcomponent(Const.VARIABLE_ID)
     
@@ -99,14 +96,26 @@ def build_chain(active_size, linear=False):
     gate_types = [Const.AND_ID, Const.OR_ID, Const.XOR_ID, Const.NOT_ID]
     active_gates = []
     
+    # Allocate Gates
     for i in range(active_size - 1):
         g_type = gate_types[i % 4]
         g = c.getcomponent(g_type)
         active_gates.append((g, g_type))
     
-    if not linear:
+    # --- FRAGMENTATION LOGIC ---
+    if mode == 'chaotic':
+        # Absolute Worst Case (100% Cache Misses)
         random.shuffle(active_gates)
-        
+    elif mode == 'realistic':
+        # Real-World Workflow: Users build in discrete sub-circuits (e.g., 64-gate chunks).
+        # Memory is sequential inside the chunk, but jumps randomly between chunks.
+        chunk_size = 64
+        chunks = [active_gates[i:i + chunk_size] for i in range(0, len(active_gates), chunk_size)]
+        random.shuffle(chunks) # Shuffle the sub-circuits
+        active_gates = [gate for chunk in chunks for gate in chunk] # Flatten back out
+    # If mode == 'linear', do nothing (100% Sequential)
+
+    # Wire Gates
     prev_gate = first_gate
     for g, g_type in active_gates:
         c.connect(g, prev_gate, 0)
@@ -128,16 +137,21 @@ def profile_cache():
     cpu_name, l2_cache, l3_cache = get_cpu_info()
     
     print("======================================================================")
-    print("  DARION LOGIC SIM: HARDWARE & CACHE PROFILER")
+    print("  DARION LOGIC SIM: REAL-WORLD CACHE PROFILER")
     print("======================================================================")
     print(f"CPU DETECTED: {cpu_name}")
     print(f"OS CACHE LIMITS: L2: {l2_cache} | L3: {l3_cache}")
-    print(f"Memory Mode: {'Linear (Hardware Prefetching)' if args.linear else 'Scrambled (True Random Access)'}")
+    print(f"Memory Mode: {args.mode.upper()}")
+    
+    if args.mode == 'realistic':
+        print(" -> Simulating temporal locality: sequential RAM inside sub-circuits,")
+        print("    but fragmented wire routing between major components.")
+        
     print("Metric: 'Evals/sec' = Active logic evaluations processed per second.\n")
 
     test_sizes = [
-        100, 500, 2500, 5000, 10000, 25000, 50000, 
-        100000, 250000, 500000, 1000000, 2000000
+        100, 500, 1000, 1750, 2500, 3500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 25000, 50000, 
+        75000, 100000, 125000, 150000, 175000, 200000, 250000, 500000, 750000, 1000000, 1250000, 1500000, 1750000, 2000000
     ]
 
     results = []
@@ -153,7 +167,7 @@ def profile_cache():
     gc.disable()
 
     for size in test_sizes:
-        c, start_node = build_chain(size, linear=args.linear)
+        c, start_node = build_chain(size, mode=args.mode)
         current_ram = get_ram_mb() - base_ram
         
         # Calibration
@@ -198,7 +212,6 @@ def profile_cache():
         bar_length = int((evals_per_sec / peak_throughput) * 20) if peak_throughput > 0 else 20
         visual_bar = "█" * max(1, bar_length)
 
-        # Dynamic cliff detection
         tag = ""
         latency_jump = ((ns_per_eval - results[-1]['ns_per_eval']) / results[-1]['ns_per_eval']) * 100 if results else 0
         if size >= 500 and latency_jump > 15:
@@ -218,9 +231,9 @@ def profile_cache():
         gc.collect() 
 
         # --- EARLY STOPPING CONDITION ---
-        # if drop_pct >= 50.0:
-        #     print(f"\n[!] STOPPING EARLY: Performance dropped by {drop_pct:.1f}% (Exceeded 50% limit).")
-        #     break
+        if drop_pct >= 75.0:
+            print(f"\n[!] STOPPING EARLY: Performance dropped by {drop_pct:.1f}% (Exceeded 75% limit).")
+            break
 
     gc.enable()
     print("-" * 84)
@@ -230,7 +243,6 @@ def profile_cache():
     print(f"-> PEAK THROUGHPUT:   {peak_throughput / 1_000_000:.2f} Million evals/sec")
     print(f"-> SWEET SPOT RANGE:  {sweet_spot_min:,} to {sweet_spot_max:,} concurrent active gates")
     print("                      (Throughput remains within 0% - 10% of maximum cache speeds).")
-    print(f"-> HARDWARE MATCH:    Review the MB column above against your {l3_cache} L3 cache.")
     print("======================================================================")
 
 if __name__ == "__main__":
