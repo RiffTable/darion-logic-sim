@@ -1,6 +1,6 @@
 """
-DARION LOGIC SIM - REAL-WORLD CACHE PROFILER
-Finds the 0-10% cache sweet spot using realistic UI memory fragmentation.
+DARION LOGIC SIM - ADVANCED HARDWARE CACHE PROFILER
+Dynamically detects hardware boundaries using latency derivatives.
 """
 
 import time
@@ -113,7 +113,6 @@ def build_chain(active_size, mode='realistic'):
         chunks = [active_gates[i:i + chunk_size] for i in range(0, len(active_gates), chunk_size)]
         random.shuffle(chunks) # Shuffle the sub-circuits
         active_gates = [gate for chunk in chunks for gate in chunk] # Flatten back out
-    # If mode == 'linear', do nothing (100% Sequential)
 
     # Wire Gates
     prev_gate = first_gate
@@ -137,7 +136,7 @@ def profile_cache():
     cpu_name, l2_cache, l3_cache = get_cpu_info()
     
     print("======================================================================")
-    print("  DARION LOGIC SIM: REAL-WORLD CACHE PROFILER")
+    print("  DARION LOGIC SIM: ADVANCED CACHE PROFILER (HARDWARE AGNOSTIC)")
     print("======================================================================")
     print(f"CPU DETECTED: {cpu_name}")
     print(f"OS CACHE LIMITS: L2: {l2_cache} | L3: {l3_cache}")
@@ -149,24 +148,26 @@ def profile_cache():
         
     print("Metric: 'Evals/sec' = Active logic evaluations processed per second.\n")
 
-    test_sizes = [
-        100, 500, 1000, 1750, 2500, 3500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 25000, 50000, 
-        75000, 100000, 125000, 150000, 175000, 200000, 250000, 500000, 750000, 1000000, 1250000, 1500000, 1750000, 2000000
-    ]
+    # Geometric Progression ~15% growth
+    test_sizes = []
+    current_size = 100
+    while current_size <= 2_500_000:
+        test_sizes.append(current_size)
+        current_size = int(current_size * 1.15)
 
     results = []
-    peak_throughput = 0
-    sweet_spot_min = None
-    sweet_spot_max = None
-    
     base_ram = get_ram_mb()
     
-    print(f"{'Active Gates':>12} | {'Actual RAM':>10} | {'ns/eval':>9} | {'Evals/sec':>11} | {'Speed Drop':>11} | {'Visual'}")
-    print("-" * 84)
+    print(f"{'Active Gates':>12} | {'Actual RAM':>10} | {'ns/eval':>9} | {'Evals/sec':>11} | {'Degradation':>11} | {'Visual'}")
+    print("-" * 88)
 
     gc.disable()
+    
+    baseline_ns = None
+    profile_cache.current_zone = 1
+    profile_cache.zone_limits = {1: 0, 2: 0, 3: 0}
 
-    for size in test_sizes:
+    for idx, size in enumerate(test_sizes):
         c, start_node = build_chain(size, mode=args.mode)
         current_ram = get_ram_mb() - base_ram
         
@@ -180,8 +181,9 @@ def profile_cache():
         iterations = min(iterations, 10) if size >= 500000 else iterations
 
         # Warmup
-        c.toggle(start_node, Const.HIGH)
-        c.toggle(start_node, Const.LOW)
+        for _ in range(3):
+            c.toggle(start_node, Const.HIGH)
+            c.toggle(start_node, Const.LOW)
 
         best_time_ns = float('inf')
         num_passes = 3 if size >= 100000 else 5
@@ -199,50 +201,82 @@ def profile_cache():
         ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
         evals_per_sec = 1_000_000_000 / ns_per_eval if ns_per_eval > 0 else 0.0
         
-        if evals_per_sec > peak_throughput:
-            peak_throughput = evals_per_sec
+        # Establish a stable L1/L2 baseline using the first few valid measurements
+        if baseline_ns is None and idx >= 2: 
+            baseline_ns = sum(r['ns_per_eval'] for r in results) / len(results)
 
-        drop_pct = ((peak_throughput - evals_per_sec) / peak_throughput) * 100 if peak_throughput > 0 else 0
-        
-        # Track 0-10% Sweet Spot
-        if drop_pct <= 10.0:
-            if sweet_spot_min is None: sweet_spot_min = size
-            sweet_spot_max = size
+        degradation_pct = 0.0
+        if baseline_ns:
+            degradation_pct = ((ns_per_eval - baseline_ns) / baseline_ns) * 100
 
-        bar_length = int((evals_per_sec / peak_throughput) * 20) if peak_throughput > 0 else 20
-        visual_bar = "█" * max(1, bar_length)
-
+        # --- UNIVERSAL HARDWARE-AGNOSTIC ZONE DETECTION ---
         tag = ""
-        latency_jump = ((ns_per_eval - results[-1]['ns_per_eval']) / results[-1]['ns_per_eval']) * 100 if results else 0
-        if size >= 500 and latency_jump > 15:
-            tag = f"<-- CACHE CLIFF (+{latency_jump:.0f}% latency)"
+        cliff_indicator = " "
+        
+        if len(results) >= 2:
+            rolling_avg_ns = sum(r['ns_per_eval'] for r in results[-3:]) / min(3, len(results))
+            local_jump_pct = ((ns_per_eval - rolling_avg_ns) / rolling_avg_ns) * 100
             
+            if local_jump_pct > 15.0 and size > 1000:
+                if profile_cache.current_zone == 1:
+                    tag = f"<-- CACHE BOUNDARY EVACUATION (+{local_jump_pct:.0f}%)"
+                    cliff_indicator = "!"
+                    profile_cache.current_zone = 2
+                elif profile_cache.current_zone == 2 and local_jump_pct > 20.0:
+                    tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
+                    cliff_indicator = "!"
+                    profile_cache.current_zone = 3
+            
+            elif degradation_pct > 100 and profile_cache.current_zone < 3:
+                profile_cache.current_zone = 3
+                tag = "(RAM BOUND)"
+
+        profile_cache.zone_limits[profile_cache.current_zone] = size
+
+        # Visual Bar
+        anchor_ns = baseline_ns if baseline_ns else ns_per_eval
+        speed_ratio = anchor_ns / ns_per_eval if ns_per_eval > 0 else 0
+        bar_length = int(speed_ratio * 20)
+        visual_bar = "█" * max(1, min(bar_length, 20))
+
         results.append({
             "size": size, "ns_per_eval": ns_per_eval, "evals_per_sec": evals_per_sec,
-            "drop_pct": drop_pct, "mem_mb": current_ram
+            "mem_mb": current_ram
         })
 
-        cliff_indicator = "!" if latency_jump > 15 else " "
-        print(f"{size:>12,} | {current_ram:>7.1f} MB | {ns_per_eval:>7.2f} ns | {evals_per_sec/1_000_000:>6.2f} M/s | {drop_pct:>9.1f}% | {cliff_indicator}{visual_bar} {tag}")
+        print(f"{size:>12,} | {current_ram:>7.1f} MB | {ns_per_eval:>7.2f} ns | {evals_per_sec/1_000_000:>6.2f} M/s | {degradation_pct:>9.1f}% | {cliff_indicator}{visual_bar} {tag}")
 
         c.clearcircuit()
         del c
         del start_node
         gc.collect() 
 
-        # --- EARLY STOPPING CONDITION ---
-        if drop_pct >= 75.0:
-            print(f"\n[!] STOPPING EARLY: Performance dropped by {drop_pct:.1f}% (Exceeded 75% limit).")
+        if degradation_pct >= 400.0:
+            print(f"\n[!] STOPPING EARLY: Latency degraded by 400%. CPU is fully RAM-bound.")
             break
 
     gc.enable()
-    print("-" * 84)
+    print("-" * 88)
     print("======================================================================")
-    print("  FINAL CACHE INTELLIGENCE REPORT")
+    print("  FINAL CACHE INTELLIGENCE REPORT (HARDWARE AGNOSTIC)")
     print("======================================================================")
-    print(f"-> PEAK THROUGHPUT:   {peak_throughput / 1_000_000:.2f} Million evals/sec")
-    print(f"-> SWEET SPOT RANGE:  {sweet_spot_min:,} to {sweet_spot_max:,} concurrent active gates")
-    print("                      (Throughput remains within 0% - 10% of maximum cache speeds).")
+    print(f"-> BASELINE L1/L2 SPEED: {1_000 / baseline_ns if baseline_ns else 0:.2f} M evals/sec ({baseline_ns:.2f} ns/eval)")
+    print("")
+    print("--- DYNAMICALLY DETECTED HARDWARE BOUNDARIES ---")
+    
+    z1_max = profile_cache.zone_limits.get(1, 0)
+    print(f"-> TIER 1 (Core Cache):  Up to {z1_max:,} active gates")
+    print("                         Absolute peak hardware throughput.")
+    
+    z2_max = profile_cache.zone_limits.get(2, 0)
+    if z2_max > z1_max:
+        print(f"-> TIER 2 (Last Level):  {z1_max + 1:,} to {z2_max:,} active gates")
+        print("                         Evicted from Core Cache. Running in shared cache or unified memory.")
+    
+    z3_max = profile_cache.zone_limits.get(3, 0)
+    if z3_max > z2_max:
+        print(f"-> TIER 3 (Main RAM):    {z2_max + 1:,}+ active gates")
+        print("                         CPU is bounded by memory bus speed.")
     print("======================================================================")
 
 if __name__ == "__main__":
