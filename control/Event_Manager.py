@@ -13,6 +13,8 @@ class Event:
     # saves an action to history
     def register(self, token:Command):
         self.undolist.append(token)
+        if len(self.undolist) > 250:
+            self.undolist.popleft()
         if self.redolist:
             self.redolist.clear()        
 
