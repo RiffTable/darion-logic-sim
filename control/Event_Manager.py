@@ -20,10 +20,11 @@ class Event:
         if len(self.undolist) > Const.LIMIT:
             event=self.undolist.popleft()
             if event[0]==Const.DELETE:
-                gate = event[1]
-                row = gate.code[0]
-                col = gate.code[1]
-                self.circuit.objlist[row][col] = None
+                gates = event[1]
+                for gate in gates:
+                    row = gate.code[0]
+                    col = gate.code[1]
+                    self.circuit.objlist[row][col] = None
 
 
     def popfromundo(self):
@@ -100,17 +101,17 @@ class Event:
     def addcomponent(self, gate_option) -> Gate:
         gate = self.circuit.getcomponent(gate_option)
         if gate:
-            self.addtoundo((Const.ADD, gate))
+            self.addtoundo((Const.ADD, [gate]))
         return gate
     
     def getIC(self, name):
         ic=self.circuit.getIC(name)
         if ic:
-            self.addtoundo((Const.ADD, ic))
+            self.addtoundo((Const.ADD, [ic]))
 
-    def hide(self, gate):
-        self.circuit.hideComponent(gate)
-        self.addtoundo((Const.DELETE, gate))
+    def hide(self, gatelist:list[Gate]):
+        self.circuit.hideComponent(gatelist)
+        self.addtoundo((Const.DELETE, gatelist))
 
     def connect(self, target: Gate, source: Gate, index):
         if target.sources[index] is not None:

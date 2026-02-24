@@ -65,10 +65,9 @@ cdef class Gate:
             self.output = UNKNOWN
         else:
             if realsource==self.inputlimit or (realsource and realsource+book[ERROR]+book[UNKNOWN]==self.inputlimit):
-                if gate_type<=NAND_ID:self.output = low==0
-                elif gate_type<=NOR_ID:self.output = high>0
-                else:self.output = high&1
-                self.output^=(gate_type&1)
+                if gate_type<=NAND_ID:self.output = (low==0)^(gate_type&1)
+                elif gate_type<=NOR_ID:self.output = (high>0)^(gate_type&1)
+                else:self.output = (high&1)^(gate_type&1)
             else:
                 self.output = UNKNOWN
        

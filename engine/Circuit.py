@@ -188,23 +188,28 @@ class Circuit:
         if prev != target.output:
             propagate(target, self.queue, self.counter)
 
-    def hideComponent(self, gate):
+    def hideComponent(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
-        if gate.id == IC_ID:
-            gate.hide()
-            for pin in gate.outputs:
-                turnoff(pin, self.queue, self.counter)
-            self.counter -= gate.counter
-        else:
-            gate.hide()
-            turnoff(gate, self.queue, self.counter)
-        self.counter -= 1
+        for gate in gatelist:
+            if gate.id == IC_ID:
+                gate.hide()
+                self.counter -= gate.counter
+            else:
+                gate.hide()
+                self.counter -= 1
 
-        if gate in self.varlist:
-            self.varlist.remove(gate)
-        if gate in self.iclist:
-            self.iclist.remove(gate)
-        self.canvas.remove(gate)
+            if gate in self.varlist:
+                self.varlist.remove(gate)
+            if gate in self.iclist:
+                self.iclist.remove(gate)
+            self.canvas.remove(gate)
+
+        for gate in gatelist:
+            if gate.id == IC_ID:
+                for pin in gate.outputs:
+                    turnoff(pin, self.queue, self.counter)
+            else:
+                turnoff(gate, self.queue, self.counter)
 
     def terminate(self, code):
         """Hard delete."""
@@ -218,23 +223,28 @@ class Circuit:
         self.canvas.remove(gate)
         self.delobj(code)
 
-    def renewComponent(self, gate):
+    def renewComponent(self, gatelist: list):
         """Bring a hidden component back."""
-        if gate.id == IC_ID:
-            gate.reveal()
-            self.counter += gate.counter
-            for pin in gate.outputs:
-                propagate(pin, self.queue, self.counter)
-        else:
-            gate.reveal()
-            propagate(gate, self.queue, self.counter)
-        self.counter += 1
+        for gate in reversed(gatelist):
+            if gate.id == IC_ID:
+                gate.reveal()
+                self.counter += gate.counter
+            else:
+                gate.reveal()
+                self.counter += 1
 
-        if gate.id == VARIABLE_ID:
-            self.varlist.append(gate)
-        self.canvas.append(gate)
-        if gate.id == IC_ID:
-            self.iclist.append(gate)
+            if gate.id == VARIABLE_ID:
+                self.varlist.append(gate)
+            self.canvas.append(gate)
+            if gate.id == IC_ID:
+                self.iclist.append(gate)
+
+        for gate in reversed(gatelist):
+            if gate.id == IC_ID:
+                for pin in gate.outputs:
+                    propagate(pin, self.queue, self.counter)
+            else:
+                propagate(gate, self.queue, self.counter)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')

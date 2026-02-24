@@ -93,10 +93,9 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
                         low=book[LOW]
                         realsource = high+low
                         if likely(realsource==limit) or unlikely(realsource and realsource+book[UNKNOWN]+book[ERROR]==limit):
-                            if gate_type<=NAND_ID:target_output = low==0
-                            elif gate_type<=NOR_ID:target_output = high>0
-                            else:target_output = high&1
-                            target_output^=(gate_type&1)
+                            if gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
+                            elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
+                            else:target_output = (high&1)^(gate_type&1)
                         else: target_output = UNKNOWN
                     if target_output!=target.output:
                         target.output = target_output
@@ -190,25 +189,31 @@ cdef class Circuit:
         if prev != target.output:
             propagate(target,self.queue,self.counter)
 
-    cpdef void hideComponent(self, object gate):
+    cpdef void hideComponent(self, list gatelist):
         cdef Gate pin
         cdef IC ic
-        if gate.id==IC_ID:
-            ic=<IC>gate
-            ic.hide()
-            for pin in ic.outputs:
-                turnoff(pin,self.queue,self.counter)
-            self.counter-=ic.counter
-        else:
-            pin=<Gate>gate
-            pin.hide()
-            turnoff(pin,self.queue,self.counter)
-        self.counter-=1        
-        if gate in self.varlist:
-            self.varlist.remove(gate)
-        if gate in self.iclist:
-            self.iclist.remove(gate)
-        self.canvas.remove(gate)
+        for gate in gatelist:
+            if gate.id==IC_ID:
+                ic=<IC>gate
+                ic.hide()
+                self.counter-=ic.counter
+            else:
+                pin=<Gate>gate
+                pin.hide()
+            self.counter-=1        
+            if gate in self.varlist:
+                self.varlist.remove(gate)
+            if gate in self.iclist:
+                self.iclist.remove(gate)
+            self.canvas.remove(gate)
+
+        for gate in gatelist:
+            if gate.id==IC_ID:
+                ic=<IC>gate
+                for pin in ic.outputs:
+                    turnoff(pin,self.queue,self.counter)
+            else:
+                turnoff(gate,self.queue,self.counter)
 
     cpdef void terminate(self, code):
         cdef object gate = self.getobj(code)
@@ -223,25 +228,31 @@ cdef class Circuit:
         self.canvas.remove(gate)
         self.delobj(code)
 
-    cpdef void renewComponent(self, object gate):
+    cpdef void renewComponent(self, list gatelist):
         cdef Gate pin
         cdef IC ic
-        if gate.id==IC_ID:
-            ic=<IC>gate
-            ic.reveal()
-            self.counter+=ic.counter
-            for pin in ic.outputs:
-                propagate(pin,self.queue,self.counter)
-        else:
-            pin=<Gate>gate
-            pin.reveal()
-            propagate(pin,self.queue,self.counter)
-        self.counter+=1
-        if gate.id==VARIABLE_ID:
-            self.varlist.append(gate)
-        self.canvas.append(gate)
-        if gate.id==IC_ID:
-            self.iclist.append(gate)
+        for gate in reversed(gatelist):
+            if gate.id==IC_ID:
+                ic=<IC>gate
+                ic.reveal()
+                self.counter+=ic.counter
+            else:
+                pin=<Gate>gate
+                pin.reveal()
+            self.counter+=1
+            if gate.id==VARIABLE_ID:
+                self.varlist.append(gate)
+            if gate.id==IC_ID:
+                self.iclist.append(gate)
+            self.canvas.append(gate)
+
+        for gate in reversed(gatelist):
+            if gate.id==IC_ID:
+                ic=<IC>gate 
+                for pin in ic.outputs:
+                    propagate(pin,self.queue,self.counter)
+            else:
+                propagate(gate,self.queue,self.counter)
 
     # Result
     cpdef void output(self, Gate gate):

@@ -222,6 +222,7 @@ class Variable(Gate):
         self.id = VARIABLE_ID
         self.value: int = 0
         self.inputlimit = 1
+        self.output = UNKNOWN if get_MODE() == DESIGN else self.value
         self.sources = [None]
 
     def setlimits(self, size: int) -> bool:
