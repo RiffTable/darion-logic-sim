@@ -5,7 +5,7 @@ from core.Enums import Facing, EditorState
 import core.grid as GRID
 
 from .catalog import (
-	LOOKUP, CompItem, WireItem, InputPinItem, OutputPinItem,
+	LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
 	GateItem
 )
 
@@ -96,9 +96,10 @@ class CircuitScene(QGraphicsScene):
 		self.comps.remove(comp)
 		self.removeItem(comp)
 	
-	def addCompFromData(self, data) -> CompItem:
+	def addCompFromData(self, _data: dict) -> CompItem:
+		data = _data.copy()
 		comp_type = LOOKUP[data.pop("id")]
-		pos = QPointF(*data.pop("pos")) + QPoint(5, 5)*GRID.SIZE
+		pos = QPointF(*data.pop("pos")) + QPoint(7, 5)*GRID.SIZE
 		
 		comp = comp_type(pos, **data)
 		
@@ -291,9 +292,39 @@ class CircuitScene(QGraphicsScene):
 		
 		if key == Key.Key_V and mod & KeyMod.ControlModifier:
 			self.clearSelection()
+			sources: dict[int, OutputPinItem] = {}
+			supplies: dict[int, list[InputPinItem]] = {}
+
+			# Creating Components from data
 			for comp_data in self.clipboard.get("comps", []):
 				comp = self.addCompFromData(comp_data)
 				comp.setSelected(True)
+
+				for edge, pin_data_list in comp_data["pinslist"].items():
+					for i, pin_data in enumerate(pin_data_list):
+						w = pin_data["wire"]
+						if w == 0: continue
+
+						if pin_data["isInput"]:
+							p = cast(InputPinItem, comp._pinslist[edge][i])
+							if w in supplies: supplies[w].append(p)
+							else:             supplies[w] = [p]
+						else:
+							p = cast(OutputPinItem, comp._pinslist[edge][i])
+							sources[w] = p
+			
+			# Wiring
+			for id, outpin in sources.items():
+				if id not in supplies: continue
+
+				inpins = supplies[id]
+				w = WireItem(outpin, inpins.pop(0))
+				
+				for inpin in inpins:
+					w.addSupply(inpin)
+				
+				self.wires.append(w)
+				self.addItem(w)
 
 		# # DEBUG
 		# if key == Key.Key_Space:

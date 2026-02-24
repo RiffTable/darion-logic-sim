@@ -37,8 +37,8 @@ class WireItem(QGraphicsPathItem):
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
-		# self.updateVisual()
-		# self.updateShape()
+		self._updateShape()
+
 		WireItem.COUNT += 1
 	
 	@property
@@ -100,6 +100,7 @@ class WireItem(QGraphicsPathItem):
 		path = QPainterPath()
 		p1 = self.source.scenePos()
 		dx1, dy1 = self.source.facing.toTuple(50)
+		self.updateVisual()
 
 		for out in self.supplies:
 			p2 = out.scenePos()
@@ -113,4 +114,3 @@ class WireItem(QGraphicsPathItem):
 			path.lineTo(p2)
 		
 		self.setPath(path)
-		self.updateVisual()
