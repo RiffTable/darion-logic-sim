@@ -126,9 +126,9 @@ class Circuit:
 
     def getcomponent(self, choice: int):
         """Create and register a new component."""
-        self.counter += 1
         gt = get(choice)
         if gt:
+            self.counter += 1
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
@@ -153,8 +153,25 @@ class Circuit:
     def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 
-    def delobj(self, code: tuple):
-        self.objlist[code[0]][code[1]] = None
+    def delobj(self, gate:Gate):
+        if gate.id == VARIABLE_ID:
+            self.varlist.remove(gate)
+        elif gate.id == IC_ID:
+            self.counter -= gate.counter
+            self.iclist.remove(gate)
+        self.counter -= 1
+        self.canvas.remove(gate)
+        self.objlist[gate.code[0]][gate.code[1]]=None
+
+    def renewobj(self,gate:Gate):
+        if gate.id == VARIABLE_ID:
+            self.varlist.append(gate)
+        elif gate.id == IC_ID:
+            self.counter += gate.counter
+            self.iclist.append(gate)
+        self.counter += 1
+        self.canvas.append(gate)
+        self.objlist[gate.code[0]][gate.code[1]]=gate
 
     def listComponent(self):
         for i, gate in enumerate(self.canvas):
@@ -188,21 +205,14 @@ class Circuit:
         if prev != target.output:
             propagate(target, self.queue, self.counter)
 
-    def hideComponent(self, gatelist: list):
+    def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
         for gate in gatelist:
             if gate.id == IC_ID:
                 gate.hide()
-                self.counter -= gate.counter
             else:
                 gate.hide()
-                self.counter -= 1
-
-            if gate in self.varlist:
-                self.varlist.remove(gate)
-            if gate in self.iclist:
-                self.iclist.remove(gate)
-            self.canvas.remove(gate)
+            self.delobj(gate)
 
         for gate in gatelist:
             if gate.id == IC_ID:
@@ -211,33 +221,14 @@ class Circuit:
             else:
                 turnoff(gate, self.queue, self.counter)
 
-    def terminate(self, code):
-        """Hard delete."""
-        gate = self.getobj(code)
-        if gate.id == VARIABLE_ID:
-            self.varlist.remove(gate)
-        elif gate.id == IC_ID:
-            self.counter -= gate.counter
-            self.iclist.remove(gate)
-        self.counter -= 1
-        self.canvas.remove(gate)
-        self.delobj(code)
-
-    def renewComponent(self, gatelist: list):
+    def reveal(self, gatelist: list):
         """Bring a hidden component back."""
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
                 gate.reveal()
-                self.counter += gate.counter
             else:
                 gate.reveal()
-                self.counter += 1
-
-            if gate.id == VARIABLE_ID:
-                self.varlist.append(gate)
-            self.canvas.append(gate)
-            if gate.id == IC_ID:
-                self.iclist.append(gate)
+            self.renewobj(gate)
 
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
@@ -461,7 +452,7 @@ class Circuit:
         for i in circuit:
             code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
-            new_items.append(gate.code)
+            new_items.append(gate)
             if gate.id == IC_ID:
                 gate.custom_name = i[CUSTOM_NAME]
                 gate.map = i[MAP]

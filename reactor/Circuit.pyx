@@ -126,9 +126,9 @@ cdef class Circuit:
         return 'Circuit'
 
     cpdef object getcomponent(self,int choice):
-        self.counter+=1
         gt = get(choice)
         if gt:
+            self.counter+=1
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
@@ -154,8 +154,25 @@ cdef class Circuit:
     cpdef object getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
 
-    cpdef void delobj(self, tuple code):
-        self.objlist[code[0]][code[1]] = None
+    cpdef void delobj(self, object gate):
+        if gate.id == VARIABLE_ID:
+            self.varlist.remove(gate)
+        elif gate.id == IC_ID:
+            self.counter -= gate.counter
+            self.iclist.remove(gate)
+        self.counter -= 1
+        self.canvas.remove(gate)
+        self.objlist[gate.code[0]][gate.code[1]]=None
+
+    cpdef void renewobj(self,object gate):
+        if gate.id == VARIABLE_ID:
+            self.varlist.append(gate)
+        elif gate.id == IC_ID:
+            self.counter += gate.counter
+            self.iclist.append(gate)
+        self.counter += 1
+        self.canvas.append(gate)
+        self.objlist[gate.code[0]][gate.code[1]]=gate
 
     cpdef void listComponent(self):
         cdef int i=0
@@ -189,23 +206,17 @@ cdef class Circuit:
         if prev != target.output:
             propagate(target,self.queue,self.counter)
 
-    cpdef void hideComponent(self, list gatelist):
+    cpdef void hide(self, list gatelist):
         cdef Gate pin
         cdef IC ic
         for gate in gatelist:
             if gate.id==IC_ID:
                 ic=<IC>gate
                 ic.hide()
-                self.counter-=ic.counter
             else:
                 pin=<Gate>gate
                 pin.hide()
-            self.counter-=1        
-            if gate in self.varlist:
-                self.varlist.remove(gate)
-            if gate in self.iclist:
-                self.iclist.remove(gate)
-            self.canvas.remove(gate)
+            self.delobj(gate)
 
         for gate in gatelist:
             if gate.id==IC_ID:
@@ -215,36 +226,17 @@ cdef class Circuit:
             else:
                 turnoff(gate,self.queue,self.counter)
 
-    cpdef void terminate(self, code):
-        cdef object gate = self.getobj(code)
-        cdef IC ic
-        if gate.id==VARIABLE_ID:
-            self.varlist.remove(gate)
-        elif gate.id==IC_ID:
-            ic=<IC>gate
-            self.counter-=ic.counter
-            self.iclist.remove(gate)
-        self.counter-=1
-        self.canvas.remove(gate)
-        self.delobj(code)
-
-    cpdef void renewComponent(self, list gatelist):
+    cpdef void reveal(self, list gatelist):
         cdef Gate pin
         cdef IC ic
         for gate in reversed(gatelist):
             if gate.id==IC_ID:
                 ic=<IC>gate
                 ic.reveal()
-                self.counter+=ic.counter
             else:
                 pin=<Gate>gate
                 pin.reveal()
-            self.counter+=1
-            if gate.id==VARIABLE_ID:
-                self.varlist.append(gate)
-            if gate.id==IC_ID:
-                self.iclist.append(gate)
-            self.canvas.append(gate)
+            self.renewobj(gate)
 
         for gate in reversed(gatelist):
             if gate.id==IC_ID:
@@ -496,7 +488,7 @@ cdef class Circuit:
         for i in circuit:  # load to pseudo
             code = self.decode(i[CODE])
             gate = self.getcomponent(code[0])
-            new_items.append(gate.code)
+            new_items.append(gate)
             if gate.id==IC_ID:
                 gate.custom_name=i[CUSTOM_NAME]
                 gate.map = i[MAP]
