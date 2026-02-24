@@ -168,7 +168,7 @@ cdef class Gate:
 
     cpdef list json_data(self):
         dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             self.inputlimit,
@@ -178,7 +178,7 @@ cdef class Gate:
 
     cpdef list copy_data(self, set cluster):
         dictionary = [
-            self.name,
+            
             "",
             self.code,
             self.inputlimit,
@@ -233,7 +233,7 @@ cdef class Variable(Gate):
 
     cpdef list json_data(self):
         dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             self.inputlimit,
@@ -247,7 +247,7 @@ cdef class Variable(Gate):
 
     cpdef list copy_data(self,set cluster):
         dictionary = [
-            self.name,
+            
             "",
             self.code,
             self.inputlimit,
@@ -327,7 +327,7 @@ cdef class Probe(Gate):
 
     cpdef list copy_data(self, set cluster):
         dictionary = [
-            self.name,
+            
             self.custom_name, 
             self.code,
             self.inputlimit,

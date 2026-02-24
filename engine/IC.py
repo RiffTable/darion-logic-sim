@@ -89,7 +89,7 @@ class IC:
 
     def json_data(self) -> list:
         dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             [gate.code for gate in self.internal + self.inputs + self.outputs],
@@ -124,7 +124,7 @@ class IC:
 
     def copy_data(self, cluster: set) -> list:
         dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             [gate.code for gate in self.internal + self.inputs + self.outputs],

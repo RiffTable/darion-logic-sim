@@ -180,7 +180,7 @@ class Gate:
 
     def json_data(self) -> list:
         return [
-            self.name,
+            
             self.custom_name,
             self.code,
             self.inputlimit,
@@ -189,7 +189,7 @@ class Gate:
 
     def copy_data(self, cluster: set) -> list:
         return [
-            self.name,
+            
             "",
             self.code,
             self.inputlimit,
@@ -247,7 +247,7 @@ class Variable(Gate):
 
     def json_data(self) -> list:
         return [
-            self.name,
+            
             self.custom_name,
             self.code,
             self.inputlimit,
@@ -260,7 +260,7 @@ class Variable(Gate):
 
     def copy_data(self, cluster: set) -> list:
         return [
-            self.name,
+            
             "",
             self.code,
             self.inputlimit,
@@ -334,7 +334,7 @@ class Probe(Gate):
 
     def copy_data(self, cluster: set) -> list:
         return [
-            self.name,
+            
             self.custom_name,
             self.code,
             self.inputlimit,

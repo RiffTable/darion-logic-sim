@@ -84,7 +84,7 @@ cdef class IC:
 
     cpdef json_data(self):
         cdef list dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             [gate.code for gate in self.internal+self.inputs+self.outputs],
@@ -120,7 +120,7 @@ cdef class IC:
 
     cpdef copy_data(self, set cluster):
         cdef list dictionary = [
-            self.name,
+            
             self.custom_name,
             self.code,
             [gate.code for gate in self.internal+self.inputs+self.outputs],

@@ -7,16 +7,6 @@ cpdef enum:
 
     DESIGN = 0
     SIMULATE = 1
-    FLIPFLOP = 1
-
-
-    ADD = 1
-    DELETE = 2
-    CONNECT = 3
-    DISCONNECT = 4
-    PASTE = 5
-    TOGGLE = 6
-    SETLIMITS = 7
 
     LIMIT = 100
 
@@ -35,14 +25,14 @@ cpdef enum:
     IC_ID = 11
     TOTAL = 12
 
-    NAME=0
-    CUSTOM_NAME=1
-    CODE=2
-    COMPONENTS=3
-    INPUTLIMIT=3
-    SOURCES=4
-    VALUE=4
-    MAP=4
+    NAME=-1
+    CUSTOM_NAME=NAME+1
+    CODE=NAME+2
+    COMPONENTS=NAME+3
+    INPUTLIMIT=COMPONENTS
+    SOURCES=NAME+4
+    VALUE=SOURCES
+    MAP=SOURCES
 
 cdef extern from *:
     """
