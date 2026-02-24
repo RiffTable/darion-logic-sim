@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import cast, TYPE_CHECKING
 from core.QtCore import *
+from core.LogicCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
@@ -10,12 +11,6 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .compitem import CompItem
 	from .wireitem import WireItem
-
-import sys
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine import Const
-from engine.Gates import Gate, InputPin, OutputPin
 
 
 

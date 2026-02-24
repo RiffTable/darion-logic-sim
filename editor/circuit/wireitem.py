@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import cast, TYPE_CHECKING
 from core.QtCore import *
+from core.LogicCore import *
 
 from editor.styles import Color
 
@@ -8,17 +9,12 @@ if TYPE_CHECKING:
 	from .canvas import CircuitScene
 	from .pins import InputPinItem, OutputPinItem
 
-import sys
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine import Const
-
 
 
 
 
 class WireItem(QGraphicsPathItem):
-	COUNT = 1    # NO CONNECTION = ZERO (0)
+	_COUNT = 1    # NO CONNECTION = ZERO (0)
 	MINWALK = 2
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
@@ -32,14 +28,14 @@ class WireItem(QGraphicsPathItem):
 		end.setWire(self)
 
 		# Properties
-		self._id = WireItem.COUNT
+		self._id = WireItem._COUNT
 		self.state: int = Const.LOW
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
 		self._updateShape()
 
-		WireItem.COUNT += 1
+		WireItem._COUNT += 1
 	
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())

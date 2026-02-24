@@ -4,14 +4,14 @@ from typing import cast
 from core.QtCore import *
 from .canvas import CircuitScene
 
-from engine.Circuit import Circuit
+
+
 
 
 class CircuitView(QGraphicsView):
-	scene: CircuitScene
-	def __init__(self, scene: CircuitScene):
-		self.scene = scene
-		super().__init__(self.scene)
+	def __init__(self):
+		self._scene = CircuitScene()
+		super().__init__(self._scene)
 
 		self.DRAG_THRESHOLD = QGuiApplication.styleHints().startDragDistance()
 		self.setSceneRect(-5000, -5000, 10000, 10000)
@@ -43,6 +43,10 @@ class CircuitView(QGraphicsView):
 		# Zooming
 		self.viewScale = 1
 		self.zoomlvl = 1
+	
+	
+	def scene(self) -> CircuitScene:
+		return self._scene
 	
 
 	###======= MOUSE CONTROLS =======###	

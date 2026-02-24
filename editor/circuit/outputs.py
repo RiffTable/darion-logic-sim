@@ -1,18 +1,13 @@
 from __future__ import annotations
 from typing import cast
 from core.QtCore import *
+from core.LogicCore import *
 from core.Enums import CompEdge, EditorState
 
 from editor.styles import Color
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
-
-
-import sys
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine import Const
 
 
 

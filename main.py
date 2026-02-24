@@ -2,16 +2,15 @@ import sys
 from functools import partial
 
 from core.QtCore import *
+from core.LogicCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
 from editor.circuit.canvas import CircuitScene
 
-# Add engine to path
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine.Circuit import Circuit
-from engine import Const
+
+
+
 
 class AppWindow(QMainWindow):
 	def __init__(self):
@@ -25,11 +24,8 @@ class AppWindow(QMainWindow):
 		
 
 		###======= CIRCUIT =======###
-		self.logic = Circuit()
-		self.logic.simulate(Const.FLIPFLOP)
-		
-		self.scene = CircuitScene(self.logic)
-		self.view = CircuitView(self.scene)
+		self.view = CircuitView()
+		self.scene = self.view.scene
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
@@ -50,7 +46,8 @@ class AppWindow(QMainWindow):
 		for text, comp_id in gatelists.items():
 			btn = QPushButton(text)
 			btn.setMinimumHeight(50)
-			btn.clicked.connect(partial(self.scene.addComp, 0, 0, comp_id))
+			btn.clicked.connect(partial(self.scene().addComp, 0, 0, comp_id))
+			# btn.clicked.connect(lambda: self.scene().addComp(0, 0, comp_id))
 			self.dragbar.addWidget(btn)
 		self.dragbar.addStretch()
 		
@@ -90,7 +87,7 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.scene.addComp(100, 100, 5)
+	window.scene().addComp(100, 100, 5)
 	# window.scene.addComp(100, 200, 7)
 
 	sys.exit(app.exec())

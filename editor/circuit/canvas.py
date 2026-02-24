@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import cast
 from core.QtCore import *
+from core.LogicCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
@@ -9,22 +10,15 @@ from .catalog import (
 	GateItem
 )
 
-import sys
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine.Circuit import Circuit
-from engine.Gates import Gate, InputPin, OutputPin
-
 
 
 
 
 
 class CircuitScene(QGraphicsScene):
-	def __init__(self, logic: Circuit):
+	def __init__(self):
 		super().__init__()
 
-		self.logic = logic
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
 
@@ -249,7 +243,7 @@ class CircuitScene(QGraphicsScene):
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
 					u = item.getUnit()
-					if u: self.logic.setlimits(u, new_size)
+					if u: logic.setlimits(u, new_size)
 		
 		# if key == Key.Key_M:
 		# 	for item in self.selectedItems():

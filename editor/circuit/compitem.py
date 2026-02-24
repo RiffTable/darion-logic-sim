@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Callable, cast, TYPE_CHECKING
+from typing import Callable, cast, TYPE_CHECKING, Any
 from core.QtCore import *
+from core.LogicCore import *
 from core.Enums import Facing, CompEdge
 import core.grid as GRID
 
@@ -10,11 +11,6 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
 
-import sys
-import os
-sys.path.append(os.path.join(os.getcwd(), 'engine'))
-from engine.Gates import Gate
-from engine import Const
 
 
 
@@ -25,7 +21,7 @@ class CompItem(QGraphicsItem):
 	ID: int    # Value assigned via `catalog.py`
 	DESC: str
 	NAME: str
-	LOGIC = int
+	LOGIC: int
 	def __init__(self, pos: QPointF, **kwargs):
 
 		# Properties
@@ -61,7 +57,7 @@ class CompItem(QGraphicsItem):
 		self._dirty = True
 		self._rect = QRectF()
 		self._cached_hitbox = QPainterPath()
-		self._unit = None
+		self._unit = cast(Any, logic.getcomponent(self.LOGIC))
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
 			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
