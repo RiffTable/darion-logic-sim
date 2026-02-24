@@ -7,14 +7,12 @@ class Event:
     __slots__ = ['undolist', 'redolist']
     
     def __init__(self): 
-        self.undolist:deque[Command] = deque()
-        self.redolist:deque[Command] = deque()
+        self.undolist:deque[Command] = deque(maxlen=250)
+        self.redolist:deque[Command] = deque(maxlen=250)
 
     # saves an action to history
     def register(self, token:Command):
         self.undolist.append(token)
-        if len(self.undolist) > 250:
-            self.undolist.popleft()
         if self.redolist:
             self.redolist.clear()        
 

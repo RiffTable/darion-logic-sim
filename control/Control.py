@@ -7,6 +7,7 @@ class Command:
     def redo():pass
 
 class Add(Command):
+    __slots__ = ['circuit', 'choice', 'gate']
     def __init__(self, circuit:Circuit, choice:int):
         self.circuit = circuit
         self.choice=choice
@@ -20,6 +21,7 @@ class Add(Command):
         self.circuit.renewobj(self.gate)
 
 class AddIC(Command):
+    __slots__ = ['circuit', 'location', 'ic']
     def __init__(self,circuit:Circuit, location:str):
         self.circuit = circuit
         self.location = location
@@ -33,6 +35,7 @@ class AddIC(Command):
         self.circuit.renewobj(self.ic)
 
 class Delete(Command):
+    __slots__ = ['circuit', 'gatelist']
     def __init__(self,circuit:Circuit, gatelist:list[Gate]):
         self.circuit = circuit
         self.gatelist = gatelist
@@ -47,6 +50,7 @@ class Delete(Command):
         self.execute()
     
 class Connect(Command):
+    __slots__ = ['circuit', 'target', 'source', 'index']
     def __init__(self,circuit:Circuit, target:Gate, source:Gate, index:int):
         self.circuit = circuit
         self.target = target
@@ -63,6 +67,7 @@ class Connect(Command):
         self.circuit.connect(self.target, self.source, self.index)
 
 class Disconnect(Command):
+    __slots__ = ['circuit', 'target', 'index', 'source']
     def __init__(self,circuit:Circuit, target:Gate, index:int):
         self.circuit = circuit
         self.target = target
@@ -79,6 +84,7 @@ class Disconnect(Command):
         self.circuit.disconnect(self.target, self.index)
 
 class Paste(Command):
+    __slots__ = ['circuit', 'new_gatelist']
     def __init__(self,circuit:Circuit):
         self.circuit = circuit
         self.new_gatelist=[]
@@ -93,6 +99,7 @@ class Paste(Command):
             self.circuit.renewobj(i)
 
 class Toggle(Command):
+    __slots__ = ['circuit', 'gate', 'value']
     def __init__(self,circuit:Circuit, gate:Gate, value:int):
         self.circuit = circuit
         self.gate = gate
@@ -108,6 +115,7 @@ class Toggle(Command):
         self.circuit.toggle(self.gate, self.value)
 
 class SetLimits(Command):
+    __slots__ = ['gate', 'new_size', 'old_size']
     def __init__(self, gate:Gate, new_size:int):
         self.gate = gate
         self.new_size = new_size
@@ -120,6 +128,7 @@ class SetLimits(Command):
         self.gate.setlimits(self.new_size)
 
 class Rename(Command):
+    __slots__ = ['gate', 'new_name', 'old_name']
     def __init__(self,gate:Gate, new_name:str):
         self.gate = gate
         self.new_name = new_name
