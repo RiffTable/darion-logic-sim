@@ -51,6 +51,19 @@ class GateItem(CompItem):
 		self.peekingPin: PinItem|None = None
 	
 
+	# Properties Data
+	def getProperties(self) -> dict:
+		return super().getProperties() | {
+			"input_count" : len(self.inputPins),
+		}
+	
+	def setProperties(self, prop: str, value):
+		if prop == "input_count":
+			return self.setInputCount(value)
+		else:
+			return super().setProperties(prop, value)
+	
+
 	def unitStateChanged(self, state: int):
 		self.state = state
 		self.outputPin.logicalStateChanged(state)

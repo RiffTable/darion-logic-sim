@@ -34,27 +34,6 @@ class CircuitScene(QGraphicsScene):
 		self.defaultFacing = Facing.EAST
 		self.defaultMirror = False
 
-		# Properties tab
-		self.selectionChanged.connect(self._on_selection_changed)
-		self._props_panel: PropertiesPanel|None = None
-	
-	def _on_selection_changed(self):
-		if self._props_panel is None:
-			return
-		
-		comp_items = []
-		for item in self.selectedItems():
-			if isinstance(item, CompItem):
-				comp_items.append(item)
-				if len(comp_items) > 1:  # Early exit - found second component
-					self._props_panel.clear()
-					return
-		
-		if len(comp_items) == 1:
-			self._props_panel.show_comp(comp_items[0])
-		else:  # len(comp_items) == 0
-			self._props_panel.clear()
-
 		# Wiring logic
 		self.ghostWire: WireItem|None = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
@@ -349,9 +328,5 @@ class CircuitScene(QGraphicsScene):
 		# 		if isinstance(item, CompItem):
 		# 			print(item.getData())
 		# 			break
-
-
-		if self._props_panel:
-			self._props_panel.refresh()
 
 		super().keyPressEvent(event)

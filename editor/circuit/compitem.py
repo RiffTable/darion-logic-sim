@@ -102,6 +102,31 @@ class CompItem(QGraphicsItem):
 				for edge, pins in self._pinslist.items()
 			},
 		}
+
+
+	def getProperties(self) -> dict:
+		return {
+			"pos"      : self.pos().toTuple(),
+			"state"    : self.state,
+			"tag"      : self.tag,
+			"facing"   : self.facing.value,
+			"mirror"   : self.isMirrored,
+		}
+	
+	def setProperties(self, prop: str, value) -> bool:
+		if prop == "tag":
+			self.tag = value
+			return True
+		elif prop == "facing":
+			self.setFacing(value)
+			return True
+		elif prop == "mirror":
+			if self.isMirrored != value:
+				self.mirror()
+			return True
+		else:
+			return False
+
 	
 
 	def unitStateChanged(self, state: int):

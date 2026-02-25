@@ -1,21 +1,18 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
 from core.QtCore import *
 from editor.styles import Color, Font
 
-if TYPE_CHECKING:
-    from editor.circuit.components import CompItem
-    from editor.circuit.gates import GateItem
+from editor.circuit.compitem import CompItem
 
 
 class PropertiesPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._comp: CompItem = None
-        self._build_ui()
+        self._comp: CompItem|None = None
+        self.buildUI()
         self.hide()
 
-    def _build_ui(self):
+    def buildUI(self):
         self.setFixedWidth(175)
         self.setStyleSheet(f"""
             PropertiesPanel {{
@@ -78,36 +75,44 @@ class PropertiesPanel(QWidget):
 
         outer.addLayout(form)
         outer.addStretch()
+    
+
+    def selectionChanged(self, selectedItems: list[QGraphicsItem]):
+        # print(selectedItems)
+        if len(selectedItems) > 1: return
+        elif len(selectedItems) == 0:
+            self.clear()
+        elif isinstance(selectedItems[0], CompItem):
+            self.updateTab(selectedItems[0])
 
 
-    def show_comp(self, comp: CompItem):
-        from editor.circuit.gates import GateItem
+    def updateTab(self, comp: CompItem):
         self._comp = comp
+        proplist = comp.getProperties()
 
         # Display name
-        tag  = comp.labelItem.toPlainText()
+        tag = proplist["tag"]
         self.title.setText(f"Properties: {tag}")
 
         # Variable inputs for gates
-        is_gate = isinstance(comp, GateItem)
-        self.label_inputs.setVisible(is_gate)
-        self.spin_inputs.setVisible(is_gate)
-        if is_gate:
+        inputs = proplist.get("input_count")
+        if inputs:
             self.spin_inputs.blockSignals(True)
-            self.spin_inputs.setMinimum(comp.minInput)
-            self.spin_inputs.setMaximum(comp.maxInput)
-            self.spin_inputs.setValue(len(comp.inputPins))
+            # Why did I remove the limits? :thinking:
+            # self.spin_inputs.setMinimum(comp.minInput)
+            # self.spin_inputs.setMaximum(comp.maxInput)
+            self.spin_inputs.setValue(inputs)
             self.spin_inputs.blockSignals(False)
 
         self.val_facing.setText(comp.facing.name.capitalize())
-        self.val_tag.setText(tag or "—")
+        self.val_tag.setText(tag)
 
         self.show()
 
     def refresh(self):
         """Call after external changes (rotate, flip, etc.)"""
         if self._comp:
-            self.show_comp(self._comp)
+            self.updateTab(self._comp)
 
     def clear(self):
         self._comp = None
