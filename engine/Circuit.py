@@ -113,6 +113,7 @@ class Circuit:
     ]
 
     def __init__(self):
+        set_MODE(DESIGN)
         self.objlist: list[list] = [[] for _ in range(TOTAL)]
         self.copydata: list = []
         self.counter: int = 0
