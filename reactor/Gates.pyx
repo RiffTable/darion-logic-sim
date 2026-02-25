@@ -3,6 +3,7 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
+# cython: nonecheck=False
 from Gates cimport vector
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from Const cimport *

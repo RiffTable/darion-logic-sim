@@ -3,6 +3,7 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
+# cython: nonecheck=False
 from Gates cimport Gate, InputPin, OutputPin, Profile, hide, reveal, pop
 
 from Store cimport get

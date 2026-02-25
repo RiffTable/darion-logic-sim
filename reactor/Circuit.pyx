@@ -3,6 +3,7 @@
 # cython: wraparound=False
 # cython: initializedcheck=False
 # cython: cdivision=True
+# cython: nonecheck=False
 import orjson
 from Gates cimport Gate, Variable, Profile
 from libcpp.vector cimport vector
@@ -57,8 +58,10 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* 
     cdef int* book
     cdef int gate_type, realsource, high, low, limit
     cdef int old_output, new_output, profile_output,target_output
+    cdef bint val=eval_ptr is not NULL
     cdef Py_ssize_t index=0,size=1
     cdef int counter=0
+    cdef unsigned long long eval=0
     if unlikely(origin.output==ERROR):
         burn(queue,index)
         return
@@ -75,8 +78,8 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* 
             profile = gate.hitlist.data()
             end = profile+gate.hitlist.size()
             while profile!=end:
-                if eval_ptr is not NULL:
-                    eval_ptr[0]+=1
+                if val:
+                    eval+=1
                 profile_output = profile.output
                 if profile_output!=new_output:
                     target=<Gate>profile.target
@@ -108,6 +111,8 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* 
                 profile+=1
             index+=1
         size = queue.size()
+    if val:
+        eval_ptr[0]+=eval
     queue.clear()
 
 cdef class Circuit:
