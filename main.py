@@ -6,8 +6,7 @@ from core.LogicCore import *
 
 from editor.styles import Color
 from editor.circuit.viewport import CircuitView
-from editor.circuit.canvas import CircuitScene
-
+from editor.tools.properties import PropertiesPanel
 
 
 
@@ -26,6 +25,10 @@ class AppWindow(QMainWindow):
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
 		self.scene = self.view.scene
+
+		###======= PROPERTIES PANEL =======###
+		self.props_panel = PropertiesPanel()
+		self.scene()._props_panel = self.props_panel
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
@@ -53,6 +56,7 @@ class AppWindow(QMainWindow):
 		
 		layout_main.addLayout(self.dragbar)
 		layout_main.addWidget(self.view)
+		layout_main.addWidget(self.props_panel) 
 
 
 
