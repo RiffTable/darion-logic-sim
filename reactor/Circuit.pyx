@@ -117,9 +117,6 @@ cdef class Circuit:
         set_MODE(DESIGN)
         self.objlist = [
             [] for i in range(TOTAL)]
-        self.canvas = []
-        self.varlist = []
-        self.iclist = []
         self.copydata = []
 
     def __repr__(self):
@@ -144,44 +141,40 @@ cdef class Circuit:
             else:
                 gt.name = name+'-'+str(len(self.objlist[choice]))
 
-            if gt.id==VARIABLE_ID:
-                self.varlist.append(gt)
-            if gt.id==IC_ID:
-                self.iclist.append(gt)
-            self.canvas.append(gt)
         return gt
 
     cpdef object getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
 
     cpdef void delobj(self, object gate):
-        if gate.id == VARIABLE_ID:
-            self.varlist.remove(gate)
-        elif gate.id == IC_ID:
+        if gate.id == IC_ID:
             self.counter -= gate.counter
-            self.iclist.remove(gate)
         self.counter -= 1
-        self.canvas.remove(gate)
         self.objlist[gate.code[0]][gate.code[1]]=None
 
     cpdef void renewobj(self,object gate):
-        if gate.id == VARIABLE_ID:
-            self.varlist.append(gate)
-        elif gate.id == IC_ID:
+        if gate.id == IC_ID:
             self.counter += gate.counter
-            self.iclist.append(gate)
         self.counter += 1
-        self.canvas.append(gate)
         self.objlist[gate.code[0]][gate.code[1]]=gate
+
+    cpdef list get_components(self):
+        return [gate for sublist in self.objlist for gate in sublist if gate is not None]
+
+    cpdef list get_variables(self):
+        return [gate for gate in self.objlist[VARIABLE_ID] if gate is not None]
+
+    cpdef list get_ics(self):
+        return [gate for gate in self.objlist[IC_ID] if gate is not None]
 
     cpdef void listComponent(self):
         cdef int i=0
-        for i,gate in enumerate(self.canvas):
+        for i,gate in enumerate(self.get_components()):
             print(f'{i}. {gate}')
 
     cpdef void listVar(self):
         cdef int i=0
-        for i,gate in enumerate(self.varlist):
+        for i,gate in enumerate(self.get_variables()):
             print(f'{i}. {gate}')
 
     cpdef bint setlimits(self,Gate gate,int size):
@@ -251,7 +244,8 @@ cdef class Circuit:
         print(f'{gate} output is {gate.getoutput()}')
 
     cpdef str truthTable(self):
-        if len(self.varlist) == 0 or len(self.varlist)>16 or MODE==DESIGN:
+        cdef list variables = self.get_variables()
+        if len(variables) == 0 or len(variables)>16 or MODE==DESIGN:
             return 
         cdef list gate_list = []
         cdef list var_names, gate_names, inputs, output_vals, all_names, row_data, header_parts
@@ -260,9 +254,8 @@ cdef class Circuit:
         cdef int col_width, bit
         cdef Py_ssize_t i, j, n, k
         cdef int gate_type
-        cdef list varlist=self.varlist
         # Filter gatelist
-        for item in self.canvas:
+        for item in self.get_components():
             # Use simple type checking or isinstance depending on your import availability
             gate_type = item.id
             if gate_type == VARIABLE_ID: 
@@ -274,12 +267,12 @@ cdef class Circuit:
                 for pin in item.outputs:
                     gate_list.append(pin)
 
-        n = len(varlist)
+        n = len(variables)
         # 1 << n is bitwise for 2^n
         cdef int rows_count = 1 << n
         cdef Variable var
         # Collect decoded variable names
-        var_names = [v.name for v in varlist]
+        var_names = [v.name for v in variables]
         gate_names = [v.name for v in gate_list]
         all_names = var_names + gate_names
 
@@ -300,7 +293,7 @@ cdef class Circuit:
             inputs = []
             for j in range(n):
                 # Retrieve variable
-                var = varlist[j]
+                var = variables[j]
                 
                 # Calculate bit
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
@@ -326,7 +319,7 @@ cdef class Circuit:
         print(" " * 35 + "CIRCUIT DIAGNOSIS")
         print("=" * 90)
 
-        gates = [c for c in self.canvas if c.id != IC_ID]
+        gates = [c for c in self.get_components() if c.id != IC_ID]
         if gates:
             columns = [
                 ("Component", 14),
@@ -363,11 +356,12 @@ cdef class Circuit:
 
             print("-" * total_width)
 
-        if self.iclist:
+        cdef list ics = [c for c in self.objlist[IC_ID] if c is not None]
+        if ics:
             print("\n" + "=" * 90)
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
-            for ic in self.iclist:
+            for ic in ics:
                 print(f"\n  IC: {ic.name} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
@@ -387,7 +381,7 @@ cdef class Circuit:
 
     def writetojson(self, location):
         circuit = []
-        for gate in self.canvas:
+        for gate in self.get_components():
             circuit.append(gate.json_data())
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
@@ -427,10 +421,10 @@ cdef class Circuit:
             self.simulate(SIMULATE)
 
     def save_as_ic(self, location, ic_name="IC"):
-        if self.varlist:
+        if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
             return
-        lst = [i for i in self.canvas]
+        lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
         myIC.custom_name = ic_name  # Ensure it has a custom name
@@ -439,7 +433,6 @@ cdef class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        self.getIC(location)
 
     def getIC(self, location):
         myIC = self.getcomponent(IC_ID)
@@ -461,9 +454,6 @@ cdef class Circuit:
     cpdef void clearcircuit(self):
         for i in range(TOTAL):
             self.objlist[i].clear()
-        self.varlist.clear()
-        self.canvas.clear()
-        self.iclist.clear()
         self.counter = 0
 
     def copy(self, components: list):
@@ -513,13 +503,14 @@ cdef class Circuit:
     cpdef void simulate(self, int Mod):
         set_MODE(Mod)
         cdef Variable variable
-        for variable in self.varlist:
-            variable.output=variable.value
-            propagate(variable,self.queue,self.counter)
+        for variable in self.objlist[VARIABLE_ID]:
+            if variable is not None:
+                variable.output=variable.value
+                propagate(variable,self.queue,self.counter)
 
     cpdef void reset(self):
         set_MODE(DESIGN)
-        for i in self.canvas:
+        for i in self.get_components():
             if i.id!=IC_ID:
                 (<Gate>i).reset()
             else:

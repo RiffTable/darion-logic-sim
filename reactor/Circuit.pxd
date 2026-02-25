@@ -9,14 +9,14 @@ cdef void burn(Queue &queue,int index)
 
 cdef class Circuit:
     cdef public list objlist
-    cdef public list canvas
-    cdef public list varlist
-    cdef public list iclist
     cdef public list copydata
     cdef public int counter
     cdef Queue queue
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
+    cpdef list get_components(self)
+    cpdef list get_variables(self)
+    cpdef list get_ics(self)
     cpdef void listComponent(self)
     cpdef void listVar(self)
     cpdef bint setlimits(self, Gate gate, int size)

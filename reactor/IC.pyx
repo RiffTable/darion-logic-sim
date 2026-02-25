@@ -30,8 +30,8 @@ cdef class IC:
 
     cpdef getcomponent(self, int choice):
         cdef object gt = get(choice)
-        self.counter+=1
         if gt:
+            self.counter+=1
             if gt.id==INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
@@ -48,7 +48,6 @@ cdef class IC:
         return gt
 
     cpdef addgate(self, object source):
-        self.counter+=1
         if source.id==INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)

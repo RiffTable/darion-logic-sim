@@ -108,15 +108,12 @@ def propagate(origin: Gate, queue: list, wave_limit: int):
 class Circuit:
     """The main circuit board."""
     __slots__ = [
-        'objlist', 'canvas', 'varlist', 'iclist', 'copydata',
+        'objlist', 'copydata',
         'counter', 'queue',
     ]
 
     def __init__(self):
         self.objlist: list[list] = [[] for _ in range(TOTAL)]
-        self.canvas: list = []
-        self.varlist: list[Variable] = []
-        self.iclist: list[IC] = []
         self.copydata: list = []
         self.counter: int = 0
         self.queue: list = []
@@ -143,42 +140,38 @@ class Circuit:
             else:
                 gt.name = name + '-' + str(len(self.objlist[choice]))
 
-            if gt.id == VARIABLE_ID:
-                self.varlist.append(gt)
-            if gt.id == IC_ID:
-                self.iclist.append(gt)
-            self.canvas.append(gt)
         return gt
 
     def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 
     def delobj(self, gate:Gate):
-        if gate.id == VARIABLE_ID:
-            self.varlist.remove(gate)
-        elif gate.id == IC_ID:
+        if gate.id == IC_ID:
             self.counter -= gate.counter
-            self.iclist.remove(gate)
         self.counter -= 1
-        self.canvas.remove(gate)
         self.objlist[gate.code[0]][gate.code[1]]=None
 
     def renewobj(self,gate:Gate):
-        if gate.id == VARIABLE_ID:
-            self.varlist.append(gate)
-        elif gate.id == IC_ID:
+        if gate.id == IC_ID:
             self.counter += gate.counter
-            self.iclist.append(gate)
         self.counter += 1
-        self.canvas.append(gate)
         self.objlist[gate.code[0]][gate.code[1]]=gate
 
+    def get_components(self) -> list:
+        return [gate for sublist in self.objlist for gate in sublist if gate is not None]
+
+    def get_variables(self) -> list:
+        return [gate for gate in self.objlist[VARIABLE_ID] if gate is not None]
+
+    def get_ics(self) -> list:
+        return [gate for gate in self.objlist[IC_ID] if gate is not None]
+
     def listComponent(self):
-        for i, gate in enumerate(self.canvas):
+        for i, gate in enumerate(self.get_components()):
             print(f'{i}. {gate}')
 
     def listVar(self):
-        for i, gate in enumerate(self.varlist):
+        for i, gate in enumerate(self.get_variables()):
             print(f'{i}. {gate}')
 
     def setlimits(self, gate: Gate, size: int) -> bool:
@@ -242,11 +235,12 @@ class Circuit:
 
     def truthTable(self) -> str:
         """Generate a truth table."""
-        if not self.varlist:
+        variables = self.get_variables()
+        if not variables:
             return ''
 
         gate_list = []
-        for item in self.canvas:
+        for item in self.get_components():
             gate_type = item.id
             if gate_type == VARIABLE_ID:
                 continue
@@ -256,10 +250,10 @@ class Circuit:
                 for pin in item.outputs:
                     gate_list.append(pin)
 
-        n = len(self.varlist)
+        n = len(variables)
         rows_count = 1 << n
 
-        var_names = [v.name for v in self.varlist]
+        var_names = [v.name for v in variables]
         gate_names = [v.name for v in gate_list]
         all_names = var_names + gate_names
 
@@ -274,7 +268,7 @@ class Circuit:
         for i in range(rows_count):
             inputs = []
             for j in range(n):
-                var = self.varlist[j]
+                var = variables[j]
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit != var.output:
                     var.output = bit
@@ -297,7 +291,7 @@ class Circuit:
         print(" " * 35 + "CIRCUIT DIAGNOSIS")
         print("=" * 90)
 
-        gates = [c for c in self.canvas if c.id != IC_ID]
+        gates = [c for c in self.get_components() if c.id != IC_ID]
         if gates:
             columns = [
                 ("Component", 14),
@@ -331,11 +325,12 @@ class Circuit:
 
             print("-" * total_width)
 
-        if self.iclist:
+        ics = [c for c in self.objlist[IC_ID] if c is not None]
+        if ics:
             print("\n" + "=" * 90)
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
-            for ic in self.iclist:
+            for ic in ics:
                 print(f"\n  IC: {ic.name} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
@@ -354,7 +349,7 @@ class Circuit:
         print("\n" + "=" * 90)
 
     def writetojson(self, location: str):
-        circuit = [gate.json_data() for gate in self.canvas]
+        circuit = [gate.json_data() for gate in self.get_components()]
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
@@ -391,10 +386,10 @@ class Circuit:
                 gate.clone(gate_dict, pseudo)
 
     def save_as_ic(self, location: str, ic_name: str = "IC"):
-        if self.varlist:
+        if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
             return
-        lst = list(self.canvas)
+        lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
         myIC.custom_name = ic_name
@@ -403,7 +398,7 @@ class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        self.getIC(location)
+        # self.getIC(location)
 
     def getIC(self, location: str):
         myIC = self.getcomponent(IC_ID)
@@ -425,9 +420,6 @@ class Circuit:
     def clearcircuit(self):
         for i in range(TOTAL):
             self.objlist[i].clear()
-        self.varlist.clear()
-        self.canvas.clear()
-        self.iclist.clear()
         self.counter = 0
 
     def copy(self, components: list):
@@ -474,14 +466,15 @@ class Circuit:
     def simulate(self, Mode: int):
         """Run the simulation."""
         set_MODE(Mode)
-        for variable in self.varlist:
-            variable.output = variable.value
-            propagate(variable, self.queue, self.counter)
+        for variable in self.objlist[VARIABLE_ID]:
+            if variable is not None:
+                variable.output = variable.value
+                propagate(variable, self.queue, self.counter)
 
     def reset(self):
         """Reset to design mode."""
         set_MODE(DESIGN)
-        for i in self.canvas:
+        for i in self.get_components():
             if i.id != IC_ID:
                 i.reset()
             else:

@@ -1096,7 +1096,7 @@ class AggressiveTestSuite:
             components[gname] = comp
 
         # canvas tracking
-        self.assert_test(len(c.canvas) == len(all_types), f"canvas has {len(all_types)} components")
+        self.assert_test(len(c.get_components()) == len(all_types), f"canvas has {len(all_types)} components")
 
         # getobj / decode
         and_gate = components['AND']
@@ -1122,9 +1122,9 @@ class AggressiveTestSuite:
         # hide / reveal
         probe = components['Probe']
         c.hide([probe])
-        self.assert_test(probe not in c.canvas, "hide removes from canvas")
+        self.assert_test(probe not in c.get_components(), "hide removes from canvas")
         c.reveal([probe])
-        self.assert_test(probe in c.canvas, "reveal restores to canvas")
+        self.assert_test(probe in c.get_components(), "reveal restores to canvas")
 
         # listComponents / listVar (just call them, no assertions on output)
         import io, contextlib
@@ -1166,7 +1166,7 @@ class AggressiveTestSuite:
         self.assert_test(os.path.exists(temp_path), "writetojson created file")
         c3 = Circuit()
         c3.readfromjson(temp_path)
-        self.assert_test(len(c3.canvas) == len(c2.canvas), "readfromjson loaded same count")
+        self.assert_test(len(c3.get_components()) == len(c2.get_components()), "readfromjson loaded same count")
         os.remove(temp_path)
 
         # copy / paste
@@ -1174,10 +1174,10 @@ class AggressiveTestSuite:
         g1 = c4.getcomponent(Const.AND_ID)
         g2 = c4.getcomponent(Const.OR_ID)
         g3 = c4.getcomponent(Const.NOT_ID)
-        initial = len(c4.canvas)
+        initial = len(c4.get_components())
         c4.copy([g1, g2, g3])
         c4.paste()
-        self.assert_test(len(c4.canvas) == initial + 3, "copy/paste duplicated 3 gates")
+        self.assert_test(len(c4.get_components()) == initial + 3, "copy/paste duplicated 3 gates")
 
         # simulate modes
         c5 = Circuit()
@@ -1190,7 +1190,7 @@ class AggressiveTestSuite:
         c6 = Circuit()
         for _ in range(10): c6.getcomponent(Const.AND_ID)
         c6.clearcircuit()
-        self.assert_test(len(c6.canvas) == 0, "clearcircuit empties canvas")
+        self.assert_test(len(c6.get_components()) == 0, "clearcircuit empties canvas")
 
     def test_mixed_gate_circuit(self):
         """Build a circuit using every gate type simultaneously and verify propagation."""
@@ -1306,9 +1306,9 @@ class AggressiveTestSuite:
         c.toggle(v2, Const.HIGH)
         for gname, g in gates.items():
             c.hide([g])
-            self.assert_test(g not in c.canvas, f"Mixed: hide {gname}")
+            self.assert_test(g not in c.get_components(), f"Mixed: hide {gname}")
             c.reveal([g])
-            self.assert_test(g in c.canvas, f"Mixed: reveal {gname}")
+            self.assert_test(g in c.get_components(), f"Mixed: reveal {gname}")
 
         # Disconnect and reconnect each gate (only if source is connected)
         for gname, g in gates.items():
@@ -1341,15 +1341,15 @@ class AggressiveTestSuite:
         c = Circuit()
         
         gates = [c.getcomponent(Const.AND_ID) for _ in range(500)]
-        self.assert_test(len(c.canvas) == 500, "500 gates added")
+        self.assert_test(len(c.get_components()) == 500, "500 gates added")
         
         for g in gates[:250]:
             c.hide([g])
-        self.assert_test(len(c.canvas) == 250, "250 after hiding")
+        self.assert_test(len(c.get_components()) == 250, "250 after hiding")
         
         for g in gates[:250]:
             c.reveal([g])
-        self.assert_test(len(c.canvas) == 500, "500 after revealing")
+        self.assert_test(len(c.get_components()) == 500, "500 after revealing")
 
     def test_propagation_deep_chain(self):
         self.subsection("Propagation (1000-deep chain)")
@@ -1513,17 +1513,17 @@ class AggressiveTestSuite:
             cmd.execute()
             e.register(cmd)
             g = cmd.gate
-            self.assert_test(g in c.canvas, f"Add gate {i}")
+            self.assert_test(g in c.get_components(), f"Add gate {i}")
         
         # Undo each one
         for i in range(100):
             e.undo()
-            self.assert_test(len(c.canvas) == 99-i, f"Undo {i}")
+            self.assert_test(len(c.get_components()) == 99-i, f"Undo {i}")
         
         # Redo each one
         for i in range(100):
             e.redo()
-            self.assert_test(len(c.canvas) == i+1, f"Redo {i}")
+            self.assert_test(len(c.get_components()) == i+1, f"Redo {i}")
 
     def test_rapid_undo_redo(self):
         self.subsection("Rapid Undo/Redo (500 cycles)")
@@ -1538,9 +1538,9 @@ class AggressiveTestSuite:
         # 500 undo/redo cycles, each pair verified
         for i in range(500):
             e.undo()
-            self.assert_test(g not in c.canvas, f"Cycle {i}: Undo")
+            self.assert_test(g not in c.get_components(), f"Cycle {i}: Undo")
             e.redo()
-            self.assert_test(g in c.canvas, f"Cycle {i}: Redo")
+            self.assert_test(g in c.get_components(), f"Cycle {i}: Redo")
 
     # =========================================================================
     # PART 4: IC STRESS
@@ -1631,20 +1631,17 @@ class AggressiveTestSuite:
         # Level 2 inside ic1
         ic2, inp2, out2 = create_inverter_ic(c)
         ic1.addgate(ic2)
-        c.canvas.remove(ic2)
-        c.iclist.remove(ic2)
+        c.delobj(ic2)
 
         # Level 3 inside ic2
         ic3, inp3, out3 = create_inverter_ic(c)
         ic2.addgate(ic3)
-        c.canvas.remove(ic3)
-        c.iclist.remove(ic3)
+        c.delobj(ic3)
 
         # Level 4 inside ic3
         ic4, inp4, out4 = create_inverter_ic(c)
         ic3.addgate(ic4)
-        c.canvas.remove(ic4)
-        c.iclist.remove(ic4)
+        c.delobj(ic4)
         
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
         create_inverter_ic = locals()['create_inverter_ic'] # Ensure scope
@@ -1795,7 +1792,7 @@ class AggressiveTestSuite:
         c2.readfromjson(temp_file)
         c2.simulate(Const.SIMULATE)
         
-        self.assert_test(len(c2.canvas) == len(c1.canvas), "Loaded circuit has same component count")
+        self.assert_test(len(c2.get_components()) == len(c1.get_components()), "Loaded circuit has same component count")
         
         os.remove(temp_file)
         self.assert_test(True, "IC save/load complete")
@@ -1861,13 +1858,13 @@ class AggressiveTestSuite:
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
         
-        initial_count = len(c.canvas)
+        initial_count = len(c.get_components())
         
         # Copy and paste
         c.copy([ic])
         c.paste()
         c.counter+=ic.counter
-        self.assert_test(len(c.canvas) == initial_count + 1, "IC copied and pasted")
+        self.assert_test(len(c.get_components()) == initial_count + 1, "IC copied and pasted")
 
 
     def test_ic_massive_internal(self):
@@ -2012,7 +2009,7 @@ class AggressiveTestSuite:
         c2 = Circuit()
         c2.readfromjson(temp_file)
         
-        self.assert_test(len(c2.canvas) == 1000, "1000 components loaded")
+        self.assert_test(len(c2.get_components()) == 1000, "1000 components loaded")
         os.remove(temp_file)
 
     def test_copy_paste_stress(self):
@@ -2021,11 +2018,11 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         gates = [c.getcomponent(Const.NOT_ID) for _ in range(50)]
-        initial = len(c.canvas)
+        initial = len(c.get_components())
         c.copy(gates)
         c.paste()
         
-        self.assert_test(len(c.canvas) == initial + 50, "50 pasted")
+        self.assert_test(len(c.get_components()) == initial + 50, "50 pasted")
 
     # =========================================================================
     # PART 6: TRUTH TABLE STRESS

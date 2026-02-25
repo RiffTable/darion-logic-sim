@@ -200,7 +200,7 @@ def submenu_components():
             gate_idx = input("Enter Target Serial (Target): ")
             if gate_idx == '': continue
             try:
-                target_component = circuit.canvas[int(gate_idx)]
+                target_component = circuit.get_components()[int(gate_idx)]
             except (ValueError, IndexError):
                 print("Invalid Target.")
                 input("Press Enter...")
@@ -210,7 +210,7 @@ def submenu_components():
 
             for source_idx in sourcelist_indices:
                 try:
-                    source_component = circuit.canvas[source_idx]
+                    source_component = circuit.get_components()[source_idx]
                 except IndexError:
                     continue
 
@@ -264,7 +264,7 @@ def submenu_components():
             gate_idx = input("Enter Target Serial to Disconnect: ")
             if gate_idx == '': continue
             try:
-                target = circuit.canvas[int(gate_idx)]
+                target = circuit.get_components()[int(gate_idx)]
             except (ValueError, IndexError):
                 print("Invalid serial.")
                 input("Press Enter...")
@@ -328,7 +328,7 @@ def submenu_components():
             gates_to_delete = []
             for i in gatelist:
                 try:
-                    gate = circuit.canvas[int(i)]
+                    gate = circuit.get_components()[int(i)]
                     gates_to_delete.append(gate)
                 except (ValueError, IndexError):
                     pass
@@ -342,7 +342,7 @@ def submenu_components():
             circuit.listComponent()
             try:
                 complist = list(map(int, input("Enter serials to copy: ").split()))
-                complist = [circuit.canvas[i] for i in complist]
+                complist = [circuit.get_components()[i] for i in complist]
                 copy(complist)
                 print("Copied")
             except (ValueError, IndexError):
@@ -359,7 +359,7 @@ def submenu_components():
             idx = input("Enter serial to rename: ")
             if idx == '': continue
             try:
-                comp = circuit.canvas[int(idx)]
+                comp = circuit.get_components()[int(idx)]
                 # "Not ICs after they are imported"
                 if isinstance(comp, IC):
                     print("Cannot rename imported ICs.")
@@ -377,7 +377,7 @@ def submenu_components():
             idx = input("Enter serial of component to change input limit: ")
             if idx == '': continue
             try:
-                comp = circuit.canvas[int(idx)]
+                comp = circuit.get_components()[int(idx)]
                 # ICs and Variables/Probes have fixed input limits
                 if isinstance(comp, IC):
                     print("Cannot change input limit of ICs.")
@@ -428,7 +428,7 @@ def submenu_simulation():
             var_idx = input("Enter variable serial: ")
             if var_idx == '': continue
             try:
-                var = circuit.varlist[int(var_idx)]
+                var = circuit.get_variables()[int(var_idx)]
                 val = input("Enter value (0/1): ")
                 if val in ['0', '1']:
                     input_toggle(var, int(val))
@@ -444,7 +444,7 @@ def submenu_simulation():
             idx = input("Enter component serial: ")
             if idx == '': continue
             try:
-                gate = circuit.canvas[int(idx)]
+                gate = circuit.get_components()[int(idx)]
                 circuit.output(gate)
             except (ValueError, IndexError):
                 print("Invalid serial.")

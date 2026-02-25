@@ -52,7 +52,6 @@ class IC:
 
     def addgate(self, source):
         """Add an existing gate into this IC."""
-        self.counter += 1
         if source.id == INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
