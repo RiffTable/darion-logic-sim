@@ -47,6 +47,9 @@ class EventManagerTestSuite:
         self.circuit = Circuit()
         self.circuit.simulate(Const.SIMULATE) # Ensure we are in SIMULATE mode or DESIGN
         self.event_mgr = Event()
+        from collections import deque
+        self.event_mgr.undolist = deque()
+        self.event_mgr.redolist = deque()
         self.passed = 0
         self.failed = 0
         self.test_count = 0
@@ -107,7 +110,7 @@ class EventManagerTestSuite:
             return False
 
     def get_circuit_size(self):
-        return len(self.circuit.canvas)
+        return len(self.circuit.get_components())
 
     def section(self, title):
         self.log(f"\n{'='*60}")
@@ -287,21 +290,21 @@ class EventManagerTestSuite:
         self.assert_test(len(self.circuit.copydata) == 100, "100 gates copied")
         
         self.paste()
-        self.assert_test(len(self.circuit.canvas) == 200, "100 gates pasted -> 200 Total")
+        self.assert_test(len(self.circuit.get_components()) == 200, "100 gates pasted -> 200 Total")
         
         # Undo paste
         start_t = time.perf_counter()
         self.event_mgr.undo()
         end_t = time.perf_counter()
         
-        self.assert_test(len(self.circuit.canvas) == 100, f"Undo paste in {end_t - start_t:.4f}s")
+        self.assert_test(len(self.circuit.get_components()) == 100, f"Undo paste in {end_t - start_t:.4f}s")
         
         # Redo paste
         start_t = time.perf_counter()
         self.event_mgr.redo()
         end_t = time.perf_counter()
         
-        self.assert_test(len(self.circuit.canvas) == 200, f"Redo paste in {end_t - start_t:.4f}s")
+        self.assert_test(len(self.circuit.get_components()) == 200, f"Redo paste in {end_t - start_t:.4f}s")
 
     def test_mega_chaos(self):
         self.section("Chaos Test - Random Operations, then Full Undo")
@@ -342,7 +345,7 @@ class EventManagerTestSuite:
                 gates.remove(todel)
                 actions_performed += 1
 
-        canvas_size_after = len(self.circuit.canvas)
+        canvas_size_after = len(self.circuit.get_components())
         self.assert_test(actions_performed > 0, f"Performed {actions_performed} operations... Canvas size: {canvas_size_after}")
         
         start_t = time.perf_counter()
@@ -350,7 +353,7 @@ class EventManagerTestSuite:
             self.event_mgr.undo()
         end_t = time.perf_counter()
         
-        self.assert_test(len(self.circuit.canvas) == 0, f"Chaos fully undone to empty canvas in {end_t - start_t:.4f}s")
+        self.assert_test(len(self.circuit.get_components()) == 0, f"Chaos fully undone to empty canvas in {end_t - start_t:.4f}s")
         
 
     def run_all(self):

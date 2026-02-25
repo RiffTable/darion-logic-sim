@@ -185,19 +185,27 @@ def profile_cache():
             c.toggle(start_node, Const.HIGH)
             c.toggle(start_node, Const.LOW)
 
+        if hasattr(c, 'activate_eval'):
+            c.activate_eval()
+
         best_time_ns = float('inf')
+        best_evals = 0
         num_passes = 3 if size >= 100000 else 5
         
         for _ in range(num_passes):
+            start_evals = c.eval_count if hasattr(c, 'activate_eval') else 0
             start_time = time.perf_counter_ns()
             for _ in range(iterations):
                 c.toggle(start_node, Const.HIGH)
                 c.toggle(start_node, Const.LOW)
             end_time = time.perf_counter_ns()
+            end_evals = c.eval_count if hasattr(c, 'activate_eval') else 0
+            
             if (end_time - start_time) < best_time_ns:
                 best_time_ns = end_time - start_time
+                best_evals = end_evals - start_evals
 
-        total_evaluations = size * iterations * 2
+        total_evaluations = best_evals if hasattr(c, 'activate_eval') else size * iterations * 2
         ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
         evals_per_sec = 1_000_000_000 / ns_per_eval if ns_per_eval > 0 else 0.0
         

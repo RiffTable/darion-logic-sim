@@ -73,7 +73,11 @@ class Gate:
     def __str__(self) -> str:
         return self.name if self.custom_name == '' else self.custom_name
 
-
+    def update_ui(self):
+        for func in self.listener:
+            if func is None:
+                continue
+            func(self.output)
 
     def process(self):
         """Calculate output from book counts."""
@@ -97,7 +101,7 @@ class Gate:
                 self.output = UNKNOWN
 
     def rename(self, name: str):
-        self.name = name
+        self.custom_name = name
 
 
 

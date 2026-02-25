@@ -19,8 +19,28 @@ class Add(Command):
         self.circuit.delobj(self.gate)
     def redo(self):
         self.circuit.renewobj(self.gate)
+class AddUI(Command):
+    __slots__ = ['circuit', 'choice', 'gate', 'update']
+    def __init__(self, circuit:Circuit, choice:int,update):
+        self.circuit = circuit
+        self.choice=choice
+        self.gate = None
+        self.update=update
+    def execute(self):
+        self.gate=self.circuit.getcomponent(self.choice)
+        if self.gate:
+            self.gate.listener.append(self.update)
+            return True
+        return False
+    def undo(self):
+        self.circuit.delobj(self.gate)
+        self.gate.listener.remove(self.update)
+    def redo(self):
+        self.circuit.renewobj(self.gate)
+        self.gate.listener.append(self.update)
 
 class AddIC(Command):
+    """Add IC to circuit"""
     __slots__ = ['circuit', 'location', 'ic']
     def __init__(self,circuit:Circuit, location:str):
         self.circuit = circuit
@@ -34,6 +54,37 @@ class AddIC(Command):
     def redo(self):
         self.circuit.renewobj(self.ic)
 
+class Add_IC_UI(Command):
+    """Add listeners to IC pins"""
+    __slots__ = ['circuit', 'location', 'ic']
+    def __init__(self,circuit:Circuit, location:str,input_update,output_update):
+        self.circuit = circuit
+        self.location = location
+        self.ic = None
+        self.input_update=input_update
+        self.output_update=output_update
+    def execute(self):
+        self.ic = self.circuit.getIC(self.location)
+        if self.ic:
+            for i in range(len(self.ic.inputs)):
+                self.ic.inputs[i].listener.append(self.input_update[i])
+            for i in range(len(self.ic.outputs)):
+                self.ic.outputs[i].listener.append(self.output_update[i])
+            return True
+        return False
+    def undo(self):
+        self.circuit.delobj(self.ic)
+        for i in range(len(self.ic.inputs)):
+            self.ic.inputs[i].listener.remove(self.input_update[i])
+        for i in range(len(self.ic.outputs)):
+            self.ic.outputs[i].listener.remove(self.output_update[i])
+    def redo(self):
+        self.circuit.renewobj(self.ic)
+        for i in range(len(self.ic.inputs)):
+            self.ic.inputs[i].listener.append(self.input_update[i])
+        for i in range(len(self.ic.outputs)):
+            self.ic.outputs[i].listener.append(self.output_update[i])
+            
 class Delete(Command):
     __slots__ = ['circuit', 'gatelist']
     def __init__(self,circuit:Circuit, gatelist:list[Gate]):

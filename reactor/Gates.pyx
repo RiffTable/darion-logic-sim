@@ -72,7 +72,7 @@ cdef class Gate:
                 self.output = UNKNOWN
        
     cpdef void rename(self,str name):
-        self.name = name
+        self.custom_name = name
 
     cdef void connect(self, Gate source, int index):
         source.hitlist.emplace_back(<void*>self, index, source.output)

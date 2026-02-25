@@ -118,9 +118,8 @@ def load_backend(use_reactor):
 
 def bench_ic_create(backend, gate_count, pin_count):
     """
-    Create an IC with `pin_count` input/output pins and `gate_count`
-    internal NOT gates chained together (pin → NOT → NOT → ... → pin).
-    Returns (creation_time_ms, circuit, ic).
+    Create a circuit destined to be an IC.
+    Returns (creation_time_ms, circuit).
     """
     C = backend['Circuit']
     SIMULATE = backend['SIMULATE']
@@ -128,47 +127,41 @@ def bench_ic_create(backend, gate_count, pin_count):
     def create():
         c = C()
         c.simulate(SIMULATE)
-        ic = c.getcomponent(backend['IC_ID'])
 
         # Create input pins
         in_pins = []
         for _ in range(pin_count):
-            in_pins.append(ic.getcomponent(backend['INPUT_PIN_ID']))
+            in_pins.append(c.getcomponent(backend['INPUT_PIN_ID']))
 
         # Create output pins
         out_pins = []
         for _ in range(pin_count):
-            out_pins.append(ic.getcomponent(backend['OUTPUT_PIN_ID']))
+            out_pins.append(c.getcomponent(backend['OUTPUT_PIN_ID']))
 
         # Create internal NOT chain per pin-pair
         gates_per_chain = gate_count // pin_count
         for p in range(pin_count):
             prev = in_pins[p]
             for _ in range(gates_per_chain):
-                g = ic.getcomponent(backend['NOT_ID'])
+                g = c.getcomponent(backend['NOT_ID'])
                 c.connect(g, prev, 0)
                 prev = g
             c.connect(out_pins[p], prev, 0)
 
-        c.counter += ic.counter
-        return c, ic, in_pins
+        return c
 
-    ms, (c, ic, in_pins) = timed(create)
-    return ms, c, ic, in_pins
+    ms, c = timed(create)
+    return ms, c
 
 
-def bench_ic_save_load(backend, circuit, ic, tmp_path):
-    """Save an IC to disk, then load it into a fresh circuit. Return (save_ms, load_ms)."""
+def bench_ic_save_load(backend, circuit, tmp_path):
+    """Save an IC to disk using save_as_ic, then load it into a fresh circuit. Return (save_ms, load_ms, c2, loaded)."""
     C = backend['Circuit']
     SIMULATE = backend['SIMULATE']
 
     # Save
     def do_save():
-        # save_as_ic clears and reloads, so we write raw json instead
-        import orjson
-        data = ic.json_data()
-        with open(tmp_path, 'wb') as f:
-            f.write(orjson.dumps(data))
+        circuit.save_as_ic(tmp_path, "BenchIC")
 
     save_ms, _ = timed(do_save)
 
@@ -574,21 +567,21 @@ def run_single_backend(label, use_reactor):
         gc.collect()
 
         # Create
-        create_ms, c, ic, in_pins = bench_ic_create(backend, gate_count, pin_count)
+        create_ms, c = bench_ic_create(backend, gate_count, pin_count)
 
         # Save & Load
         tmp_path = os.path.join(tmp_dir, f"bench_ic_{gate_count}.json")
-        save_ms, load_ms, c2, loaded = bench_ic_save_load(backend, c, ic, tmp_path)
+        save_ms, load_ms, c2, loaded = bench_ic_save_load(backend, c, tmp_path)
 
         # Simulate (toggle first variable)
-        for p in in_pins:
-            v = c.getcomponent(backend['VARIABLE_ID'])
-            c.connect(p, v, 0)
+        for p in loaded.inputs:
+            v = c2.getcomponent(backend['VARIABLE_ID'])
+            c2.connect(p, v, 0)
             
         sim_ms = 0
-        if c.varlist:
+        if c2.get_variables():
             sim_start = time.perf_counter_ns()
-            c.toggle(c.varlist[0], backend['HIGH'])
+            c2.toggle(c2.get_variables()[0], backend['HIGH'])
             sim_ms = (time.perf_counter_ns() - sim_start) / 1_000_000
 
         results[f'ic_create_{gate_count}'] = create_ms
@@ -632,7 +625,7 @@ def run_single_backend(label, use_reactor):
 
         # Simulate (toggle the variable)
         sim_start = time.perf_counter_ns()
-        v = c2.varlist[0]
+        v = c2.get_variables()[0]
         c2.toggle(v, backend['HIGH'])
         sim_ms = (time.perf_counter_ns() - sim_start) / 1_000_000
 

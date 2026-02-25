@@ -11,7 +11,7 @@ from IC cimport IC
 from Store cimport get
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
-cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit):
+cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit,unsigned long long* eval_ptr):
     cdef Profile* profile = gate.hitlist.data()
     cdef Profile* end = profile+gate.hitlist.size()
     cdef Gate target
@@ -19,7 +19,7 @@ cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit):
         target = <Gate>profile.target
         if <void*>target != <void*>gate:
             target.output = UNKNOWN
-            propagate(target,queue,wave_limit)
+            propagate(target,queue,wave_limit,eval_ptr)
         profile+=1
 
 cdef void burn(Queue &queue,int index):
@@ -50,7 +50,7 @@ cdef void burn(Queue &queue,int index):
         size = queue.size()
     queue.clear()
 
-cdef void propagate(Gate origin,Queue &queue,int wave_limit):
+cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* eval_ptr):
     cdef Gate gate=origin,target
     cdef Profile* profile
     cdef Profile* end
@@ -75,6 +75,8 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit):
             profile = gate.hitlist.data()
             end = profile+gate.hitlist.size()
             while profile!=end:
+                if eval_ptr is not NULL:
+                    eval_ptr[0]+=1
                 profile_output = profile.output
                 if profile_output!=new_output:
                     target=<Gate>profile.target
@@ -112,6 +114,8 @@ cdef class Circuit:
     def __cinit__(self):
         self.counter=0
         self.queue.reserve(3*1024*1024)
+        self.eval_ptr = NULL
+        self.eval_count = 0
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
@@ -121,7 +125,10 @@ cdef class Circuit:
 
     def __repr__(self):
         return 'Circuit'
-
+    cpdef void activate_eval(self):
+        self.eval_ptr = &self.eval_count
+    cpdef void deactivate_eval(self):
+        self.eval_ptr = NULL
     cpdef object getcomponent(self,int choice):
         gt = get(choice)
         if gt:
@@ -184,20 +191,20 @@ cdef class Circuit:
         cdef int prev=target.output
         target.connect(source,index)
         if prev != target.output:
-            propagate(target,self.queue,self.counter)
+            propagate(target,self.queue,self.counter,self.eval_ptr)
 
             
     cpdef void toggle(self, Variable target,int value):
         if value != target.output:
             target.value=value
             target.output=value if MODE==SIMULATE else UNKNOWN
-            propagate(target,self.queue,self.counter)
+            propagate(target,self.queue,self.counter,self.eval_ptr)
 
     cpdef void disconnect(self, Gate target,int index):
         cdef int prev=target.output
         target.disconnect(index)
         if prev != target.output:
-            propagate(target,self.queue,self.counter)
+            propagate(target,self.queue,self.counter,self.eval_ptr)
 
     cpdef void hide(self, list gatelist):
         cdef Gate pin
@@ -215,9 +222,9 @@ cdef class Circuit:
             if gate.id==IC_ID:
                 ic=<IC>gate
                 for pin in ic.outputs:
-                    turnoff(pin,self.queue,self.counter)
+                    turnoff(pin,self.queue,self.counter,self.eval_ptr)
             else:
-                turnoff(gate,self.queue,self.counter)
+                turnoff(gate,self.queue,self.counter,self.eval_ptr)
 
     cpdef void reveal(self, list gatelist):
         cdef Gate pin
@@ -235,9 +242,9 @@ cdef class Circuit:
             if gate.id==IC_ID:
                 ic=<IC>gate 
                 for pin in ic.outputs:
-                    propagate(pin,self.queue,self.counter)
+                    propagate(pin,self.queue,self.counter,self.eval_ptr)
             else:
-                propagate(gate,self.queue,self.counter)
+                propagate(gate,self.queue,self.counter,self.eval_ptr)
 
     # Result
     cpdef void output(self, Gate gate):
@@ -299,7 +306,7 @@ cdef class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit!=var.output:
                     var.output=bit
-                    propagate(var,self.queue,self.counter)
+                    propagate(var,self.queue,self.counter,self.eval_ptr)
                 inputs.append(str(bit))                
             # Calculate outputs
             output_vals = [str(gate.getoutput()) for gate in gate_list]
@@ -506,7 +513,7 @@ cdef class Circuit:
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
                 variable.output=variable.value
-                propagate(variable,self.queue,self.counter)
+                propagate(variable,self.queue,self.counter,self.eval_ptr)
 
     cpdef void reset(self):
         set_MODE(DESIGN)

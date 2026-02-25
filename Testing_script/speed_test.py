@@ -959,14 +959,14 @@ class AggressiveTestSuite:
 
             # --- rename ---
             g.rename(f"my_{gname}")
-            self.assert_test(g.name == f"my_{gname}", f"{gname}.rename() works")
+            self.assert_test(g.custom_name == f"my_{gname}", f"{gname}.rename() works")
 
             # --- custom_name and __repr__ / __str__ ---
             g.custom_name = f"custom_{gname}"
             self.assert_test(repr(g) == f"custom_{gname}", f"{gname} repr uses custom_name")
             self.assert_test(str(g) == f"custom_{gname}", f"{gname} str uses custom_name")
             g.custom_name = ''
-            self.assert_test(repr(g) == f"my_{gname}", f"{gname} repr falls back to name")
+            self.assert_test(repr(g) == g.name, f"{gname} repr falls back to name")
 
             # --- code ---
             self.assert_test(isinstance(g.code, tuple) and len(g.code) == 2, f"{gname}.code is tuple")
@@ -1016,7 +1016,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.HIGH)
         self.assert_test(v.getoutput() == 'T', "Variable.getoutput() = 'T'")
         v.rename("my_var")
-        self.assert_test(v.name == "my_var", "Variable.rename() works")
+        self.assert_test(v.custom_name == "my_var", "Variable.rename() works")
         v.custom_name = "custom_var"
         self.assert_test(str(v) == "custom_var", "Variable str uses custom_name")
         v.custom_name = ''
@@ -1042,7 +1042,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.HIGH)
         self.assert_test(p.getoutput() == 'T', "Probe.getoutput() = 'T'")
         p.rename("my_probe")
-        self.assert_test(p.name == "my_probe", "Probe.rename() works")
+        self.assert_test(p.custom_name == "my_probe", "Probe.rename() works")
         jd = p.json_data()
         self.assert_test(isinstance(jd, list) and len(jd) == 4, "Probe.json_data has 'source'")
         cluster = set()
@@ -1059,7 +1059,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.HIGH)
         self.assert_test(inp.getoutput() == 'T', "InputPin.getoutput() = 'T'")
         inp.rename("my_inp")
-        self.assert_test(inp.name == "my_inp", "InputPin.rename() works")
+        self.assert_test(inp.custom_name == "my_inp", "InputPin.rename() works")
 
         # --- OutputPin methods ---
         c = Circuit()
@@ -1072,7 +1072,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.HIGH)
         self.assert_test(out.getoutput() == 'F', "OutputPin.getoutput() = 'F'")
         out.rename("my_out")
-        self.assert_test(out.name == "my_out", "OutputPin.rename() works")
+        self.assert_test(out.custom_name == "my_out", "OutputPin.rename() works")
 
     def test_all_circuit_methods(self):
         """Touch every accessible Circuit method."""

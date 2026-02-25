@@ -5,13 +5,13 @@ from Const import *
 from IC import IC
 from Store import get
 
-def turnoff(gate: Gate, queue: list, wave_limit: int):
+def turnoff(gate: Gate, queue: list, wave_limit: int, eval_ptr: list = None):
     """Set all targets to UNKNOWN and propagate."""
     for profile in gate.hitlist:
         target = profile.target
         if target is not gate:
             target.output = UNKNOWN
-            propagate(target, queue, wave_limit)
+            propagate(target, queue, wave_limit, eval_ptr)
 
 def burn(queue: list, index: int):
     """Error propagation — flood-fill ERROR through the graph."""
@@ -20,6 +20,7 @@ def burn(queue: list, index: int):
     while index < size:
         while index < size:
             gate = queue[index]
+            gate.update_ui()
             gate.scheduled = False
             gate.output = ERROR
             for profile in gate.hitlist:
@@ -33,10 +34,11 @@ def burn(queue: list, index: int):
                     profile.output = ERROR
             index += 1
         size = len(queue)
+
     queue.clear()
 
 
-def propagate(origin: Gate, queue: list, wave_limit: int):
+def propagate(origin: Gate, queue: list, wave_limit: int, eval_ptr: list = None):
     """The core reactor propagation loop.
     Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
     index = 0
@@ -59,8 +61,10 @@ def propagate(origin: Gate, queue: list, wave_limit: int):
             gate = queue[index]
             gate.scheduled = False
             new_output = gate.output
-
+            gate.update_ui()
             for profile in gate.hitlist:
+                if eval_ptr is not None:
+                    eval_ptr[0] += 1
                 profile_output = profile.output
                 if profile_output != new_output:
                     target = profile.target
@@ -110,6 +114,7 @@ class Circuit:
     __slots__ = [
         'objlist', 'copydata',
         'counter', 'queue',
+        '_eval_count', 'eval_ptr'
     ]
 
     def __init__(self):
@@ -118,6 +123,27 @@ class Circuit:
         self.copydata: list = []
         self.counter: int = 0
         self.queue: list = []
+        self._eval_count = 0
+        self.eval_ptr = None
+
+    @property
+    def eval_count(self):
+        return self.eval_ptr[0] if self.eval_ptr is not None else self._eval_count
+
+    @eval_count.setter
+    def eval_count(self, value):
+        if self.eval_ptr is not None:
+            self.eval_ptr[0] = value
+        else:
+            self._eval_count = value
+
+    def activate_eval(self):
+        self.eval_ptr = [self._eval_count]
+
+    def deactivate_eval(self):
+        if self.eval_ptr is not None:
+            self._eval_count = self.eval_ptr[0]
+        self.eval_ptr = None
 
     def __repr__(self):
         return 'Circuit'
@@ -183,21 +209,21 @@ class Circuit:
         prev = target.output
         target.connect(source, index)
         if prev != target.output:
-            propagate(target, self.queue, self.counter)
+            propagate(target, self.queue, self.counter, self.eval_ptr)
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
         if value != target.output:
             target.value = value
             target.output = value if get_MODE() == SIMULATE else UNKNOWN
-            propagate(target, self.queue, self.counter)
+            propagate(target, self.queue, self.counter, self.eval_ptr)
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""
         prev = target.output
         target.disconnect(index)
         if prev != target.output:
-            propagate(target, self.queue, self.counter)
+            propagate(target, self.queue, self.counter, self.eval_ptr)
 
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
@@ -211,9 +237,9 @@ class Circuit:
         for gate in gatelist:
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    turnoff(pin, self.queue, self.counter)
+                    turnoff(pin, self.queue, self.counter, self.eval_ptr)
             else:
-                turnoff(gate, self.queue, self.counter)
+                turnoff(gate, self.queue, self.counter, self.eval_ptr)
 
     def reveal(self, gatelist: list):
         """Bring a hidden component back."""
@@ -227,9 +253,9 @@ class Circuit:
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    propagate(pin, self.queue, self.counter)
+                    propagate(pin, self.queue, self.counter, self.eval_ptr)
             else:
-                propagate(gate, self.queue, self.counter)
+                propagate(gate, self.queue, self.counter, self.eval_ptr)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -273,7 +299,7 @@ class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit != var.output:
                     var.output = bit
-                    propagate(var, self.queue, self.counter)
+                    propagate(var, self.queue, self.counter, self.eval_ptr)
                 inputs.append(str(bit))
 
             output_vals = [str(gate.getoutput()) for gate in gate_list]
@@ -470,7 +496,7 @@ class Circuit:
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
                 variable.output = variable.value
-                propagate(variable, self.queue, self.counter)
+                propagate(variable, self.queue, self.counter, self.eval_ptr)
 
     def reset(self):
         """Reset to design mode."""
