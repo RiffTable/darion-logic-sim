@@ -11,6 +11,8 @@ from .catalog import (
 )
 
 
+from editor.tools.properties import PropertiesPanel
+
 
 
 
@@ -326,6 +328,5 @@ class CircuitScene(QGraphicsScene):
 		# 		if isinstance(item, CompItem):
 		# 			print(item.getData())
 		# 			break
-
 
 		super().keyPressEvent(event)

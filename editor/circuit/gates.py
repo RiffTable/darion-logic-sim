@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import CompEdge, EditorState
+from core.Enums import CompEdge, EditorState, Prop
 
 from editor.styles import Color
 
@@ -49,6 +49,23 @@ class GateItem(CompItem):
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
+	
+
+	# Properties Data
+	def getProperties(self) -> dict:
+		return super().getProperties() | {
+			Prop.INPUTSIZE : len(self.inputPins),
+		}
+	
+	def setProperty(self, prop: Prop, value):
+		if prop == Prop.INPUTSIZE:
+			if self.setInputCount(value):
+				self.PropertyChanged()
+				return True
+			else:
+				return False
+		else:
+			return super().setProperty(prop, value)
 	
 
 	def unitStateChanged(self, state: int):

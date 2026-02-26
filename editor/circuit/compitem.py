@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Callable, cast, TYPE_CHECKING, Any
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import Facing, CompEdge
+from core.Enums import Facing, CompEdge, Prop
 import core.grid as GRID
 
 from editor.styles import Color, Font
@@ -57,7 +57,10 @@ class CompItem(QGraphicsItem):
 		self._dirty = True
 		self._rect = QRectF()
 		self._cached_hitbox = QPainterPath()
+		self._prop_change_listener: list[Callable[[], None]] = []
+
 		self._unit = cast(Any, logic.getcomponent(self.LOGIC))
+
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
 			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
@@ -102,7 +105,40 @@ class CompItem(QGraphicsItem):
 				for edge, pins in self._pinslist.items()
 			},
 		}
+
+
+	def getProperties(self) -> dict[Prop, Any]:
+		return {
+			Prop.POS      : self.pos().toTuple(),
+			Prop.STATE    : self.state,
+			Prop.TAG      : self.tag,
+			Prop.FACING   : self.facing,
+			Prop.MIRROR   : self.isMirrored,
+		}
 	
+	def setProperty(self, prop: Prop, value) -> bool:
+		if prop == Prop.TAG:
+			self.tag = value
+			self.PropertyChanged(); return True
+		elif prop == Prop.FACING:
+			self.setFacing(value)
+			self.PropertyChanged(); return True
+		elif prop == Prop.MIRROR:
+			if self.isMirrored != value:
+				self.mirror()
+			self.PropertyChanged(); return True
+		else:
+			return False
+
+	def addPropertyChangedListener(self, listener):
+		self._prop_change_listener.append(listener)
+	def removePropertyChangedListener(self, listener):
+		self._prop_change_listener.remove(listener)
+	
+	def PropertyChanged(self):
+		for listener in self._prop_change_listener:
+			listener()
+
 
 	def unitStateChanged(self, state: int):
 		...    # ABSTRACT METHOD

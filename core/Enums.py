@@ -51,3 +51,14 @@ class CompEdge(IntEnum):
 class EditorState(IntEnum):
 	NORMAL = 0
 	WIRING = 1
+
+
+
+###======= EDITOR STATES =======###
+class Prop(IntEnum):
+	POS         = 0
+	TAG         = 1
+	FACING      = 2
+	MIRROR      = 3
+	STATE       = 4
+	INPUTSIZE   = 5
