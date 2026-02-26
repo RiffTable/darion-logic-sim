@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import CompEdge, EditorState
+from core.Enums import CompEdge, EditorState, Prop
 
 from editor.styles import Color
 
@@ -54,14 +54,18 @@ class GateItem(CompItem):
 	# Properties Data
 	def getProperties(self) -> dict:
 		return super().getProperties() | {
-			"input_count" : len(self.inputPins),
+			Prop.INPUTSIZE : len(self.inputPins),
 		}
 	
-	def setProperties(self, prop: str, value):
-		if prop == "input_count":
-			return self.setInputCount(value)
+	def setProperty(self, prop: Prop, value):
+		if prop == Prop.INPUTSIZE:
+			if self.setInputCount(value):
+				self.PropertyChanged()
+				return True
+			else:
+				return False
 		else:
-			return super().setProperties(prop, value)
+			return super().setProperty(prop, value)
 	
 
 	def unitStateChanged(self, state: int):

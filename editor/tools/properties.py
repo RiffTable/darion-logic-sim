@@ -1,5 +1,8 @@
 from __future__ import annotations
+from functools import partial
+from typing import Any
 from core.QtCore import *
+from core.Enums import Prop
 from editor.styles import Color, Font
 
 from editor.circuit.compitem import CompItem
@@ -8,7 +11,9 @@ from editor.circuit.compitem import CompItem
 class PropertiesPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._comp: CompItem|None = None
+        self.comp: CompItem|None = None
+        self.labels: dict[Prop, QLabel] = {}
+        self.widgets: dict[Prop, Any] = {}
         self.buildUI()
         self.hide()
 
@@ -61,65 +66,80 @@ class PropertiesPanel(QWidget):
         form.setSpacing(8)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.label_inputs = QLabel("No of Inputs:")
-        self.spin_inputs  = QSpinBox()
-        self.spin_inputs.setMinimum(1)
-        self.spin_inputs.setMaximum(69)
-        self.spin_inputs.valueChanged.connect(self._on_input_count_changed)
-        form.addRow(self.label_inputs, self.spin_inputs)
+        # Properties
+        # All compItems have "pos", "state", "tag", "facing", "mirror"
+        self.labels[Prop.POS] = QLabel("Pos:")
+        self.widgets[Prop.POS] = QLabel("-")
 
-        self.val_facing = QLabel("-")
-        self.val_tag    = QLabel("-")
-        form.addRow("Facing:", self.val_facing)
-        form.addRow("Tag:",    self.val_tag)
+        self.labels[Prop.STATE] = QLabel("State:")
+        self.widgets[Prop.STATE] = QLabel("-")
+
+        self.labels[Prop.TAG] = QLabel("Tag:")
+        self.widgets[Prop.TAG] = QLabel("-")
+
+        self.labels[Prop.FACING] = QLabel("Facing:")
+        self.widgets[Prop.FACING] = QLabel("-")
+
+        self.labels[Prop.MIRROR] = QLabel("Mirror:")
+        self.widgets[Prop.MIRROR] = QLabel("-")
+
+        self.labels[Prop.INPUTSIZE] = QLabel("No of Inputs:")
+        self.widgets[Prop.INPUTSIZE] = QSpinBox()
+        self.widgets[Prop.INPUTSIZE].valueChanged.connect(partial(self.changeProperty, Prop.INPUTSIZE))
+
+        for prop in self.widgets.keys():
+            form.addRow(self.labels[prop], self.widgets[prop])
 
         outer.addLayout(form)
         outer.addStretch()
     
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
-        # print(selectedItems)
-        if len(selectedItems) > 1: return
-        elif len(selectedItems) == 0:
-            self.clear()
+        n = len(selectedItems)
+
+        if n > 1 or n == 0:
+            self.comp = None
+            self.hide()
         elif isinstance(selectedItems[0], CompItem):
-            self.updateTab(selectedItems[0])
+            if self.comp:
+                self.comp.removePropertyChangedListener(self.updateTab)
+            self.comp = selectedItems[0]
+            self.comp.addPropertyChangedListener(self.updateTab)
+            self.updateTab()
 
 
-    def updateTab(self, comp: CompItem):
-        self._comp = comp
-        proplist = comp.getProperties()
+    def updateTab(self):
+        if self.comp:
+            compProps = self.comp.getProperties()
 
-        # Display name
-        tag = proplist["tag"]
-        self.title.setText(f"Properties: {tag}")
+            # Display name
+            tag = compProps[Prop.TAG]
+            self.title.setText(f"Properties: {tag}")
 
-        # Variable inputs for gates
-        inputs = proplist.get("input_count")
-        if inputs:
-            self.spin_inputs.blockSignals(True)
-            # Why did I remove the limits? :thinking:
-            # self.spin_inputs.setMinimum(comp.minInput)
-            # self.spin_inputs.setMaximum(comp.maxInput)
-            self.spin_inputs.setValue(inputs)
-            self.spin_inputs.blockSignals(False)
+            for prop in self.widgets.keys():
+                isVisible = (prop in compProps)
+                self.widgets[prop].setVisible(isVisible)
+                self.labels[prop].setVisible(isVisible)
 
-        self.val_facing.setText(comp.facing.name.capitalize())
-        self.val_tag.setText(tag)
+                if isVisible:
+                    if prop == Prop.INPUTSIZE:
+                        spinbox = self.widgets[prop]
+                        spinbox.blockSignals(True)
+                        spinbox.setValue(compProps[prop])
+                        spinbox.blockSignals(False)
+                    elif prop == Prop.FACING:
+                        self.widgets[prop].setText(compProps[prop].name.capitalize())
+                    else:
+                        self.widgets[prop].setText(str(compProps[prop]))
 
-        self.show()
-
-    def refresh(self):
-        """Call after external changes (rotate, flip, etc.)"""
-        if self._comp:
-            self.updateTab(self._comp)
-
-    def clear(self):
-        self._comp = None
-        self.hide()
+            self.show()
+        else:
+            self.hide()
 
 
-    def _on_input_count_changed(self, value: int):
-        from editor.circuit.gates import GateItem
-        if self._comp and isinstance(self._comp, GateItem):
-            self._comp.setInputCount(value)
+    def changeProperty(self, prop: Prop, value):
+        if not self.comp: return
+        # setProperty() automatically calls updateTab() using listener IF the property actually changed
+
+        if not self.comp.setProperty(prop, value):
+            self.updateTab()
