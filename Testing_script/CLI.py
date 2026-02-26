@@ -2,61 +2,35 @@ import os
 import sys
 import argparse
 
-# Force the standard output to use UTF-8
-# Force the standard output to use UTF-8
-import sys
-if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
-try:
-    import ctypes
-    if sys.platform == 'win32':
-        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
-except Exception:
-    pass
-
-# Now your print statements will render the boxes perfectly
-# print("───────")
-# Parse arguments for reactor selection
-parser = argparse.ArgumentParser(description='Run Logic Sim CLI')
-parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
-parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+parser = argparse.ArgumentParser(description='Run CLI')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
 args, unknown = parser.parse_known_args()
 
-base_dir = os.getcwd()
-if getattr(sys, 'frozen', False):
-    root_dir = sys._MEIPASS
+
+# Support Pyinstaller, Nuitka, and direct Python script relative paths
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
+    root_dir = script_dir
+elif getattr(sys, 'frozen', False):
+    root_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(sys.executable)))
 else:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(script_dir)
 
 # Add control to path
-sys.path.append(os.path.join(root_dir, 'control'))
-
-use_reactor = False
+sys.path.insert(0, os.path.join(root_dir, 'control'))
 
 # Backend Selection Logic
-if args.reactor:
-    use_reactor = True
-elif args.engine:
-    use_reactor = False
-else:
-    # Interactive prompt
-    print("\nSelect Backend:")
-    print("1. Engine (Python) [Default]")
-    print("2. Reactor (Cython)")
-    choice = input("Choice (1/2): ").strip()
-    if choice == '2':
-        use_reactor = True
-    else:
-        use_reactor = False
-
-# Add engine or reactor to path
-if use_reactor:
-    print("Using Reactor (Cython) Backend")
-    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
-else:
-    print("Using Engine (Python) Backend")
+if args.engine:
     sys.path.insert(0, os.path.join(root_dir, 'engine'))
+else:
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
+
+try:
+    import psutil
+    process = psutil.Process(os.getpid())
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 try:
     from Event_Manager import Event
@@ -67,8 +41,6 @@ try:
     from IC import IC
 except ImportError as e:
     print(f"FATAL ERROR: Could not import backend modules: {e}")
-    if args.reactor:
-        print("Ensure you have built the reactor (python setup.py build_ext --inplace)")
     sys.exit(1)
 
 

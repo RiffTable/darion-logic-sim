@@ -15,3 +15,10 @@ reactor/*.so
 scripts/build/
 Dummy_Testing/*
 dist/
+*dist
+*build
+.nuitka*
+build*/
+*.manifest
+blazing_builds/
+*.xml

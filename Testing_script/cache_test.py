@@ -31,30 +31,21 @@ except ImportError:
     HAS_PSUTIL = False
 
 parser = argparse.ArgumentParser(description='Run Cache Profiler')
-parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
-parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
 parser.add_argument('--mode', type=str, choices=['linear', 'realistic', 'chaotic'], default='realistic',
                     help="Memory fragmentation mode (default: realistic)")
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
 script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(script_dir)
+if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
+    root_dir = script_dir
+else:
+    root_dir = os.path.dirname(script_dir)
 
 sys.path.append(os.path.join(root_dir, 'control'))
 
-use_reactor = False
-if args.reactor:
-    use_reactor = True
-elif args.engine:
-    use_reactor = False
-else:
-    print("\nSelect Backend:")
-    print("1. Engine (Python) [Default]")
-    print("2. Reactor (Cython)")
-    choice = input("Choice (1/2): ").strip()
-    if choice == '2':
-        use_reactor = True
+use_reactor = not args.engine  # Reactor (Cython) is default; --engine switches to Python
 
 if use_reactor:
     print("Using Reactor (Cython) Backend")
@@ -298,5 +289,30 @@ def profile_cache():
         print("                         CPU is bounded by memory bus speed.")
     print("======================================================================")
 
+class _Tee:
+    """Mirror stdout to a log file simultaneously."""
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 if __name__ == "__main__":
-    profile_cache()
+    from datetime import datetime
+    _LOG = "cache_test_results.txt"
+    _backend = 'Reactor' if use_reactor else 'Engine'
+    with open(_LOG, "a", encoding="utf-8") as _lf:
+        _lf.write(f"\n{'='*70}\n")
+        _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _lf.write(f"ARGS : backend={_backend}  mode={args.mode}\n")
+        _lf.write(f"{'='*70}\n")
+        _orig = sys.stdout
+        sys.stdout = _Tee(_orig, _lf)
+        try:
+            profile_cache()
+        finally:
+            sys.stdout = _orig
+    print(f"\nLog saved to: {_LOG}")

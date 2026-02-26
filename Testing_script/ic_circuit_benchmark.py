@@ -366,5 +366,28 @@ def run_all():
     print(divider())
 
 
+class _Tee:
+    """Mirror stdout to a log file simultaneously."""
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 if __name__ == "__main__":
-    run_all()
+    from datetime import datetime
+    _LOG = "ic_circuit_benchmark_results.txt"
+    with open(_LOG, "a", encoding="utf-8") as _lf:
+        _lf.write(f"\n{'='*70}\n")
+        _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _lf.write(f"{'='*70}\n")
+        _orig = sys.stdout
+        sys.stdout = _Tee(_orig, _lf)
+        try:
+            run_all()
+        finally:
+            sys.stdout = _orig
+    print(f"\nLog saved to: {_LOG}")

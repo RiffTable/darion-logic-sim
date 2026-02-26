@@ -7,16 +7,6 @@ Full details written to test_results.txt
 
 import time
 import sys
-# Force the standard output to use UTF-8
-import sys
-if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
-try:
-    import ctypes
-    if sys.platform == 'win32':
-        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
-except Exception:
-    pass
 import os
 import random
 import platform
@@ -30,44 +20,28 @@ LOG_FILE = "test_results.txt"
 # Parse arguments for reactor selection
 import argparse
 parser = argparse.ArgumentParser(description='Run Speed Tests')
-parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
-parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
 args, unknown = parser.parse_known_args()
 
-base_dir = os.getcwd()
+
+# Support Pyinstaller, Nuitka, and direct Python script relative paths
 script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(script_dir)
+if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
+    root_dir = script_dir
+elif getattr(sys, 'frozen', False):
+    root_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(sys.executable)))
+else:
+    root_dir = os.path.dirname(script_dir)
 
 # Add control to path
-sys.path.append(os.path.join(root_dir, 'control'))
-
-use_reactor = False
+sys.path.insert(0, os.path.join(root_dir, 'control'))
 
 # Backend Selection Logic
-if args.reactor:
-    use_reactor = True
-elif args.engine:
-    use_reactor = False
-else:
-    # Interactive prompt
-    print("\nSelect Backend:")
-    print("1. Engine (Python) [Default]")
-    print("2. Reactor (Cython)")
-    choice = input("Choice (1/2): ").strip()
-    if choice == '2':
-        use_reactor = True
-    else:
-        use_reactor = False
-
-# Add engine or reactor to path
-if use_reactor:
-    print("Using Reactor (Cython) Backend")
-    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
-else:
-    print("Using Engine (Python) Backend")
+if args.engine:
     sys.path.insert(0, os.path.join(root_dir, 'engine'))
+else:
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
 
-# Try importing psutil for RAM monitoring
 try:
     import psutil
     process = psutil.Process(os.getpid())

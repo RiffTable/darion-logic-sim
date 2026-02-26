@@ -32,8 +32,7 @@ LOG_FILE = "master_test_results.txt"
 
 import argparse
 parser = argparse.ArgumentParser(description='Run Master Integrity Tests')
-parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
-parser.add_argument('--engine', action='store_true', help='Use Python engine backend')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -43,20 +42,7 @@ root_dir = os.path.dirname(script_dir)
 
 sys.path.append(os.path.join(root_dir, 'control'))
 
-use_reactor = False
-if args.reactor:
-    use_reactor = True
-elif args.engine:
-    use_reactor = False
-else:
-    print("\nSelect Backend:")
-    print("1. Engine (Python) [Default]")
-    print("2. Reactor (Cython)")
-    choice = input("Choice (1/2): ").strip()
-    if choice == '2':
-        use_reactor = True
-    else:
-        use_reactor = False
+use_reactor = not args.engine  # Reactor (Cython) is default; --engine switches to Python
 
 if use_reactor:
     print("Using Reactor (Cython) Backend")

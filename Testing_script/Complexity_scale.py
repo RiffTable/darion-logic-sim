@@ -7,43 +7,32 @@ Includes statistical jitter filtering and zero-overhead timing loops.
 import time
 import gc
 import sys
-import os 
+import os
 import random
-# Force the standard output to use UTF-8
-# Force the standard output to use UTF-8
-import sys
-if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
-try:
-    import ctypes
-    if sys.platform == 'win32':
-        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
-except Exception:
-    pass
+import argparse
 
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
+    root_dir = script_dir
+elif getattr(sys, 'frozen', False):
+    root_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(sys.executable)))
+else:
+    root_dir = os.path.abspath(os.path.join(script_dir, '..'))
 
-def select_backend():
-    print("="*82)
-    print(" DARION LOGIC SIM: TOPOLOGY SCALING PROFILER (V4.2) ")
-    print("="*82)
-    print("Select Backend:")
-    print("1. Engine (Pure Python)")
-    print("2. Reactor (Cython)")
-    choice = input("Choice (1/2): ").strip()
+parser = argparse.ArgumentParser(description='Topology Complexity Profiler')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+args, _ = parser.parse_known_args()
 
-    if choice == '1':
-        print("\n[+] Loading Pure Python Engine Backend...\n")
-        sys.path.insert(0, os.path.join(root_dir, 'engine'))
-        backend_name = "Engine"
-    else:
-        print("\n[+] Loading High-Performance Reactor Backend...\n")
-        sys.path.insert(0, os.path.join(root_dir, 'reactor'))
-        backend_name = "Reactor"
-        
-    from Circuit import Circuit
-    from Const import AND_ID, XOR_ID, OR_ID, NOT_ID, VARIABLE_ID, HIGH, LOW, SIMULATE, DESIGN
-    return Circuit, AND_ID, XOR_ID, OR_ID, NOT_ID, VARIABLE_ID, HIGH, LOW, SIMULATE, DESIGN, backend_name
+if args.engine:
+    sys.path.insert(0, os.path.join(root_dir, 'engine'))
+    backend_name = "Engine"
+else:
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
+    backend_name = "Reactor"
+
+from Circuit import Circuit as CircuitClass
+from Const import AND_ID, XOR_ID, OR_ID, NOT_ID, VARIABLE_ID, HIGH, LOW, SIMULATE, DESIGN
+
 
 # =====================================================================
 # TOPOLOGIES
@@ -275,8 +264,11 @@ def build_level_9_hamming_ecc(circuit, target_gates, VARIABLE_ID, NOT_ID, XOR_ID
 # =====================================================================
 
 def run_profiler():
-    CircuitClass, AND_ID, XOR_ID, OR_ID, NOT_ID, VARIABLE_ID, HIGH, LOW, SIMULATE, DESIGN, backend_name = select_backend()
-    
+    print("="*82)
+    print(" DARION LOGIC SIM: TOPOLOGY SCALING PROFILER (V4.2) ")
+    print("="*82)
+    print(f"[+] Backend: {backend_name}")
+
     temp_circ = CircuitClass()
     has_hw_counter = hasattr(temp_circ, 'activate_eval')
     del temp_circ
@@ -376,5 +368,29 @@ def run_profiler():
 
     print("-" * 120)
 
+class _Tee:
+    """Mirror stdout to a log file simultaneously."""
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 if __name__ == "__main__":
-    run_profiler()
+    from datetime import datetime
+    _LOG = "complexity_scale_results.txt"
+    with open(_LOG, "a", encoding="utf-8") as _lf:
+        _lf.write(f"\n{'='*70}\n")
+        _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _lf.write(f"ARGS : backend={backend_name}\n")
+        _lf.write(f"{'='*70}\n")
+        _orig = sys.stdout
+        sys.stdout = _Tee(_orig, _lf)
+        try:
+            run_profiler()
+        finally:
+            sys.stdout = _orig
+    print(f"\nLog saved to: {_LOG}")
