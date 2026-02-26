@@ -9,6 +9,17 @@ import gc
 import sys
 import os 
 import random
+# Force the standard output to use UTF-8
+# Force the standard output to use UTF-8
+import sys
+if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+try:
+    import ctypes
+    if sys.platform == 'win32':
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+except Exception:
+    pass
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 

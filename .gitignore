@@ -14,3 +14,4 @@ reactor/*.so
 *.txt
 scripts/build/
 Dummy_Testing/*
+dist/

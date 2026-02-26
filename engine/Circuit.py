@@ -1,5 +1,5 @@
 
-import orjson
+import json
 from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import *
 from IC import IC
@@ -377,8 +377,8 @@ class Circuit:
 
     def writetojson(self, location: str):
         circuit = [gate.json_data() for gate in self.get_components()]
-        with open(location, 'wb') as file:
-            file.write(orjson.dumps(circuit))
+        with open(location, 'w') as file:
+            json.dump(circuit, file)
 
     def decode(self, code) -> tuple:
         if len(code) == 2:
@@ -386,8 +386,8 @@ class Circuit:
         return (code[0], code[1], self.decode(code[2]))
 
     def readfromjson(self, location: str):
-        with open(location, 'rb') as file:
-            circuit = orjson.loads(file.read())
+        with open(location, 'r') as file:
+            circuit = json.load(file)
         if isinstance(circuit, dict):
             return
         pseudo = {}
@@ -422,15 +422,15 @@ class Circuit:
         myIC.custom_name = ic_name
         for component in lst:
             myIC.addgate(component)
-        with open(location, 'wb') as file:
-            file.write(orjson.dumps(myIC.json_data()))
+        with open(location, 'w') as file:
+            json.dump(myIC.json_data(), file)
         self.clearcircuit()
         # self.getIC(location)
 
     def getIC(self, location: str):
         myIC = self.getcomponent(IC_ID)
-        with open(location, 'rb') as file:
-            crct = orjson.loads(file.read())
+        with open(location, 'r') as file:
+            crct = json.load(file)
             if isinstance(crct[COMPONENTS], list):
                 myIC.configure(crct)
                 self.counter += myIC.counter
@@ -458,13 +458,13 @@ class Circuit:
             i.load_to_cluster(cluster)
         for i in components:
             self.copydata.append(i.copy_data(cluster))
-        with open('clipboard.json', 'wb') as file:
-            file.write(orjson.dumps(self.copydata))
+        with open('clipboard.json', 'w') as file:
+            json.dump(self.copydata, file)
         self.copydata = [i.code for i in components]
 
     def paste(self):
-        with open('clipboard.json', 'rb') as file:
-            circuit = orjson.loads(file.read())
+        with open('clipboard.json', 'r') as file:
+            circuit = json.load(file)
         pseudo = {}
         pseudo[('X', 'X')] = None
         new_items = []

@@ -11,7 +11,18 @@ import random
 import argparse
 import platform
 import subprocess
-
+import io
+# Force the standard output to use UTF-8
+# Force the standard output to use UTF-8
+import sys
+if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+try:
+    import ctypes
+    if sys.platform == 'win32':
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+except Exception:
+    pass
 try:
     import psutil
     process = psutil.Process(os.getpid())
@@ -245,7 +256,7 @@ def profile_cache():
         anchor_ns = baseline_ns if baseline_ns else ns_per_eval
         speed_ratio = anchor_ns / ns_per_eval if ns_per_eval > 0 else 0
         bar_length = int(speed_ratio * 20)
-        visual_bar = "█" * max(1, min(bar_length, 20))
+        visual_bar = "=" * max(1, min(bar_length, 20))
 
         results.append({
             "size": size, "ns_per_eval": ns_per_eval, "evals_per_sec": evals_per_sec,

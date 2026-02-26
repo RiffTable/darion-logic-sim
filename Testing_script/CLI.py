@@ -2,6 +2,20 @@ import os
 import sys
 import argparse
 
+# Force the standard output to use UTF-8
+# Force the standard output to use UTF-8
+import sys
+if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+try:
+    import ctypes
+    if sys.platform == 'win32':
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+except Exception:
+    pass
+
+# Now your print statements will render the boxes perfectly
+# print("───────")
 # Parse arguments for reactor selection
 parser = argparse.ArgumentParser(description='Run Logic Sim CLI')
 parser.add_argument('--reactor', action='store_true', help='Use Cython reactor backend')
@@ -9,8 +23,11 @@ parser.add_argument('--engine', action='store_true', help='Use Python engine bac
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
-script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(script_dir)
+if getattr(sys, 'frozen', False):
+    root_dir = sys._MEIPASS
+else:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(script_dir)
 
 # Add control to path
 sys.path.append(os.path.join(root_dir, 'control'))
