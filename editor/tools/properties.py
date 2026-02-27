@@ -67,12 +67,9 @@ class PropertiesPanel(QWidget):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Properties
-        # All compItems have "pos", "state", "tag", "facing", "mirror"
+        # All compItems have "pos", "tag", "facing", "mirror"
         self.labels[Prop.POS] = QLabel("Pos:")
         self.widgets[Prop.POS] = QLabel("-")
-
-        self.labels[Prop.STATE] = QLabel("State:")
-        self.widgets[Prop.STATE] = QLabel("-")
 
         self.labels[Prop.TAG] = QLabel("Tag:")
         self.widgets[Prop.TAG] = QLabel("-")
@@ -82,6 +79,9 @@ class PropertiesPanel(QWidget):
 
         self.labels[Prop.MIRROR] = QLabel("Mirror:")
         self.widgets[Prop.MIRROR] = QLabel("-")
+
+        self.labels[Prop.STATE] = QLabel("State:")
+        self.widgets[Prop.STATE] = QLabel("-")
 
         self.labels[Prop.INPUTSIZE] = QLabel("No of Inputs:")
         self.widgets[Prop.INPUTSIZE] = QSpinBox()

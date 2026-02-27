@@ -34,6 +34,7 @@ class GateItem(CompItem):
 		super().__init__(pos, **kwargs)
 
 		# Properties
+		self.state: int = Const.LOW
 		self.minInput = self.MIN_INPUT
 		self.maxInput = self.MAX_INPUT
 
@@ -50,6 +51,7 @@ class GateItem(CompItem):
 			self.addOutputPin(CompEdge.OUTPUT, h//2)
 			self.updateShape()
 		
+		
 		# Pins Casting
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
@@ -59,6 +61,8 @@ class GateItem(CompItem):
 			p.setLogical(self._unit, i)
 		self.outputPin.setLogical(self._unit)
 
+		logic.setlimits(self._unit, len(self.inputPins))
+
 		# Final Setup
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
@@ -67,6 +71,7 @@ class GateItem(CompItem):
 	# Properties Data
 	def getProperties(self) -> dict:
 		return super().getProperties() | {
+			Prop.STATE     : self.state,
 			Prop.INPUTSIZE : len(self.inputPins),
 		}
 	

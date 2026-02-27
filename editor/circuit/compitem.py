@@ -25,7 +25,6 @@ class CompItem(QGraphicsItem):
 	def __init__(self, pos: QPointF, **kwargs):
 		# Properties
 		self.tag = self.TAG
-		self.state: int = Const.LOW
 		self.facing = Facing(kwargs.get("facing", Facing.EAST))
 		self.isMirrored = kwargs.get("mirror", False)
 
@@ -115,11 +114,10 @@ class CompItem(QGraphicsItem):
 
 	def getProperties(self) -> dict[Prop, Any]:
 		return {
-			Prop.POS      : self.pos().toTuple(),
-			Prop.STATE    : self.state,
-			Prop.TAG      : self.tag,
-			Prop.FACING   : self.facing,
-			Prop.MIRROR   : self.isMirrored,
+			Prop.POS       : self.pos().toTuple(),
+			Prop.TAG       : self.tag,
+			Prop.FACING    : self.facing,
+			Prop.MIRROR    : self.isMirrored,
 		}
 	
 	def setProperty(self, prop: Prop, value) -> bool:
@@ -160,11 +158,23 @@ class CompItem(QGraphicsItem):
 		new_w, new_h = self.getAbsSize()
 
 		if rotation == 1:  
-			rotator = lambda x, y: (-y, x)      # 90° CW
+			# 90° CW
+			rotator = lambda x, y: (
+				(-y + 0.5) * new_w*GRID.SIZE,
+				(+x + 0.5) * new_h*GRID.SIZE
+			)
 		elif rotation == 2:
-			rotator = lambda x, y: (-x, -y)     # 180° CW
+			# 180° CW
+			rotator = lambda x, y: (
+				(-x + 0.5) * new_w*GRID.SIZE,
+				(-y + 0.5) * new_h*GRID.SIZE
+			)
 		elif rotation == 3:
-			rotator = lambda x, y: (y, -x)      # 270° CW
+			# 270° CW
+			rotator = lambda x, y: (
+				(+y + 0.5) * new_w*GRID.SIZE,
+				(-x + 0.5) * new_h*GRID.SIZE
+			)
 		
 		for edge, pinlist in self._pinslist.items():
 			fa = self.edgeToFacing(edge)
@@ -176,12 +186,10 @@ class CompItem(QGraphicsItem):
 				dy = y / (h*GRID.SIZE) - 0.5
 
 				new_dx, new_dy = rotator(dx, dy)
-				pin.setPos(
-					(new_dx + 0.5) * new_w*GRID.SIZE,
-					(new_dy + 0.5) * new_h*GRID.SIZE
-				)
+				pin.setPos(new_dx, new_dy)
 
 		self.updateShape()
+		self.PropertyChanged()
 
 	def mirror(self):
 		self.isMirrored = not self.isMirrored
@@ -202,13 +210,33 @@ class CompItem(QGraphicsItem):
 				pin.setPos(new_x, new_y)
 
 		self.updateShape()
+		self.PropertyChanged()
+	
+	def flip(self):
+		self.facing = Facing(self.facing+2)
+		self.isMirrored = not self.isMirrored
+
+		w, h = self.getAbsSize()
+
+		if self.facing%2 == 0:
+			flipper = lambda x, y: (w*GRID.SIZE-x, y)    # Horizontal
+		else:
+			flipper = lambda x, y: (x, h*GRID.SIZE-y)    # Vertical
+		
+		for edge, pinlist in self._pinslist.items():
+			fa = self.edgeToFacing(edge)
+			for pin in pinlist:
+				pin.facing = fa
+				x, y = pin.pos().toTuple()
+				new_x, new_y = flipper(x, y)
+
+				pin.setPos(new_x, new_y)
+		
+		self.updateShape()
+		self.PropertyChanged()
 	
 	def rotate(self, clockwise: bool = True):
 		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
-	def flip(self):
-		# A bit unoptimal but sure...
-		self.mirror()
-		self.setFacing(Facing(self.facing+2))
 	
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
 		return Facing(self.facing + (-edge if self.isMirrored else edge))

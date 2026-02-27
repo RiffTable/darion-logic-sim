@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import CompEdge, EditorState
+from core.Enums import CompEdge, Prop
 
 from editor.styles import Color
 
@@ -21,6 +21,9 @@ class OutputItem(CompItem):
 	def getRelPadding(self): return (0, 4)
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
+
+		# Properties
+		self.state: int = Const.LOW
 		
 		# Pins Setup
 		if self._setupDefaultPins:
@@ -32,6 +35,13 @@ class OutputItem(CompItem):
 
 		# Setting Pin Logicals
 		self.inputPin.setLogical(self._unit, 0)
+
+
+	# Properties Data
+	def getProperties(self) -> dict:
+		return super().getProperties() | {
+			Prop.STATE     : self.state
+		}
 
 
 	def unitStateChanged(self, state: int):
