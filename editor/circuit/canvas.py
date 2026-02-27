@@ -112,7 +112,6 @@ class CircuitScene(QGraphicsScene):
 		assert g_wire != None
 		g_pin = self.ghostPin
 		source = g_wire.source
-		finishing = False
 
 		# Wiring: Finish!
 		if isinstance(target, CompItem):
@@ -135,38 +134,36 @@ class CircuitScene(QGraphicsScene):
 				self.ghostWire = t_wire
 				
 				if len(g_wire.supplies) == 1: self.wires.append(g_wire)
-				finishing = False
 			else:
 				# Connecting wire to an empty pin
-				finishing = True
-		
-		if finishing:
-			target = cast(InputPinItem, target)
-			if len(g_wire.supplies) == 1: self.wires.append(g_wire)
+				target = cast(InputPinItem, target)
+				if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 
-			if not multiWireMode:
-				g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
-				self.setState(EditorState.NORMAL)
-				self.ghostWire = None
-			self.clearSelection()
-			g_wire.setSelected(True)    # Solo select the finished wire
-			
-			g_wire.supplies.append(target); target.setWire(g_wire)
+				if not multiWireMode:
+					g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
+					self.setState(EditorState.NORMAL)
+					self.ghostWire = None
+				self.clearSelection()
+				g_wire.setSelected(True)    # Solo select the finished wire
+				
+				g_wire.supplies.append(target); target.setWire(g_wire)
 
-			if target.logical and source.logical:
-				unit, idx = target.logical
-				# print(f"{isinstance(unit, Gate)} and {idx >= unit.inputlimit}")
-				if isinstance(unit, Gate) and idx >= unit.inputlimit:
-					unit.setlimits(idx+1)
-				logic.connect(unit, source.logical, idx)
+				if target.logical and source.logical:
+					unit, idx = target.logical
+					# print(f"{isinstance(unit, Gate)} and {idx >= unit.inputlimit}")
+					if isinstance(unit, Gate) and idx >= unit.inputlimit:
+						unit.setlimits(idx+1)
+					logic.connect(unit, source.logical, idx)
 
-			g_wire.updateShape()
-			target.highlight(False)
-			
-			# wire.setFlag(QGraphicsItem.ItemIsSelectable, True)
-			# self.clearSelection()
-			# wire.setSelected(True)  # Solo select the finished wire
-			# self.run_logic()
+				g_wire.updateShape()
+				target.highlight(False)
+				if isinstance(target.parentComp, GateItem):
+					# This needs to be generalized. fuck
+					paren = target.parentComp
+					paren.peekOut()
+					p = paren.proxyPin()
+					if p: p.highlight(True)
+	
 
 	def removeWire(self, wire: WireItem):
 		# Works for both ghost wires and regular wires
@@ -184,18 +181,18 @@ class CircuitScene(QGraphicsScene):
 		item = self.itemAt(event.scenePos(), QTransform())
 
 		# Wiring: Start!
-		if self.checkState(EditorState.NORMAL):
-			if isinstance(item, OutputPinItem) and event.button() == MouseBtn.LeftButton:
-				if event.button() == MouseBtn.LeftButton:
-					self.setState(EditorState.WIRING)
-					w = item.getWire()
-					if w == None:
-						self.ghostWire = WireItem(item, self.ghostPin)
-						# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
-						self.addItem(self.ghostWire)
-					else:
-						self.ghostWire = w
-						self.ghostWire.addSupply(self.ghostPin)
+		if self.checkState(EditorState.NORMAL) \
+		and isinstance(item, OutputPinItem) \
+		and event.button() == MouseBtn.LeftButton:
+			self.setState(EditorState.WIRING)
+			w = item.getWire()
+			if w == None:
+				self.ghostWire = WireItem(item, self.ghostPin)
+				# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
+				self.addItem(self.ghostWire)
+			else:
+				self.ghostWire = w
+				self.ghostWire.addSupply(self.ghostPin)
 		
 		return super().mousePressEvent(event)
 

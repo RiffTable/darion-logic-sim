@@ -137,7 +137,7 @@ class GateItem(CompItem):
 	# 3. Default/Proxy Connection
 
 	# Smart Hover + Proxy System
-	def betterHoverEnter(self):
+	def peekOut(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
@@ -145,6 +145,9 @@ class GateItem(CompItem):
 			self.peekingPin = self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
 			self.updateShape()
 			# fuck
+	
+	def betterHoverEnter(self):
+		self.peekOut()
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
@@ -173,6 +176,10 @@ class GateItem(CompItem):
 			p = self.inputPins[0]
 			p.facing = fa
 			self.setPinPos(p, gen(h//2))
+		elif n == 2:
+			self.inputPins[0].facing = self.inputPins[1].facing = fa
+			self.setPinPos(self.inputPins[0], gen(h//2-1))
+			self.setPinPos(self.inputPins[1], gen(h//2+1))
 		else:
 			m = h//(n-1)
 

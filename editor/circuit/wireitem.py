@@ -29,7 +29,6 @@ class WireItem(QGraphicsPathItem):
 
 		# Properties
 		self._id = WireItem._COUNT
-		self.state: int = Const.LOW
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
@@ -86,12 +85,8 @@ class WireItem(QGraphicsPathItem):
 			supply.setWire(None)
 	
 	# Events
-	def setState(self, state: int):
-		self.state = state
-		self.updateVisual()
-	
-	def updateVisual(self):
-		match self.state:
+	def updateState(self):
+		match self.source.state:
 			case Const.HIGH: self.setPen(QPen(Color.signal_on, 3))
 			case _:          self.setPen(QPen(Color.signal_off, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
@@ -107,7 +102,7 @@ class WireItem(QGraphicsPathItem):
 		path = QPainterPath()
 		p1 = self.source.scenePos()
 		dx1, dy1 = self.source.facing.toTuple(50)
-		self.updateVisual()
+		self.updateState()
 
 		for out in self.supplies:
 			p2 = out.scenePos()

@@ -34,6 +34,8 @@ class OutputItem(CompItem):
 		self.state = state
 		self.update()
 	
+	def proxyPin(self) -> InputPinItem | None:
+		return None if self.inputPin.hasWire() else self.inputPin
 
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
