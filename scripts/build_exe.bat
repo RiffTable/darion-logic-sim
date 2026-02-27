@@ -182,40 +182,67 @@ if /i "!USE_PGO!"=="Y" (
 )
 
 :: ---------------------------------------------------------------
-:: 9. Inject Segment Heap manifest  (fast allocator for Windows 10+)
+:: 9. Inject Windows manifest (SegmentHeap + DPI-aware + longPathAware)
 :: ---------------------------------------------------------------
-set "MANIFEST_FILE=SegmentHeap.manifest"
+::
+::  DarionHeap.manifest lives at the repo root and is committed to source.
+::  It enables:
+::    - SegmentHeap       : low-fragmentation allocator (Win10 1809+)
+::    - dpiAwareness      : PerMonitorV2 - no DWM scaling overhead
+::    - longPathAware     : avoids \\?\  path-normalization overhead
+::
+::  If the file is missing it is regenerated from the hardcoded XML below.
+:: ---------------------------------------------------------------
+set "MANIFEST_FILE=%~dp0..\DarionHeap.manifest"
+
 if not exist "!MANIFEST_FILE!" (
-    echo ^<?xml version="1.0" encoding="UTF-8" standalone="yes"?^> > "!MANIFEST_FILE!"
-    echo ^<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"^> >> "!MANIFEST_FILE!"
-    echo   ^<application xmlns="urn:schemas-microsoft-com:asm.v3"^> >> "!MANIFEST_FILE!"
-    echo     ^<windowsSettings^> >> "!MANIFEST_FILE!"
-    echo       ^<heapType xmlns="http://schemas.microsoft.com/SMI/2020/WindowsSettings"^>SegmentHeap^</heapType^> >> "!MANIFEST_FILE!"
-    echo     ^</windowsSettings^> >> "!MANIFEST_FILE!"
-    echo   ^</application^> >> "!MANIFEST_FILE!"
-    echo ^</assembly^> >> "!MANIFEST_FILE!"
-    echo Created !MANIFEST_FILE!
+    echo [INFO] DarionHeap.manifest not found - regenerating from embedded XML...
+    echo ^<?xml version="1.0" encoding="UTF-8" standalone="yes"?^>                               > "!MANIFEST_FILE!"
+    echo ^<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"^>             >> "!MANIFEST_FILE!"
+    echo   ^<application xmlns="urn:schemas-microsoft-com:asm.v3"^>                              >> "!MANIFEST_FILE!"
+    echo     ^<windowsSettings^>                                                                  >> "!MANIFEST_FILE!"
+    echo       ^<heapType xmlns="http://schemas.microsoft.com/SMI/2020/WindowsSettings"^>SegmentHeap^</heapType^>     >> "!MANIFEST_FILE!"
+    echo       ^<dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings"^>true/PM^</dpiAware^>         >> "!MANIFEST_FILE!"
+    echo       ^<dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings"^>PerMonitorV2^</dpiAwareness^> >> "!MANIFEST_FILE!"
+    echo       ^<longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings"^>true^</longPathAware^>  >> "!MANIFEST_FILE!"
+    echo     ^</windowsSettings^>                                                                 >> "!MANIFEST_FILE!"
+    echo   ^</application^>                                                                       >> "!MANIFEST_FILE!"
+    echo ^</assembly^>                                                                            >> "!MANIFEST_FILE!"
+    echo [OK] Regenerated !MANIFEST_FILE!
 )
 
+:: --- Locate mt.exe: PATH first, then known SDK path, then full search ---
 set "MT_EXE="
-set "TYPICAL_MT=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\mt.exe"
+for /f "delims=" %%I in ('where mt.exe 2^>nul') do (
+    if not defined MT_EXE set "MT_EXE=%%I"
+)
 
-if exist "!TYPICAL_MT!" (
-    set "MT_EXE=!TYPICAL_MT!"
-) else (
+if not defined MT_EXE (
+    set "TYPICAL_MT=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\mt.exe"
+    if exist "!TYPICAL_MT!" set "MT_EXE=!TYPICAL_MT!"
+)
+
+if not defined MT_EXE (
     echo Searching for mt.exe in Windows Kits...
-    for /f "delims=" %%I in ('powershell -Command "$x = Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits' -Filter mt.exe -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1; if ($x) { $x.FullName }"') do set "MT_EXE=%%I"
+    for /f "delims=" %%I in ('powershell -NoProfile -Command ^
+        "$x=Get-ChildItem 'C:\Program Files (x86)\Windows Kits' -Filter mt.exe -Recurse -EA SilentlyContinue ^| Where-Object {$_.FullName -match '\\x64\\'} ^| Sort-Object FullName -Desc ^| Select-Object -First 1; if($x){$x.FullName}"') do set "MT_EXE=%%I"
 )
 
 if defined MT_EXE (
-    if exist "!MT_EXE!" (
-        echo Found   mt.exe: !MT_EXE!
-        "!MT_EXE!" -manifest "!MANIFEST_FILE!" -outputresource:"!TARGET_EXE!";1
-        echo Manifest injected into !TARGET_EXE!
+    echo Found mt.exe : !MT_EXE!
+    echo Manifest     : !MANIFEST_FILE!
+    "!MT_EXE!" -manifest "!MANIFEST_FILE!" -outputresource:"!TARGET_EXE!";1
+    if !errorlevel! equ 0 (
+        echo [OK] Manifest injected into !TARGET_EXE!
+    ) else (
+        echo [WARNING] mt.exe returned error !errorlevel! - check manifest XML.
     )
 ) else (
-    echo [WARNING] mt.exe not found. Skipping Segment Heap manifest injection.
+    echo [WARNING] mt.exe not found. Skipping manifest injection.
+    echo           Install Windows 10 SDK to enable SegmentHeap optimisation.
 )
+
+:skip_manifest
 
 :: ---------------------------------------------------------------
 :: 10. Cleanup temp build dirs
