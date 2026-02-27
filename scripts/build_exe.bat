@@ -82,17 +82,12 @@ if /i "!BUILD_TYPE!"=="1" (
 :: 7. Build the Nuitka args string incrementally
 ::    (avoids cmd.exe mis-parsing of = signs inside ^ blocks)
 ::
-::  --lto=yes                  : Link-Time Optimisation (inlines across TUs)
-::  --jobs=N                   : Parallel C compilation (MSVC auto-selected)
-::  --deployment               : Strip Nuitka debug guards / self-checks;
-::                               produces a leaner, less suspicious binary
-::  --python-flag=...          : Strip docstrings/asserts/warnings, skip site.py
-::  --nofollow-import-to=      : Prune tkinter/test bloat from bundle
-::  --include-module=...       : Force-bundle Cython .pyd extension targets
-::  --include-package=...      : Keep orjson / psutil intact
-::  --onefile-tempdir-spec=... : Extract to a STABLE named folder, NOT a random
-::                               %TEMP%\<UUID> path - random UUID temp dirs are
-::                               the #1 heuristic trigger for Windows Defender
+::  --lto=yes             : Link-Time Optimisation (inlines across TUs)
+::  --jobs=N              : Parallel C compilation (MSVC auto-selected)
+::  --python-flag=...     : Strip docstrings/asserts/warnings, skip site.py
+::  --nofollow-import-to= : Prune tkinter/test bloat from bundle
+::  --include-module=...  : Force-bundle Cython .pyd extension targets
+::  --include-package=... : Keep orjson / psutil intact
 :: ---------------------------------------------------------------
 set "PYTHONPATH=%cd%\reactor;%cd%\control;%PYTHONPATH%"
 
@@ -116,18 +111,6 @@ set "N=!N! --include-module=Event_Manager"
 set "N=!N! --include-module=Control"
 set "N=!N! --include-package=orjson"
 set "N=!N! --include-package=psutil"
-set "N=!N! --company-name=Farhan"
-set "N=!N! --product-name=Darion Logic Sim"
-set "N=!N! --file-version=1.0.0.0"
-set "N=!N! --product-version=1.0.0.0"
-set "N=!N! --copyright=Farhan"
-set "N=!N! --file-description=Darion Logic Sim"
-set "N=!N! --deployment"
-::
-:: --onefile-tempdir-spec: stable extraction path avoids random %TEMP%\<UUID>
-:: pattern that Windows Defender flags as suspicious. Uses %LOCALAPPDATA% which
-:: is a known, permanent, user-writable location AV tools treat as safe.
-set "N=!N! --onefile-tempdir-spec=%%LOCALAPPDATA%%\DarionLogicSim\!BASENAME!"
 
 :: ---------------------------------------------------------------
 :: 8. BUILD

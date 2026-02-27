@@ -80,11 +80,11 @@ read -rp "Enter 1 or 2: " BUILD_TYPE
 
 case "$BUILD_TYPE" in
     1)
-        BUILD_SWITCH="--standalone"
+        BUILD_SWITCH="--mode=standalone"
         TARGET_BIN="blazing_builds/${BASENAME}.dist/${BASENAME}"
         ;;
     2)
-        BUILD_SWITCH="--onefile"
+        BUILD_SWITCH="--mode=onefile"
         TARGET_BIN="blazing_builds/${BASENAME}"
         ;;
     *)
@@ -103,7 +103,7 @@ USE_PGO="${USE_PGO^^}"   # uppercase
 
 # PGO-C is incompatible with --onefile / --standalone in Nuitka
 # (same caveat as on Windows - intermediate binary is not runnable)
-if [[ "$USE_PGO" == "Y" && ( "$BUILD_SWITCH" == "--onefile" || "$BUILD_SWITCH" == "--standalone" ) ]]; then
+if [[ "$USE_PGO" == "Y" && ( "$BUILD_SWITCH" == "--mode=onefile" || "$BUILD_SWITCH" == "--mode=standalone" ) ]]; then
     echo ""
     echo "[WARNING] C-level PGO is NOT supported with $BUILD_SWITCH mode."
     echo "          The intermediate PGO binary cannot execute itself."
@@ -169,12 +169,12 @@ NUITKA_ARGS=(
     "--include-package=orjson"
     "--include-package=psutil"
     "--company-name=Farhan"
-    "--product-name=Darion Logic Sim"
+    "--product-name=DarionLogicSim"
     "--file-version=1.0.0.0"
     "--product-version=1.0.0.0"
     "--copyright=Farhan"
-    "--file-description=Darion Logic Sim"
-    "--onefile-tempdir-spec=$ONEFILE_CACHE"
+    "--file-description=DarionLogicSim"
+    "--onefile-tempdir-spec={CACHE_DIR}/DarionLogicSim/$BASENAME"
 )
 
 # ── 9. BUILD ──────────────────────────────────────────────────
