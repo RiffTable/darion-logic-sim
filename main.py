@@ -44,8 +44,8 @@ class AppWindow(QMainWindow):
 			"NOR Gate": 4,
 			"XOR Gate": 5,
 			"XNOR Gate": 6,
-			# "Input (Toggle)": 7,
-			# "LED": 8,
+			"INPUT": 11,
+			"LED": 21,
 		}
 
 		for text, comp_id in gatelists.items():
@@ -94,6 +94,6 @@ if __name__ == "__main__":
 	window.show()
 
 	window.scene.addComp(100, 100, 5)
-	# window.scene.addComp(100, 200, 7)
+	window.scene.addComp(100, 200, 11)
 
 	sys.exit(app.exec())

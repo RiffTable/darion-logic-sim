@@ -39,13 +39,18 @@ class GateItem(CompItem):
 
 		# Pins
 		if self._setupDefaultPins:
-			for _ in range(self.minInput):
+			for i in range(self.minInput):
 				self.addInPin(CompEdge.INPUT, 0)
 			self.addOutPin(CompEdge.OUTPUT, 0)
 			self.readjustPins()   # fuck
 		
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+		
+		# Setting logicals for pins (Works for both regular constructor and deserialization)
+		for i, p in enumerate(self.inputPins):
+			p.setLogical(self._unit, i)
+		self.outputPin.setLogical(self._unit)
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
@@ -109,8 +114,8 @@ class GateItem(CompItem):
 			return False
 		
 		if size > n:
-			for _ in range(size-n):
-				self.addInPin(CompEdge.INPUT, 0)    # fuck
+			for i in range(n, size):
+				self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, i)    # fuck
 		else:
 			left = n - size
 
@@ -120,7 +125,8 @@ class GateItem(CompItem):
 
 				self.removePin(CompEdge.INPUT, i)
 				left -= 1
-			
+		
+		logic.setlimits(self._unit, size)
 		self.updateShape()
 		return True
 
@@ -131,14 +137,17 @@ class GateItem(CompItem):
 	# 3. Default/Proxy Connection
 
 	# Smart Hover + Proxy System
-	def betterHoverEnter(self):
+	def peekOut(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.addInPin(CompEdge.INPUT, 0)
+			self.peekingPin = self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
 			self.updateShape()
 			# fuck
+	
+	def betterHoverEnter(self):
+		self.peekOut()
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
@@ -167,6 +176,10 @@ class GateItem(CompItem):
 			p = self.inputPins[0]
 			p.facing = fa
 			self.setPinPos(p, gen(h//2))
+		elif n == 2:
+			self.inputPins[0].facing = self.inputPins[1].facing = fa
+			self.setPinPos(self.inputPins[0], gen(h//2-1))
+			self.setPinPos(self.inputPins[1], gen(h//2+1))
 		else:
 			m = h//(n-1)
 

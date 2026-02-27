@@ -59,7 +59,8 @@ class CompItem(QGraphicsItem):
 		self._cached_hitbox = QPainterPath()
 		self._prop_change_listener: list[Callable[[], None]] = []
 
-		self._unit = cast(Any, logic.getcomponent(self.LOGIC))
+		self._unit = cast(Any, logic.getcomponent(self.LOGIC))   # !fuckfuckfuck
+		self._unit.listener.append(self.unitStateChanged)
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
@@ -75,6 +76,7 @@ class CompItem(QGraphicsItem):
 						QPointF(*pin["pos"]),
 						facing
 					)
+					#? Logical Not Set Yet. Do that in the child classes
 					pinslist.append(newpin)
 
 		# Proxy & Hovering
@@ -87,9 +89,6 @@ class CompItem(QGraphicsItem):
 
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
-
-	def getUnit(self):
-		return self._unit
 
 	
 	### Properties Data

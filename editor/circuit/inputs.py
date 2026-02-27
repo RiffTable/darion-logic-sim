@@ -14,29 +14,32 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 
 
 class InputItem(CompItem):
+	TAG="IN"
+	LOGIC=Const.VARIABLE_ID
+	NAME=DESC="INPUT"
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 		
-		# Behavior
-		self.setAcceptHoverEvents(True)
-		self.tag = "IN"
-		
 		if self._setupDefaultPins:
-			self.addOutPin(CompEdge.OUTPUT, 0)
-		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+			self.addOutPin(CompEdge.OUTPUT, 0).setLogical(self._unit)
+			self.readjustPins()   # fuck
 		
-		self.readjustPins()   # fuck
-	
+		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+
+		self.setState(False)
+
 
 	def unitStateChanged(self, state: int):
 		self.state = state
 		self.outputPin.logicalStateChanged(state)
 	
 
-	def setState(self, state: int):
-		self.state = state
+	def setState(self, state: bool):
+		bookish = Const.HIGH if state else Const.LOW
+		self.state = bookish
+		logic.toggle(self._unit, bookish)
 		self.update()
 
 	
@@ -44,7 +47,7 @@ class InputItem(CompItem):
 		if event.button() == MouseBtn.LeftButton:
 			delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
 			if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
-				self.setState(Const.HIGH if self.state == Const.LOW else Const.LOW)
+				self.setState(not self.state)
 			return super().mouseReleaseEvent(event)
 	
 	def draw(self, painter, option, widget):

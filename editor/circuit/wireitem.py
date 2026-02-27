@@ -29,9 +29,10 @@ class WireItem(QGraphicsPathItem):
 
 		# Properties
 		self._id = WireItem._COUNT
-		self.state: int = Const.LOW
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
+
+		self.logicalConnect(beg, end)
 
 		self._updateShape()
 
@@ -49,10 +50,18 @@ class WireItem(QGraphicsPathItem):
 
 
 	# Connection configuration
+	@classmethod
+	def logicalConnect(cls, outpin: OutputPinItem, inpin: InputPinItem):
+		if inpin.logical and outpin.logical:
+			u, i = inpin.logical
+			logic.connect(u, outpin.logical, i)
+	
 	def addSupply(self, pin: InputPinItem):
 		if pin in self.supplies: return
 		self.supplies.append(pin)
 		pin.setWire(self)
+
+		self.logicalConnect(self.source, pin)
 		self.updateShape()
 	
 	def cutSupply(self, pin: InputPinItem):
@@ -72,15 +81,12 @@ class WireItem(QGraphicsPathItem):
 
 		self.source.setWire(None)
 		for supply in self.supplies:
+			if supply.logical: logic.disconnect(*supply.logical)
 			supply.setWire(None)
 	
 	# Events
-	def setState(self, state: int):
-		self.state = state
-		self.updateVisual()
-	
-	def updateVisual(self):
-		match self.state:
+	def updateState(self):
+		match self.source.state:
 			case Const.HIGH: self.setPen(QPen(Color.signal_on, 3))
 			case _:          self.setPen(QPen(Color.signal_off, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
@@ -96,7 +102,7 @@ class WireItem(QGraphicsPathItem):
 		path = QPainterPath()
 		p1 = self.source.scenePos()
 		dx1, dy1 = self.source.facing.toTuple(50)
-		self.updateVisual()
+		self.updateState()
 
 		for out in self.supplies:
 			p2 = out.scenePos()

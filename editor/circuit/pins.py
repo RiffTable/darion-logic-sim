@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import cast, TYPE_CHECKING
+from typing import Self, cast, TYPE_CHECKING
 from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import Facing, EditorState
@@ -25,7 +25,7 @@ class PinItem(QGraphicsRectItem):
 			parentComp
 		)
 		self.setFlags(
-			GraphicsItemFlag.ItemIsSelectable |
+			# GraphicsItemFlag.ItemIsSelectable |
 			GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setPen(Qt.PenStyle.NoPen)
@@ -86,6 +86,12 @@ class PinItem(QGraphicsRectItem):
 			if self._wire: self._wire.updateShape()
 		
 		return super().itemChange(change, value)
+	
+	# Making pins unselectable so grabbing the pins don't grab the comps
+	def mousePressEvent(self, event):
+		super().mousePressEvent(event)
+		self.setSelected(False); event.accept()
+	def mouseMoveEvent(self, event): event.accept()
 
 	def hoverEnterEvent(self, event):
 		self.highlight(True);  self.parentComp._updateHoverStatus(True, self)
@@ -127,11 +133,13 @@ class InputPinItem(PinItem):
 		super().__init__(parent, relpos, facing)
 		self.logical: tuple[Gate, int] | tuple[InputPin, int] | None = None
 
-	def setLogical(self, input: Gate | InputPin, index: int = 0):
+	def setLogical(self, input: Gate | InputPin, index: int = 0) -> Self:
+		# It's a builder function
 		if isinstance(input, InputPin):
 			self.logical = (input, 0)
 		else:
 			self.logical = (input, index)
+		return self
 
 	def disconnect(self):
 		if not self._wire: return
@@ -157,15 +165,14 @@ class OutputPinItem(PinItem):
 		self.logical: Gate | OutputPin | None = None
 
 	def setLogical(self, output: Gate | OutputPin):
-		if not isinstance(input, (Gate, InputPin)):
-			raise TypeError(f"Invalid logical value 'output' = {output}")
 		self.logical = output
 	
 	def logicalStateChanged(self, state: int):
 		self.state = state
-		self.updateVisual()
-		w = self._wire
-		if w: w.setState(state)
+		if self._wire:
+			self._wire.updateShape()
+		else:
+			self.updateVisual()
 	
 	def disconnect(self):
 		if not self._wire: return
