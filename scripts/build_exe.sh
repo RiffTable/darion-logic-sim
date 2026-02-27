@@ -131,17 +131,26 @@ export PYTHONPATH="$REPO_ROOT/reactor:$REPO_ROOT/control:${PYTHONPATH:-}"
 # ── 8. Build the Nuitka argument list ─────────────────────────
 #
 #   Flags mirrored from build_exe.bat:
-#     --lto=yes             : Link-Time Optimisation (inlines across TUs)
-#     --jobs=N              : Parallel C compilation
-#     --python-flag=...     : Strip docstrings/asserts/warnings, skip site.py
-#     --nofollow-import-to= : Prune tkinter/test bloat from bundle
-#     --include-module=...  : Force-bundle Cython .so extension targets
-#     --include-package=... : Keep orjson / psutil intact
+#     --lto=yes                  : Link-Time Optimisation (inlines across TUs)
+#     --jobs=N                   : Parallel C compilation
+#     --deployment               : Strip Nuitka debug guards; leaner, less
+#                                  suspicious binary
+#     --python-flag=...          : Strip docstrings/asserts/warnings, skip site.py
+#     --nofollow-import-to=      : Prune tkinter/test bloat from bundle
+#     --include-module=...       : Force-bundle Cython .so extension targets
+#     --include-package=...      : Keep orjson / psutil intact
+#     --onefile-tempdir-spec=... : Stable named cache dir instead of random
+#                                  /tmp/<UUID> - random temp dirs trigger AV
+#                                  heuristics on Linux sandboxed distros too
 #
+# Stable onefile extraction dir: XDG_CACHE_HOME or ~/.cache fallback
+ONEFILE_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/DarionLogicSim/$BASENAME"
+
 NUITKA_ARGS=(
     "--output-dir=$OUT_DIR"
     "--lto=yes"
     "--jobs=$CPU_COUNT"
+    "--deployment"
     "--python-flag=no_docstrings"
     "--python-flag=no_warnings"
     "--python-flag=no_asserts"
@@ -159,6 +168,13 @@ NUITKA_ARGS=(
     "--include-module=Control"
     "--include-package=orjson"
     "--include-package=psutil"
+    "--company-name=Farhan"
+    "--product-name=Darion Logic Sim"
+    "--file-version=1.0.0.0"
+    "--product-version=1.0.0.0"
+    "--copyright=Farhan"
+    "--file-description=Darion Logic Sim"
+    "--onefile-tempdir-spec=$ONEFILE_CACHE"
 )
 
 # ── 9. BUILD ──────────────────────────────────────────────────
