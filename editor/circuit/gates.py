@@ -39,9 +39,9 @@ class GateItem(CompItem):
 
 		# Pins
 		if self._setupDefaultPins:
-			for _ in range(self.minInput):
-				self.addInPin(CompEdge.INPUT, 0)
-			self.addOutPin(CompEdge.OUTPUT, 0)
+			for i in range(self.minInput):
+				self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, i)
+			self.addOutPin(CompEdge.OUTPUT, 0).setLogical(self._unit)
 			self.readjustPins()   # fuck
 		
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
@@ -109,8 +109,8 @@ class GateItem(CompItem):
 			return False
 		
 		if size > n:
-			for _ in range(size-n):
-				self.addInPin(CompEdge.INPUT, 0)    # fuck
+			for i in range(n, size):
+				self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, i)    # fuck
 		else:
 			left = n - size
 
@@ -120,7 +120,8 @@ class GateItem(CompItem):
 
 				self.removePin(CompEdge.INPUT, i)
 				left -= 1
-			
+		
+		logic.setlimits(self._unit, size)
 		self.updateShape()
 		return True
 
@@ -136,7 +137,7 @@ class GateItem(CompItem):
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.addInPin(CompEdge.INPUT, 0)
+			self.peekingPin = self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
 			self.updateShape()
 			# fuck
 	

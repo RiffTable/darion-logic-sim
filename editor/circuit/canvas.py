@@ -88,6 +88,7 @@ class CircuitScene(QGraphicsScene):
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
 		comp.cutConnections()
+		logic.hide([comp._unit])
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
@@ -108,9 +109,7 @@ class CircuitScene(QGraphicsScene):
 	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
 		g_wire = self.ghostWire
 
-		if g_wire == None:
-			self.setState(EditorState.NORMAL)
-			return
+		assert g_wire != None
 		g_pin = self.ghostPin
 		source = g_wire.source
 		finishing = False
@@ -150,11 +149,11 @@ class CircuitScene(QGraphicsScene):
 			
 			g_wire.supplies.append(target); target.setWire(g_wire)
 
-			# horse-egg
-			# g, idx = target.logical
-			# if isinstance(g, Gate) and idx < g.inputlimit:
-			# 	g.setlimits(idx)
-			# self.logic.connect(g, source.logical, idx)
+			if target.logical and source.logical:
+				unit, idx = target.logical
+				if isinstance(unit, Gate) and idx < unit.inputlimit:
+					unit.setlimits(idx)
+				logic.connect(unit, source.logical, idx)
 
 			g_wire.updateShape()
 			target.highlight(False)
@@ -244,8 +243,6 @@ class CircuitScene(QGraphicsScene):
 					is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
-					u = item.getUnit()
-					if u: logic.setlimits(u, new_size)
 		
 		# if key == Key.Key_M:
 		# 	for item in self.selectedItems():
@@ -323,10 +320,9 @@ class CircuitScene(QGraphicsScene):
 				self.addItem(w)
 
 		# # DEBUG
-		# if key == Key.Key_Space:
-		# 	for item in self.selectedItems():
-		# 		if isinstance(item, CompItem):
-		# 			print(item.getData())
-		# 			break
+		if key == Key.Key_Space:
+			print("----------------------")
+			for comp in self.comps:
+				logic.output(comp._unit)
 
 		super().keyPressEvent(event)

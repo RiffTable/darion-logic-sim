@@ -45,6 +45,8 @@ LOOKUP: dict[int, type[CompItem]] = {
 	4: NORGate,
 	5: XORGate,
 	6: XNORGate,
+	11: InputItem,
+	21: OutputItem
 }
 
 # Setting up ID for all components

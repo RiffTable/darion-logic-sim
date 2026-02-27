@@ -33,6 +33,8 @@ class WireItem(QGraphicsPathItem):
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
+		self.logicalConnect(beg, end)
+
 		self._updateShape()
 
 		WireItem._COUNT += 1
@@ -49,10 +51,18 @@ class WireItem(QGraphicsPathItem):
 
 
 	# Connection configuration
+	@classmethod
+	def logicalConnect(cls, outpin: OutputPinItem, inpin: InputPinItem):
+		if inpin.logical and outpin.logical:
+			u, i = inpin.logical
+			logic.connect(u, outpin.logical, i)
+	
 	def addSupply(self, pin: InputPinItem):
 		if pin in self.supplies: return
 		self.supplies.append(pin)
 		pin.setWire(self)
+
+		self.logicalConnect(self.source, pin)
 		self.updateShape()
 	
 	def cutSupply(self, pin: InputPinItem):
