@@ -152,30 +152,63 @@ class CompItem(QGraphicsItem):
 
 	### Facing and Rotation
 	def setFacing(self, facing: Facing):
-		if facing == self.facing:
-			return
-		
-		self.facing = facing
-		self.readjustPins()
+		rotation = (facing - self.facing) % 4
+		if rotation == 0: return
 
-	def rotate(self, clockwise: bool = True):
-		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
+		w, h = self.getAbsSize()
+		self.facing = facing
+		new_w, new_h = self.getAbsSize()
+
+		if rotation == 1:  
+			rotator = lambda x, y: (-y, x)      # 90° CW
+		elif rotation == 2:
+			rotator = lambda x, y: (-x, -y)     # 180° CW
+		elif rotation == 3:
+			rotator = lambda x, y: (y, -x)      # 270° CW
+		
+		for edge, pinlist in self._pinslist.items():
+			fa = self.edgeToFacing(edge)
+			for pin in pinlist:
+				pin.facing = fa
+				x, y = pin.pos().toTuple()
+
+				dx = x / (w*GRID.SIZE) - 0.5
+				dy = y / (h*GRID.SIZE) - 0.5
+
+				new_dx, new_dy = rotator(dx, dy)
+				pin.setPos(
+					(new_dx + 0.5) * new_w*GRID.SIZE,
+					(new_dy + 0.5) * new_h*GRID.SIZE
+				)
+
+		self.updateShape()
+
 	def mirror(self):
 		self.isMirrored = not self.isMirrored
-		self.readjustPins()
-	def flip(self):
-		self.isMirrored = not self.isMirrored
-		self.setFacing(Facing(self.facing+2))
-	
-	def readjustPins(self):
-		"""Automatically calls `updateShape()` right after"""
-		for edge, pins in self._pinslist.items():
-			fa, gen = self.getPinPosGenerator(edge)
+		w, h = self.getAbsSize()
 
-			for i, pin in enumerate(pins):
+		if self.facing%2 == 0:
+			mirrorer = lambda x, y: (x, h*GRID.SIZE-y)    # Horizontal
+		else:
+			mirrorer = lambda x, y: (w*GRID.SIZE-x, y)    # Vertical
+		
+		for edge, pinlist in self._pinslist.items():
+			fa = self.edgeToFacing(edge)
+			for pin in pinlist:
 				pin.facing = fa
-				self.setPinPos(pin, gen(i))
+				x, y = pin.pos().toTuple()
+				new_x, new_y = mirrorer(x, y)
+
+				pin.setPos(new_x, new_y)
+
 		self.updateShape()
+	
+	def rotate(self, clockwise: bool = True):
+		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
+	def flip(self):
+		# A bit unoptimal but sure...
+		self.mirror()
+		self.setFacing(Facing(self.facing+2))
 	
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
 		return Facing(self.facing + (-edge if self.isMirrored else edge))

@@ -39,10 +39,16 @@ class GateItem(CompItem):
 
 		# Pins Setup
 		if self._setupDefaultPins:
-			for i in range(self.minInput):
-				self.addInputPin(CompEdge.INPUT, 0)
-			self.addOutputPin(CompEdge.OUTPUT, 0)
-			self.readjustPins()   # fuck
+			if self.minInput <= 2:
+				for i in range(self.minInput):
+					self.addInputPin(CompEdge.INPUT, 2*i+1)
+			else:
+				for i in range(self.minInput):
+					self.addInputPin(CompEdge.INPUT, 2*i)
+			
+			_, h = self.getRelSize()
+			self.addOutputPin(CompEdge.OUTPUT, h//2)
+			self.updateShape()
 		
 		# Pins Casting
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
@@ -95,9 +101,27 @@ class GateItem(CompItem):
 
 	# Pin Configuration
 	def pushGatePin(self):
-		...
+		"""Call `updateShape()` afterwards if needed"""
+		n = len(self.inputPins)
+		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
+
+		if n == 2:
+			self.setPinPos(self.inputPins[0], gen(0))
+			self.setPinPos(self.inputPins[1], gen(2))
+		
+		return self.addInputPin(CompEdge.INPUT, 2*n).setLogical(self._unit, n)
+	
 	def popGatePin(self):
-		...
+		"""Call `updateShape()` afterwards if needed"""
+		n = len(self.inputPins)
+		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
+
+		if n == 3:
+			self.setPinPos(self.inputPins[0], gen(1))
+			self.setPinPos(self.inputPins[1], gen(3))
+		
+		self.removePin(CompEdge.INPUT, n-1)
+
 	
 	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
 		if (activePinCountChange == +1) and pin is self.proxyPin():
@@ -117,7 +141,7 @@ class GateItem(CompItem):
 		
 		if size > n:
 			for i in range(n, size):
-				self.addInputPin(CompEdge.INPUT, 0).setLogical(self._unit, i)    # fuck
+				self.pushGatePin()
 		else:
 			left = n - size
 
@@ -125,7 +149,7 @@ class GateItem(CompItem):
 				pin = self.inputPins[i]
 				if left == 0 or pin.hasWire(): break
 
-				self.removePin(CompEdge.INPUT, i)
+				self.popGatePin()
 				left -= 1
 		
 		logic.setlimits(self._unit, size)
@@ -144,9 +168,8 @@ class GateItem(CompItem):
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.addInputPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
+			self.peekingPin = self.pushGatePin()
 			self.updateShape()
-			# fuck
 	
 	def betterHoverEnter(self):
 		self.peekOut()
@@ -154,14 +177,14 @@ class GateItem(CompItem):
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
 		if self.peekingPin and not self.peekingPin.hasWire():
-			self.removePin(CompEdge.INPUT, self.proxyIndex)
+			self.popGatePin()
 			self.updateShape()
-			# fuck
+		
 		self.peekingPin = None
 	
 	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
 		super()._updateHoverStatus(hoverStatus, hoveredPin)
-		
+
 		# Enable proxyHighlight if only the gate is being hovered, not its pins
 		proxy = self.proxyPin()
 		if proxy:
@@ -170,24 +193,7 @@ class GateItem(CompItem):
 
 	# Events
 	def _updateShape(self):
-		n = len(self.inputPins)
 		_, h = self.getRelSize()
-		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
-
-		if n == 1:
-			p = self.inputPins[0]
-			p.facing = fa
-			self.setPinPos(p, gen(h//2))
-		elif n == 2:
-			self.inputPins[0].facing = self.inputPins[1].facing = fa
-			self.setPinPos(self.inputPins[0], gen(h//2-1))
-			self.setPinPos(self.inputPins[1], gen(h//2+1))
-		else:
-			m = h//(n-1)
-
-			for i, p in enumerate(self.inputPins):
-				p.facing = fa
-				self.setPinPos(p, gen(m*i))
 			
 		opin = self.outputPin
 		fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)

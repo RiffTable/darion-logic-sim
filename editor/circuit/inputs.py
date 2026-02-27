@@ -24,8 +24,8 @@ class InputItem(CompItem):
 		
 		# Pins Setup
 		if self._setupDefaultPins:
-			self.addOutputPin(CompEdge.OUTPUT, 0)
-			self.readjustPins()   # fuck
+			self.addOutputPin(CompEdge.OUTPUT, 1)
+			self.updateShape()
 		
 		# Pins Casting
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
