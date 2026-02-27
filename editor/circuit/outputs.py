@@ -22,12 +22,16 @@ class OutputItem(CompItem):
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 		
-		# Pins
+		# Pins Setup
 		if self._setupDefaultPins:
-			self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, 0)
+			self.addInputPin(CompEdge.INPUT, 0).setLogical(self._unit, 0)
 			self.readjustPins()   # fuck
 		
+		# Pins Casting
 		self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
+
+		# Setting Pin Logicals
+		self.inputPin.setLogical(self._unit, 0)
 
 
 	def unitStateChanged(self, state: int):

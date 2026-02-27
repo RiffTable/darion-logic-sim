@@ -22,12 +22,18 @@ class InputItem(CompItem):
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 		
+		# Pins Setup
 		if self._setupDefaultPins:
-			self.addOutPin(CompEdge.OUTPUT, 0).setLogical(self._unit)
+			self.addOutputPin(CompEdge.OUTPUT, 0)
 			self.readjustPins()   # fuck
 		
+		# Pins Casting
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
 
+		# Setting Pin logicals
+		self.outputPin.setLogical(self._unit)
+
+		# Final Setup
 		self.setState(False)
 
 

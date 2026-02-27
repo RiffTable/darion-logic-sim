@@ -37,21 +37,23 @@ class GateItem(CompItem):
 		self.minInput = self.MIN_INPUT
 		self.maxInput = self.MAX_INPUT
 
-		# Pins
+		# Pins Setup
 		if self._setupDefaultPins:
 			for i in range(self.minInput):
-				self.addInPin(CompEdge.INPUT, 0)
-			self.addOutPin(CompEdge.OUTPUT, 0)
+				self.addInputPin(CompEdge.INPUT, 0)
+			self.addOutputPin(CompEdge.OUTPUT, 0)
 			self.readjustPins()   # fuck
 		
+		# Pins Casting
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
 		
-		# Setting logicals for pins (Works for both regular constructor and deserialization)
+		# Setting Pin Logicals
 		for i, p in enumerate(self.inputPins):
 			p.setLogical(self._unit, i)
 		self.outputPin.setLogical(self._unit)
 
+		# Final Setup
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
 	
@@ -115,7 +117,7 @@ class GateItem(CompItem):
 		
 		if size > n:
 			for i in range(n, size):
-				self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, i)    # fuck
+				self.addInputPin(CompEdge.INPUT, 0).setLogical(self._unit, i)    # fuck
 		else:
 			left = n - size
 
@@ -142,7 +144,7 @@ class GateItem(CompItem):
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
+			self.peekingPin = self.addInputPin(CompEdge.INPUT, 0).setLogical(self._unit, self.proxyIndex)
 			self.updateShape()
 			# fuck
 	

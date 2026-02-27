@@ -23,7 +23,6 @@ class CompItem(QGraphicsItem):
 	NAME: str
 	LOGIC: int
 	def __init__(self, pos: QPointF, **kwargs):
-
 		# Properties
 		self.tag = self.TAG
 		self.state: int = Const.LOW
@@ -59,23 +58,18 @@ class CompItem(QGraphicsItem):
 		self._cached_hitbox = QPainterPath()
 		self._prop_change_listener: list[Callable[[], None]] = []
 
-		self._unit = cast(Any, logic.getcomponent(self.LOGIC))   # !fuckfuckfuck
+		self._unit = cast(Any, logic.getcomponent(self.LOGIC))
 		self._unit.listener.append(self.unitStateChanged)
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
 			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
-			_map = self.edgeToFacingMap()
 			for edge, pins in new_pinslist.items():
-				facing = _map[edge]
+				facing = self.edgeToFacing(edge)
 				pinslist = self._pinslist[edge]
 				for pin in pins:
 					PinType = InputPinItem if pin["isInput"] else OutputPinItem
-					newpin = PinType(
-						self,
-						QPointF(*pin["pos"]),
-						facing
-					)
+					newpin = PinType(self, QPointF(*pin["pos"]), facing)
 					#? Logical Not Set Yet. Do that in the child classes
 					pinslist.append(newpin)
 
@@ -85,6 +79,19 @@ class CompItem(QGraphicsItem):
 		self.hoverLeaveTimer.setSingleShot(True)
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
 		self.hoverLeaveTimer.setInterval(30)
+
+		# How to Write Constructors for children of CompItem:
+		# 1. Properties
+		# 2. Pins Setup
+		# 3. Pins Casting
+		# 4. Setting Pin Logicals (For both regular constructor and deserialization)
+		# 5. Final Setup
+		# Methods to Override (Mandatory):
+		#=> getRel Size/Padding, 
+		# Methods to Override (Optional):
+		#=> getData, get/set Properties, pinUpdate, proxyPin
+		#=> betterHoverEnter, betterHoverLeave
+		#=> draw
 	
 
 	@property
@@ -170,25 +177,15 @@ class CompItem(QGraphicsItem):
 				self.setPinPos(pin, gen(i))
 		self.updateShape()
 	
-	def edgeToFacingMap(self) -> dict[CompEdge, Facing]:
-		fa = self.facing
-		M = self.isMirrored
-		return {
-			CompEdge(e): Facing(fa + (-e if M else e))
-			for e in range(4)
-		}
+	def edgeToFacing(self, edge: CompEdge) -> Facing:
+		return Facing(self.facing + (-edge if self.isMirrored else edge))
 	
-	def facingToEdgeMap(self) -> dict[Facing, CompEdge]:
-		fa = self.facing
-		M = self.isMirrored
-		return {
-			Facing(f): CompEdge((f - fa) * (-1 if M else 1))
-			for f in range(4)
-		}
+	def facingToEdge(self, facing: Facing) -> CompEdge:
+		return CompEdge((facing - self.facing) * (-1 if self.isMirrored else 1))
 
 
 	### Pin Configuration
-	def addInPin(self, edge: CompEdge, index: int) -> InputPinItem:
+	def addInputPin(self, edge: CompEdge, index: int) -> InputPinItem:
 		"""Call updateShape() afterwards if needed"""
 		pinslist = self._pinslist[edge]
 
@@ -197,7 +194,7 @@ class CompItem(QGraphicsItem):
 		pinslist.append(newpin)
 		return newpin
 	
-	def addOutPin(self, edge: CompEdge, index: int) -> OutputPinItem:
+	def addOutputPin(self, edge: CompEdge, index: int) -> OutputPinItem:
 		"""Call updateShape() afterwards if needed"""
 		pinslist = self._pinslist[edge]
 
@@ -290,12 +287,11 @@ class CompItem(QGraphicsItem):
 		self._rect = self.getRect()
 
 		girth = GRID.SIZE
-		_map = self.facingToEdgeMap()
 		hitbox_rect = self._rect.adjusted(
-			-girth if len(self._pinslist[_map[Facing.WEST]])  > 0 else 0,
-			-girth if len(self._pinslist[_map[Facing.NORTH]]) > 0 else 0,
-			+girth if len(self._pinslist[_map[Facing.EAST]])  > 0 else 0,
-			+girth if len(self._pinslist[_map[Facing.SOUTH]]) > 0 else 0
+			-girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
+			-girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
+			+girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
 		)
 		
 		path = QPainterPath()
