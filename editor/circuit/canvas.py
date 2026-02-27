@@ -126,6 +126,9 @@ class CircuitScene(QGraphicsScene):
 				# Swap Connections
 				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
 				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
+
+				if target.logical: logic.disconnect(*target.logical)
+				g_wire.logicalConnect(source, target)
 				
 				g_pin.setWire(t_wire);  g_wire.updateShape()
 				target.setWire(g_wire); t_wire.updateShape()
@@ -134,6 +137,7 @@ class CircuitScene(QGraphicsScene):
 				if len(g_wire.supplies) == 1: self.wires.append(g_wire)
 				finishing = False
 			else:
+				# Connecting wire to an empty pin
 				finishing = True
 		
 		if finishing:
@@ -151,8 +155,9 @@ class CircuitScene(QGraphicsScene):
 
 			if target.logical and source.logical:
 				unit, idx = target.logical
-				if isinstance(unit, Gate) and idx < unit.inputlimit:
-					unit.setlimits(idx)
+				# print(f"{isinstance(unit, Gate)} and {idx >= unit.inputlimit}")
+				if isinstance(unit, Gate) and idx >= unit.inputlimit:
+					unit.setlimits(idx+1)
 				logic.connect(unit, source.logical, idx)
 
 			g_wire.updateShape()

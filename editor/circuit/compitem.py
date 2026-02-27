@@ -60,7 +60,7 @@ class CompItem(QGraphicsItem):
 		self._prop_change_listener: list[Callable[[], None]] = []
 
 		self._unit = cast(Any, logic.getcomponent(self.LOGIC))   # !fuckfuckfuck
-		# cast(Gate, self._unit)
+		self._unit.listener.append(self.unitStateChanged)
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
@@ -76,6 +76,7 @@ class CompItem(QGraphicsItem):
 						QPointF(*pin["pos"]),
 						facing
 					)
+					#? Logical Not Set Yet. Do that in the child classes
 					pinslist.append(newpin)
 
 		# Proxy & Hovering

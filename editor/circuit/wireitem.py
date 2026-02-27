@@ -82,6 +82,7 @@ class WireItem(QGraphicsPathItem):
 
 		self.source.setWire(None)
 		for supply in self.supplies:
+			if supply.logical: logic.disconnect(*supply.logical)
 			supply.setWire(None)
 	
 	# Events

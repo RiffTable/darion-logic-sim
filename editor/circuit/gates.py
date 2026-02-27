@@ -40,12 +40,17 @@ class GateItem(CompItem):
 		# Pins
 		if self._setupDefaultPins:
 			for i in range(self.minInput):
-				self.addInPin(CompEdge.INPUT, 0).setLogical(self._unit, i)
-			self.addOutPin(CompEdge.OUTPUT, 0).setLogical(self._unit)
+				self.addInPin(CompEdge.INPUT, 0)
+			self.addOutPin(CompEdge.OUTPUT, 0)
 			self.readjustPins()   # fuck
 		
 		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
 		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+		
+		# Setting logicals for pins (Works for both regular constructor and deserialization)
+		for i, p in enumerate(self.inputPins):
+			p.setLogical(self._unit, i)
+		self.outputPin.setLogical(self._unit)
 
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
