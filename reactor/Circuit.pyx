@@ -481,8 +481,6 @@ cdef class Circuit:
             dictionary.append(gate.json_data())
         return dictionary
 
-
-
     def save_as_ic(self, location, ic_name="IC"):
         if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
@@ -493,11 +491,12 @@ cdef class Circuit:
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
-        flattened = self.flatten_circuit()
-        with open(location, 'wb') as file:
-            file.write(orjson.dumps(flattened))
-        self.clearcircuit()
-        self.readfromjson(location)
+        if len(self.get_ics()):
+            flattened = self.flatten_circuit()
+            with open(location, 'wb') as file:
+                file.write(orjson.dumps(flattened))
+            self.clearcircuit()
+            self.readfromjson(location)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name

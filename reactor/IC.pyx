@@ -28,7 +28,7 @@ cdef class IC:
     def __str__(self):
         return self.name if self.custom_name == '' else self.custom_name
 
-    cpdef getcomponent(self, int choice):
+    cpdef object getcomponent(self, int choice):
         cdef object gt = get(choice)
         if gt:
             self.counter+=1
@@ -47,7 +47,7 @@ cdef class IC:
             gt.code = (choice, rank, self.code)
         return gt
 
-    cpdef addgate(self, object source):
+    cpdef void addgate(self, object source):
         if source.id==INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
@@ -62,7 +62,7 @@ cdef class IC:
             source.name = source.__class__.__name__+'-'+str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
-    cpdef configure(self, list dictionary):
+    cpdef void configure(self, list dictionary):
         cdef dict pseudo = {}
         pseudo[('X', 'X')] = None
         self.custom_name = dictionary[CUSTOM_NAME]
@@ -70,7 +70,7 @@ cdef class IC:
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
-    cpdef load_components(self, list dictionary, dict pseudo):
+    cpdef void load_components(self, list dictionary, dict pseudo):
         cdef object gate
         for comp_code in dictionary[COMPONENTS]:
             gate = self.getcomponent(comp_code[0])
@@ -78,7 +78,7 @@ cdef class IC:
 
 
 
-    cpdef clone(self, dict pseudo):
+    cpdef void clone(self, dict pseudo):
         cdef object gate
         cdef object code
 
@@ -87,10 +87,12 @@ cdef class IC:
             gate = pseudo[code]
             gate.clone(i, pseudo)
 
-    def load_to_cluster(self, set cluster):
-        cluster.add(i for i in self.outputs+self.inputs+self.internal)
+    cpdef void load_to_cluster(self, set cluster):
+        cdef Gate i
+        for i in self.outputs+self.inputs+self.internal:
+            cluster.add(i)
 
-    cpdef copy_data(self, set cluster):
+    cpdef list copy_data(self, set cluster):
         cdef list dictionary = [            
             self.custom_name,
             self.code,
@@ -99,7 +101,7 @@ cdef class IC:
         ]
         return dictionary
     
-    cpdef json_data(self):
+    cpdef list json_data(self):
         cdef list dictionary = [            
             self.custom_name,
             self.code,
@@ -109,7 +111,7 @@ cdef class IC:
         return dictionary
 
 
-    cpdef implement(self, dict pseudo):
+    cpdef void implement(self, dict pseudo):
         cdef object gate
         cdef object code
         for i in self.map:
@@ -117,7 +119,7 @@ cdef class IC:
             gate = pseudo[code]
             gate.clone(i, pseudo)
 
-    cpdef hide(self):
+    cpdef void hide(self):
         cdef OutputPin pin_out
         cdef InputPin pin_in
         cdef Profile* hitlist
@@ -138,7 +140,7 @@ cdef class IC:
                     src = <Gate>source
                     pop(src.hitlist, <void*>pin_in, index)
 
-    cpdef reveal(self):
+    cpdef void reveal(self):
         cdef InputPin pin_in
         cdef OutputPin pin_out
         cdef int index
@@ -160,24 +162,24 @@ cdef class IC:
             for i in range(size):
                 reveal(hitlist[i], pin_out)      
 
-    cpdef reset(self):
+    cpdef void reset(self):
         for i in self.inputs+self.internal+self.outputs:
             if i.id!=IC_ID:
                 (<Gate>i).reset()
             else:
                 (<IC>i).reset()
 
-    cpdef showinputpins(self):
+    cpdef void showinputpins(self):
         for i, gate in enumerate(self.inputs):
             print(f'{i}. {gate}')
 
-    cpdef showoutputpins(self):
+    cpdef void showoutputpins(self):
         for i, gate in enumerate(self.outputs):
             print(f'{i}. {gate}')
     # cdef purge(self):
     #     for i in self.inputs+self.internal+self.outputs:
     #         i.purge()
-    cpdef info(self):
+    cpdef void info(self):
         """Show all IC components in an organized way."""
         print(f"\n  IC: {self.name} (Code: {self.code})")
         print("  " + "-" * 40)

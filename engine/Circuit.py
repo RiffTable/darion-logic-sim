@@ -463,12 +463,12 @@ class Circuit:
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
-        flattened = self.flatten_circuit()
-        with open(location, 'wb') as file:
-            file.write(orjson.dumps(flattened))
-        self.clearcircuit()
-        self.readfromjson(location)
-        input('wait')
+        if len(self.get_ics()):
+            flattened = self.flatten_circuit()
+            with open(location, 'wb') as file:
+                file.write(orjson.dumps(flattened))
+            self.clearcircuit()
+            self.readfromjson(location)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
