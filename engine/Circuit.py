@@ -1,10 +1,11 @@
 
 import orjson
-
+import os
 from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import *
 from IC import IC
 from Store import get
+from collections import deque
 
 def turnoff(gate: Gate, queue: list, wave_limit: int, eval_ptr: list = None):
     """Set all targets to UNKNOWN and propagate."""
@@ -412,11 +413,62 @@ class Circuit:
                 self.counter += gate.counter
             else:
                 gate.clone(gate_dict, pseudo)
+    def flatten_circuit(self):
+        dictionary = []
+        queue=[]
+        index=0
+        size=0
+        outputs=[i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
+        inputs=[i for i in self.objlist[INPUT_PIN_ID] if i is not None]
+        for gate in outputs+inputs:
+            gate.scheduled=True
+            queue.append(gate)
+        size=len(queue)
+        index=len(outputs)
+        while index<size:
+            gate = queue[index]
+            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+                for profile in gate.hitlist:
+                    target = profile.target
+                    target.sources[profile.index] = gate.sources[0]
+            elif gate.id==OUTPUT_PIN_ID and gate.hitlist:
+                for profile in gate.hitlist:
+                    target = profile.target
+                    target.sources[profile.index] = gate.sources[0]
+            for profile in gate.hitlist:
+                target = profile.target
+                if not target.scheduled:
+                    target.scheduled = True
+                    queue.append(target)
+                    size+=1
+            index+=1
+        pins=len(inputs)+len(outputs)
+        for index in range(pins):
+            gate = queue[index]
+            dictionary.append(gate.json_data())
+        for index in range(pins,size):
+            gate = queue[index]
+            if gate.id >= INPUT_PIN_ID:
+                continue
+            dictionary.append(gate.json_data())
+        return dictionary
 
     def save_as_ic(self, location: str, ic_name: str = "IC"):
         if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
             return
+        for gate in self.objlist[INPUT_PIN_ID]:
+            if gate and gate.sources[0] is not None:
+                raise ValueError('Input Pin has extra sources')
+        for gate in self.objlist[OUTPUT_PIN_ID]:
+            if gate and gate.hitlist:
+                raise ValueError('Output Pin has extra targets')
+        flattened = self.flatten_circuit()
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(flattened))
+        self.clearcircuit()
+        self.readfromjson(location)
+        input('wait')
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
@@ -426,7 +478,7 @@ class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        # self.getIC(location)
+        self.getIC(location)
 
     def getIC(self, location: str):
         myIC = self.getcomponent(IC_ID)

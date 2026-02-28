@@ -5,8 +5,7 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 from Gates cimport Gate, InputPin, OutputPin, Profile, hide, reveal, pop
-
-from Store cimport get
+from Store cimport get,decode
 from Const cimport *
 
 cdef class IC:
@@ -69,82 +68,54 @@ cdef class IC:
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
         self.load_components(dictionary, pseudo)
-        self.clone(pseudo, 0)
-
-    cdef decode(self, list code):
-        if len(code) == 2:
-            return tuple(code)
-        return (code[0], code[1], self.decode(code[2]))
+        self.clone(pseudo)
 
     cpdef load_components(self, list dictionary, dict pseudo):
         cdef object gate
         for comp_code in dictionary[COMPONENTS]:
             gate = self.getcomponent(comp_code[0])
-            pseudo[self.decode(comp_code)] = gate
+            pseudo[decode(comp_code)] = gate
 
-    cpdef json_data(self):
-        cdef list dictionary = [
-            
-            self.custom_name,
-            self.code,
-            [gate.code for gate in self.internal+self.inputs+self.outputs],
-            []
-        ]
-        for i in self.internal+self.inputs+self.outputs:
-            dictionary[MAP].append(i.json_data())
-        return dictionary
 
-    cpdef clone(self, dict pseudo,int depth):
+
+    cpdef clone(self, dict pseudo):
         cdef object gate
         cdef object code
-        if depth>250:
-            raise RecursionError("Infinite recursion detected, map is corrupted")
-        for i in self.map:
-            code = self.decode(i[CODE])
-            gate = pseudo[code]
-            if gate.id==IC_ID:
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-                (<IC>gate).clone(pseudo,depth+1)
-                self.counter+=gate.counter
-            else:
-                gate.clone(i, pseudo)
 
-    cpdef load_to_cluster(self, set cluster):
-        for i in self.inputs+self.internal+self.outputs:
-            if i.id==IC_ID:
-                cluster.add(i)
-                (<IC>i).load_to_cluster(cluster)
-            else:
-                cluster.add(i)
+        for i in self.map:
+            code = decode(i[CODE])
+            gate = pseudo[code]
+            gate.clone(i, pseudo)
+
+    def load_to_cluster(self, set cluster):
+        cluster.add(i for i in self.outputs+self.inputs+self.internal)
 
     cpdef copy_data(self, set cluster):
-        cdef list dictionary = [
-            
+        cdef list dictionary = [            
             self.custom_name,
             self.code,
-            [gate.code for gate in self.internal+self.inputs+self.outputs],
-            [],
+            [i.code for i in self.outputs+self.inputs+self.internal],
+            [i.copy_data(cluster) for i in self.outputs+self.inputs+self.internal],
         ]
-        for i in self.internal+self.inputs+self.outputs:
-            dictionary[MAP].append(i.copy_data(cluster))
+        return dictionary
+    
+    cpdef json_data(self):
+        cdef list dictionary = [            
+            self.custom_name,
+            self.code,
+            [i.code for i in self.outputs+self.inputs+self.internal],
+            [i.json_data() for i in self.outputs+self.inputs+self.internal],
+        ]
         return dictionary
 
-    cpdef implement(self, dict pseudo,int depth):
+
+    cpdef implement(self, dict pseudo):
         cdef object gate
         cdef object code
-        if depth>250:
-            raise RecursionError("Infinite recursion detected, map is corrupted")
         for i in self.map:
-            code = self.decode(i[CODE])
+            code = decode(i[CODE])
             gate = pseudo[code]
-            if gate.id==IC_ID:
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-                (<IC>gate).implement(pseudo,depth+1)
-                self.counter+=gate.counter
-            else:
-                gate.clone(i, pseudo)
+            gate.clone(i, pseudo)
 
     cpdef hide(self):
         cdef OutputPin pin_out

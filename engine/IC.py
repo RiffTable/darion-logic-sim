@@ -2,7 +2,7 @@
 from __future__ import annotations
 from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
 from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES
-
+from collections import deque
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
@@ -33,8 +33,8 @@ class IC:
         """Create a sub-component inside this IC."""
         from Store import get
         gt = get(choice)
-        self.counter += 1
         if gt:
+            self.counter += 1
             if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
@@ -86,67 +86,86 @@ class IC:
             gate = self.getcomponent(comp_code[0])
             pseudo[self.decode(comp_code)] = gate
 
-    def json_data(self) -> list:
-        dictionary = [
-            
+    def create_data(self):
+        dictionary = [            
             self.custom_name,
             self.code,
-            [gate.code for gate in self.internal + self.inputs + self.outputs],
+            [],
             [],
         ]
-        for i in self.internal + self.inputs + self.outputs:
-            dictionary[MAP].append(i.json_data())
+        queue=[]
+        index=0
+        size=0
+        for gate in self.outputs+self.inputs:
+            gate.scheduled=True
+            queue.append(gate)
+        size=len(queue)
+        index=len(self.outputs)
+        while index<size:
+            gate = queue[index]
+            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+                for profile in gate.hitlist:
+                    target = profile.target
+                    target.sources[profile.index] = gate.sources[0]
+            elif gate.id==OUTPUT_PIN_ID and gate.hitlist:
+                for profile in gate.hitlist:
+                    target = profile.target
+                    target.sources[profile.index] = gate.sources[0]
+            for profile in gate.hitlist:
+                target = profile.target
+                if not target.scheduled:
+                    target.scheduled = True
+                    queue.append(target)
+                    size+=1
+            index+=1
+        pins=len(self.inputs)+len(self.outputs)
+        for index in range(pins):
+            gate = queue[index]
+            dictionary[COMPONENTS].append(gate.code)
+            dictionary[MAP].append(gate.json_data())
+        for index in range(pins,size):
+            gate = queue[index]
+            if gate.id >= INPUT_PIN_ID:
+                continue
+            dictionary[COMPONENTS].append(gate.code)
+            dictionary[MAP].append(gate.json_data())
         return dictionary
 
-    def clone(self, pseudo: dict, depth: int = 0):
+    def json_data(self) -> list:
+        dictionary = [            
+            self.custom_name,
+            self.code,
+            [i.code for i in self.outputs+self.inputs+self.internal],
+            [i.json_data() for i in self.outputs+self.inputs+self.internal],
+        ]
+        return dictionary
+
+    def clone(self, pseudo: dict):
         """Wire up all sub-components."""
-        if depth > 250:
-            raise RecursionError("IC depth limit exceeded")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
-            if gate.id == IC_ID:
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-                gate.clone(pseudo, depth + 1)
-                self.counter += gate.counter
-            else:
-                gate.clone(i, pseudo)
+            gate.clone(i, pseudo)
 
     def load_to_cluster(self, cluster: set):
-        for i in self.inputs + self.internal + self.outputs:
-            if i.id == IC_ID:
-                cluster.add(i)
-                i.load_to_cluster(cluster)
-            else:
-                cluster.add(i)
+        cluster.add(self.outputs+self.inputs+self.internal)
 
     def copy_data(self, cluster: set) -> list:
-        dictionary = [
-            
+        dictionary = [            
             self.custom_name,
             self.code,
-            [gate.code for gate in self.internal + self.inputs + self.outputs],
-            [],
+            [i.code for i in self.outputs+self.inputs+self.internal],
+            [i.copy_data(cluster) for i in self.outputs+self.inputs+self.internal],
         ]
-        for i in self.internal + self.inputs + self.outputs:
-            dictionary[MAP].append(i.copy_data(cluster))
         return dictionary
+        
 
-    def implement(self, pseudo: dict, depth: int = 0):
+    def implement(self, pseudo: dict):
         """Build connections from the map (paste path)."""
-        if depth > 250:
-            raise RecursionError("IC depth limit exceeded")
         for i in self.map:
             code = self.decode(i[CODE])
             gate = pseudo[code]
-            if gate.id == IC_ID:
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-                gate.implement(pseudo, depth + 1)
-                self.counter += gate.counter
-            else:
-                gate.clone(i, pseudo)
+            gate.clone(i, pseudo)
 
     def hide(self):
         """Disconnect output pins from targets, input pins from sources."""

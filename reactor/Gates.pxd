@@ -76,7 +76,6 @@ cdef class Gate:
     cpdef str getoutput(self)
     cpdef list json_data(self)
     cpdef list copy_data(self, set cluster)
-    cdef tuple decode(self, list code)
     cpdef void clone(self, list dictionary, dict pseudo)
     cpdef void load_to_cluster(self, set cluster)
 

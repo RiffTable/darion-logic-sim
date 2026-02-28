@@ -8,6 +8,7 @@ from Gates cimport vector
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from Const cimport *
 from libc.string cimport memmove
+from Store cimport decode
             
 cdef inline void pop(vector[Profile]& hitlist,void* target, int pin_index):
     cdef Profile* profile= hitlist.data()
@@ -187,17 +188,12 @@ cdef class Gate:
             ]
         return dictionary
 
-    cdef tuple decode(self,list code):
-        if len(code) == 2:
-            return tuple(code)
-        return (code[0], code[1], self.decode(code[2]))
-
     cpdef void clone(self, list dictionary,dict pseudo):
         self.custom_name = dictionary[CUSTOM_NAME]
         self.setlimits(dictionary[INPUTLIMIT])
         for index,source in enumerate(dictionary[SOURCES]):
             if source[0]!='X':
-                self.connect(pseudo[self.decode(source)],index)
+                self.connect(pseudo[decode(source)],index)
 
     cpdef void load_to_cluster(self,set cluster):
         cluster.add(self)
@@ -341,7 +337,7 @@ cdef class Probe(Gate):
         self.setlimits(dictionary[INPUTLIMIT])
         for index,source in enumerate(dictionary[SOURCES]):
             if source[0]!='X':
-                self.connect(pseudo[self.decode(source)],index)
+                self.connect(pseudo[decode(source)],index)
 
     cdef void process(self):
         cdef Gate source=self.sources[0]

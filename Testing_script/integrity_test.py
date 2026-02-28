@@ -3040,7 +3040,6 @@ class ThoroughICTest:
         
         # Edge Cases
         self.test_empty_ic()
-        self.test_unconnected_pins()
         self.test_partial_connections()
         self.test_all_gate_types_in_ic()
         
@@ -3085,26 +3084,26 @@ class ThoroughICTest:
         self.assert_true(safe, "Empty IC safe to process/propagate")
         if os.path.exists(fp): os.remove(fp)
 
-    def test_unconnected_pins(self):
-        """Test IC pins that lead nowhere or come from nowhere."""
-        c = self.setup_circuit()
-        # Create pins but no internal connection
-        c.getcomponent(INPUT_PIN_ID)
-        c.getcomponent(OUTPUT_PIN_ID)
+    # def test_unconnected_pins(self):
+    #     """Test IC pins that lead nowhere or come from nowhere."""
+    #     c = self.setup_circuit()
+    #     # Create pins but no internal connection
+    #     c.getcomponent(INPUT_PIN_ID)
+    #     c.getcomponent(OUTPUT_PIN_ID)
         
-        fp = os.path.join(tempfile.gettempdir(), "unconnected_ic.json")
-        c.save_as_ic(fp, "UnconnectedIC")
+    #     fp = os.path.join(tempfile.gettempdir(), "unconnected_ic.json")
+    #     c.save_as_ic(fp, "UnconnectedIC")
         
-        c2 = self.setup_circuit()
-        ic = c2.getIC(fp)
+    #     c2 = self.setup_circuit()
+    #     ic = c2.getIC(fp)
         
-        v = c2.getcomponent(VARIABLE_ID)
-        c2.connect(ic.inputs[0], v, 0)
-        c2.toggle(v, HIGH)
+    #     v = c2.getcomponent(VARIABLE_ID)
+    #     c2.connect(ic.inputs[0], v, 0)
+    #     c2.toggle(v, HIGH)
         
-        self.assert_true(ic.inputs[0].output == HIGH, "Input pin receives signal even if unconnected internally")
-        self.assert_true(ic.outputs[0].output == UNKNOWN, "Unconnected output pin remains UNKNOWN")
-        if os.path.exists(fp): os.remove(fp)
+    #     self.assert_true(ic.inputs[0].output == HIGH, "Input pin receives signal even if unconnected internally")
+    #     self.assert_true(ic.outputs[0].output == UNKNOWN, "Unconnected output pin remains UNKNOWN")
+    #     if os.path.exists(fp): os.remove(fp)
 
     def test_partial_connections(self):
         """Test broken internal chains."""

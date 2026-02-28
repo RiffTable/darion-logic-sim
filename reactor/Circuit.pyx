@@ -9,7 +9,7 @@ from Gates cimport Gate, Variable, Profile
 from libcpp.vector cimport vector
 from Const cimport *
 from IC cimport IC
-from Store cimport get
+from Store cimport get,decode 
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 
 cdef inline void turnoff(Gate gate,Queue &queue,int wave_limit,unsigned long long* eval_ptr):
@@ -78,11 +78,13 @@ cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* 
             profile = gate.hitlist.data()
             end = profile+gate.hitlist.size()
             while profile!=end:
+                # input(f'Source {gate.name} {profile.output} {new_output}')
                 if val:
                     eval+=1
                 profile_output = profile.output
                 if profile_output!=new_output:
                     target=<Gate>profile.target
+                    # input(f'Updating {target.name} {target.output}')
                     gate_type = target.id
                     limit = target.inputlimit
                     if limit==1:
@@ -398,11 +400,6 @@ cdef class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
-    cpdef tuple decode(self, code):
-        if len(code) == 2:
-            return tuple(code)
-        return (code[0], code[1], self.decode(code[2]))
-
     def readfromjson(self, location):
         with open(location, 'rb') as file:
             circuit = orjson.loads(file.read())
@@ -411,7 +408,7 @@ cdef class Circuit:
         pseudo = {}
         pseudo[('X', 'X')] = None
         for i in circuit:  # load to pseudo
-            code = self.decode(i[CODE])
+            code = decode(i[CODE])
             gate = self.getcomponent(code[0])
             if gate.id == IC_ID:
                 gate.custom_name = i[CUSTOM_NAME]
@@ -422,29 +419,96 @@ cdef class Circuit:
             pseudo[code] = gate
 
         for gate_info in circuit:  # connect components or build the circuit
-            code = self.decode(gate_info[CODE])
+            code = decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id == IC_ID:
-                (<IC>gate).clone(pseudo,0)
+                (<IC>gate).clone(pseudo)
                 self.counter+=(<IC>gate).counter
             else:
                 gate.clone(gate_info, pseudo)
         if MODE!=DESIGN:
             self.simulate(SIMULATE)
 
+    cpdef list flatten_circuit(self):
+        cdef list dictionary = []
+        cdef Gate gate
+        cdef Gate target
+        cdef Profile* profile
+        cdef Profile* end
+        cdef list queue=[]
+        cdef Py_ssize_t index=0,size
+        inputs=[i for i in self.objlist[INPUT_PIN_ID] if i is not None]
+        outputs=[i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
+        for gate in outputs+inputs:
+            gate.scheduled=True
+            queue.append(gate)
+        size=len(queue)
+        index=len(outputs)
+        while index<size:
+            gate = queue[index]
+            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+                profile = gate.hitlist.data()
+                end = profile+gate.hitlist.size()
+                while profile!=end:
+                    target = <Gate>profile.target
+                    target.sources[profile.index] = gate.sources[0]
+                    profile+=1
+            elif gate.id==OUTPUT_PIN_ID and not gate.hitlist.empty():
+                profile = gate.hitlist.data()
+                end = profile+gate.hitlist.size()
+                while profile!=end:
+                    target = <Gate>profile.target
+                    target.sources[profile.index] = gate.sources[0]
+                    profile+=1
+            profile = gate.hitlist.data()
+            end = profile+gate.hitlist.size()
+            while profile!=end:
+                target = <Gate>profile.target
+                if not target.scheduled:
+                    target.scheduled = True
+                    queue.append(target)
+                    size+=1
+                profile+=1
+            index+=1
+        cdef int pins=len(outputs)+len(inputs)
+        for index in range(pins):
+            gate = queue[index]
+            dictionary.append(gate.json_data())
+        for index in range(pins,size):
+            gate = queue[index]
+            if gate.id >= INPUT_PIN_ID:
+                continue
+            dictionary.append(gate.json_data())
+        return dictionary
+
+
+
     def save_as_ic(self, location, ic_name="IC"):
         if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
             return
+        for gate in self.objlist[INPUT_PIN_ID]:
+            if gate and gate.sources[0] is not None:
+                raise ValueError('Input Pin has extra sources')
+        for gate in self.objlist[OUTPUT_PIN_ID]:
+            if gate and gate.hitlist:
+                raise ValueError('Output Pin has extra targets')
+        flattened = self.flatten_circuit()
+        with open(location, 'wb') as file:
+            file.write(orjson.dumps(flattened))
+        self.clearcircuit()
+        self.readfromjson(location)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
-        myIC.custom_name = ic_name  # Ensure it has a custom name
+        myIC.custom_name = ic_name
         for component in lst:
             myIC.addgate(component)
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
+        self.getIC(location)
+
 
     def getIC(self, location):
         myIC = self.getcomponent(IC_ID)
@@ -488,7 +552,7 @@ cdef class Circuit:
         pseudo[('X', 'X')] = None
         new_items = []
         for i in circuit:  # load to pseudo
-            code = self.decode(i[CODE])
+            code = decode(i[CODE])
             gate = self.getcomponent(code[0])
             new_items.append(gate)
             if gate.id==IC_ID:
@@ -500,10 +564,10 @@ cdef class Circuit:
             pseudo[code] = gate
 
         for gate_info in circuit:  # connect components or build the circuit
-            code = self.decode(gate_info[CODE])
+            code = decode(gate_info[CODE])
             gate = pseudo[code]
             if gate.id==IC_ID:
-                gate.implement(pseudo,0)
+                gate.implement(pseudo)
                 self.counter+=(<IC>gate).counter
             elif gate:
                 gate.clone(gate_info, pseudo)
