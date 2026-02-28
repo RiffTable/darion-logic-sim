@@ -42,10 +42,10 @@ class CircuitView(QGraphicsView):
 
 		# Zooming
 		self.viewScale = 1
-		self.zoomlvl = 1
 	
 	
-	def scene(self) -> CircuitScene:
+	@property
+	def cscene(self) -> CircuitScene:
 		return self._scene
 	
 
@@ -167,4 +167,28 @@ class CircuitView(QGraphicsView):
 				1.25 if is_plus else 0.8
 			)
 			event.accept(); return
+		
 		return super().keyPressEvent(event)
+
+
+
+	###======= ACTIONS =======###
+	def saveProject(self) -> dict:
+		t = self.transform()
+		project = self.cscene.serialize() | {
+			"camera": (t.dx(), t.dy()),
+			"zoom":   t.m11()
+		}
+		return project
+		# fuck. Do we need it to also handle files?
+	
+	def loadProject(self, project: dict):
+		# fuck. Do we need it to also handle files?
+
+		dx, dy = project.pop("camera", (0, 0))
+		m11 = project.pop("zoom", 1.0)
+
+		self.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
+		self.viewScale = m11
+
+		self.cscene.deserialize(project)

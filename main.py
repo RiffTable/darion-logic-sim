@@ -24,12 +24,12 @@ class AppWindow(QMainWindow):
 
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
-		self.scene = self.view.scene()
+		self.cscene = self.view.cscene
 
 		###======= PROPERTIES PANEL =======###
 		self.props_panel = PropertiesPanel()
-		self.scene.selectionChanged.connect(
-			lambda: self.props_panel.selectionChanged(self.scene.selectedItems())
+		self.cscene.selectionChanged.connect(
+			lambda: self.props_panel.selectionChanged(self.cscene.selectedItems())
 		)
 
 
@@ -51,7 +51,7 @@ class AppWindow(QMainWindow):
 		for text, comp_id in gatelists.items():
 			btn = QPushButton(text)
 			btn.setMinimumHeight(50)
-			btn.clicked.connect(partial(self.scene.addComp, 0, 0, comp_id))
+			btn.clicked.connect(partial(self.cscene.addComp, 0, 0, comp_id))
 			# btn.clicked.connect(lambda: self.scene().addComp(0, 0, comp_id))
 			self.dragbar.addWidget(btn)
 		self.dragbar.addStretch()
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.scene.addComp(100, 100, 5)
-	window.scene.addComp(100, 200, 11)
+	window.cscene.addComp(100, 100, 5)
+	window.cscene.addComp(100, 200, 11)
 
 	sys.exit(app.exec())

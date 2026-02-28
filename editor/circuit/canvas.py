@@ -174,7 +174,6 @@ class CircuitScene(QGraphicsScene):
 
 		if not (wire is self.ghostWire): self.wires.remove(wire)
 		self.removeItem(wire)
-		# run_logic()
 
 	###======= MOUSE/KEY EVENTS =======###
 	def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
@@ -233,8 +232,6 @@ class CircuitScene(QGraphicsScene):
 				
 				elif isinstance(item, CompItem):
 					if item in self.comps: self.removeComp(item)
-			
-			# self.run_logic()
 		
 		if self.checkState(EditorState.WIRING) and (event.key() == Key.Key_Escape):
 			self.skipWiring()
@@ -287,44 +284,68 @@ class CircuitScene(QGraphicsScene):
 		
 		if key == Key.Key_V and mod & KeyMod.ControlModifier:
 			self.clearSelection()
-			sources: dict[int, OutputPinItem] = {}
-			supplies: dict[int, list[InputPinItem]] = {}
-
-			# Creating Components from data
-			for comp_data in self.clipboard.get("comps", []):
-				comp = self.addCompFromData(comp_data)
-				comp.setSelected(True)
-
-				for edge, pin_data_list in comp_data["pinslist"].items():
-					for i, pin_data in enumerate(pin_data_list):
-						w = pin_data["wire"]
-						if w == 0: continue
-
-						if pin_data["isInput"]:
-							p = cast(InputPinItem, comp._pinslist[edge][i])
-							if w in supplies: supplies[w].append(p)
-							else:             supplies[w] = [p]
-						else:
-							p = cast(OutputPinItem, comp._pinslist[edge][i])
-							sources[w] = p
-			
-			# Wiring
-			for id, outpin in sources.items():
-				if id not in supplies: continue
-
-				inpins = supplies[id]
-				w = WireItem(outpin, inpins.pop(0))
-				
-				for inpin in inpins:
-					w.addSupply(inpin)
-				
-				self.wires.append(w)
-				self.addItem(w)
+			self.deserialize(self.clipboard, True)
+		
+		# fuck! this is temporary
+		if key == Key.Key_C and mod & (KeyMod.ControlModifier | KeyMod.ShiftModifier):
+			if self.checkState(EditorState.NORMAL):
+				self.clearCanvas()
 
 		# # DEBUG
-		if key == Key.Key_Space:
-			print("----------------------")
-			for comp in self.comps:
-				logic.output(comp._unit)
+		# if key == Key.Key_Space:
+		# 	print("----------------------")
+		# 	for comp in self.comps:
+		# 		logic.output(comp._unit)
 
 		super().keyPressEvent(event)
+	
+
+
+	###======= ACTIONS =======###
+	def clearCanvas(self):
+		for wire in self.wires.copy():
+			self.removeWire(wire)
+		for comp in self.comps.copy():
+			self.removeComp(comp)
+	
+	def serialize(self) -> dict:
+		return {
+			"comps": [comp.getData() for comp in self.comps],
+			"wires": []
+		}
+	
+	def deserialize(self, data: dict, addToSelected: bool = False):
+		sources: dict[int, OutputPinItem] = {}
+		supplies: dict[int, list[InputPinItem]] = {}
+
+		# Creating Components from data
+		for comp_data in data.get("comps", []):
+			comp = self.addCompFromData(comp_data)
+			if addToSelected: comp.setSelected(True)
+
+			# Getting all pins reference to wire them later
+			for edge, pin_data_list in comp_data["pinslist"].items():
+				for i, pin_data in enumerate(pin_data_list):
+					w = pin_data["wire"]
+					if w == 0: continue
+
+					if pin_data["isInput"]:
+						p = cast(InputPinItem, comp._pinslist[edge][i])
+						if w in supplies: supplies[w].append(p)
+						else:             supplies[w] = [p]
+					else:
+						p = cast(OutputPinItem, comp._pinslist[edge][i])
+						sources[w] = p
+		
+		# Wiring
+		for id, outpin in sources.items():
+			if id not in supplies: continue
+
+			inpins = supplies[id]
+			w = WireItem(outpin, inpins.pop(0))
+			
+			for inpin in inpins:
+				w.addSupply(inpin)
+			
+			self.wires.append(w)
+			self.addItem(w)
