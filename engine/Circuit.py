@@ -386,12 +386,7 @@ class Circuit:
         if len(code) == 2:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
-
-    def readfromjson(self, location: str):
-        with open(location, 'rb') as file:
-            circuit = orjson.loads(file.read())
-        if isinstance(circuit, dict):
-            return
+    def generate(self, circuit):
         pseudo = {}
         pseudo[('X', 'X')] = None
         for i in circuit:
@@ -413,6 +408,16 @@ class Circuit:
                 self.counter += gate.counter
             else:
                 gate.clone(gate_dict, pseudo)
+
+    def readfromjson(self, location: str):
+        with open(location, 'rb') as file:
+            circuit = orjson.loads(file.read())
+        if isinstance(circuit, dict):
+            return
+        self.generate(circuit)
+        if get_MODE()!=DESIGN:
+            self.simulate(SIMULATE)
+
     def flatten_circuit(self):
         dictionary = []
         queue=[]
@@ -465,10 +470,8 @@ class Circuit:
                 raise ValueError('Output Pin has extra targets')
         if len(self.get_ics()):
             flattened = self.flatten_circuit()
-            with open(location, 'wb') as file:
-                file.write(orjson.dumps(flattened))
             self.clearcircuit()
-            self.readfromjson(location)
+            self.generate(flattened)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name

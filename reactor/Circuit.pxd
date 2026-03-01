@@ -33,6 +33,7 @@ cdef class Circuit:
     cpdef void hide(self, list gatelist)
     cpdef void reveal(self, list gatelist)
     cpdef void output(self, Gate gate)
+    cpdef void generate(self, list circuit)
     cpdef str truthTable(self)
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)

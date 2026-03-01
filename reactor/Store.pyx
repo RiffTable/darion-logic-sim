@@ -20,7 +20,7 @@ cdef tuple _gateobjects = (
 cdef object get(int choice):
     return _gateobjects[choice]()
 
-cdef tuple decode(list code):
+cdef tuple decode(object code):
     if len(code) == 2:
         return tuple(code)
     return (code[0], code[1], decode(code[2]))

@@ -400,32 +400,41 @@ cdef class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
+    cpdef void generate(self,list circuit):
+        cdef dict pseudo = {}
+        pseudo[('X', 'X')] = None
+        cdef object obj
+        cdef Gate gate
+        cdef IC ic
+        for i in circuit:  # load to pseudo
+            code = decode(i[CODE])
+            obj = self.getcomponent(code[0])
+            if obj.id == IC_ID:
+                ic = <IC>obj
+                ic.custom_name = i[CUSTOM_NAME]
+                ic.map = i[MAP]
+                ic.load_components(i, pseudo)
+            elif obj.id == VARIABLE_ID:
+                gate = <Gate>obj
+                gate.output=UNKNOWN
+            pseudo[code] = obj
+        for i in circuit:  # connect components or build the circuit
+            code = decode(i[CODE])
+            obj = pseudo[code]
+            if obj.id==IC_ID:
+                ic = <IC>obj
+                ic.implement(pseudo)
+                self.counter+=ic.counter
+            else:
+                gate = <Gate>obj
+                gate.clone(i, pseudo)
+
     def readfromjson(self, location):
         with open(location, 'rb') as file:
             circuit = orjson.loads(file.read())
         if isinstance(circuit,dict):
             return
-        pseudo = {}
-        pseudo[('X', 'X')] = None
-        for i in circuit:  # load to pseudo
-            code = decode(i[CODE])
-            gate = self.getcomponent(code[0])
-            if gate.id == IC_ID:
-                gate.custom_name = i[CUSTOM_NAME]
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-            elif gate.id == VARIABLE_ID:
-                gate.output=UNKNOWN
-            pseudo[code] = gate
-
-        for gate_info in circuit:  # connect components or build the circuit
-            code = decode(gate_info[CODE])
-            gate = pseudo[code]
-            if gate.id == IC_ID:
-                (<IC>gate).clone(pseudo)
-                self.counter+=(<IC>gate).counter
-            else:
-                gate.clone(gate_info, pseudo)
+        self.generate(circuit)
         if MODE!=DESIGN:
             self.simulate(SIMULATE)
 
@@ -493,10 +502,8 @@ cdef class Circuit:
                 raise ValueError('Output Pin has extra targets')
         if len(self.get_ics()):
             flattened = self.flatten_circuit()
-            with open(location, 'wb') as file:
-                file.write(orjson.dumps(flattened))
             self.clearcircuit()
-            self.readfromjson(location)
+            self.generate(flattened)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
         myIC.name = ic_name
