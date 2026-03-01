@@ -22,7 +22,6 @@ def burn(queue: list, index: int):
     while index < size:
         while index < size:
             gate = queue[index]
-            gate.update_ui()
             gate.scheduled = False
             gate.output = ERROR
             for profile in gate.hitlist:
@@ -36,7 +35,10 @@ def burn(queue: list, index: int):
                     profile.output = ERROR
             index += 1
         size = len(queue)
-
+    if UI_MODE:
+        for gate in queue:
+            for listener in gate.listener:
+                listener(gate.output)
     queue.clear()
 
 
@@ -63,7 +65,6 @@ def propagate(origin: Gate, queue: list, wave_limit: int, eval_ptr: list = None)
             gate = queue[index]
             gate.scheduled = False
             new_output = gate.output
-            gate.update_ui()
             for profile in gate.hitlist:
                 if eval_ptr is not None:
                     eval_ptr[0] += 1
@@ -106,6 +107,10 @@ def propagate(origin: Gate, queue: list, wave_limit: int, eval_ptr: list = None)
 
             index += 1
         size = len(queue)
+    if UI_MODE:
+        for gate in queue:
+            for listener in gate.listener:
+                listener(gate.output)
     queue.clear()
 
 

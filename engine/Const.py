@@ -7,17 +7,9 @@ UNKNOWN = 3
 
 DESIGN = 0
 SIMULATE = 1
-FLIPFLOP = SIMULATE
 
 
-
-ADD = 1
-DELETE = 2
-CONNECT = 3
-DISCONNECT = 4
-PASTE = 5
-TOGGLE = 6
-SETLIMITS = 7
+UI_MODE = False
 
 LIMIT = 100
 
@@ -53,3 +45,10 @@ def set_MODE(mode):
 
 def get_MODE():
     return MODE
+
+def set_UI_MODE(mode):
+    global UI_MODE
+    UI_MODE = mode
+
+def get_UI_MODE():
+    return UI_MODE
