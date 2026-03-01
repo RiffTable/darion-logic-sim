@@ -143,7 +143,9 @@ class Circuit:
             self.eval_ptr[0] = value
         else:
             self._eval_count = value
-
+    def set_UI_MODE(self, mode):
+        global UI_MODE
+        UI_MODE = mode
     def activate_eval(self):
         self.eval_ptr = [self._eval_count]
 

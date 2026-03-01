@@ -15,7 +15,6 @@ from editor.tools.properties import PropertiesPanel
 class AppWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-
 		self.setWindowTitle("Not LogiSim")
 
 		central = QWidget()

@@ -45,10 +45,3 @@ def set_MODE(mode):
 
 def get_MODE():
     return MODE
-
-def set_UI_MODE(mode):
-    global UI_MODE
-    UI_MODE = mode
-
-def get_UI_MODE():
-    return UI_MODE
