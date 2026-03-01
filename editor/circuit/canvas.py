@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import Facing, EditorState
+from core.Enums import CompEdge, Facing, EditorState
 import core.grid as GRID
 
 from .catalog import (
@@ -218,6 +218,9 @@ class CircuitScene(QGraphicsScene):
 		super().mouseReleaseEvent(event)
 
 	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
+		# if self.ghostPin == None:
+		# 	self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
+		
 		self.ghostPin.setPos(GRID.snapF(event.scenePos()))
 		return super().mouseMoveEvent(event)
 	
@@ -285,11 +288,6 @@ class CircuitScene(QGraphicsScene):
 		if key == Key.Key_V and mod & KeyMod.ControlModifier:
 			self.clearSelection()
 			self.deserialize(self.clipboard, True)
-		
-		# fuck! this is temporary
-		if key == Key.Key_C and mod & (KeyMod.ControlModifier | KeyMod.ShiftModifier):
-			if self.checkState(EditorState.NORMAL):
-				self.clearCanvas()
 
 		# # DEBUG
 		# if key == Key.Key_Space:
@@ -324,7 +322,8 @@ class CircuitScene(QGraphicsScene):
 			if addToSelected: comp.setSelected(True)
 
 			# Getting all pins reference to wire them later
-			for edge, pin_data_list in comp_data["pinslist"].items():
+			for _edge, pin_data_list in comp_data["pinslist"].items():
+				edge = CompEdge(int(_edge))
 				for i, pin_data in enumerate(pin_data_list):
 					w = pin_data["wire"]
 					if w == 0: continue

@@ -1,4 +1,5 @@
 import sys
+import json
 from functools import partial
 
 from core.QtCore import *
@@ -25,6 +26,7 @@ class AppWindow(QMainWindow):
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
 		self.cscene = self.view.cscene
+		self.projectFile: str|None = None
 
 		###======= PROPERTIES PANEL =======###
 		self.props_panel = PropertiesPanel()
@@ -58,7 +60,75 @@ class AppWindow(QMainWindow):
 		
 		layout_main.addLayout(self.dragbar)
 		layout_main.addWidget(self.view)
-		layout_main.addWidget(self.props_panel) 
+		layout_main.addWidget(self.props_panel)
+
+		self.setupQActions()
+
+
+
+	###======= ACTIONS =======###
+	def setupQActions(self):
+		self.save_action = QAction("Save Project", self)
+		self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+		self.save_action.triggered.connect(self.saveProject)
+		self.addAction(self.save_action)
+
+		self.open_action = QAction("Open Project", self)
+		self.open_action.setShortcut(QKeySequence.StandardKey.Open)
+		self.open_action.triggered.connect(self.loadProject)
+		self.addAction(self.open_action)
+	
+	def saveProject(self):
+		filename, _ = QFileDialog.getSaveFileName(
+			self,
+			"Save Project",
+			"exports/project",
+			"JSON Files (*.json);;All Files (*)"
+		)
+		if not filename: return
+
+		t = self.view.transform()
+		project = self.cscene.serialize() | {
+			"camera": (t.dx(), t.dy()),
+			"zoom":   t.m11()
+		}
+
+		# Saving to file
+		try:
+			with open(filename, 'w') as file:
+				json.dump(project, file)
+		except Exception as e:
+			print("Failed to save:", e)
+	
+	def loadProject(self):
+		# with open(location, 'rb') as file:
+		# 	circuit = json.loads(file.read())
+	
+		filename, _ = QFileDialog.getOpenFileName(
+			self,
+			"Open Project",
+			"exports/project",
+			"JSON Files (*.json);;All Files (*)"
+		)
+		if not filename: return
+
+		try:
+			with open(filename, 'r') as file:
+				project = json.load(file)
+
+			dx, dy = project.pop("camera", (0, 0))
+			m11 = project.pop("zoom", 1.0)
+
+			self.cscene.clearCanvas()
+			self.cscene.deserialize(project)
+
+			self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+			self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
+			self.view.viewScale = m11
+			self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+
+		except Exception as e:
+			print("Failed to load:", e)
 
 
 

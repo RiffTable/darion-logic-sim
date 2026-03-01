@@ -62,8 +62,9 @@ class CompItem(QGraphicsItem):
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
-			new_pinslist = cast(dict[CompEdge, list[dict]], kwargs.get("pinslist", {}))
-			for edge, pins in new_pinslist.items():
+			new_pinslist = cast(dict[str, list[dict]], kwargs.get("pinslist", {}))
+			for _edge, pins in new_pinslist.items():
+				edge = CompEdge(int(_edge))
 				facing = self.edgeToFacing(edge)
 				pinslist = self._pinslist[edge]
 				for pin in pins:
