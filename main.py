@@ -25,7 +25,7 @@ class AppWindow(QMainWindow):
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
 		self.cscene = self.view.cscene
-		self.projectFile: str|None = None
+		self.current_file_path: str|None = None
 
 		###======= PROPERTIES PANEL =======###
 		self.props_panel = PropertiesPanel()
@@ -69,40 +69,66 @@ class AppWindow(QMainWindow):
 	def setupQActions(self):
 		self.save_action = QAction("Save Project", self)
 		self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-		self.save_action.triggered.connect(self.saveProject)
+		self.save_action.triggered.connect(self.saveFile)
 		self.addAction(self.save_action)
 
 		self.open_action = QAction("Open Project", self)
 		self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-		self.open_action.triggered.connect(self.loadProject)
+		self.open_action.triggered.connect(self.loadFile)
 		self.addAction(self.open_action)
 	
-	def saveProject(self):
-		filename, _ = QFileDialog.getSaveFileName(
-			self,
-			"Save Project",
-			"exports/project",
-			"JSON Files (*.json);;All Files (*)"
-		)
-		if not filename: return
 
+
+	def get_project_data(self) -> dict:
 		t = self.view.transform()
 		project = self.cscene.serialize() | {
 			"camera": (t.dx(), t.dy()),
-			"zoom":   t.m11()
+			"zoom":   t.m11(),
 		}
+		return project
+	
+	def load_project_data(self, project: dict):
+		dx, dy = project.pop("camera", (0, 0))
+		m11 = project.pop("zoom", 1.0)
+
+		self.cscene.clearCanvas()
+		self.cscene.deserialize(project)
+
+		self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+		self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
+		self.view.viewScale = m11
+		self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+	
+
+
+	def saveFile(self, create_new_file: bool = False):
+		if self.current_file_path and not create_new_file:
+			# Don't ask if the project has a save file
+			filename = self.current_file_path
+		else:
+			# Ask for file name
+			filename, _ = QFileDialog.getSaveFileName(
+				self,
+				"Save Project",
+				"exports/project",
+				"JSON Files (*.json);;All Files (*)"
+			)
+			if not filename: return
+			self.current_file_path = filename
 
 		# Saving to file
+		project = self.get_project_data()
 		try:
 			with open(filename, 'w') as file:
 				json.dump(project, file)
 		except Exception as e:
 			print("Failed to save:", e)
 	
-	def loadProject(self):
-		# with open(location, 'rb') as file:
-		# 	circuit = json.loads(file.read())
+	def saveFileAs(self):
+		self.saveFile(True)
 	
+	def loadFile(self):
+		# Always ask for file name
 		filename, _ = QFileDialog.getOpenFileName(
 			self,
 			"Open Project",
@@ -113,18 +139,10 @@ class AppWindow(QMainWindow):
 
 		try:
 			with open(filename, 'r') as file:
-				project = json.load(file)
-
-			dx, dy = project.pop("camera", (0, 0))
-			m11 = project.pop("zoom", 1.0)
-
-			self.cscene.clearCanvas()
-			self.cscene.deserialize(project)
-
-			self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
-			self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
-			self.view.viewScale = m11
-			self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+				project:dict = json.load(file)
+			
+			self.load_project_data(project)
+			self.current_file_path = filename
 
 		except Exception as e:
 			print("Failed to load:", e)
