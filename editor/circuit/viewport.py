@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import cast
 
 from core.QtCore import *
+import editor.actions as Actions
 from .canvas import CircuitScene
 
 
@@ -42,6 +43,8 @@ class CircuitView(QGraphicsView):
 
 		# Zooming
 		self.viewScale = 1
+
+		self.setupQActions()
 	
 	
 	@property
@@ -159,13 +162,15 @@ class CircuitView(QGraphicsView):
 	def keyPressEvent(self, event):
 		key = event.key()
 		mods = event.modifiers()
-
-		if key in (Key.Key_Plus, Key.Key_Equal, Key.Key_Minus, Key.Key_Underscore) and (mods & KeyMod.ControlModifier):
-			is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
-			self.applyZoom(
-				self.rect().center(),
-				1.25 if is_plus else 0.8
-			)
-			event.accept(); return
 		
 		return super().keyPressEvent(event)
+	
+	def setupQActions(self):
+		# zoomIn  = partial(self.applyZoom, self.rect().center(), 1.25)
+		zoomIn  = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
+		zoomOut = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
+
+		Actions.add(self, "zoom_in", "Zoom In", zoomIn) \
+			.setShortcuts([QKeySequence("Ctrl+="), QKeySequence("Ctrl++")])
+		Actions.add(self, "zoom_out", "Zoom Out", zoomOut) \
+			.setShortcuts([QKeySequence("Ctrl+-"), QKeySequence("Ctrl+_")])

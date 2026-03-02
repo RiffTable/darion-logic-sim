@@ -6,6 +6,7 @@ from core.QtCore import *
 from core.LogicCore import *
 
 from editor.styles import Color
+import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
 
@@ -67,15 +68,10 @@ class AppWindow(QMainWindow):
 
 	###======= ACTIONS =======###
 	def setupQActions(self):
-		self.save_action = QAction("Save Project", self)
-		self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-		self.save_action.triggered.connect(self.saveFile)
-		self.addAction(self.save_action)
-
-		self.open_action = QAction("Open Project", self)
-		self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-		self.open_action.triggered.connect(self.loadFile)
-		self.addAction(self.open_action)
+		Actions.add(self, "new", "New", self.newFile, StandardKey.New)
+		Actions.add(self, "save", "Save", self.saveFile, StandardKey.Save)
+		Actions.add(self, "open", "Open", self.loadFile, StandardKey.Open)
+		Actions.add(self, "save_as", "Save As", self.saveFileAs, StandardKey.SaveAs)
 	
 
 
@@ -101,6 +97,19 @@ class AppWindow(QMainWindow):
 	
 
 
+	def newFile(self):
+		self.current_file_path = None
+
+		self.cscene.clearCanvas()
+
+		# Default values
+		m11 = 1.0
+		dx, dy = 0, 0
+		self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
+		self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
+		self.view.viewScale = m11
+		self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+	
 	def saveFile(self, create_new_file: bool = False):
 		if self.current_file_path and not create_new_file:
 			# Don't ask if the project has a save file
