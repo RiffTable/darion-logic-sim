@@ -64,6 +64,15 @@ class AppWindow(QMainWindow):
 
 		self.setupQActions()
 
+	def closeEvent(self, event):
+		# To make sure a runtime error isn't raised when closing the app
+		try:
+			self.cscene.selectionChanged.disconnect()
+		except RuntimeError:
+			pass
+			
+		super().closeEvent(event)
+
 
 
 	###======= ACTIONS =======###
@@ -72,7 +81,7 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save", "Save", self.saveFile, StandardKey.Save)
 		Actions.add(self, "open", "Open", self.loadFile, StandardKey.Open)
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, StandardKey.SaveAs)
-	
+
 
 
 	def get_project_data(self) -> dict:

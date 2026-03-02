@@ -143,13 +143,25 @@ class CircuitView(QGraphicsView):
 	###======= ACTIONS =======###
 	def setupQActions(self):
 		# zoomIn  = partial(self.applyZoom, self.rect().center(), 1.25)
+		QKS = QKeySequence
 		zoomIn  = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
 		zoomOut = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
 
 		Actions.add(self, "zoom_in", "Zoom In", zoomIn) \
-			.setShortcuts([QKeySequence("Ctrl+="), QKeySequence("Ctrl++")])
+			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
 		Actions.add(self, "zoom_out", "Zoom Out", zoomOut) \
-			.setShortcuts([QKeySequence("Ctrl+-"), QKeySequence("Ctrl+_")])
+			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
+		
+		# Canvas functions
+		scene = self.cscene
+		Actions.add(self, "select_all", "Select All", scene.selectAllComps, StandardKey.SelectAll)
+		Actions.add(self, "copy", "Copy", scene.copyFromSelection, StandardKey.Copy)
+		Actions.add(self, "paste", "Paste", scene.pasteComps, StandardKey.Paste)
+		Actions.add(self, "cut", "Cut", scene.cutComps, StandardKey.Cut)
+
+		Actions.add(self, "delete", "Delete", scene.removeFromSelection)\
+			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
+		# Actions.add(self, "increase_input_size", "Increase Input Size", )
 	
 	def panCanvas(self, delta: QPoint):
 		self.setDragMode(QGraphicsView.DragMode.NoDrag)

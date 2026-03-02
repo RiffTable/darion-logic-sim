@@ -26,7 +26,8 @@ def add(
 	act = QAction(text, parent)
 	if slot:     act.triggered.connect(slot)
 	if shortcut: act.setShortcut(shortcut)
-	
+	# act.setStatusTip("Some kind of tooltip I think")
+
 	parent.addAction(act)
 	_action_list[key] = act
 	return act

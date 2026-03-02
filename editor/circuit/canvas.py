@@ -11,9 +11,6 @@ from .catalog import (
 )
 
 
-from editor.tools.properties import PropertiesPanel
-
-
 
 
 
@@ -227,14 +224,6 @@ class CircuitScene(QGraphicsScene):
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
 		mod = event.modifiers()
-
-		if key in (Key.Key_Delete, Key.Key_Backspace, Key.Key_X):
-			for item in self.selectedItems():
-				if isinstance(item, WireItem):
-					if item in self.wires: self.removeWire(item)
-				
-				elif isinstance(item, CompItem):
-					if item in self.comps: self.removeComp(item)
 		
 		if self.checkState(EditorState.WIRING) and (event.key() == Key.Key_Escape):
 			self.skipWiring()
@@ -270,36 +259,11 @@ class CircuitScene(QGraphicsScene):
 						case Key.Key_Down:  item.setFacing(Facing.SOUTH)
 						case Key.Key_Left:  item.setFacing(Facing.WEST)
 						case Key.Key_Up:    item.setFacing(Facing.NORTH)
-		
-		# if key == Key.Key_C and mod & KeyMod.ControlModifier:
-		# 	comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
-		if key == Key.Key_A and mod & KeyMod.ControlModifier:
-			self.clearSelection()
-			for item in self.comps:
-				item.setSelected(True)
-		
-		if key == Key.Key_C and mod & KeyMod.ControlModifier:
-			comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
-			self.clipboard = {
-				"comps": comps,
-				"wires": []
-			}
-		
-		if key == Key.Key_V and mod & KeyMod.ControlModifier:
-			self.clearSelection()
-			self.deserialize(self.clipboard, True)
-
-		# # DEBUG
-		# if key == Key.Key_Space:
-		# 	print("----------------------")
-		# 	for comp in self.comps:
-		# 		logic.output(comp._unit)
 
 		super().keyPressEvent(event)
 	
 
 
-	###======= ACTIONS =======###
 	def clearCanvas(self):
 		for wire in self.wires.copy():
 			self.removeWire(wire)
@@ -348,3 +312,34 @@ class CircuitScene(QGraphicsScene):
 			
 			self.wires.append(w)
 			self.addItem(w)
+
+
+
+	###======= ACTIONS =======###
+	def removeFromSelection(self):
+		for item in self.selectedItems():
+			if isinstance(item, WireItem):
+				if item in self.wires: self.removeWire(item)
+			
+			elif isinstance(item, CompItem):
+				if item in self.comps: self.removeComp(item)
+	
+	def selectAllComps(self):
+		self.clearSelection()
+		for item in self.comps:
+			item.setSelected(True)
+	
+	def copyFromSelection(self):
+		comps = [item.getData() for item in self.selectedItems() if isinstance(item, CompItem)]
+		self.clipboard = {
+			"comps": comps,
+			"wires": []
+		}
+	
+	def pasteComps(self):
+		self.clearSelection()
+		self.deserialize(self.clipboard, True)
+	
+	def cutComps(self):
+		self.copyFromSelection()
+		self.removeFromSelection()
