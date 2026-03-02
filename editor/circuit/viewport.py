@@ -66,6 +66,7 @@ class CircuitView(QGraphicsView):
 		# Canvas Panning Last Position Tracking
 		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
 			self._pan_last_pos = mousepos
+			event.accept(); return
 		
 		super().mousePressEvent(event)
 	
@@ -75,10 +76,7 @@ class CircuitView(QGraphicsView):
 		# Canvas Panning
 		if event.buttons() & (MouseBtn.RightButton | MouseBtn.MiddleButton):
 			delta = mousepos - self._pan_last_pos
-			self.translate(
-				delta.x()/self.viewScale,
-				delta.y()/self.viewScale
-			)
+			self.panCanvas(delta.toPoint())
 		else:
 			super().mouseMoveEvent(event)
 		
@@ -109,10 +107,7 @@ class CircuitView(QGraphicsView):
 
 		# Check if Touchpad
 		if dev and dev.type() == QInputDevice.DeviceType.TouchPad:
-			self.translate(
-				pixelDelta.x()/self.viewScale,
-				pixelDelta.y()/self.viewScale
-			)
+			self.panCanvas(pixelDelta)
 			return
 
 		# Check if Mouse Wheel
@@ -137,6 +132,33 @@ class CircuitView(QGraphicsView):
 				return True
 		return super().viewportEvent(event)
 	
+	def keyPressEvent(self, event):
+		key = event.key()
+		mods = event.modifiers()
+		
+		return super().keyPressEvent(event)
+	
+
+
+	###======= ACTIONS =======###
+	def setupQActions(self):
+		# zoomIn  = partial(self.applyZoom, self.rect().center(), 1.25)
+		zoomIn  = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
+		zoomOut = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
+
+		Actions.add(self, "zoom_in", "Zoom In", zoomIn) \
+			.setShortcuts([QKeySequence("Ctrl+="), QKeySequence("Ctrl++")])
+		Actions.add(self, "zoom_out", "Zoom Out", zoomOut) \
+			.setShortcuts([QKeySequence("Ctrl+-"), QKeySequence("Ctrl+_")])
+	
+	def panCanvas(self, delta: QPoint):
+		self.setDragMode(QGraphicsView.DragMode.NoDrag)
+		self.translate(
+			delta.x()/self.viewScale,
+			delta.y()/self.viewScale
+		)
+		self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+	
 	def applyZoom(self, mousePos: QPoint, factor: float):
 		minZ = 0.5
 		maxZ = 2.0
@@ -158,19 +180,3 @@ class CircuitView(QGraphicsView):
 		after = self.mapToScene(mousePos)
 		delta = after - before
 		self.translate(delta.x(), delta.y())
-	
-	def keyPressEvent(self, event):
-		key = event.key()
-		mods = event.modifiers()
-		
-		return super().keyPressEvent(event)
-	
-	def setupQActions(self):
-		# zoomIn  = partial(self.applyZoom, self.rect().center(), 1.25)
-		zoomIn  = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
-		zoomOut = lambda: self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
-
-		Actions.add(self, "zoom_in", "Zoom In", zoomIn) \
-			.setShortcuts([QKeySequence("Ctrl+="), QKeySequence("Ctrl++")])
-		Actions.add(self, "zoom_out", "Zoom Out", zoomOut) \
-			.setShortcuts([QKeySequence("Ctrl+-"), QKeySequence("Ctrl+_")])
