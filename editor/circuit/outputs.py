@@ -53,7 +53,7 @@ class OutputItem(CompItem):
 
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
-		if self.state == Const.HIGH:
-			painter.setBrush(Color.LED_on)
-		else:
-			painter.setBrush(Color.LED_off)
+		match self.state:
+			case Const.HIGH:  painter.setBrush(QBrush(Color.LED_on))
+			case Const.ERROR: painter.setBrush(QBrush(Color.LED_on.darker(150)))
+			case _:           painter.setBrush(QBrush(Color.LED_off))

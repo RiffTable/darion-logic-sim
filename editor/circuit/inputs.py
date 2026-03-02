@@ -35,6 +35,7 @@ class InputItem(CompItem):
 
 		# Setting Pin logicals
 		self.outputPin.setLogical(self._unit)
+		self.outputPin.logicalStateChanged(self.state)
 
 		# Final Setup
 		self.setState(False)
@@ -67,6 +68,6 @@ class InputItem(CompItem):
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
 		if self.state == Const.HIGH:
-			painter.setBrush(Color.comp_on)
+			painter.setBrush(Color.comp_active)
 		else:
 			painter.setBrush(Color.comp_body)

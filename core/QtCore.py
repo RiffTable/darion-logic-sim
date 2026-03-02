@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
 	QFileDialog,
 
 	QGraphicsScene, QGraphicsView,
-	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent, QStyle,
+	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
+	QStyle, QStyleOptionGraphicsItem
 )
 from PySide6.QtCore import (
 	Qt, QObject, QEvent, QTimer,

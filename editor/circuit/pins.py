@@ -32,14 +32,13 @@ class PinItem(QGraphicsRectItem):
 		self.setAcceptHoverEvents(True)
 		self.setZValue(1)
 
-		self.state: int = Const.LOW
+		self.state: int = Const.UNKNOWN
 		self._wire: WireItem|None = None
 		self.isHighlighted = False
 		self.proxyHighlight = False
 		self.facing = facing
 		self.label = ""
 
-		self.updateVisual()
 		self.setPos(relpos)
 	
 	@property
@@ -118,10 +117,13 @@ class PinItem(QGraphicsRectItem):
 			self.setBrush(Qt.BrushStyle.NoBrush)
 		
 		else:
-			if self.state == Const.HIGH:
-				self.setBrush(QBrush(Color.pin_on))
-			else:
-				self.setBrush(QBrush(Color.pin_off))
+			# Pin color matches wire color if no wires is attached.
+			# In case, you want to know the output without connecting wires :)
+			match self.state:
+				case Const.HIGH:  self.setBrush(QBrush(Color.signal_high))
+				case Const.LOW:   self.setBrush(QBrush(Color.pin_low))
+				case Const.ERROR: self.setBrush(QBrush(Color.signal_error))
+				case _:           self.setBrush(QBrush(Color.signal_unknown))
 
 
 
@@ -132,6 +134,8 @@ class InputPinItem(PinItem):
 	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
 		self.logical: tuple[Gate, int] | tuple[InputPin, int] | None = None
+		self.state = Const.LOW
+		self.updateVisual()
 
 	def setLogical(self, input: Gate | InputPin, index: int = 0) -> Self:
 		# It's a builder function
@@ -163,6 +167,7 @@ class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
 		self.logical: Gate | OutputPin | None = None
+		self.updateVisual()
 
 	def setLogical(self, output: Gate | OutputPin):
 		self.logical = output

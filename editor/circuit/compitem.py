@@ -404,9 +404,9 @@ class CompItem(QGraphicsItem):
 		"""No need to call `setHitbox()` afterwards"""
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True
 	
-	def draw(self, painter, option, widget):
+	def draw(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget):
 		...    # ABSTRACT METHOD
-	def paint(self, painter, option, widget):
+	def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget):
 		if self._dirty: self._updateShape(); self._dirty = False
 
 

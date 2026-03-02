@@ -87,8 +87,10 @@ class WireItem(QGraphicsPathItem):
 	# Events
 	def updateState(self):
 		match self.source.state:
-			case Const.HIGH: self.setPen(QPen(Color.signal_on, 3))
-			case _:          self.setPen(QPen(Color.signal_off, 3))
+			case Const.HIGH:  self.setPen(QPen(Color.signal_high, 3))
+			case Const.LOW:   self.setPen(QPen(Color.signal_low, 3))
+			case Const.ERROR: self.setPen(QPen(Color.signal_error, 3))
+			case _:           self.setPen(QPen(Color.signal_unknown, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
 	
 	def updateShape(self):
