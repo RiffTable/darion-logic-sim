@@ -5,23 +5,33 @@ from functools import partial
 from core.QtCore import *
 from core.LogicCore import *
 
-from editor.styles import Color
+from editor.theme import ThemeManager
+from editor.styles import LightColors, DarkColors
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
+from editor.tools.menu import FileMenu, EditMenu, ProjectMenu, SettingsMenu
 
 
 
 
 class AppWindow(QMainWindow):
-	def __init__(self):
+	def __init__(self, theme_manager=None):
 		super().__init__()
+		self.theme_manager = theme_manager
 		self.setWindowTitle("Not LogiSim")
 
 		central = QWidget()
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
 		
+
+		###======= MENUS =======###
+		menubar: QMenuBar = self.menuBar()
+		menubar.addMenu(FileMenu(self))
+		menubar.addMenu(EditMenu(self))
+		menubar.addMenu(ProjectMenu(self))
+		menubar.addMenu(SettingsMenu(self))
 
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
@@ -203,31 +213,15 @@ class AppWindow(QMainWindow):
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
 
-	###======= APP COLOR PALETTE =======###
+	###======= APP THEME =======###
 	app.setStyle("Fusion")
-	dark_palette = QPalette()
-	Role = QPalette.ColorRole
 
-	palette_colors = {
-		Role.Window         : Color.secondary_bg,
-		Role.WindowText     : Color.text,
-		Role.Base           : Color.primary_bg,
-		Role.AlternateBase  : Color.secondary_bg,
-		Role.ToolTipBase    : Color.tooltip_bg,
-		Role.ToolTipText    : Color.tooltip_text,
-		Role.Text           : Color.text,
-		Role.Button         : Color.button,
-		Role.ButtonText     : Color.text,
-		Role.Highlight      : Color.hl_text_bg,
-		Role.HighlightedText: Color.text,
-	}
-	for role, color in palette_colors.items():
-		dark_palette.setColor(QPalette.ColorGroup.All, role, color)
-	app.setPalette(dark_palette)
+	theme_manager = ThemeManager(app)
+	theme_manager.load_saved_theme()
 
 
 	###======= APP WINDOW =======###
-	window = AppWindow()
+	window = AppWindow(theme_manager)
 	window.resize(1000, 600)
 	window.show()
 
