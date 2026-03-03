@@ -305,7 +305,7 @@ class AggressiveTestSuite:
         total_time_ms = 0
         for name, m in self.perf_metrics.items():
             if 'time' in m and 'gates' in m and m['time'] > 0:
-                total_gates += m['gates']
+                total_gates += m.get('evals', m['gates'])
                 total_time_ms += m['time']
         
         if total_time_ms > 0:
@@ -406,7 +406,7 @@ class AggressiveTestSuite:
         duration, eval_delta = self.timer(lambda: c.toggle(inp, 1))
         actual_gates = eval_delta if eval_delta is not None else count
         latency = (duration*1e6)/actual_gates if actual_gates else 0
-        self.perf_metrics['marathon'] = {'time': duration, 'latency': latency, 'gates': actual_gates}
+        self.perf_metrics['marathon'] = {'time': duration, 'latency': latency, 'gates': count, 'evals': actual_gates}
         
         expected = 'T' if (count % 2 == 0) else 'F'
         self.assert_test(prev.getoutput() == expected, f"{duration:.2f}ms | {latency:.1f}ns/gate")
@@ -442,7 +442,7 @@ class AggressiveTestSuite:
         duration, eval_delta = self.timer(lambda: c.toggle(root, 1))
         actual_gates = eval_delta if eval_delta is not None else total
         rate = actual_gates/(duration/1000) if duration > 0 else 0
-        self.perf_metrics['avalanche'] = {'time': duration, 'rate': rate, 'gates': actual_gates}
+        self.perf_metrics['avalanche'] = {'time': duration, 'rate': rate, 'gates': total, 'evals': actual_gates}
         
         self.assert_test(True, f"{duration:.2f}ms | {rate/1_000_000:.2f}M/sec")
 
@@ -492,7 +492,7 @@ class AggressiveTestSuite:
 
         duration, eval_delta = self.timer(lambda: c.toggle(trig, 1))
         actual_gates = eval_delta if eval_delta is not None else total
-        self.perf_metrics['gridlock'] = {'time': duration, 'gates': actual_gates}
+        self.perf_metrics['gridlock'] = {'time': duration, 'gates': total, 'evals': actual_gates}
         
         passed = (grid[size-1][size-1].getoutput() == 'T')
         self.assert_test(passed, f"{duration:.2f}ms")
@@ -526,7 +526,7 @@ class AggressiveTestSuite:
 
         duration, eval_delta = self.timer(lambda: c.toggle(set_line, 1))
         actual_gates = eval_delta if eval_delta is not None else count*2
-        self.perf_metrics['echo_chamber'] = {'time': duration, 'gates': actual_gates}
+        self.perf_metrics['echo_chamber'] = {'time': duration, 'gates': count*2, 'evals': actual_gates}
         
         passed = all(l.getoutput() == 'T' for l in latches)
         self.assert_test(passed, f"{duration:.2f}ms")
@@ -557,7 +557,7 @@ class AggressiveTestSuite:
 
         duration, eval_delta = self.timer(lambda: c.toggle(trigger, 1))
         actual_gates = eval_delta if eval_delta is not None else inputs
-        self.perf_metrics['black_hole'] = {'time': duration, 'gates': actual_gates}
+        self.perf_metrics['black_hole'] = {'time': duration, 'gates': inputs, 'evals': actual_gates}
         
         self.assert_test(black_hole.getoutput() == 'T', f"{duration:.4f}ms")
 
@@ -585,7 +585,7 @@ class AggressiveTestSuite:
             eval_delta = (c.eval_count - start_evals) if has_hw_counter else 1
             gc.enable()
             
-            self.perf_metrics['paradox'] = {'time': duration, 'gates': eval_delta}
+            self.perf_metrics['paradox'] = {'time': duration, 'gates': 1, 'evals': eval_delta}
             self.assert_test(xor_gate.output == Const.ERROR, f"ERROR state ({duration:.4f}ms)")
         except RecursionError:
             gc.enable()
@@ -628,7 +628,7 @@ class AggressiveTestSuite:
         eval_delta = (c.eval_count - start_evals) if has_hw_counter else count
         latency = (duration * 1e6) / eval_delta if eval_delta else 0
         
-        self.perf_metrics['mega_chain'] = {'time': duration, 'latency': latency, 'gates': eval_delta}
+        self.perf_metrics['mega_chain'] = {'time': duration, 'latency': latency, 'gates': count, 'evals': eval_delta}
         
         expected = 'T' if (count % 2 == 0) else 'F'
         self.assert_test(prev.getoutput() == expected, f"{duration:.2f}ms | {latency:.1f}ns/gate")
@@ -670,7 +670,7 @@ class AggressiveTestSuite:
         eval_delta = (c.eval_count - start_evals) if has_hw_counter else count
         
         all_high = all(g.output == Const.HIGH for g in gates)
-        self.perf_metrics['extreme_fanout'] = {'time': duration, 'gates': eval_delta}
+        self.perf_metrics['extreme_fanout'] = {'time': duration, 'gates': count, 'evals': eval_delta}
         
         self.assert_test(all_high, f"{duration:.2f}ms | {count} gates updated")
 
@@ -707,7 +707,7 @@ class AggressiveTestSuite:
         duration = (time.perf_counter_ns() - start) / 1_000_000
         eval_delta = (c.eval_count - start_evals) if has_hw_counter else count
         
-        self.perf_metrics['extreme_fanin'] = {'time': duration, 'gates': eval_delta}
+        self.perf_metrics['extreme_fanin'] = {'time': duration, 'gates': count, 'evals': eval_delta}
         self.assert_test(g.output == Const.LOW, f"{duration:.2f}ms")
 
     def test_extreme_fanin_fanout(self, count):
@@ -757,7 +757,7 @@ class AggressiveTestSuite:
         eval_delta = (c.eval_count - start_evals) if has_hw_counter else (count + count + 1)
         
         all_passed = all(g.output == Const.LOW for g in targets)
-        self.perf_metrics['extreme_fanin_fanout'] = {'time': duration, 'gates': eval_delta}
+        self.perf_metrics['extreme_fanin_fanout'] = {'time': duration, 'gates': count + count + 1, 'evals': eval_delta}
         self.assert_test(all_passed, f"{duration:.2f}ms")
     def test_cpu_datapath(self, bit_width=8192):
         self.subsection(f"CPU Datapath ({bit_width}-bit ALU + Registers)")
@@ -869,7 +869,7 @@ class AggressiveTestSuite:
         # (Technically the very last Cout is 1, but all sum bits are 0)
         latch_pass = all(l.output == Const.LOW for l in latches)
         
-        self.perf_metrics['cpu_datapath'] = {'time': total_duration, 'gates': eval_delta}
+        self.perf_metrics['cpu_datapath'] = {'time': total_duration, 'gates': bit_width * 10, 'evals': eval_delta}
         msg = f"Ripple: {cascade_duration:.2f}ms | Clock: {clock_duration:.2f}ms"
         self.assert_test(latch_pass, msg)
 
@@ -904,7 +904,7 @@ class AggressiveTestSuite:
         
         duration, eval_delta = self.timer(lambda: c.toggle(root, 1))
         actual_gates = eval_delta if eval_delta is not None else count
-        self.perf_metrics['cache_thrashing'] = {'time': duration, 'gates': actual_gates}
+        self.perf_metrics['cache_thrashing'] = {'time': duration, 'gates': count, 'evals': actual_gates}
         self.assert_test(prev.getoutput() == 'T', f"{duration:.2f}ms")
 
 if __name__ == "__main__":
