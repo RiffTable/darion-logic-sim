@@ -428,3 +428,11 @@ class CompItem(QGraphicsItem):
 		self.setFacing(Facing(self.facing + 1))
 	def rotateCCW(self):
 		self.setFacing(Facing(self.facing + 3))
+
+	def flipHorizontal(self):
+		if self.facing%2 == 0: self.flip()
+		else:                  self.mirror()
+
+	def flipVertical(self):
+		if self.facing%2 == 0: self.mirror()
+		else:                  self.flip()

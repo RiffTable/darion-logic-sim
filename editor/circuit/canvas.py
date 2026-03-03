@@ -235,24 +235,6 @@ class CircuitScene(QGraphicsScene):
 					new_size = len(item.inputPins) + (1 if is_plus else -1)
 					item.setInputCount(new_size)
 		
-		# if key == Key.Key_M:
-		# 	for item in self.selectedItems():
-		# 		if isinstance(item, CompItem):
-		# 			item.mirror()
-		
-		if key == Key.Key_F:
-			for item in self.selectedItems():
-				if isinstance(item, CompItem):
-					item.flip()
-		
-		if key == Key.Key_R:
-			for item in self.selectedItems():
-				if isinstance(item, CompItem):
-					if mod & KeyMod.ShiftModifier:
-						item.rotateCCW()
-					else:
-						item.rotateCW()
-		
 		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
 		and mod & KeyMod.ControlModifier:
 			for item in self.selectedItems():
@@ -346,3 +328,19 @@ class CircuitScene(QGraphicsScene):
 	def cutComps(self):
 		self.copyFromSelection()
 		self.removeFromSelection()
+	
+	def rotateSelectionCW(self):
+		for item in self.selectedItems():
+			if isinstance(item, CompItem): item.rotateCW()
+
+	def rotateSelectionCCW(self):
+		for item in self.selectedItems():
+			if isinstance(item, CompItem): item.rotateCCW()
+
+	def flipSelectionHorizontal(self):
+		for item in self.selectedItems():
+			if isinstance(item, CompItem): item.flipHorizontal()
+
+	def flipSelectionVertical(self):
+		for item in self.selectedItems():
+			if isinstance(item, CompItem): item.flipVertical()

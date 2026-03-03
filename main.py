@@ -77,15 +77,16 @@ class AppWindow(QMainWindow):
 
 	###======= ACTIONS =======###
 	def setupQActions(self):
-		SK = StandardKey
+		SK = StandardKey    # Default platform specific keybinds
 		QKS = QKeySequence
+		# https://doc.qt.io/qtforpython-6/PySide6/QtGui/QKeySequence.html
 
 
 		### Project functions
-		Actions.add(self, "new",     "New",     self.newFile,    SK.New)
-		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)
-		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)
-		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs)
+		Actions.add(self, "new",     "New",     self.newFile,    SK.New)    # Ctrl+N
+		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
+		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
+		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
 		
 
 		### Viewport functions
@@ -94,18 +95,24 @@ class AppWindow(QMainWindow):
 			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
 		Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
 			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
+		Actions.add(view, "undo", "Undo", view.undo, SK.Undo)   # Ctrl+Z
+		Actions.add(view, "redo", "Redo", view.redo) \
+			.setShortcuts([QKS("Ctrl+Shift+Z"), QKS("Ctrl+Y")])
 		
 
 		### Canvas functions
 		scene = self.cscene
-		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll)
-		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)
-		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)
-		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)
+		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
+		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)   # Ctrl+C
+		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)     # Ctrl+V
+		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)       # Ctrl+X
 
 		Actions.add(view, "delete", "Delete", scene.removeFromSelection)\
 			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
-		# Actions.add(view, "rotate_cw", "Rotate Clockwise", scene)
+		Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
+		Actions.add(view, "rotate_ccw", "Rotate Counter-clockwise", scene.rotateSelectionCCW, QKS("Shift+R"))
+		Actions.add(view, "flip_horizontal", "Flip Horizontal", scene.flipSelectionHorizontal, QKS("F"))
+		Actions.add(view, "flip_vertical", "Flip Vertical", scene.flipSelectionVertical, QKS("Shift+F"))
 		# Actions.add(self, "increase_input_size", "Increase Input Size", )
 
 

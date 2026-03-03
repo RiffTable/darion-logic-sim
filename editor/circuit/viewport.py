@@ -172,3 +172,9 @@ class CircuitView(QGraphicsView):
 		self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
 	def zoomOutFromMouse(self):
 		self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
+	
+	def undo(self):
+		print("Undo not implemented yet :P")
+
+	def redo(self):
+		print("Redo not implemented yet :P")
