@@ -108,6 +108,8 @@ class GateItem(CompItem):
 	def pushGatePin(self):
 		"""Call `updateShape()` afterwards if needed"""
 		n = len(self.inputPins)
+		# if n >= self.maxInput: return
+
 		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
 		if n == 2:
@@ -119,6 +121,8 @@ class GateItem(CompItem):
 	def popGatePin(self):
 		"""Call `updateShape()` afterwards if needed"""
 		n = len(self.inputPins)
+		# if n <= self.minInput: return
+
 		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
 		if n == 3:

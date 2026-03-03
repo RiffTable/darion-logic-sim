@@ -2,6 +2,7 @@ import sys
 import json
 from functools import partial
 
+from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
 
@@ -109,11 +110,24 @@ class AppWindow(QMainWindow):
 
 		Actions.add(view, "delete", "Delete", scene.removeFromSelection)\
 			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
+		
+		# Orientation
 		Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
 		Actions.add(view, "rotate_ccw", "Rotate Counter-clockwise", scene.rotateSelectionCCW, QKS("Shift+R"))
 		Actions.add(view, "flip_horizontal", "Flip Horizontal", scene.flipSelectionHorizontal, QKS("F"))
 		Actions.add(view, "flip_vertical", "Flip Vertical", scene.flipSelectionVertical, QKS("Shift+F"))
-		# Actions.add(self, "increase_input_size", "Increase Input Size", )
+		Actions.add(view, "face_north", "Face North", lambda: scene.setFacingForSelected(Facing.NORTH), QKS("Ctrl+Up"))
+		Actions.add(view, "face_east",  "Face East",  lambda: scene.setFacingForSelected(Facing.EAST),  QKS("Ctrl+Right"))
+		Actions.add(view, "face_south", "Face South", lambda: scene.setFacingForSelected(Facing.SOUTH), QKS("Ctrl+Down"))
+		Actions.add(view, "face_west",  "Face West",  lambda: scene.setFacingForSelected(Facing.WEST),  QKS("Ctrl+Left"))
+		
+
+		# Gate Inputs & Wiring
+		Actions.add(view, "skip_wiring", "Stop Wiring", scene.skipWiring, QKS("Escape"))
+		Actions.add(view, "inc_inputs", "Increase No. of Inputs", scene.increaseInputsForSelected) \
+			.setShortcuts([QKS("="), QKS("+")])
+		Actions.add(view, "dec_inputs", "Decrease No. of Inputs", scene.decreaseInputsForSelected) \
+			.setShortcuts([QKS("-"), QKS("_")])
 
 
 

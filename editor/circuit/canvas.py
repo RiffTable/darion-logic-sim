@@ -54,19 +54,6 @@ class CircuitScene(QGraphicsScene):
 	def setState(self, st: EditorState):
 		self._state = st
 		...
-	
-	def skipWiring(self):
-		self.setState(EditorState.NORMAL)
-		gwire = self.ghostWire
-		self.ghostWire = None
-		if gwire:
-			if len(gwire.supplies) == 1:
-				gwire._disconnect()
-				self.removeItem(gwire)
-			else:
-				gwire.supplies.remove(self.ghostPin)
-				self.ghostPin.setWire(None)
-				gwire.updateShape()
 
 
 	# Components Management
@@ -161,6 +148,19 @@ class CircuitScene(QGraphicsScene):
 					p = paren.proxyPin()
 					if p: p.highlight(True)
 	
+	def skipWiring(self):
+		if self.checkState(EditorState.WIRING):
+			self.setState(EditorState.NORMAL)
+			gwire = self.ghostWire
+			self.ghostWire = None
+			if gwire:
+				if len(gwire.supplies) == 1:
+					gwire._disconnect()
+					self.removeItem(gwire)
+				else:
+					gwire.supplies.remove(self.ghostPin)
+					self.ghostPin.setWire(None)
+					gwire.updateShape()
 
 	def removeWire(self, wire: WireItem):
 		# Works for both ghost wires and regular wires
@@ -224,26 +224,8 @@ class CircuitScene(QGraphicsScene):
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
 		mod = event.modifiers()
-		
-		if self.checkState(EditorState.WIRING) and (event.key() == Key.Key_Escape):
-			self.skipWiring()
-		
-		if key in (Key.Key_Plus, Key.Key_Equal, Key.Key_Minus, Key.Key_Underscore):
-			for item in self.selectedItems():
-				if isinstance(item, GateItem):
-					is_plus = event.key() in (Key.Key_Plus, Key.Key_Equal)
-					new_size = len(item.inputPins) + (1 if is_plus else -1)
-					item.setInputCount(new_size)
-		
-		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
-		and mod & KeyMod.ControlModifier:
-			for item in self.selectedItems():
-				if isinstance(item, CompItem):
-					match key:
-						case Key.Key_Right: item.setFacing(Facing.EAST)
-						case Key.Key_Down:  item.setFacing(Facing.SOUTH)
-						case Key.Key_Left:  item.setFacing(Facing.WEST)
-						case Key.Key_Up:    item.setFacing(Facing.NORTH)
+
+		# ...
 
 		super().keyPressEvent(event)
 	
@@ -320,27 +302,34 @@ class CircuitScene(QGraphicsScene):
 			"comps": comps,
 			"wires": []
 		}
-	
 	def pasteComps(self):
 		self.clearSelection()
 		self.deserialize(self.clipboard, True)
-	
 	def cutComps(self):
 		self.copyFromSelection()
 		self.removeFromSelection()
 	
+	# Orientation
 	def rotateSelectionCW(self):
 		for item in self.selectedItems():
 			if isinstance(item, CompItem): item.rotateCW()
-
 	def rotateSelectionCCW(self):
 		for item in self.selectedItems():
 			if isinstance(item, CompItem): item.rotateCCW()
-
 	def flipSelectionHorizontal(self):
 		for item in self.selectedItems():
 			if isinstance(item, CompItem): item.flipHorizontal()
-
 	def flipSelectionVertical(self):
 		for item in self.selectedItems():
 			if isinstance(item, CompItem): item.flipVertical()
+	def setFacingForSelected(self, facing: Facing):
+		for item in self.selectedItems():
+			if isinstance(item, CompItem): item.setFacing(facing)
+	
+	# Gate Input
+	def increaseInputsForSelected(self):
+		for item in self.selectedItems():
+			if isinstance(item, GateItem): item.setInputCount(len(item.inputPins) + 1)
+	def decreaseInputsForSelected(self):
+		for item in self.selectedItems():
+			if isinstance(item, GateItem): item.setInputCount(len(item.inputPins) - 1)
