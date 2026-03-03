@@ -248,7 +248,10 @@ class CircuitScene(QGraphicsScene):
 		if key == Key.Key_R:
 			for item in self.selectedItems():
 				if isinstance(item, CompItem):
-					item.rotate(not mod & KeyMod.ShiftModifier)
+					if mod & KeyMod.ShiftModifier:
+						item.rotateCCW()
+					else:
+						item.rotateCW()
 		
 		if key in (Key.Key_Right, Key.Key_Down, Key.Key_Left, Key.Key_Up) \
 		and mod & KeyMod.ControlModifier:

@@ -77,10 +77,36 @@ class AppWindow(QMainWindow):
 
 	###======= ACTIONS =======###
 	def setupQActions(self):
-		Actions.add(self, "new", "New", self.newFile, StandardKey.New)
-		Actions.add(self, "save", "Save", self.saveFile, StandardKey.Save)
-		Actions.add(self, "open", "Open", self.loadFile, StandardKey.Open)
-		Actions.add(self, "save_as", "Save As", self.saveFileAs, StandardKey.SaveAs)
+		SK = StandardKey
+		QKS = QKeySequence
+
+
+		### Project functions
+		Actions.add(self, "new",     "New",     self.newFile,    SK.New)
+		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)
+		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)
+		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs)
+		
+
+		### Viewport functions
+		view = self.view
+		Actions.add(view, "zoom_in", "Zoom In", view.zoomInOnMouse) \
+			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
+		Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
+			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
+		
+
+		### Canvas functions
+		scene = self.cscene
+		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll)
+		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)
+		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)
+		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)
+
+		Actions.add(view, "delete", "Delete", scene.removeFromSelection)\
+			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
+		# Actions.add(view, "rotate_cw", "Rotate Clockwise", scene)
+		# Actions.add(self, "increase_input_size", "Increase Input Size", )
 
 
 

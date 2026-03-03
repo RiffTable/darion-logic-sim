@@ -236,9 +236,6 @@ class CompItem(QGraphicsItem):
 		self.updateShape()
 		self.PropertyChanged()
 	
-	def rotate(self, clockwise: bool = True):
-		self.setFacing(Facing(self.facing + (1 if clockwise else 3)))
-	
 	def edgeToFacing(self, edge: CompEdge) -> Facing:
 		return Facing(self.facing + (-edge if self.isMirrored else edge))
 	
@@ -423,3 +420,11 @@ class CompItem(QGraphicsItem):
 		painter.setPen(Color.text)
 		painter.setFont(Font.default)
 		painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
+	
+
+
+	###======= ACTIONS =======###
+	def rotateCW(self):
+		self.setFacing(Facing(self.facing + 1))
+	def rotateCCW(self):
+		self.setFacing(Facing(self.facing + 3))
