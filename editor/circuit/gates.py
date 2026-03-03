@@ -4,8 +4,6 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
 
-from editor.styles import Color
-
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 

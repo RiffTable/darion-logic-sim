@@ -5,7 +5,7 @@ from core.LogicCore import *
 from core.Enums import Facing, CompEdge, Prop
 import core.grid as GRID
 
-from editor.styles import Color, Font
+from editor.styles import LightColors, DarkColors, Font
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 if TYPE_CHECKING:
@@ -22,6 +22,13 @@ class CompItem(QGraphicsItem):
 	DESC: str
 	NAME: str
 	LOGIC: int
+
+	@property
+	def colors(self):
+		settings = QSettings("NotLogiSim", "Theme")
+		dark_theme = settings.value("dark_theme", True, type=bool)
+		return DarkColors if dark_theme else LightColors
+
 	def __init__(self, pos: QPointF, **kwargs):
 		# Properties
 		self.tag = self.TAG
@@ -408,16 +415,16 @@ class CompItem(QGraphicsItem):
 
 
 		if option.state & QStyle.StateFlag.State_Selected:
-			painter.setPen(QPen(Color.hl_text_bg, 2, Qt.PenStyle.DashLine))
+			painter.setPen(QPen(self.colors.hl_text_bg, 2, Qt.PenStyle.DashLine))
 		else:
-			painter.setPen(QPen(Color.outline, 2))
-		painter.setBrush(Color.comp_body)
+			painter.setPen(QPen(self.colors.outline, 2))
+		painter.setBrush(self.colors.comp_body)
 
 		self.draw(painter, option, widget)
 		painter.drawRect(self._rect)
 
 
-		painter.setPen(Color.text)
+		painter.setPen(self.colors.text)
 		painter.setFont(Font.default)
 		painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
 	

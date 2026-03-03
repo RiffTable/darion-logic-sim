@@ -39,7 +39,7 @@ class AppWindow(QMainWindow):
 		self.current_file_path: str|None = None
 
 		###======= PROPERTIES PANEL =======###
-		self.props_panel = PropertiesPanel()
+		self.props_panel = PropertiesPanel(self)
 		self.cscene.selectionChanged.connect(
 			lambda: self.props_panel.selectionChanged(self.cscene.selectedItems())
 		)

@@ -4,7 +4,7 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, Prop
 
-from editor.styles import Color
+from editor.styles import LightColors, DarkColors
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
@@ -19,6 +19,13 @@ class OutputItem(CompItem):
 	NAME=DESC="LED"
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
+
+	@property
+	def colors(self):
+		settings = QSettings("NotLogiSim", "Theme")
+		dark_theme = settings.value("dark_theme", True, type=bool)
+		return DarkColors if dark_theme else LightColors
+
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 
@@ -54,6 +61,6 @@ class OutputItem(CompItem):
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
 		match self.state:
-			case Const.HIGH:  painter.setBrush(QBrush(Color.LED_on))
-			case Const.ERROR: painter.setBrush(QBrush(Color.LED_on.darker(150)))
-			case _:           painter.setBrush(QBrush(Color.LED_off))
+			case Const.HIGH:  painter.setBrush(QBrush(self.colors.LED_on))
+			case Const.ERROR: painter.setBrush(QBrush(self.colors.LED_error))
+			case _:           painter.setBrush(QBrush(self.colors.LED_off))

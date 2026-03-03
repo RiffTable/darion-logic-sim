@@ -3,7 +3,7 @@ from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 from core.LogicCore import *
 
-from editor.styles import Color
+from editor.styles import LightColors, DarkColors
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
@@ -16,6 +16,13 @@ if TYPE_CHECKING:
 class WireItem(QGraphicsPathItem):
 	_COUNT = 1    # NO CONNECTION = ZERO (0)
 	MINWALK = 2
+
+	@property
+	def colors(self):
+		settings = QSettings("NotLogiSim", "Theme")
+		dark_theme = settings.value("dark_theme", True, type=bool)
+		return DarkColors if dark_theme else LightColors
+	
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
 
@@ -87,10 +94,10 @@ class WireItem(QGraphicsPathItem):
 	# Events
 	def updateState(self):
 		match self.source.state:
-			case Const.HIGH:  self.setPen(QPen(Color.signal_high, 3))
-			case Const.LOW:   self.setPen(QPen(Color.signal_low, 3))
-			case Const.ERROR: self.setPen(QPen(Color.signal_error, 3))
-			case _:           self.setPen(QPen(Color.signal_unknown, 3))
+			case Const.HIGH:  self.setPen(QPen(self.colors.signal_high, 3))
+			case Const.LOW:   self.setPen(QPen(self.colors.signal_low, 3))
+			case Const.ERROR: self.setPen(QPen(self.colors.signal_error, 3))
+			case _:           self.setPen(QPen(self.colors.signal_unknown, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
 	
 	def updateShape(self):

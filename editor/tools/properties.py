@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any
 from core.QtCore import *
 from core.Enums import Prop
-from editor.styles import Color, Font
+from editor.styles import DarkColors, LightColors
 
 from editor.circuit.compitem import CompItem
 
@@ -16,35 +16,16 @@ class PropertiesPanel(QWidget):
         self.widgets: dict[Prop, Any] = {}
         self.buildUI()
         self.hide()
+    
+        if parent and hasattr(parent, 'theme_manager'):
+            self.theme_manager = parent.theme_manager
+            self.theme_manager.theme_changed.connect(self.on_theme_changed)
+        else:
+            self.theme_manager = None
 
     def buildUI(self):
         self.setFixedWidth(175)
-        self.setStyleSheet(f"""
-            PropertiesPanel {{
-                background: {Color.secondary_bg.name()};
-                border-radius: 8px;
-            }}
-            QLabel#title {{
-                font-size: 13px;
-                font-weight: bold;
-                color: {Color.text.name()};
-                padding-bottom: 4px;
-            }}
-            QLabel {{
-                color: {Color.text.name()};
-                font-size: 11px;
-            }}
-            QSpinBox {{
-                background: {Color.primary_bg.name()};
-                color: {Color.text.name()};
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }}
-            QSpinBox::up-button, QSpinBox::down-button {{
-                width: 16px;
-            }}
-        """)
+        self.apply_theme_stylesheet()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)
@@ -92,7 +73,45 @@ class PropertiesPanel(QWidget):
 
         outer.addLayout(form)
         outer.addStretch()
-    
+        
+    @property
+    def colors(self):
+        settings = QSettings("NotLogiSim", "Theme")
+        dark_theme = settings.value("dark_theme", True, type=bool)
+        return DarkColors if dark_theme else LightColors
+
+    def apply_theme_stylesheet(self):
+        colors = self.colors
+        self.setStyleSheet(f"""
+            PropertiesPanel {{
+                background: {colors.secondary_bg.name()};
+                border-radius: 8px;
+            }}
+            QLabel#title {{
+                font-size: 13px;
+                font-weight: bold;
+                color: {colors.text.name()};
+                padding-bottom: 4px;
+            }}
+            QLabel {{
+                color: {colors.text.name()};
+                font-size: 11px;
+            }}
+            QSpinBox {{
+                background: {colors.primary_bg.name()};
+                color: {colors.text.name()};
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }}
+            QSpinBox::up-button, QSpinBox::down-button {{
+                width: 16px;
+            }}
+        """)
+
+    def on_theme_changed(self, theme_name):
+        self.apply_theme_stylesheet()
+        self.update()
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
         n = len(selectedItems)

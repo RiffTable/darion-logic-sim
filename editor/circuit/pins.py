@@ -5,7 +5,7 @@ from core.LogicCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from editor.styles import Color
+from editor.styles import LightColors, DarkColors
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
@@ -18,6 +18,12 @@ if TYPE_CHECKING:
 
 ###======= PIN ITEM =======###
 class PinItem(QGraphicsRectItem):
+	@property
+	def colors(self):
+		settings = QSettings("NotLogiSim", "Theme")
+		dark_theme = settings.value("dark_theme", True, type=bool)
+		return DarkColors if dark_theme else LightColors
+	
 	def __init__(self, parentComp: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(
 			-GRID.SIZE, -GRID.SIZE,
@@ -111,7 +117,7 @@ class PinItem(QGraphicsRectItem):
 	
 	def updateVisual(self):
 		if self.isHighlighted:
-			self.setBrush(QBrush(Color.pin_hover))
+			self.setBrush(QBrush(self.colors.pin_hover))
 		
 		elif self._wire:
 			self.setBrush(Qt.BrushStyle.NoBrush)
@@ -120,10 +126,10 @@ class PinItem(QGraphicsRectItem):
 			# Pin color matches wire color if no wires is attached.
 			# In case, you want to know the output without connecting wires :)
 			match self.state:
-				case Const.HIGH:  self.setBrush(QBrush(Color.signal_high))
-				case Const.LOW:   self.setBrush(QBrush(Color.pin_low))
-				case Const.ERROR: self.setBrush(QBrush(Color.signal_error))
-				case _:           self.setBrush(QBrush(Color.signal_unknown))
+				case Const.HIGH:  self.setBrush(QBrush(self.colors.pin_high))
+				case Const.LOW:   self.setBrush(QBrush(self.colors.pin_low))
+				case Const.ERROR: self.setBrush(QBrush(self.colors.signal_error))
+				case _:           self.setBrush(QBrush(self.colors.signal_unknown))
 
 
 

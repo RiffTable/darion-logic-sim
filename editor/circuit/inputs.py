@@ -4,7 +4,7 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
 
-from editor.styles import Color
+from editor.styles import LightColors, DarkColors
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
@@ -19,6 +19,13 @@ class InputItem(CompItem):
 	NAME=DESC="INPUT"
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
+
+	@property
+	def colors(self):
+		settings = QSettings("NotLogiSim", "Theme")
+		dark_theme = settings.value("dark_theme", True, type=bool)
+		return DarkColors if dark_theme else LightColors
+	
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)
 
@@ -68,6 +75,6 @@ class InputItem(CompItem):
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
 		if self.state == Const.HIGH:
-			painter.setBrush(Color.comp_active)
+			painter.setBrush(self.colors.comp_active)
 		else:
-			painter.setBrush(Color.comp_body)
+			painter.setBrush(self.colors.comp_body)
