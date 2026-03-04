@@ -1,23 +1,9 @@
 from core.QtCore import *
+import editor.actions as Action
 
 class BaseMenu(QMenu):
     def __init__(self, title, parent=None):
         super().__init__(title, parent)
-
-    def _add_action(self, text: str, shortcut=None, slot=None, status=None):
-        """Helper method to add an action to the menu"""
-        action = QAction(text, self.parent())
-        if shortcut:
-            if isinstance(shortcut, QKeySequence.StandardKey):
-                action.setShortcut(shortcut)
-            else:
-                action.setShortcut(QKeySequence(shortcut))
-        if slot:
-            action.triggered.connect(slot)
-        if status:
-            action.setStatusTip(status)
-        self.addAction(action)
-        return action
 
     def _add_checkable_action(self, text: str, shortcut=None, checked=False, slot=None):
         """Helper method to add a checkable action to the menu"""
@@ -41,13 +27,13 @@ class FileMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self._add_action("New Project", QKeySequence.New)
-        self._add_action("Open Project", QKeySequence.Open)
+        self.addAction(Action.get("new"))
+        self.addAction(Action.get("open"))
         self.addSeparator()
-        self._add_action("Save", QKeySequence.Save)
-        self._add_action("Save As", QKeySequence.SaveAs)
+        self.addAction(Action.get("save"))
+        self.addAction(Action.get("save_as"))
         self.addSeparator()
-        self._add_action("Exit", QKeySequence.Quit, self.parent().close)
+        self.addAction(Action.get("exit"))
 
 
 class EditMenu(BaseMenu):
@@ -56,12 +42,12 @@ class EditMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self._add_action("Undo", QKeySequence.Undo)
-        self._add_action("Redo", QKeySequence.Redo)
+        self.addAction(Action.get("undo"))
+        self.addAction(Action.get("redo"))
         self.addSeparator()
-        self._add_action("Cut", QKeySequence.Cut)
-        self._add_action("Copy", QKeySequence.Copy)
-        self._add_action("Paste", QKeySequence.Paste)
+        self.addAction(Action.get("cut"))
+        self.addAction(Action.get("copy"))
+        self.addAction(Action.get("paste"))
 
 
 class ProjectMenu(BaseMenu):
@@ -70,7 +56,7 @@ class ProjectMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self._add_action("Export as Image")
+        self.addAction("Export as Image")
 
 
 class SettingsMenu(BaseMenu):

@@ -10,8 +10,7 @@ _action_list: dict[str, QAction] = {}
 def get(key: str) -> QAction:
 	act = _action_list.get(key, None)
 	if act == None:
-		KeyError("Requesting for a QAction before registering")
-		exit()
+		raise KeyError("Requesting for a QAction before registering")
 	return act
 
 

@@ -26,17 +26,19 @@ class AppWindow(QMainWindow):
 		layout_main = QHBoxLayout(central)
 		
 
+		###======= CIRCUIT =======###
+		self.view = CircuitView()
+		self.cscene = self.view.cscene
+		self.current_file_path: str|None = None
+
+		self.setupQActions()
+
 		###======= MENUS =======###
 		menubar: QMenuBar = self.menuBar()
 		menubar.addMenu(FileMenu(self))
 		menubar.addMenu(EditMenu(self))
 		menubar.addMenu(ProjectMenu(self))
 		menubar.addMenu(SettingsMenu(self))
-
-		###======= CIRCUIT =======###
-		self.view = CircuitView()
-		self.cscene = self.view.cscene
-		self.current_file_path: str|None = None
 
 		###======= PROPERTIES PANEL =======###
 		self.props_panel = PropertiesPanel(self)
@@ -72,8 +74,6 @@ class AppWindow(QMainWindow):
 		layout_main.addWidget(self.view)
 		layout_main.addWidget(self.props_panel)
 
-		self.setupQActions()
-
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app
 		try:
@@ -97,6 +97,7 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
+		Actions.add(self, "exit",    "Exit",    self.close,      SK.Quit)   # Ctrl+Q
 		
 
 		### Viewport functions
