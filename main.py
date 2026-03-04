@@ -96,15 +96,15 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "new",     "New",     self.newFile,    SK.New)    # Ctrl+N
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
-		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
+		Actions.add(self, "save-as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
 		Actions.add(self, "exit",    "Exit",    self.close,      SK.Quit)   # Ctrl+Q
 		
 
 		### Viewport functions
 		view = self.view
-		Actions.add(view, "zoom_in", "Zoom In", view.zoomInOnMouse) \
+		Actions.add(view, "zoom-in", "Zoom In", view.zoomInOnMouse) \
 			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
-		Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
+		Actions.add(view, "zoom-out", "Zoom Out", view.zoomOutFromMouse) \
 			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
 		Actions.add(view, "undo", "Undo", view.undo, SK.Undo)   # Ctrl+Z
 		Actions.add(view, "redo", "Redo", view.redo) \
@@ -113,17 +113,17 @@ class AppWindow(QMainWindow):
 
 		### Canvas functions
 		scene = self.cscene
-		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
+		Actions.add(view, "select-all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
 		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)   # Ctrl+C
 		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)     # Ctrl+V
 		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)       # Ctrl+X
 
 		Actions.add(view, "delete", "Delete", scene.removeFromSelection)\
 			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
-		Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
-		Actions.add(view, "rotate_ccw", "Rotate Counter-clockwise", scene.rotateSelectionCCW, QKS("Shift+R"))
-		Actions.add(view, "flip_horizontal", "Flip Horizontal", scene.flipSelectionHorizontal, QKS("F"))
-		Actions.add(view, "flip_vertical", "Flip Vertical", scene.flipSelectionVertical, QKS("Shift+F"))
+		Actions.add(view, "rotate-cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
+		Actions.add(view, "rotate-ccw", "Rotate Counter-clockwise", scene.rotateSelectionCCW, QKS("Shift+R"))
+		Actions.add(view, "flip-horizontal", "Flip Horizontal", scene.flipSelectionHorizontal, QKS("F"))
+		Actions.add(view, "flip-vertical", "Flip Vertical", scene.flipSelectionVertical, QKS("Shift+F"))
 		# Actions.add(self, "increase_input_size", "Increase Input Size", )
 
 

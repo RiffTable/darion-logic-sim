@@ -1,24 +1,10 @@
 from core.QtCore import *
-import editor.actions as Action
+import editor.actions as Actions
 
 class BaseMenu(QMenu):
     def __init__(self, title, parent=None):
         super().__init__(title, parent)
 
-    def _add_checkable_action(self, text: str, shortcut=None, checked=False, slot=None):
-        """Helper method to add a checkable action to the menu"""
-        action = QAction(text, self.parent())
-        action.setCheckable(True)
-        action.setChecked(checked)
-        if shortcut:
-            if isinstance(shortcut, QKeySequence.StandardKey):
-                action.setShortcut(shortcut)
-            else:
-                action.setShortcut(QKeySequence(shortcut))
-        if slot:
-            action.toggled.connect(slot)
-        self.addAction(action)
-        return action
 
 
 class FileMenu(BaseMenu):
@@ -27,13 +13,13 @@ class FileMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self.addAction(Action.get("new"))
-        self.addAction(Action.get("open"))
+        self.addAction(Actions.get("new"))
+        self.addAction(Actions.get("open"))
         self.addSeparator()
-        self.addAction(Action.get("save"))
-        self.addAction(Action.get("save_as"))
+        self.addAction(Actions.get("save"))
+        self.addAction(Actions.get("save-as"))
         self.addSeparator()
-        self.addAction(Action.get("exit"))
+        self.addAction(Actions.get("exit"))
 
 
 class EditMenu(BaseMenu):
@@ -42,12 +28,12 @@ class EditMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self.addAction(Action.get("undo"))
-        self.addAction(Action.get("redo"))
+        self.addAction(Actions.get("undo"))
+        self.addAction(Actions.get("redo"))
         self.addSeparator()
-        self.addAction(Action.get("cut"))
-        self.addAction(Action.get("copy"))
-        self.addAction(Action.get("paste"))
+        self.addAction(Actions.get("cut"))
+        self.addAction(Actions.get("copy"))
+        self.addAction(Actions.get("paste"))
 
 
 class ProjectMenu(BaseMenu):
@@ -56,7 +42,8 @@ class ProjectMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self.addAction("Export as Image")
+        ...
+        # self.addAction("Export as Image")
 
 
 class SettingsMenu(BaseMenu):
@@ -65,21 +52,16 @@ class SettingsMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self._add_checkable_action("Invert Mouse Scrolling")
-        self._add_checkable_action("Disable Pins Peeking")
-        self._add_checkable_action("Hide Grid")
-
         # Theme toggle
-        self.theme_manager = self.parent().theme_manager if self.parent() else None
-        
+        self.theme_manager = self.parent().theme_manager if self.parent() else None  # type: ignore
         initial_checked = self.theme_manager.current_theme == "dark" if self.theme_manager else True
-        self.dark_theme_action = self._add_checkable_action(
-            "Dark Theme", 
-            checked=initial_checked
-        )
         
+        Actions.addCheckable(self, "invert-scroll", "Invert Mouse Scrolling")
+        Actions.addCheckable(self, "disable-peeking", "Disable Pins Peeking")
+        Actions.addCheckable(self, "hide-grid", "Hide Grid")
+        Actions.addCheckable(self, "dark-theme", "Dark Theme", initial_checked, self.toggle_theme)
+
         if self.theme_manager:
-            self.dark_theme_action.triggered.connect(self.toggle_theme)
             self.theme_manager.theme_changed.connect(self.on_theme_changed)
     
     def toggle_theme(self, checked):
@@ -87,4 +69,4 @@ class SettingsMenu(BaseMenu):
             self.theme_manager.apply_theme("dark" if checked else "light")
     
     def on_theme_changed(self, theme_name):
-        self.dark_theme_action.setChecked(theme_name == "dark")
+        Actions.get("dark-theme").setChecked(theme_name == "dark")

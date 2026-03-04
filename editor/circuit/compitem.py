@@ -414,7 +414,7 @@ class CompItem(QGraphicsItem):
 		if self._dirty: self._updateShape(); self._dirty = False
 
 
-		if option.state & QStyle.StateFlag.State_Selected:
+		if option.state & QStyle.StateFlag.State_Selected:    # type: ignore ; fuck off pyright
 			painter.setPen(QPen(self.colors.hl_text_bg, 2, Qt.PenStyle.DashLine))
 		else:
 			painter.setPen(QPen(self.colors.outline, 2))
