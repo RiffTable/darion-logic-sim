@@ -23,7 +23,7 @@ class InputItem(CompItem):
 		super().__init__(pos, **kwargs)
 
 		# Properties
-		self.state: int = Const.LOW
+		self.state: int = kwargs.get("state", Const.LOW)
 		
 		# Pins Setup
 		if self._setupDefaultPins:
@@ -38,13 +38,18 @@ class InputItem(CompItem):
 		self.outputPin.logicalStateChanged(self.state)
 
 		# Final Setup
-		self.setState(False)
+		self.setState(True if self.state == Const.HIGH else False)
 
 
 	# Properties Data
+	def getData(self):
+		return super().getData() | {
+			"state"      : self.state,
+		}
+	
 	def getProperties(self) -> dict:
 		return super().getProperties() | {
-			Prop.STATE     : self.state
+			Prop.STATE   : self.state
 		}
 
 	def unitStateChanged(self, state: int):

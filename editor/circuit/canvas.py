@@ -5,6 +5,7 @@ from core.LogicCore import *
 from core.Enums import CompEdge, Facing, EditorState
 import core.grid as GRID
 
+from editor.styles import Color
 from .catalog import (
 	LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
 	GateItem
@@ -229,6 +230,51 @@ class CircuitScene(QGraphicsScene):
 
 		super().keyPressEvent(event)
 	
+	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
+		grid_size = GRID.SIZE
+		bg_color = Color.primary_bg
+		grid_color = Color.bg_grid
+		painter.fillRect(rect, bg_color)
+
+		rect_left = int(rect.left())
+		rect_top =  int(rect.top())
+		rect_right =  int(rect.right())
+		rect_bottom =  int(rect.bottom())
+
+		left = rect_left - (rect_left % grid_size)
+		top = rect_top - (rect_top % grid_size)
+
+		bg_mode = 0
+		if bg_mode == 0:
+			smol_lines: list[QLineF] = []
+			beeg_lines: list[QLineF] = []
+
+			# Vertical Lines
+			for x in range(left, rect_right, grid_size):
+				line = QLineF(x, rect_top, x, rect_bottom)
+				if x%(5*grid_size) == 0: beeg_lines.append(line)
+				else:                    smol_lines.append(line)
+				
+			# Horizontal lines
+			for y in range(top, rect_bottom, grid_size):
+				line = QLineF(rect_left, y, rect_right, y)
+				if y%(5*grid_size) == 0: beeg_lines.append(line)
+				else:                    smol_lines.append(line)
+			
+			painter.setPen(QPen(grid_color, 1))
+			painter.drawLines(smol_lines)
+			painter.setPen(QPen(grid_color, 2))
+			painter.drawLines(beeg_lines)
+		
+		else:
+			points = []
+			for x in range(left, int(rect.right()), 2*grid_size):
+				for y in range(top, int(rect.bottom()), 2*grid_size):
+					points.append(QPointF(x, y))
+			
+			painter.setPen(QPen(grid_color.lighter(120), 3))
+			painter.drawPoints(points)
+
 
 
 	def clearCanvas(self):

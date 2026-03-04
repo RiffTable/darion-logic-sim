@@ -5,6 +5,7 @@ class Color:
 	hl_text_bg     = QColor("#2f65ca")
 	primary_bg     = QColor("#1e1e1e")
 	secondary_bg   = QColor("#2b2b2b")
+	bg_grid        = QColor("#2b2b2b")
 	tooltip_text   = QColor("#ff0000")
 	tooltip_bg     = QColor("#ffffff")
 	button         = QColor("#3c3f41")

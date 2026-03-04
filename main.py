@@ -69,9 +69,7 @@ class AppWindow(QMainWindow):
 		# To make sure a runtime error isn't raised when closing the app
 		try:
 			self.cscene.selectionChanged.disconnect()
-		except RuntimeError:
-			pass
-			
+		except RuntimeError: pass
 		super().closeEvent(event)
 
 
@@ -245,7 +243,6 @@ if __name__ == "__main__":
 	window.resize(1000, 600)
 	window.show()
 
-	window.cscene.addComp(100, 100, 5)
-	window.cscene.addComp(100, 200, 11)
+	# Starts with an empty canvas
 
 	sys.exit(app.exec())

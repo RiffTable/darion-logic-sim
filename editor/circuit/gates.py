@@ -163,6 +163,7 @@ class GateItem(CompItem):
 		
 		logic.setlimits(self._unit, size)
 		self.updateShape()
+		self.PropertyChanged()
 		return True
 
 	# Input feedback

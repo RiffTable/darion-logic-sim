@@ -139,7 +139,7 @@ class PropertiesPanel(QWidget):
 
     def changeProperty(self, prop: Prop, value):
         if not self.comp: return
+        
         # setProperty() automatically calls updateTab() using listener IF the property actually changed
-
         if not self.comp.setProperty(prop, value):
             self.updateTab()
