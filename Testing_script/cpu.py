@@ -315,7 +315,7 @@ def benchmark():
 
     # build
     gc.disable()
-    c = Circuit(); c.activate_eval()
+    c = Circuit()
     t_build = time.perf_counter()
     (clk, GND, VCC, acc_q, acc_ph, b_q,
      zf, cf, sf, of, op3, sh3, sel2, imm8,

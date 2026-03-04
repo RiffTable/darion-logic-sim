@@ -5,114 +5,6 @@ from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import *
 from IC import IC
 from Store import get
-from collections import deque
-
-def turnoff(gate: Gate, queue: list, wave_limit: int, eval_ptr: list = None):
-    """Set all targets to UNKNOWN and propagate."""
-    for profile in gate.hitlist:
-        target = profile.target
-        if target is not gate:
-            target.output = UNKNOWN
-            propagate(target, queue, wave_limit, eval_ptr)
-
-def burn(queue: list, index: int):
-    """Error propagation — flood-fill ERROR through the graph."""
-    size = len(queue)
-    # keep propagating until everything settles
-    while index < size:
-        while index < size:
-            gate = queue[index]
-            gate.scheduled = False
-            gate.output = ERROR
-            for profile in gate.hitlist:
-                if profile.output != ERROR:
-                    target = profile.target
-                    if target.inputlimit != 1:
-                        target.book[profile.output] -= 1
-                        target.book[gate.output] += 1
-                    if target.output != ERROR:
-                        queue.append(target)
-                    profile.output = ERROR
-            index += 1
-        size = len(queue)
-    if UI_MODE:
-        for gate in queue:
-            for listener in gate.listener:
-                listener(gate.output)
-    queue.clear()
-
-
-def propagate(origin: Gate, queue: list, wave_limit: int, eval_ptr: list = None):
-    """The core reactor propagation loop.
-    Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
-    index = 0
-    size = 1
-    counter = 0
-
-    if origin.output == ERROR:
-        burn(queue, index)
-        return
-
-    queue.append(origin)
-
-    while index < size:
-        if counter > wave_limit:
-            burn(queue, index)
-            return
-        counter += 1
-
-        while index < size:
-            gate = queue[index]
-            gate.scheduled = False
-            new_output = gate.output
-            for profile in gate.hitlist:
-                if eval_ptr is not None:
-                    eval_ptr[0] += 1
-                profile_output = profile.output
-                if profile_output != new_output:
-                    target = profile.target
-                    gate_type = target.id
-                    limit = target.inputlimit
-
-                    if limit == 1:
-                        if gate_type == NOT_ID and new_output != UNKNOWN:
-                            target_output = new_output ^ 1
-                        else:
-                            target_output = new_output
-                    else:
-                        book = target.book
-                        book[profile_output] -= 1
-                        book[new_output] += 1
-                        high = book[HIGH]
-                        low = book[LOW]
-                        realsource = high + low
-                        if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
-                            if gate_type <= NAND_ID:
-                                target_output = int(low == 0)
-                            elif gate_type <= NOR_ID:
-                                target_output = int(high > 0)
-                            else:
-                                target_output = high & 1
-                            target_output ^= (gate_type & 1)
-                        else:
-                            target_output = UNKNOWN
-
-                    if target_output != target.output:
-                        target.output = target_output
-                        if not target.scheduled:
-                            target.scheduled = True
-                            queue.append(target)
-
-                    profile.output = new_output
-
-            index += 1
-        size = len(queue)
-    if UI_MODE:
-        for gate in queue:
-            for listener in gate.listener:
-                listener(gate.output)
-    queue.clear()
-
 
 # ─── Circuit ──────────────────────────────────────────────────────
 
@@ -121,7 +13,7 @@ class Circuit:
     __slots__ = [
         'objlist', 'copydata',
         'counter', 'queue',
-        '_eval_count', 'eval_ptr'
+        'eval_count'
     ]
 
     def __init__(self):
@@ -130,29 +22,11 @@ class Circuit:
         self.copydata: list = []
         self.counter: int = 0
         self.queue: list = []
-        self._eval_count = 0
-        self.eval_ptr = None
+        self.eval_count = 0
 
-    @property
-    def eval_count(self):
-        return self.eval_ptr[0] if self.eval_ptr is not None else self._eval_count
-
-    @eval_count.setter
-    def eval_count(self, value):
-        if self.eval_ptr is not None:
-            self.eval_ptr[0] = value
-        else:
-            self._eval_count = value
     def set_UI_MODE(self, mode):
         global UI_MODE
         UI_MODE = mode
-    def activate_eval(self):
-        self.eval_ptr = [self._eval_count]
-
-    def deactivate_eval(self):
-        if self.eval_ptr is not None:
-            self._eval_count = self.eval_ptr[0]
-        self.eval_ptr = None
 
     def __repr__(self):
         return 'Circuit'
@@ -218,21 +92,21 @@ class Circuit:
         prev = target.output
         target.connect(source, index)
         if prev != target.output:
-            propagate(target, self.queue, self.counter, self.eval_ptr)
+            self.propagate(target)
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
         if value != target.output:
             target.value = value
             target.output = value if get_MODE() == SIMULATE else UNKNOWN
-            propagate(target, self.queue, self.counter, self.eval_ptr)
+            self.propagate(target)
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""
         prev = target.output
         target.disconnect(index)
         if prev != target.output:
-            propagate(target, self.queue, self.counter, self.eval_ptr)
+            self.propagate(target)
 
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
@@ -246,9 +120,9 @@ class Circuit:
         for gate in gatelist:
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    turnoff(pin, self.queue, self.counter, self.eval_ptr)
+                    self.turnoff(pin)
             else:
-                turnoff(gate, self.queue, self.counter, self.eval_ptr)
+                self.turnoff(gate)
 
     def reveal(self, gatelist: list):
         """Bring a hidden component back."""
@@ -262,9 +136,9 @@ class Circuit:
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    propagate(pin, self.queue, self.counter, self.eval_ptr)
+                    self.propagate(pin)
             else:
-                propagate(gate, self.queue, self.counter, self.eval_ptr)
+                self.propagate(gate)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -308,7 +182,7 @@ class Circuit:
                 bit = 1 if (i & (1 << (n - j - 1))) else 0
                 if bit != var.output:
                     var.output = bit
-                    propagate(var, self.queue, self.counter, self.eval_ptr)
+                    self.propagate(var)
                 inputs.append(str(bit))
 
             output_vals = [str(gate.getoutput()) for gate in gate_list]
@@ -559,7 +433,7 @@ class Circuit:
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
                 variable.output = variable.value
-                propagate(variable, self.queue, self.counter, self.eval_ptr)
+                self.propagate(variable)
 
     def reset(self):
         """Reset to design mode."""
@@ -569,3 +443,106 @@ class Circuit:
                 i.reset()
             else:
                 i.reset()
+
+    def turnoff(self, gate: Gate):
+        """Set all targets to UNKNOWN and propagate."""
+        for profile in gate.hitlist:
+            target = profile.target
+            if target is not gate:
+                target.output = UNKNOWN
+                self.propagate(target)
+
+    def burn(self, index: int):
+        """Error propagation — flood-fill ERROR through the graph."""
+        size = len(self.queue)
+        # keep propagating until everything settles
+        while index < size:
+            while index < size:
+                gate = self.queue[index]
+                gate.scheduled = False
+                gate.output = ERROR
+                for profile in gate.hitlist:
+                    if profile.output != ERROR:
+                        target = profile.target
+                        if target.inputlimit != 1:
+                            target.book[profile.output] -= 1
+                            target.book[gate.output] += 1
+                        if target.output != ERROR:
+                            self.queue.append(target)
+                        profile.output = ERROR
+                index += 1
+            size = len(self.queue)
+        if UI_MODE:
+            for gate in self.queue:
+                for listener in gate.listener:
+                    listener(gate.output)
+        self.queue.clear()
+
+    def propagate(self, origin: Gate):
+        """Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
+        index = 0
+        size = 1
+        counter = 0
+
+        if origin.output == ERROR:
+            self.burn(index)
+            return
+
+        self.queue.append(origin)
+
+        while index < size:
+            if counter > self.counter:
+                self.burn(index)
+                return
+            counter += 1
+
+            while index < size:
+                gate = self.queue[index]
+                gate.scheduled = False
+                new_output = gate.output
+                for profile in gate.hitlist:
+                    self.eval_count += 1
+                    profile_output = profile.output
+                    if profile_output != new_output:
+                        target = profile.target
+                        gate_type = target.id
+                        limit = target.inputlimit
+
+                        if limit == 1:
+                            if gate_type == NOT_ID and new_output != UNKNOWN:
+                                target_output = new_output ^ 1
+                            else:
+                                target_output = new_output
+                        else:
+                            book = target.book
+                            book[profile_output] -= 1
+                            book[new_output] += 1
+                            high = book[HIGH]
+                            low = book[LOW]
+                            realsource = high + low
+                            if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                if gate_type <= NAND_ID:
+                                    target_output = int(low == 0)
+                                elif gate_type <= NOR_ID:
+                                    target_output = int(high > 0)
+                                else:
+                                    target_output = high & 1
+                                target_output ^= (gate_type & 1)
+                            else:
+                                target_output = UNKNOWN
+
+                        if target_output != target.output:
+                            target.output = target_output
+                            if not target.scheduled:
+                                target.scheduled = True
+                                self.queue.append(target)
+
+                        profile.output = new_output
+
+                index += 1
+            size = len(self.queue)
+        if UI_MODE:
+            for gate in self.queue:
+                for listener in gate.listener:
+                    listener(gate.output)
+        self.queue.clear()

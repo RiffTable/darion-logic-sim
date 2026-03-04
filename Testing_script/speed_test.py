@@ -62,8 +62,7 @@ from IC import IC
 class AggressiveTestSuite:
     def __init__(self):
         self.circuit = Circuit()
-        if hasattr(self.circuit, 'activate_eval'):
-            self.circuit.activate_eval()
+
         self.event_manager = Event()
         self.passed = 0
         self.failed = 0

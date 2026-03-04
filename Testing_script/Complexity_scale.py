@@ -748,7 +748,7 @@ def run_profiler():
     print(f"[+] Backend: {backend_name}")
 
     temp_circ = CircuitClass()
-    has_hw_counter = hasattr(temp_circ, 'activate_eval')
+    has_hw_counter = hasattr(temp_circ, 'eval_count')
     del temp_circ
 
     TEST_SIZES = [1_000, 5_000, 10_000, 50_000, 100_000]
@@ -762,7 +762,7 @@ def run_profiler():
     if has_hw_counter:
         print("[+] Hardware Counter Detected: Using absolute engine-level evaluation metrics.\n")
     else:
-        print("[-] WARNING: 'activate_eval()' not found in Circuit class.")
+        print("[-] WARNING: 'eval_count' not found in Circuit class.")
         print("[-] Using theoretical math for ME/s. L4 and L5 scores WILL be artificially inflated.\n")
 
     levels = [
@@ -784,8 +784,7 @@ def run_profiler():
         
         for size in TEST_SIZES:
             circuit = CircuitClass()
-            if hasattr(circuit, 'activate_eval'):
-                circuit.activate_eval()
+
             gc.disable()
             
             master, count, theoretical_evals, desc = builder(circuit, size, VARIABLE_ID, NOT_ID, XOR_ID, AND_ID=AND_ID)

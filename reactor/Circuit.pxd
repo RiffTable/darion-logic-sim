@@ -4,17 +4,13 @@ from libcpp.vector cimport vector
 
 ctypedef vector[void*] Queue
 
-cdef void propagate(Gate origin,Queue &queue,int wave_limit,unsigned long long* eval_ptr)
-cdef void burn(Queue &queue,int index)
+
 
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
     cdef public int counter
     cdef public unsigned long long eval_count
-    cdef unsigned long long* eval_ptr
-    cpdef void activate_eval(self)
-    cpdef void deactivate_eval(self)
     cdef Queue queue
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
@@ -39,3 +35,6 @@ cdef class Circuit:
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)
     cpdef void reset(self)
+    cdef void turnoff(self,Gate gate)
+    cdef void propagate(self,Gate origin)
+    cdef void burn(self,int index)

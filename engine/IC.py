@@ -2,7 +2,6 @@
 from __future__ import annotations
 from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
 from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES
-from collections import deque
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
