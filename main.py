@@ -6,7 +6,7 @@ from core.QtCore import *
 from core.LogicCore import *
 
 from editor.theme import ThemeManager
-from editor.styles import LightColors, DarkColors
+from editor.styles import LightTheme, DarkTheme
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel

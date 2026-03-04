@@ -3,7 +3,7 @@ from functools import partial
 from typing import Any
 from core.QtCore import *
 from core.Enums import Prop
-from editor.styles import DarkColors, LightColors
+from editor.styles import DarkTheme, LightTheme
 
 from editor.circuit.compitem import CompItem
 
@@ -76,9 +76,9 @@ class PropertiesPanel(QWidget):
         
     @property
     def colors(self):
-        settings = QSettings("NotLogiSim", "Theme")
+        settings = QSettings("Darion", "Darion Logic Sim")
         dark_theme = settings.value("dark_theme", True, type=bool)
-        return DarkColors if dark_theme else LightColors
+        return DarkTheme if dark_theme else LightTheme
 
     def apply_theme_stylesheet(self):
         colors = self.colors

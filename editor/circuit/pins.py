@@ -5,7 +5,7 @@ from core.LogicCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
-from editor.styles import LightColors, DarkColors
+from editor.styles import LightTheme, DarkTheme
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 class PinItem(QGraphicsRectItem):
 	@property
 	def colors(self):
-		settings = QSettings("NotLogiSim", "Theme")
+		settings = QSettings("Darion", "Darion Logic Sim")
 		dark_theme = settings.value("dark_theme", True, type=bool)
-		return DarkColors if dark_theme else LightColors
+		return DarkTheme if dark_theme else LightTheme
 	
 	def __init__(self, parentComp: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(

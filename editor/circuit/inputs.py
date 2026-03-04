@@ -4,7 +4,7 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
 
-from editor.styles import LightColors, DarkColors
+from editor.styles import LightTheme, DarkTheme
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
@@ -22,9 +22,9 @@ class InputItem(CompItem):
 
 	@property
 	def colors(self):
-		settings = QSettings("NotLogiSim", "Theme")
+		settings = QSettings("Darion", "Darion Logic Sim")
 		dark_theme = settings.value("dark_theme", True, type=bool)
-		return DarkColors if dark_theme else LightColors
+		return DarkTheme if dark_theme else LightTheme
 	
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)

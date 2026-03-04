@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import QObject, Signal, QSettings
 
-from editor.styles import LightColors, DarkColors
+from editor.styles import LightTheme, DarkTheme
 
 
 class ThemeManager(QObject):
@@ -11,9 +11,9 @@ class ThemeManager(QObject):
     def __init__(self, app: QApplication):
         super().__init__()
         self.app = app
-        self.settings = QSettings("NotLogiSim", "Theme")
+        self.settings = QSettings("Darion", "Darion Logic Sim")
         self.current_theme = "dark"
-        self.colors = DarkColors
+        self.colors = DarkTheme
         
         
     def apply_palette(self, colors):
@@ -41,11 +41,11 @@ class ThemeManager(QObject):
         
     def apply_theme(self, theme_name: str):
         if theme_name == "light":
-            self.colors = LightColors
-            self.apply_palette(LightColors)
+            self.colors = LightTheme
+            self.apply_palette(LightTheme)
         else:
-            self.colors = DarkColors
-            self.apply_palette(DarkColors)
+            self.colors = DarkTheme
+            self.apply_palette(DarkTheme)
         
         self.current_theme = theme_name
         self.settings.setValue("dark_theme", theme_name == "dark")
