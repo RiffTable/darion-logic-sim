@@ -4,7 +4,7 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: nonecheck=False
-from Gates cimport Gate, InputPin, OutputPin, Profile, hide, reveal, pop
+from Gates cimport Gate, In, Out, Profile, hide, reveal, pop
 from Store cimport get,decode
 from Const cimport *
 
@@ -17,16 +17,16 @@ cdef class IC:
         self.internal = []
         self.outputs = []
 
-        self.name = 'IC'
+        self.codename = 'IC'
         self.custom_name = ''
         self.code = ()
         self.map = []
 
     def __repr__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     cpdef object getcomponent(self, int choice):
         cdef object gt = get(choice)
@@ -35,15 +35,14 @@ cdef class IC:
             if gt.id==INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-                gt.name = 'in-'+str(len(self.inputs))
             elif gt.id==OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
-                gt.name = 'out-'+str(len(self.outputs))
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-                gt.name = gt.__class__.__name__+'-'+str(len(self.internal))
+
+            gt.codename = gt.__class__.__name__+'-'+str(rank)
             gt.code = (choice, rank, self.code)
         return gt
 
@@ -51,15 +50,13 @@ cdef class IC:
         if source.id==INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-            source.name = 'in-'+str(len(self.inputs))
         elif source.id==OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
-            source.name = 'out-'+str(len(self.outputs))
         else:
             rank = len(self.internal)
             self.internal.append(source)
-            source.name = source.__class__.__name__+'-'+str(len(self.internal))
+        source.codename = source.__class__.__name__+'-'+str(rank)
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):
@@ -120,8 +117,8 @@ cdef class IC:
             gate.clone(i, pseudo)
 
     cpdef void hide(self):
-        cdef OutputPin pin_out
-        cdef InputPin pin_in
+        cdef Out pin_out
+        cdef In pin_in
         cdef Profile* hitlist
         cdef int index
         cdef int loc
@@ -141,8 +138,8 @@ cdef class IC:
                     pop(src.hitlist, <void*>pin_in, index)
 
     cpdef void reveal(self):
-        cdef InputPin pin_in
-        cdef OutputPin pin_out
+        cdef In pin_in
+        cdef Out pin_out
         cdef int index
         cdef int loc
         cdef Profile* hitlist
@@ -181,7 +178,7 @@ cdef class IC:
     #         i.purge()
     cpdef void info(self):
         """Show all IC components in an organized way."""
-        print(f"\n  IC: {self.name} (Code: {self.code})")
+        print(f"\n  IC: {self.codename} (Code: {self.code})")
         print("  " + "-" * 40)
 
         if self.inputs:
@@ -189,7 +186,7 @@ cdef class IC:
             print("  INPUTS:")
             for pin in self.inputs:
                 targets = [str(target) for target in pin.hitlist]
-                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         if self.internal:
             print("  INTERNAL:")
@@ -205,7 +202,7 @@ cdef class IC:
                     # Targets
                     tgt = [str(target) for target in comp.hitlist]
                     tgt_str = ", ".join(tgt) if tgt else "None"
-                    print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
+                    print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
         if self.outputs:
             print("  OUTPUTS:")
@@ -215,6 +212,6 @@ cdef class IC:
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"
-                print(f"    {pin.name}: out={pin.getoutput()}, from={ch_str}")
+                print(f"    {pin.codename}: out={pin.getoutput()}, from={ch_str}")
 
         print("  " + "-" * 40)

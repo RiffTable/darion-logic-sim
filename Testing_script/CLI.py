@@ -169,7 +169,7 @@ def submenu_components():
             print("\nChoose a gate to add:")
             print("0. AND  1. NAND  2. OR  3. NOR  4. XOR")
             print("5. XNOR  6. NOT  7. Variable  8. Probe")
-            print("9. InputPin  10. OutputPin")
+            print("9. In  10. Out")
             
             c = input("Enter choices (space separated): ").split()
             for i in c:
@@ -206,9 +206,9 @@ def submenu_components():
                 # Handle Source Selection (Source)
                 actual_source = source_component
                 if isinstance(source_component, IC):
-                    print(f"\nSelect Output Pin for Source IC '{source_component.name}':")
+                    print(f"\nSelect Output Pin for Source IC '{source_component.codename}':")
                     for k, pin in enumerate(source_component.outputs):
-                        print(f"{k}: {pin.name}")
+                        print(f"{k}: {pin.codename}")
                     try:
                         pin_idx = int(input(f"Select Pin (0-{len(source_component.outputs)-1}): "))
                         actual_source = source_component.outputs[pin_idx]
@@ -221,10 +221,10 @@ def submenu_components():
                 target_index = 0
 
                 if isinstance(target_component, IC):
-                    print(f"\nSelect Input Pin for Target IC '{target_component.name}':")
+                    print(f"\nSelect Input Pin for Target IC '{target_component.codename}':")
                     for k, pin in enumerate(target_component.inputs):
                         current_source = pin.sources[0] if pin.sources and str(pin.sources[0]) != 'Empty' else "Empty"
-                        print(f"{k}: {pin.name} (Current: {current_source})")
+                        print(f"{k}: {pin.codename} (Current: {current_source})")
                     try:
                         pin_idx = int(input(f"Select Pin (0-{len(target_component.inputs)-1}): "))
                         actual_target = target_component.inputs[pin_idx]
@@ -233,7 +233,7 @@ def submenu_components():
                         print("Invalid Pin. Skipping.")
                         continue
                 else:
-                    print(f"\nTarget Gate '{target_component.name}' Inputs:")
+                    print(f"\nTarget Gate '{target_component.codename}' Inputs:")
                     for k, c in enumerate(target_component.sources):
                         print(f"Index {k}: {c}")
                     try:
@@ -260,12 +260,12 @@ def submenu_components():
                 continue
 
             if isinstance(target, IC):
-                print(f"\n=== IC '{target.name}' - Input Pins ===")
+                print(f"\n=== IC '{target.codename}' - Input Pins ===")
                 has_connections = False
                 for i, pin in enumerate(target.inputs):
                     source = pin.sources[0]
                     conn_str = str(source) if str(source) != 'Empty' else "Empty"
-                    print(f"[{i}] {pin.name} <-- {conn_str}")
+                    print(f"[{i}] {pin.codename} <-- {conn_str}")
                     if str(source) != 'Empty':
                         has_connections = True
                 
@@ -353,7 +353,7 @@ def submenu_components():
                 if isinstance(comp, IC):
                     print("Cannot rename imported ICs.")
                 else:
-                    new_name = input(f"Enter new name for {comp.name}: ")
+                    new_name = input(f"Enter new name for {comp.codename}: ")
                     if new_name:
                         rename(comp, new_name)
                         print(f"Renamed to {new_name}")

@@ -1,32 +1,34 @@
 
 from __future__ import annotations
-from Gates import Gate, InputPin, OutputPin, Profile, pop, hide_profile, reveal_profile
-from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES
+from Gates import Gate, In, Out, Profile, pop, hide_profile, reveal_profile
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES, TAG, DESCRIPTION
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
     __slots__ = [
         'inputs', 'internal', 'outputs',
-        'name', 'custom_name', 'code', 'map',
-        'id', 'counter',
+        'codename', 'custom_name', 'code', 'map',
+        'id', 'counter', 'tag', 'description',
     ]
 
     def __init__(self):
         self.id: int = IC_ID
         self.counter: int = 0
-        self.inputs: list[InputPin] = []
+        self.inputs: list[In] = []
         self.internal: list = []
-        self.outputs: list[OutputPin] = []
-        self.name: str = 'IC'
+        self.outputs: list[Out] = []
+        self.codename: str = 'IC'
         self.custom_name: str = ''
         self.code: tuple = ()
         self.map: list = []
+        self.tag=''
+        self.description=''
 
     def __repr__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def getcomponent(self, choice: int):
         """Create a sub-component inside this IC."""
@@ -37,15 +39,15 @@ class IC:
             if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-                gt.name = 'in-' + str(len(self.inputs))
+                gt.codename = 'in-' + str(len(self.inputs))
             elif gt.id == OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
-                gt.name = 'out-' + str(len(self.outputs))
+                gt.codename = 'out-' + str(len(self.outputs))
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-                gt.name = gt.__class__.__name__ + '-' + str(len(self.internal))
+                gt.codename = gt.__class__.__name__ + '-' + str(len(self.internal))
             gt.code = (choice, rank, self.code)
         return gt
 
@@ -54,15 +56,15 @@ class IC:
         if source.id == INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-            source.name = 'in-' + str(len(self.inputs))
+            source.codename = 'in-' + str(len(self.inputs))
         elif source.id == OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
-            source.name = 'out-' + str(len(self.outputs))
+            source.codename = 'out-' + str(len(self.outputs))
         else:
             rank = len(self.internal)
             self.internal.append(source)
-            source.name = source.__class__.__name__ + '-' + str(len(self.internal))
+            source.codename = source.__class__.__name__ + '-' + str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
     def configure(self, dictionary: list):
@@ -71,6 +73,8 @@ class IC:
         pseudo[('X', 'X')] = None
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
+        self.tag=dictionary[TAG]
+        self.description=dictionary[DESCRIPTION]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
@@ -91,6 +95,8 @@ class IC:
             self.code,
             [],
             [],
+            self.tag,
+            self.description
         ]
         queue=[]
         index=0
@@ -136,6 +142,8 @@ class IC:
             self.code,
             [i.code for i in self.outputs+self.inputs+self.internal],
             [i.json_data() for i in self.outputs+self.inputs+self.internal],
+            self.tag,
+            self.description
         ]
         return dictionary
 
@@ -155,6 +163,8 @@ class IC:
             self.code,
             [i.code for i in self.outputs+self.inputs+self.internal],
             [i.copy_data(cluster) for i in self.outputs+self.inputs+self.internal],
+            self.tag,
+            self.description
         ]
         return dictionary
         
@@ -206,14 +216,14 @@ class IC:
 
     def info(self):
         """Show all IC components in an organized way."""
-        print(f"\n  IC: {self.name} (Code: {self.code})")
+        print(f"\n  IC: {self.codename} (Code: {self.code})")
         print("  " + "-" * 40)
 
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
                 targets = [str(p.target) for p in pin.hitlist]
-                print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         if self.internal:
             print("  INTERNAL:")
@@ -228,7 +238,7 @@ class IC:
                         ch_str = f"val:{comp.sources}"
                     tgt = [str(p.target) for p in comp.hitlist]
                     tgt_str = ", ".join(tgt) if tgt else "None"
-                    print(f"    {comp.name}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
+                    print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
         if self.outputs:
             print("  OUTPUTS:")
@@ -238,6 +248,6 @@ class IC:
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"
-                print(f"    {pin.name}: out={pin.getoutput()}, from={ch_str}")
+                print(f"    {pin.codename}: out={pin.getoutput()}, from={ch_str}")
 
         print("  " + "-" * 40)

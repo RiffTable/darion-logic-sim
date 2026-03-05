@@ -183,7 +183,7 @@ class Rename(Command):
     def __init__(self,gate:Gate, new_name:str):
         self.gate = gate
         self.new_name = new_name
-        self.old_name = gate.name
+        self.old_name = gate.custom_name
     def execute(self):
         if len(self.new_name)>25:
             return False

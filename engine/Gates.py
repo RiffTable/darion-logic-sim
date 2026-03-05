@@ -49,7 +49,7 @@ def reveal_profile(profile: Profile, source: Gate):
 class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
-        'output', 'scheduled', 'id', 'code', 'name', 'custom_name',
+        'output', 'scheduled', 'id', 'code', 'codename', 'custom_name',
         'listener',
     ]
 
@@ -63,15 +63,15 @@ class Gate:
         self.scheduled: bool = False
         self.id: int = -1
         self.code: tuple = ()
-        self.name: str = ''
+        self.codename: str = ''
         self.custom_name: str = ''
         self.listener = []
 
     def __repr__(self) -> str:
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self) -> str:
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def update_ui(self):
         for func in self.listener:
@@ -352,13 +352,13 @@ class Probe(Gate):
                 self.connect(pseudo[self.decode(source)], index)
 
 
-class InputPin(Probe):
+class In(Probe):
     def __init__(self):
         super().__init__()
         self.id = INPUT_PIN_ID
 
 
-class OutputPin(Probe):
+class Out(Probe):
     def __init__(self):
         super().__init__()
         self.id = OUTPUT_PIN_ID

@@ -1,12 +1,12 @@
 # distutils: language = c++
 from libcpp.vector cimport vector
-from Gates cimport Gate, InputPin, OutputPin, Profile
+from Gates cimport Gate, In, Out, Profile
 
 cdef class IC:
     cdef public list inputs
     cdef public list internal
     cdef public list outputs
-    cdef public str name
+    cdef public str codename
     cdef public str custom_name
     cdef public tuple code
     cdef public list map

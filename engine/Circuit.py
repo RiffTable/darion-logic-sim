@@ -42,13 +42,9 @@ class Circuit:
             name = gt.__class__.__name__
 
             if name == 'Variable':
-                gt.name = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
-            elif name == 'InputPin':
-                gt.name = 'IN-' + str(len(self.objlist[choice]))
-            elif name == 'OutputPin':
-                gt.name = 'OUT-' + str(len(self.objlist[choice]))
+                gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
             else:
-                gt.name = name + '-' + str(len(self.objlist[choice]))
+                gt.codename = name + '-' + str(len(self.objlist[choice]))
 
         return gt
 
@@ -163,8 +159,8 @@ class Circuit:
         n = len(variables)
         rows_count = 1 << n
 
-        var_names = [v.name for v in variables]
-        gate_names = [v.name for v in gate_list]
+        var_names = [v.codename for v in variables]
+        gate_names = [v.codename for v in gate_list]
         all_names = var_names + gate_names
 
         col_width = max((len(name) for name in all_names), default=4) + 2
@@ -241,20 +237,20 @@ class Circuit:
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {ic.name} (Code: {ic.code})")
+                print(f"\n  IC: {ic.codename} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
                         targets = [f"{p.target} " for p in pin.hitlist]
-                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                        print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
                         ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
-                        print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        print(f"    {pin.codename}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
 
@@ -276,6 +272,8 @@ class Circuit:
             if gate.id == IC_ID:
                 gate.custom_name = i[CUSTOM_NAME]
                 gate.map = i[MAP]
+                gate.tag = i[TAG]
+                gate.description = i[DESCRIPTION]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
         if get_MODE()!=DESIGN:
@@ -339,7 +337,7 @@ class Circuit:
             dictionary.append(gate.json_data())
         return dictionary
 
-    def save_as_ic(self, location: str, ic_name: str = "IC"):
+    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = ""):
         if any(g is not None for g in self.objlist[VARIABLE_ID]):
             print('Delete Variables First')
             return
@@ -355,15 +353,14 @@ class Circuit:
             self.generate(flattened)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
-        myIC.name = ic_name
         myIC.custom_name = ic_name
+        myIC.tag = tag
+        myIC.description = description
         for component in lst:
             myIC.addgate(component)
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        crct=self.get_ic(location)
-        self.load_ic(crct)
 
     def get_ic(self, location: str):
         with open(location, 'rb') as file:
@@ -379,6 +376,13 @@ class Circuit:
         myIC.configure(crct)
         self.counter += myIC.counter
         return myIC
+
+    def getIC(self, location: str):
+        """Convenience alias: load a saved IC from file and return it."""
+        crct = self.get_ic(location)
+        if crct is None:
+            return None
+        return self.load_ic(crct)
 
     def rank_reset(self):
         for i in range(TOTAL):
@@ -416,6 +420,8 @@ class Circuit:
             if gate.id == IC_ID:
                 gate.custom_name = i[CUSTOM_NAME]
                 gate.map = i[MAP]
+                gate.tag = i[TAG]
+                gate.description = i[DESCRIPTION]
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
 

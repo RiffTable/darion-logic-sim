@@ -39,14 +39,14 @@ cdef class Gate:
         self.output = UNKNOWN
         self.scheduled = False
         self.code = ()
-        self.name = ''
+        self.codename = ''
         self.custom_name = ''
 
     def __repr__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self):
-        return self.name if self.custom_name == '' else self.custom_name
+        return self.codename if self.custom_name == '' else self.custom_name
 
     @property
     def hitlist(self):
@@ -349,11 +349,11 @@ cdef class Probe(Gate):
         else:
             self.output = UNKNOWN
 
-cdef class InputPin(Probe):
+cdef class In(Probe):
     def __cinit__(self):
         self.id = INPUT_PIN_ID
 
-cdef class OutputPin(Probe):
+cdef class Out(Probe):
     def __cinit__(self):
         self.id = OUTPUT_PIN_ID
 

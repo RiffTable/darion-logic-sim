@@ -64,7 +64,7 @@ import Const
 from Const import *
 from Gates import Gate, Variable, Probe
 from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
-from Gates import InputPin, OutputPin
+from Gates import In, Out
 from IC import IC
 from Control import Add, AddIC, Delete, Connect, Disconnect, Paste, Toggle, SetLimits, Rename
 
@@ -672,16 +672,16 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(p.output == Const.LOW, "Probe follows LOW")
 
-        # --- InputPin ---
+        # --- In ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
         inp = c.getcomponent(Const.INPUT_PIN_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
-        self.assert_test(inp.output == Const.HIGH, "InputPin follows HIGH")
+        self.assert_test(inp.output == Const.HIGH, "In follows HIGH")
 
-        # --- OutputPin ---
+        # --- Out ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
@@ -692,7 +692,7 @@ class AggressiveTestSuite:
         c.connect(n, inp, 0)
         c.connect(out, n, 0)
         c.toggle(v, Const.HIGH)
-        self.assert_test(out.output == Const.LOW, "OutputPin chain: V->InPin->NOT->OutPin")
+        self.assert_test(out.output == Const.LOW, "Out chain: V->InPin->NOT->OutPin")
 
 
 
@@ -824,7 +824,7 @@ class AggressiveTestSuite:
             self.assert_test(repr(g) == f"custom_{gname}", f"{gname} repr uses custom_name")
             self.assert_test(str(g) == f"custom_{gname}", f"{gname} str uses custom_name")
             g.custom_name = ''
-            self.assert_test(repr(g) == g.name, f"{gname} repr falls back to name")
+            self.assert_test(repr(g) == g.codename, f"{gname} repr falls back to codename")
 
             # --- code ---
             self.assert_test(isinstance(g.code, tuple) and len(g.code) == 2, f"{gname}.code is tuple")
@@ -908,18 +908,18 @@ class AggressiveTestSuite:
         self.assert_test(p in cluster, "Probe.load_to_cluster adds self")
         self.assert_test(p.setlimits(5) == False, "Probe.setlimits returns False")
 
-        # --- InputPin methods ---
+        # --- In methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
         inp = c.getcomponent(Const.INPUT_PIN_ID)
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
-        self.assert_test(inp.getoutput() == 'T', "InputPin.getoutput() = 'T'")
+        self.assert_test(inp.getoutput() == 'T', "In.getoutput() = 'T'")
         inp.rename("my_inp")
-        self.assert_test(inp.custom_name == "my_inp", "InputPin.rename() works")
+        self.assert_test(inp.custom_name == "my_inp", "In.rename() works")
 
-        # --- OutputPin methods ---
+        # --- Out methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
         out = c.getcomponent(Const.OUTPUT_PIN_ID)
@@ -928,9 +928,9 @@ class AggressiveTestSuite:
         c.connect(n, v, 0)
         c.connect(out, n, 0)
         c.toggle(v, Const.HIGH)
-        self.assert_test(out.getoutput() == 'F', "OutputPin.getoutput() = 'F'")
+        self.assert_test(out.getoutput() == 'F', "Out.getoutput() = 'F'")
         out.rename("my_out")
-        self.assert_test(out.custom_name == "my_out", "OutputPin.rename() works")
+        self.assert_test(out.custom_name == "my_out", "Out.rename() works")
 
     def test_all_circuit_methods(self):
         """Touch every accessible Circuit method."""
@@ -944,8 +944,8 @@ class AggressiveTestSuite:
             (Const.NOT_ID, 'NOT'), (Const.AND_ID, 'AND'), (Const.NAND_ID, 'NAND'),
             (Const.OR_ID, 'OR'), (Const.NOR_ID, 'NOR'), (Const.XOR_ID, 'XOR'),
             (Const.XNOR_ID, 'XNOR'), (Const.VARIABLE_ID, 'Variable'),
-            (Const.PROBE_ID, 'Probe'), (Const.INPUT_PIN_ID, 'InputPin'),
-            (Const.OUTPUT_PIN_ID, 'OutputPin'),
+            (Const.PROBE_ID, 'Probe'), (Const.INPUT_PIN_ID, 'In'),
+            (Const.OUTPUT_PIN_ID, 'Out'),
         ]
         components = {}
         for gtype, gname in all_types:
@@ -1078,7 +1078,7 @@ class AggressiveTestSuite:
         probe = c.getcomponent(Const.PROBE_ID)
         c.connect(probe, gates['AND'], 0)
 
-        # InputPin -> OutputPin chain through XOR
+        # In -> Out chain through XOR
         inp_pin = c.getcomponent(Const.INPUT_PIN_ID)
         c.connect(inp_pin, v1, 0)
         out_pin = c.getcomponent(Const.OUTPUT_PIN_ID)
@@ -1103,9 +1103,9 @@ class AggressiveTestSuite:
         # Probe should follow AND
         self.assert_test(probe.output == Const.HIGH, "Mixed: Probe follows AND(1,1)=HIGH")
         # OutputPin should follow XOR
-        self.assert_test(out_pin.output == Const.LOW, "Mixed: OutputPin follows XOR(1,1)=LOW")
-        # InputPin should follow v1
-        self.assert_test(inp_pin.output == Const.HIGH, "Mixed: InputPin follows v1=HIGH")
+        self.assert_test(out_pin.output == Const.LOW, "Mixed: Out follows XOR(1,1)=LOW")
+        # In should follow v1
+        self.assert_test(inp_pin.output == Const.HIGH, "Mixed: In follows v1=HIGH")
 
         # Test with (0, 1)
         c.toggle(v1, Const.LOW)
@@ -4007,7 +4007,7 @@ class EventManagerTestSuite:
             if i > 0 and len(gates) > 1:
                 target = random.choice(gates)
                 source = random.choice(gates)
-                if target.name not in ["Variable", "Probe"] and source != target:
+                if target.codename not in ["Variable", "Probe"] and source != target:
                     # Find empty index
                     idx = -1
                     for ii in range(target.inputlimit):
@@ -4120,8 +4120,8 @@ class TestTimeTravel(unittest.TestCase):
         self.assertEqual(gate.custom_name, "MyCustomAND")
         
         self.em.undo()
-        # Control.py saves 'old_name' as gate.name (e.g. 'AND-1'), not as an empty string.
-        self.assertEqual(gate.custom_name, gate.name) 
+        # Control.py saves 'old_name' as gate.codename (e.g. 'AND-1'), not as an empty string.
+        self.assertEqual(gate.custom_name, gate.codename) 
         
         self.em.redo()
         self.assertEqual(gate.custom_name, "MyCustomAND")

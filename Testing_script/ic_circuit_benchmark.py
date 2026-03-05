@@ -159,7 +159,6 @@ def bench_ic_save_load(backend, circuit, tmp_path):
         c2 = C()
         c2.simulate(SIMULATE)
         loaded = c2.getIC(tmp_path)
-        c2.counter += loaded.counter if loaded else 0
         return c2, loaded
 
     load_ms, (c2, loaded) = timed(do_load)

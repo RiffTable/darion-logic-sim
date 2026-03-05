@@ -61,7 +61,7 @@ cdef class Gate:
     
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public tuple code
-    cdef public str name
+    cdef public str codename
     cdef public str custom_name
 
     cdef void process(self)
@@ -85,10 +85,10 @@ cdef class Variable(Gate):
 cdef class Probe(Gate):
     pass
 
-cdef class InputPin(Probe):
+cdef class In(Probe):
     pass
 
-cdef class OutputPin(Probe):
+cdef class Out(Probe):
     pass
 
 cdef class NOT(Gate):

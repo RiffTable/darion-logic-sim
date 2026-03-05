@@ -35,18 +35,10 @@ cdef class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            name = gt.__class__.__name__
-            
-            
-            if name == 'Variable':
-                gt.name = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
-            elif name == 'InputPin':
-                gt.name = 'IN-' + str(len(self.objlist[choice]))
-            elif name == 'OutputPin':
-                gt.name = 'OUT-' + str(len(self.objlist[choice]))
+            if gt.id!=VARIABLE_ID:
+                gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
             else:
-                gt.name = name+'-'+str(len(self.objlist[choice]))
-
+                gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
         return gt
 
     cpdef object getobj(self, tuple code):
@@ -177,9 +169,9 @@ cdef class Circuit:
         # 1 << n is bitwise for 2^n
         cdef int rows_count = 1 << n
         cdef Variable var
-        # Collect decoded variable names
-        var_names = [v.name for v in variables]
-        gate_names = [v.name for v in gate_list]
+        # Collect decoded variable codenames
+        var_names = [v.codename for v in variables]
+        gate_names = [v.codename for v in gate_list]
         all_names = var_names + gate_names
 
         if len(all_names) > 0:
@@ -268,20 +260,20 @@ cdef class Circuit:
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {ic.name} (Code: {ic.code})")
+                print(f"\n  IC: {ic.codename} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
                         targets = [f"{target} " for target in pin.hitlist]
-                        print(f"    {pin.name}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                        print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
                         ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
-                        print(f"    {pin.name}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        print(f"    {pin.codename}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
 
@@ -398,7 +390,7 @@ cdef class Circuit:
             self.generate(flattened)
         lst = self.get_components()
         myIC = self.getcomponent(IC_ID)
-        myIC.name = ic_name
+        myIC.codename = ic_name
         myIC.custom_name = ic_name
         for component in lst:
             myIC.addgate(component)
@@ -552,14 +544,14 @@ cdef class Circuit:
                 profile = gate.hitlist.data()
                 end = profile+gate.hitlist.size()
                 while profile!=end:
-                    # input(f'Source {gate.name} {profile.output} {new_output}')
+                    # input(f'Source {gate.codename} {profile.output} {new_output}')
                     self.eval_count+=1
                     profile_output = profile.output
                     if profile_output!=new_output:
                         target=<Gate>profile.target
                         gate_type = target.id
                         limit = target.inputlimit
-                        # input(f'Updating {target.name} {target.output}')
+                        # input(f'Updating {target.codename} {target.output}')
                         if limit==1:
                             if gate_type==NOT_ID and new_output!=UNKNOWN:
                                 target_output=new_output^1

@@ -1,4 +1,4 @@
-from Gates cimport NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, InputPin, OutputPin
+from Gates cimport NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, In, Out
 from IC cimport IC
 
 
@@ -12,8 +12,8 @@ cdef tuple _gateobjects = (
     NOT,
     Variable,
     Probe,
-    InputPin,
-    OutputPin,
+    In,
+    Out,
     IC
 )
 

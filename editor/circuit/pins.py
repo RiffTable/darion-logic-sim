@@ -133,13 +133,13 @@ class PinItem(QGraphicsRectItem):
 class InputPinItem(PinItem):
 	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: tuple[Gate, int] | tuple[InputPin, int] | None = None
+		self.logical: tuple[Gate, int] | tuple[In, int] | None = None
 		self.state = Const.LOW
 		self.updateVisual()
 
-	def setLogical(self, input: Gate | InputPin, index: int = 0) -> Self:
+	def setLogical(self, input: Gate | In, index: int = 0) -> Self:
 		# It's a builder function
-		if isinstance(input, InputPin):
+		if isinstance(input, In):
 			self.logical = (input, 0)
 		else:
 			self.logical = (input, index)
@@ -166,11 +166,10 @@ class InputPinItem(PinItem):
 class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: Gate | OutputPin | None = None
+		self.logical: Gate | Out | None = None
 		self.updateVisual()
 
-	def setLogical(self, output: Gate | OutputPin) -> Self:
-		# It's a builder function
+	def setLogical(self, output: Gate | Out):
 		self.logical = output
 		return self
 	
