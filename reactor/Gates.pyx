@@ -9,6 +9,7 @@ from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from Const cimport *
 from libc.string cimport memmove
 from Store cimport decode
+from libc.stdint cimport uint16_t
             
 cdef inline void pop(vector[Profile]& hitlist,void* target, int pin_index):
     cdef Profile* profile= hitlist.data()
@@ -58,7 +59,7 @@ cdef class Gate:
         return result
 
     cdef void process(self):
-        cdef int* book=self.book
+        cdef uint16_t* book=self.book
         cdef int gate_type = self.id
         cdef int low=book[LOW]
         cdef int high=book[HIGH]
@@ -95,7 +96,7 @@ cdef class Gate:
         self.output = UNKNOWN
         cdef Profile* profile = self.hitlist.data()
         cdef Profile* end = profile + self.hitlist.size()
-        cdef int* book = self.book
+        cdef uint16_t* book = self.book
         book[3] += book[0] + book[1] + book[2]
         book[0] = book[1] = book[2] = 0
         while profile<end:
@@ -120,7 +121,7 @@ cdef class Gate:
             if source is not None:
                 pop(source.hitlist, <void*>self, i)
         self.output=UNKNOWN
-        cdef int* book = self.book
+        cdef uint16_t* book = self.book
         book[0] = book[1] = book[2] = book[3] = 0
 
     cdef void reveal(self):

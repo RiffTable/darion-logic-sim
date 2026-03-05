@@ -1,6 +1,6 @@
 # distutils: language = c++
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, MODE
-
+from libc.stdint cimport uint16_t,uint8_t
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
         cppclass iterator:
@@ -47,17 +47,17 @@ cdef void pop(vector[Profile]& hitlist, void* target, int pin_index)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
-    cdef public int id
-    cdef public int inputlimit
-    cdef public int output
+    cdef public uint8_t id
+    cdef public uint16_t inputlimit
+    cdef public uint8_t output
     cdef public bint scheduled
     
     # --- 4-BYTE ALIGNED CONTINUED (ARRAYS) ---
-    cdef public list sources
-    cdef public int book[4]
+    cdef public uint16_t book[4]
     
     # --- 8-BYTE ALIGNED (C++ VECTORS) ---
     cdef vector[Profile] hitlist
+    cdef public list sources
     
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public tuple code

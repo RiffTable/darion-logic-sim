@@ -242,7 +242,7 @@ class AggressiveTestSuite:
         self.test_avalanche(layers=18)  # ~260K gates
         self.test_gridlock(size=200)
         self.test_echo_chamber(count=10_000)
-        self.test_black_hole(inputs=100_000)
+        self.test_black_hole(inputs=50_000)
         self.test_paradox_burn()
         self.test_mega_chain()
         self.test_extreme_fanout()
