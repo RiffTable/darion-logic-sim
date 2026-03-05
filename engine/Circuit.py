@@ -362,19 +362,23 @@ class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        self.getIC(location)
+        crct=self.get_ic(location)
+        self.load_ic(crct)
 
-    def getIC(self, location: str):
-        myIC = self.getcomponent(IC_ID)
+    def get_ic(self, location: str):
         with open(location, 'rb') as file:
-            crct = orjson.loads(file.read())
+             crct= orjson.loads(file.read())
         if isinstance(crct[COMPONENTS], list):
-            myIC.configure(crct)
-            self.counter += myIC.counter
-            return myIC
+            return crct
         else:
             print('Cannot Convert to IC')
             return None
+    
+    def load_ic(self, crct: list):
+        myIC = self.getcomponent(IC_ID)
+        myIC.configure(crct)
+        self.counter += myIC.counter
+        return myIC
 
     def rank_reset(self):
         for i in range(TOTAL):

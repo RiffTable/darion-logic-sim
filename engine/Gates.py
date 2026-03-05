@@ -338,7 +338,6 @@ class Probe(Gate):
 
     def copy_data(self, cluster: set) -> list:
         return [
-            
             self.custom_name,
             self.code,
             self.inputlimit,
