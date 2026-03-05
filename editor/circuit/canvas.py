@@ -249,7 +249,6 @@ class CircuitScene(QGraphicsScene):
 		super().keyPressEvent(event)
 	
 	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
-		grid_size = GRID.SIZE
 		bg_color = Color.primary_bg
 		grid_color = Color.bg_grid
 		painter.fillRect(rect, bg_color)
@@ -259,24 +258,25 @@ class CircuitScene(QGraphicsScene):
 		rect_right =  int(rect.right())
 		rect_bottom =  int(rect.bottom())
 
-		left = rect_left - (rect_left % grid_size)
-		top = rect_top - (rect_top % grid_size)
+		left = rect_left - (rect_left % GRID.SIZE)
+		top = rect_top - (rect_top % GRID.SIZE)
 
 		bg_mode = 0
 		if bg_mode == 0:
 			smol_lines: list[QLineF] = []
 			beeg_lines: list[QLineF] = []
+			unit_size = GRID.SIZE
 
 			# Vertical Lines
-			for x in range(left, rect_right, grid_size):
+			for x in range(left, rect_right, unit_size):
 				line = QLineF(x, rect_top, x, rect_bottom)
-				if x%(5*grid_size) == 0: beeg_lines.append(line)
+				if x%(5*unit_size) == 0: beeg_lines.append(line)
 				else:                    smol_lines.append(line)
 				
 			# Horizontal lines
-			for y in range(top, rect_bottom, grid_size):
+			for y in range(top, rect_bottom, unit_size):
 				line = QLineF(rect_left, y, rect_right, y)
-				if y%(5*grid_size) == 0: beeg_lines.append(line)
+				if y%(5*unit_size) == 0: beeg_lines.append(line)
 				else:                    smol_lines.append(line)
 			
 			painter.setPen(QPen(grid_color, 1))
@@ -286,8 +286,10 @@ class CircuitScene(QGraphicsScene):
 		
 		else:
 			points = []
-			for x in range(left, int(rect.right()), 2*grid_size):
-				for y in range(top, int(rect.bottom()), 2*grid_size):
+			unit_size = 2*GRID.SIZE
+
+			for x in range(left, rect_right, unit_size):
+				for y in range(top, rect_bottom, unit_size):
 					points.append(QPointF(x, y))
 			
 			painter.setPen(QPen(grid_color.lighter(120), 3))
