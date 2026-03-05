@@ -1,6 +1,7 @@
 import sys
 import json
 from functools import partial
+from pathlib import Path
 
 from core.Enums import Facing
 from core.QtCore import *
@@ -63,6 +64,8 @@ class AppWindow(QMainWindow):
 		layout_main.addWidget(self.view)
 		layout_main.addWidget(self.props_panel)
 
+		# Final Setup
+		self.refreshIClist()
 		self.setupQActions()
 
 	def closeEvent(self, event):
@@ -86,6 +89,10 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
+		
+		# Adding componenets
+		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
+		Actions.add(self, "refresh-ic-list", "Refresh IC", self.refreshIClist)
 		
 
 		### Viewport functions
@@ -208,7 +215,52 @@ class AppWindow(QMainWindow):
 			self.current_file_path = filename
 
 		except Exception as e:
-			print("Failed to load:", e)
+			QMessageBox.critical(
+				self,
+				"Load Error",
+				f"Failed to load project: {os.path.basename(filename)}\n{str(e)}"
+			)
+	
+
+	def addICToProject(self):
+		# Always ask for file name
+		# filename, _ = QFileDialog.getOpenFileName(
+		# 	self,
+		# 	"Open IC File",
+		# 	"exports/IC",
+		# 	"JSON Files (*.json);;All Files (*)"
+		# )
+		# if not filename: return
+		# ic_data = logic.get_ic(filename)
+		# if ic_data:
+		# 	self.cscene.iclist.append(ic_data)
+		# 	self.cscene.addIC(0, 0, len(self.cscene.iclist)-1)
+		# else:
+		# 	QMessageBox.critical(
+		# 		self,
+		# 		"Load Error",
+		# 		f"Failed to load IC: {os.path.basename(filename)}"
+		# 	)
+		
+		# title, label, list_of_strings, current_index, editable_bool
+		items = [ic[Const.CUSTOM_NAME] for ic in self.cscene.iclist]
+		item, ok = QInputDialog.getItem(
+			self, "Select IC", "Add an IC to project:", items, 0, False
+		)
+		
+		if ok and item:
+			idx = items.index(item)
+			self.cscene.addIC(0, 0, idx)
+
+	
+	def refreshIClist(self):
+		for file in Path("exports/IC").glob("*.json"):
+			filename = str(file.resolve())    # Absolute path
+			ic = logic.get_ic(filename)
+			if not ic: continue
+			
+			if not any(icdata[Const.CUSTOM_NAME] == ic[Const.CUSTOM_NAME] for icdata in self.cscene.iclist):
+				self.cscene.iclist.append(ic)
 
 
 

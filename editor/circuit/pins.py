@@ -169,8 +169,10 @@ class OutputPinItem(PinItem):
 		self.logical: Gate | OutputPin | None = None
 		self.updateVisual()
 
-	def setLogical(self, output: Gate | OutputPin):
+	def setLogical(self, output: Gate | OutputPin) -> Self:
+		# It's a builder function
 		self.logical = output
+		return self
 	
 	def logicalStateChanged(self, state: int):
 		self.state = state

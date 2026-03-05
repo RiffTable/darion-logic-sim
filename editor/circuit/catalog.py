@@ -4,6 +4,7 @@ from .compitem import CompItem
 from .gates import (GateItem,
 	NOTGate, ANDGate, NANDGate, ORGate, NORGate, XORGate, XNORGate
 )
+from .ICitem import ICitem
 from .inputs import InputItem
 from .outputs import OutputItem
 from .wireitem import WireItem
@@ -38,13 +39,14 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 # }
 
 LOOKUP: dict[int, type[CompItem]] = {
-	0: NOTGate,
-	1: ANDGate,
-	2: NANDGate,
-	3: ORGate,
-	4: NORGate,
-	5: XORGate,
-	6: XNORGate,
+	0:  NOTGate,
+	1:  ANDGate,
+	2:  NANDGate,
+	3:  ORGate,
+	4:  NORGate,
+	5:  XORGate,
+	6:  XNORGate,
+	10: ICitem,
 	11: InputItem,
 	21: OutputItem
 }

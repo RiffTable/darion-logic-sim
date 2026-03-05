@@ -8,7 +8,7 @@ import core.grid as GRID
 from editor.styles import Color
 from .catalog import (
 	LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
-	GateItem
+	GateItem, ICitem
 )
 
 
@@ -21,11 +21,12 @@ class CircuitScene(QGraphicsScene):
 
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
+		self.iclist: list = []
 
 		self._rmb_last_pos = QPointF()
 
 		# Clipboard
-		self.clipboard = { "comps": [], "wires": [] }
+		self.clipboard = { "comps": [], "wires": [], "iclist": [] }
 
 		# Editor Stuffs
 		self._state = EditorState.NORMAL
@@ -69,6 +70,19 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		return comp
+	
+	def addIC(self, x: float, y:float, ic_data_index: int):
+		comp = ICitem(
+			QPointF(x, y),
+			ic_data_index,
+			self.iclist[ic_data_index],
+			facing = self.defaultFacing,
+			mirror = self.defaultMirror,
+		)
+		
+		self.addItem(comp)
+		self.comps.append(comp)
+		return comp
 
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
@@ -81,6 +95,8 @@ class CircuitScene(QGraphicsScene):
 	def addCompFromData(self, _data: dict) -> CompItem:
 		data = _data.copy()
 		comp_type = LOOKUP[data.pop("id")]
+		if comp_type.LOGIC == Const.IC_ID:
+			data["ic_data"] = self.iclist[int(data["ic_data_index"])]
 		pos = QPointF(*data.pop("pos")) + QPoint(7, 5)*GRID.SIZE
 		
 		comp = comp_type(pos, **data)
@@ -226,7 +242,9 @@ class CircuitScene(QGraphicsScene):
 		key = event.key()
 		mod = event.modifiers()
 
-		# ...
+		# # DEBUG
+		# if key == Key.Key_Space:
+		# 	logic.diagnose()
 
 		super().keyPressEvent(event)
 	

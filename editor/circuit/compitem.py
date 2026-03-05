@@ -17,11 +17,13 @@ if TYPE_CHECKING:
 
 
 class CompItem(QGraphicsItem):
+	ID: int      # Value assigned via `catalog.py`
+	LOGIC: int   # Assigned in child classes
+
 	TAG: str
-	ID: int    # Value assigned via `catalog.py`
-	DESC: str
 	NAME: str
-	LOGIC: int
+	DESC: str
+	
 	def __init__(self, pos: QPointF, **kwargs):
 		# Properties
 		self.tag = self.TAG
@@ -57,8 +59,9 @@ class CompItem(QGraphicsItem):
 		self._cached_hitbox = QPainterPath()
 		self._prop_change_listener: list[Callable[[], None]] = []
 
-		self._unit = cast(Any, logic.getcomponent(self.LOGIC))
-		self._unit.listener.append(self.unitStateChanged)
+		if self.LOGIC != Const.IC_ID:
+			self._unit = cast(Any, logic.getcomponent(self.LOGIC))
+			self._unit.listener.append(self.unitStateChanged)
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
@@ -87,11 +90,11 @@ class CompItem(QGraphicsItem):
 		# 4. Setting Pin Logicals (For both regular constructor and deserialization)
 		# 5. Final Setup
 		# Methods to Override (Mandatory):
-		#=> getRel Size/Padding, 
+		#    => getRel Size/Padding, 
 		# Methods to Override (Optional):
-		#=> getData, get/set Properties, pinUpdate, proxyPin
-		#=> betterHoverEnter, betterHoverLeave
-		#=> draw
+		#    => getData, get/set Properties
+		#    => pinUpdate, proxyPin, betterHoverEnter, betterHoverLeave
+		#    => draw
 	
 
 	@property

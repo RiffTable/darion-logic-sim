@@ -4,8 +4,6 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
 
-from editor.styles import Color
-
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
@@ -68,7 +66,7 @@ class GateItem(CompItem):
 		self.peekingPin: PinItem|None = None
 	
 
-	# Properties Data
+	### Properties Data
 	def getProperties(self) -> dict:
 		return super().getProperties() | {
 			Prop.STATE     : self.state,
@@ -91,7 +89,7 @@ class GateItem(CompItem):
 		self.outputPin.logicalStateChanged(state)
 
 
-	# Proxying
+	### Proxying
 	def proxyPin(self):
 		if self.proxyIndex < len(self.inputPins):
 			return self.inputPins[self.proxyIndex]
@@ -104,7 +102,7 @@ class GateItem(CompItem):
 		return len(self.inputPins)
 
 
-	# Pin Configuration
+	### Pin Configuration
 	def pushGatePin(self):
 		"""Call `updateShape()` afterwards if needed"""
 		n = len(self.inputPins)
@@ -172,7 +170,7 @@ class GateItem(CompItem):
 	# 2. Peek Off (betterHoverLeave)
 	# 3. Default/Proxy Connection
 
-	# Smart Hover + Proxy System
+	### Smart Hover + Proxy System
 	def peekOut(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.proxyIndex == len(self.inputPins) \
@@ -201,7 +199,7 @@ class GateItem(CompItem):
 			proxy.proxyHighlight = True if (self._hover_count == 1) else False
 			proxy.highlight(proxy is hoveredPin)
 
-	# Events
+	### Events
 	def _updateShape(self):
 		_, h = self.getRelSize()
 			

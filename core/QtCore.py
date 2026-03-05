@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 	QApplication, QMainWindow, QWidget, QFrame,
 	QPushButton, QLabel, QSpinBox,
 	QVBoxLayout, QHBoxLayout, QFormLayout,
-	QFileDialog,
+	QFileDialog, QInputDialog, QMessageBox,
 
 	QGraphicsScene, QGraphicsView,
 	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
