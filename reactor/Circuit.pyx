@@ -16,7 +16,6 @@ from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 cdef class Circuit:
     def __cinit__(self):
         self.counter=0
-        self.queue.reserve(3*1024*1024)
         self.eval_count = 0
     def __init__(self):
         # lookup table for objects by code
@@ -35,10 +34,11 @@ cdef class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            if gt.id!=VARIABLE_ID:
-                gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
-            else:
-                gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+            if DEBUG:
+                if gt.id!=VARIABLE_ID:
+                    gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
+                else:
+                    gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
         return gt
 
     cpdef object getobj(self, tuple code):
@@ -493,88 +493,95 @@ cdef class Circuit:
                 self.propagate(target)
             profile+=1
 
-    cdef void burn(self,int index):
+    cdef void burn(self,Py_ssize_t index,Py_ssize_t size):
         cdef Gate gate,target
         cdef Profile* profile
         cdef Profile* end
-        cdef Py_ssize_t size=self.queue.size()
         # keep propagating until everything settles
-        while index<size:
-            gate = <Gate>self.queue[index]
-            gate.scheduled=False
-            profile = gate.hitlist.data()
-            end = profile+gate.hitlist.size()
-            gate.output = ERROR
-            while profile!=end:
-                self.eval_count+=1
-                if profile.output!=ERROR:
-                    target=<Gate>profile.target
-                    if target.inputlimit!=1:
-                        target.book[profile.output]-=1
-                        target.book[ERROR]+=1
-                    if target.output!=ERROR:
-                        self.queue.emplace_back(<void*>target)
-                        size+=1
-                    profile.output = ERROR
-                profile+=1
-            index+=1
-        self.queue.clear()
+        try:
+            while index<size:
+                gate = <Gate>self.queue[index]
+                gate.scheduled=False
+                profile = gate.hitlist.data()
+                end = profile+gate.hitlist.size()
+                gate.output = ERROR
+                while profile!=end:
+                    self.eval_count+=1
+                    if profile.output!=ERROR:
+                        target=<Gate>profile.target
+                        if target.inputlimit!=1:
+                            target.book[profile.output]-=1
+                            target.book[ERROR]+=1
+                        if target.output!=ERROR:
+                            self.queue[size]=<void*>target
+                            size+=1
+                        profile.output = ERROR
+                    profile+=1
+                index+=1
+        except Exception as e:
+            print(e)
+            return
 
     cdef void propagate(self,Gate origin):
         cdef Gate gate=origin,target
         cdef Profile* profile
         cdef Profile* end
-        cdef int realsource, high, low,gate_type,limit
-        cdef int new_output, profile_output,target_output
-        cdef Py_ssize_t index=0,size=1
+        cdef Py_ssize_t realsource, high, low,gate_type,limit
+        cdef Py_ssize_t new_output, profile_output,target_output
+        cdef Py_ssize_t index=0,end_point=1,size=1
         cdef unsigned long long counter=0
         if unlikely(origin.output==ERROR):
-            self.burn(index)
+            self.burn(index,size)
             return
-        self.queue.emplace_back(<void*>origin)
-        while index<size:
-            if unlikely(counter>self.counter):
-                self.burn(index)
-                return
-            counter+=1
-            while index<size:
-                gate = <Gate>self.queue[index]
-                gate.scheduled=False
-                new_output=gate.output
-                profile = gate.hitlist.data()
-                end = profile+gate.hitlist.size()
-                while profile!=end:
-                    # input(f'Source {gate.codename} {profile.output} {new_output}')
-                    self.eval_count+=1
-                    profile_output = profile.output
-                    if profile_output!=new_output:
-                        target=<Gate>profile.target
-                        gate_type = target.id
-                        limit = target.inputlimit
-                        # input(f'Updating {target.codename} {target.output}')
-                        if limit==1:
-                            if gate_type==NOT_ID and new_output!=UNKNOWN:
-                                target_output=new_output^1
+        self.queue[0]=<void*>origin
+        try:
+            while index<end_point:
+                if unlikely(counter>self.counter):
+                    self.burn(index,size)
+                    return
+                counter+=1
+                while index<end_point:
+                    gate = <Gate>self.queue[index]
+                    gate.scheduled=False
+                    new_output=gate.output
+                    profile = gate.hitlist.data()
+                    end = profile+gate.hitlist.size()
+                    while profile!=end:
+                        # input(f'Source {gate.codename} {profile.output} {new_output}')
+                        self.eval_count+=1
+                        profile_output = profile.output
+                        if profile_output!=new_output:
+                            target=<Gate>profile.target
+                            gate_type = target.id
+                            limit = target.inputlimit
+                            # input(f'Updating {target.codename} {target.output}')
+                            if limit==1:
+                                if gate_type==NOT_ID and new_output!=UNKNOWN:
+                                    target_output=new_output^1
+                                else:
+                                    target_output=new_output
                             else:
-                                target_output=new_output
-                        else:
-                            target.book[profile_output]-=1
-                            target.book[new_output]+=1
-                            high=target.book[HIGH]
-                            low=target.book[LOW]
-                            realsource = high+low
-                            if likely(realsource==limit) or unlikely(realsource and realsource+target.book[UNKNOWN]+target.book[ERROR]==limit):
-                                if gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
-                                elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
-                                else:target_output = (high&1)^(gate_type&1)
-                            else: target_output = UNKNOWN
-                        if target_output!=target.output:
-                            target.output = target_output
-                            if not target.scheduled:
-                                target.scheduled=True
-                                self.queue.emplace_back(<void*>target)
-                        profile.output = new_output
-                    profile+=1
-                index+=1
-            size = self.queue.size()
-        self.queue.clear()
+                                target.book[profile_output]-=1
+                                target.book[new_output]+=1
+                                high=target.book[HIGH]
+                                low=target.book[LOW]
+                                realsource = high+low
+                                if likely(realsource==limit) or unlikely(realsource and realsource+target.book[UNKNOWN]+target.book[ERROR]==limit):
+                                    if gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
+                                    elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
+                                    else:target_output = (high&1)^(gate_type&1)
+                                else: target_output = UNKNOWN
+                            if target_output!=target.output:
+                                target.output = target_output
+                                if not target.scheduled:
+                                    target.scheduled=True
+                                    self.queue[size]=<void*>target
+                                    size+=1
+
+                            profile.output = new_output
+                        profile+=1
+                    index+=1
+                end_point = size
+        except Exception as e:
+            print(e)
+            return

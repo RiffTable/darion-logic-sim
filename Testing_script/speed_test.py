@@ -331,7 +331,7 @@ class AggressiveTestSuite:
             out(f"    Echo Chamber ({latches//1000}K latch):  {e['time']:.2f} ms")
         if 'black_hole' in self.perf_metrics:
             b = self.perf_metrics['black_hole']
-            out(f"    Black Hole ({b['gates']//1000}K inputs):  {b['time']*1000:.1f} us")
+            out(f"    Black Hole ({b['gates']//1000}K inputs):   {b['time']*1000:.1f} us")
         if 'paradox' in self.perf_metrics:
             p = self.perf_metrics['paradox']
             out(f"    Paradox (XOR loop):        {p['time']*1000:.1f} us")

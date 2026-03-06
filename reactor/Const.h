@@ -28,7 +28,8 @@
   #define DL_IMPORT(_T) _T
 #endif
 
-__PYX_EXTERN_C int __pyx_v_5Const_MODE;
+__PYX_EXTERN_C Py_ssize_t __pyx_v_5Const_MODE;
+__PYX_EXTERN_C int __pyx_v_5Const_DEBUG;
 
 #endif /* !__PYX_HAVE_API__Const */
 

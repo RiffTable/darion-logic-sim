@@ -1,17 +1,14 @@
 # distutils: language = c++
 from Gates cimport Gate, Variable,Profile
 from libcpp.vector cimport vector
-
-ctypedef vector[void*] Queue
-
-
+from Const cimport LIMIT
 
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
     cdef public int counter
     cdef public unsigned long long eval_count
-    cdef Queue queue
+    cdef void* queue[LIMIT]
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef list get_components(self)
@@ -37,4 +34,4 @@ cdef class Circuit:
     cpdef void reset(self)
     cdef void turnoff(self,Gate gate)
     cdef void propagate(self,Gate origin)
-    cdef void burn(self,int index)
+    cdef void burn(self,Py_ssize_t index,Py_ssize_t size)

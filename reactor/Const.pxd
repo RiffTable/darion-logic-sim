@@ -8,7 +8,7 @@ cpdef enum:
     DESIGN = 0
     SIMULATE = 1
 
-    LIMIT = 100
+    LIMIT = 2_000_000
 
 
     AND_ID = 0
@@ -34,6 +34,8 @@ cpdef enum:
     VALUE=SOURCES
     MAP=SOURCES
 
+
+
 cdef extern from *:
     """
     #if defined(__GNUC__) || defined(__clang__)
@@ -47,7 +49,10 @@ cdef extern from *:
     bint likely(bint condition) nogil
     bint unlikely(bint condition) nogil
 
-cdef public int MODE 
-cpdef void set_MODE(int mode)
-cpdef int get_MODE()
+cdef public Py_ssize_t MODE = DESIGN
+cpdef void set_MODE(Py_ssize_t mode)
+cpdef Py_ssize_t get_MODE()
 
+cdef public bint DEBUG = False
+cpdef void set_DEBUG(bint debug)
+cpdef bint get_DEBUG()
