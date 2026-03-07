@@ -103,7 +103,23 @@ class Gate:
     def rename(self, name: str):
         self.custom_name = name
 
-
+    def transfer_info(self, gate: Gate):
+        if gate.id==IC_ID:
+            return
+        if gate.id!=VARIABLE_ID:
+            gate.setlimits(self.inputlimit)
+            if gate.inputlimit!=self.inputlimit:
+                new_sources=[source for source in self.sources if source is not None]
+                if len(new_sources)<=gate.inputlimit:
+                    for index,source in enumerate(new_sources):
+                        gate.connect(source,index)  
+            else:
+                for index,source in enumerate(self.sources):
+                    if source is not None:
+                        gate.connect(source,index)
+        self.hide()
+        for profile in self.hitlist:
+            profile.target.connect(gate,profile.index)
 
     def connect(self, source: Gate, index: int):
         """Connect source -> self at pin index."""

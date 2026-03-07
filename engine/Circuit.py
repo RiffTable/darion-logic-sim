@@ -120,6 +120,11 @@ class Circuit:
             else:
                 self.turnoff(gate)
 
+    def replace_gates(self,gate1:Gate,gate2:Gate):
+        """Replace gate1 with gate2. Only works for gates"""
+        gate1.transfer_info(gate2)
+
+
     def reveal(self, gatelist: list):
         """Bring a hidden component back."""
         for gate in reversed(gatelist):
