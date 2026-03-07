@@ -25,10 +25,10 @@ class IC:
         self.description=''
 
     def __repr__(self):
-        return self.codename if self.custom_name == '' else self.custom_name
+        return self.custom_name+'-'+self.codename
 
     def __str__(self):
-        return self.codename if self.custom_name == '' else self.custom_name
+        return self.custom_name+'-'+self.codename
 
     def getcomponent(self, choice: int):
         """Create a sub-component inside this IC."""

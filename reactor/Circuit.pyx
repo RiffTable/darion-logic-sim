@@ -34,11 +34,10 @@ cdef class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            if DEBUG:
-                if gt.id!=VARIABLE_ID:
-                    gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
-                else:
-                    gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+            if gt.id!=VARIABLE_ID:
+                gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
+            else:
+                gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
         return gt
 
     cpdef object getobj(self, tuple code):
@@ -260,20 +259,22 @@ cdef class Circuit:
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {ic.codename} (Code: {ic.code})")
+                print(f"\n  IC: {repr(ic)} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         targets = [f"{target} " for target in pin.hitlist]
-                        print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
-                        print(f"    {pin.codename}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        targets = [f"{target} " for target in pin.hitlist]
+                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         print("\n" + "=" * 90)
 

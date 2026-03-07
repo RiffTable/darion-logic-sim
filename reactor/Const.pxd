@@ -53,6 +53,6 @@ cdef public Py_ssize_t MODE = DESIGN
 cpdef void set_MODE(Py_ssize_t mode)
 cpdef Py_ssize_t get_MODE()
 
-cdef public bint DEBUG = False
+cdef public bint DEBUG = True
 cpdef void set_DEBUG(bint debug)
 cpdef bint get_DEBUG()

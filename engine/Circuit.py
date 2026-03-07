@@ -237,20 +237,22 @@ class Circuit:
             print(" " * 40 + "IC STATUS")
             print("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {ic.codename} (Code: {ic.code})")
+                print(f"\n  IC: {repr(ic)} (Code: {ic.code})")
                 print("  " + "-" * 50)
 
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         targets = [f"{p.target} " for p in pin.hitlist]
-                        print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else []
-                        print(f"    {pin.codename}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        targets = [f"{p.target} " for p in pin.hitlist]
+                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         print("\n" + "=" * 90)
 

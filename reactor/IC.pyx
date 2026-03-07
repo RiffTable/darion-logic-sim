@@ -41,8 +41,7 @@ cdef class IC:
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-            if DEBUG:
-                gt.codename = gt.__class__.__name__+'-'+str(rank)
+            gt.codename = gt.__class__.__name__+'-'+str(rank)
             gt.code = (choice, rank, self.code)
         return gt
 
@@ -56,8 +55,7 @@ cdef class IC:
         else:
             rank = len(self.internal)
             self.internal.append(source)
-        if DEBUG:
-            source.codename = source.__class__.__name__+'-'+str(rank)
+        source.codename = source.__class__.__name__+'-'+str(rank)
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):

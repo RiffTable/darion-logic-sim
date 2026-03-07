@@ -206,9 +206,9 @@ def submenu_components():
                 # Handle Source Selection (Source)
                 actual_source = source_component
                 if isinstance(source_component, IC):
-                    print(f"\nSelect Output Pin for Source IC '{source_component.codename}':")
+                    print(f"\nSelect Output Pin for Source IC '{source_component}':")
                     for k, pin in enumerate(source_component.outputs):
-                        print(f"{k}: {pin.codename}")
+                        print(f"{k}: {str(pin)}")
                     try:
                         pin_idx = int(input(f"Select Pin (0-{len(source_component.outputs)-1}): "))
                         actual_source = source_component.outputs[pin_idx]
@@ -221,23 +221,23 @@ def submenu_components():
                 target_index = 0
 
                 if isinstance(target_component, IC):
-                    print(f"\nSelect Input Pin for Target IC '{target_component.codename}':")
+                    print(f"\nConnecting '{actual_source}' -> Select Input Pin for '{target_component}':")
                     for k, pin in enumerate(target_component.inputs):
-                        current_source = pin.sources[0] if pin.sources and str(pin.sources[0]) != 'Empty' else "Empty"
-                        print(f"{k}: {pin.codename} (Current: {current_source})")
+                        current_source = str(pin.sources[0]) if pin.sources and pin.sources[0] is not None else "Empty"
+                        print(f"{k}: {str(pin)} (Current: {current_source})")
                     try:
-                        pin_idx = int(input(f"Select Pin (0-{len(target_component.inputs)-1}): "))
+                        pin_idx = int(input(f"[{actual_source}] -> Select Pin (0-{len(target_component.inputs)-1}): "))
                         actual_target = target_component.inputs[pin_idx]
                         target_index = 0
                     except (ValueError, IndexError):
                         print("Invalid Pin. Skipping.")
                         continue
                 else:
-                    print(f"\nTarget Gate '{target_component.codename}' Inputs:")
+                    print(f"\nConnecting '{actual_source}' -> '{target_component}' Inputs:")
                     for k, c in enumerate(target_component.sources):
-                        print(f"Index {k}: {c}")
+                        print(f"Index {k}: {str(c) if c is not None else 'Empty'}")
                     try:
-                        target_index = int(input(f"Enter input index for {actual_source} -> {target_component}: "))
+                        target_index = int(input(f"[{actual_source}] -> Select index (0-{len(target_component.sources)-1}): "))
                     except ValueError:
                         print("Invalid index. Skipping.")
                         continue
@@ -260,13 +260,13 @@ def submenu_components():
                 continue
 
             if isinstance(target, IC):
-                print(f"\n=== IC '{target.codename}' - Input Pins ===")
+                print(f"\n=== IC '{target}' - Input Pins ===")
                 has_connections = False
                 for i, pin in enumerate(target.inputs):
                     source = pin.sources[0]
-                    conn_str = str(source) if str(source) != 'Empty' else "Empty"
-                    print(f"[{i}] {pin.codename} <-- {conn_str}")
-                    if str(source) != 'Empty':
+                    conn_str = str(source) if source is not None else "Empty"
+                    print(f"[{i}] {str(pin)} <-- {conn_str}")
+                    if source is not None:
                         has_connections = True
                 
                 if not has_connections:
@@ -281,7 +281,7 @@ def submenu_components():
                     for index in indices:
                         if index < 0 or index >= len(target.inputs): continue
                         target_pin = target.inputs[index]
-                        if str(target_pin.sources[0]) == 'Empty': continue
+                        if target_pin.sources[0] is None: continue
                         source_name = str(target_pin.sources[0])
                         disconnect(target_pin, 0)
                         print(f"Disconnected {source_name} from Pin {index}.")
@@ -291,8 +291,9 @@ def submenu_components():
                 print(f"\n=== {target} - Input Pins ===")
                 has_connections = False
                 for i, source in enumerate(target.sources):
-                    print(f"[{i}] -> {source}")
-                    if str(source) != 'Empty': has_connections = True
+                    conn_str = str(source) if source is not None else "Empty"
+                    print(f"[{i}] -> {conn_str}")
+                    if source is not None: has_connections = True
                 
                 if not has_connections:
                     print("No connections.")
@@ -305,7 +306,7 @@ def submenu_components():
                     indices = list(map(int, indices_input.split()))
                     for index in indices:
                         if index < 0 or index >= len(target.sources): continue
-                        if str(target.sources[index]) == 'Empty': continue
+                        if target.sources[index] is None: continue
                         disconnect(target, index)
                         print(f"Disconnected index {index}.")
                 except ValueError: pass
@@ -345,20 +346,28 @@ def submenu_components():
 
         elif choice == '8':
             circuit.listComponent()
-            idx = input("Enter serial to rename: ")
-            if idx == '': continue
+            idx_str = input("Enter serial(s) to rename (space separated): ")
+            if idx_str.strip() == '': continue
             try:
-                comp = circuit.get_components()[int(idx)]
-                # "Not ICs after they are imported"
-                if isinstance(comp, IC):
-                    print("Cannot rename imported ICs.")
-                else:
-                    new_name = input(f"Enter new name for {comp.codename}: ")
-                    if new_name:
-                        rename(comp, new_name)
-                        print(f"Renamed to {new_name}")
-            except (ValueError, IndexError):
-                print("Invalid selection.")
+                indices = list(map(int, idx_str.split()))
+                for idx in indices:
+                    try:
+                        comp = circuit.get_components()[idx]
+                        # "Not ICs after they are imported"
+                        if isinstance(comp, IC):
+                            print(f"Cannot rename imported IC '{comp.codename}'. Skipping.")
+                        else:
+                            old_name = comp.codename
+                            new_name = input(f"Enter new name for {old_name} (leave blank to skip): ")
+                            if new_name.strip():
+                                rename(comp, new_name.strip())
+                                print(f"Renamed '{old_name}' to '{new_name.strip()}'")
+                            else:
+                                print(f"Skipped '{old_name}'.")
+                    except IndexError:
+                        print(f"Invalid serial: {idx}")
+            except ValueError:
+                print("Invalid selection. Please enter numbers separated by spaces.")
             input("Press Enter...")
 
         elif choice == '9':
@@ -440,7 +449,17 @@ def submenu_simulation():
             input("Press Enter...")
 
         elif choice == '3':
-            print(circuit.truthTable())
+            table = circuit.truthTable()
+            print(table)
+            filename = input("Save to file (Enter filename or press Enter for 'truth_table.txt'): ").strip()
+            if filename == '':
+                filename = 'truth_table.txt'
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(table)
+                print(f"Saved to '{filename}'.")
+            except OSError as e:
+                print(f"Could not save file: {e}")
             input("Press Enter...")
 
         elif choice == '4':
