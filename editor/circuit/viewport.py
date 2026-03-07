@@ -88,7 +88,7 @@ class CircuitView(QGraphicsView):
 		start_pos = self.dragStart.pop(btn, mousepos)
 		# print(f"{btn}: {dragDelta}")
 
-		if start_pos == None:
+		if start_pos is None:
 			return super().mouseReleaseEvent(event)
 
 		# Don't let the SCENE see RMB release if it ended after dragging

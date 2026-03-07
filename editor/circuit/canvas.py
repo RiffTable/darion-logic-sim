@@ -110,7 +110,7 @@ class CircuitScene(QGraphicsScene):
 	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
 		g_wire = self.ghostWire
 
-		assert g_wire != None
+		assert g_wire is not None
 		g_pin = self.ghostPin
 		source = g_wire.source
 
@@ -199,7 +199,7 @@ class CircuitScene(QGraphicsScene):
 		and event.button() == MouseBtn.LeftButton:
 			self.setState(EditorState.WIRING)
 			w = item.getWire()
-			if w == None:
+			if w is None:
 				self.ghostWire = WireItem(item, self.ghostPin)
 				# self.ghostWire.setFlag(QGraphicsItem.ItemIsSelectable, False)
 				self.addItem(self.ghostWire)
@@ -232,7 +232,7 @@ class CircuitScene(QGraphicsScene):
 		super().mouseReleaseEvent(event)
 
 	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-		# if self.ghostPin == None:
+		# if self.ghostPin is None:
 		# 	self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 		
 		self.ghostPin.setPos(GRID.snapF(event.scenePos()))

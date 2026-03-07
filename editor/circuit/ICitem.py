@@ -1,16 +1,11 @@
 from __future__ import annotations
-from typing import Callable, cast, TYPE_CHECKING, Any
+from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import Facing, CompEdge, EditorState, Prop
-import core.grid as GRID
+from core.Enums import CompEdge
 
-from editor.styles import Color, Font
 from .compitem import CompItem
-from .pins import PinItem, InputPinItem, OutputPinItem
-
-# if TYPE_CHECKING:
-# 	from .canvas import CircuitScene
+from .pins import InputPinItem, OutputPinItem
 
 
 
@@ -43,14 +38,16 @@ class ICitem(CompItem):
 			start = h//2 + 1 - ninputs
 			fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 			for i in range(ninputs):
-				pin = InputPinItem(self, gen(start + 2*i), fa)
-				self._pinslist[CompEdge.INPUT].append(pin)
+				self._pinslist[CompEdge.INPUT].append(
+					InputPinItem(self, gen(start + 2*i), fa)
+				)
 			
 			start = h//2 + 1 - noutputs
 			fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
 			for i in range(noutputs):
-				pin = OutputPinItem(self, gen(start + 2*i), fa)
-				self._pinslist[CompEdge.OUTPUT].append(pin)
+				self._pinslist[CompEdge.OUTPUT].append(
+					OutputPinItem(self, gen(start + 2*i), fa)
+				)
 
 		# Setting Pin Logicals
 		for i, inpin in enumerate(self._unit.inputs):

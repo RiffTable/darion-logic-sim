@@ -73,7 +73,7 @@ class PinItem(QGraphicsRectItem):
 			self.parentComp.pinUpdate(self, apcc)
 	
 	def getWire(self): return self._wire
-	def hasWire(self): return self._wire != None
+	def hasWire(self): return self._wire is not None
 	def getWireID(self):
 		if self._wire: return self._wire.getID()
 		else:          return 0
