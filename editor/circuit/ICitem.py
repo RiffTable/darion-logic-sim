@@ -24,14 +24,14 @@ class ICitem(CompItem):
 		ninputs = len(self._unit.inputs)
 		noutputs = len(self._unit.outputs)
 		n = max(ninputs, noutputs)
-		h = 2*n if n > 2 else 4
+		h = 2*n if n > 2 else 6
 		
-		self.getRelSize = lambda: (4, h)
+		self.getRelSize = lambda: (6, h)
 		self.getRelPadding = lambda: (0, 0)
 
 		super().__init__(pos, **kwargs)
 
-		self.tag = self._unit.custom_name
+		self.tag = self._unit.tag
 
 		# Pins Setup
 		if self._setupDefaultPins:

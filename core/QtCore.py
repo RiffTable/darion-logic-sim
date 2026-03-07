@@ -3,9 +3,10 @@
 
 from PySide6.QtWidgets import (
 	QApplication, QMainWindow, QWidget, QFrame,
-	QPushButton, QLabel, QSpinBox,
+	QPushButton, QLabel, QLineEdit, QTextEdit, QSpinBox,
 	QVBoxLayout, QHBoxLayout, QFormLayout,
-	QFileDialog, QInputDialog, QMessageBox,
+	QDialog, QFileDialog, QInputDialog, QMessageBox,
+	QDialogButtonBox,
 
 	QGraphicsScene, QGraphicsView,
 	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,

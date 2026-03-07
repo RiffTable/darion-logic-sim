@@ -8,6 +8,7 @@ import core.grid as GRID
 from editor.styles import Color
 from .catalog import (
 	LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
+	InputItem, OutputItem,
 	GateItem, ICitem
 )
 
@@ -70,24 +71,13 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		return comp
-	
-	def addIC(self, x: float, y:float, ic_data_index: int):
-		comp = ICitem(
-			QPointF(x, y),
-			ic_data_index,
-			self.iclist[ic_data_index],
-			facing = self.defaultFacing,
-			mirror = self.defaultMirror,
-		)
-		
-		self.addItem(comp)
-		self.comps.append(comp)
-		return comp
 
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
 		comp.cutConnections()
-		logic.hide([comp._unit])
+		if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
+			logic.hide([comp._unit])
+		comp._unit = None    # just in case
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
@@ -104,6 +94,42 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		return comp
+	
+	
+	# IC Management
+	def addIC(self, x: float, y:float, ic_data_index: int):
+		comp = ICitem(
+			QPointF(x, y),
+			ic_data_index,
+			self.iclist[ic_data_index],
+			facing = self.defaultFacing,
+			mirror = self.defaultMirror,
+		)
+		
+		self.addItem(comp)
+		self.comps.append(comp)
+		return comp
+	
+	def makeICfyable(self):
+		# logic.diagnose()
+		comps = self.comps.copy()
+		for comp in comps:
+			if isinstance(comp, InputItem):
+				w = comp.outputPin.getWire()
+				targets = []
+				if w is not None and comp.outputPin.logical:
+					targets = [supply.logical for supply in w.supplies if supply.logical is not None]
+
+					self.removeComp(comp)
+
+					inpin = cast(In, logic.getcomponent(Const.INPUT_PIN_ID))
+					for g, i in targets:
+						logic.connect(g, inpin, i)
+				else:
+					self.removeComp(comp)
+		
+		# Output items are not converted since they are already of class Out
+		#! Don't forget to order the pins
 	
 	
 	# Wires	Management

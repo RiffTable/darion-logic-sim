@@ -11,6 +11,7 @@ from editor.styles import Color
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
+from editor.tools.ICdialog import ICSetupDialog
 
 
 
@@ -93,6 +94,8 @@ class AppWindow(QMainWindow):
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
 		Actions.add(self, "refresh-ic-list", "Refresh IC", self.refreshIClist)
+		Actions.add(self, "project-to-ic", "Convert Project to IC", self.convertProjectToIC, QKS("Ctrl+Shift+I"))
+		# Actions.add(self, "selection-to-ic", "Convert Selection to IC", )
 		
 
 		### Viewport functions
@@ -261,6 +264,24 @@ class AppWindow(QMainWindow):
 			
 			if not any(icdata[Const.CUSTOM_NAME] == ic[Const.CUSTOM_NAME] for icdata in self.cscene.iclist):
 				self.cscene.iclist.append(ic)
+	
+	def convertProjectToIC(self):
+		res = ICSetupDialog.showForm(self)
+		if res["accepted"]:
+			logic.reset()
+
+			self.cscene.makeICfyable()
+			filename = f"exports/IC/{res["name"]}.json"
+			logic.save_as_ic(
+				filename,
+				res["name"],
+				res["tag"],
+				res["desc"]
+			)
+			self.cscene.clearCanvas()
+			self.refreshIClist()
+
+			logic.simulate(Const.SIMULATE)    # fuck
 
 
 
