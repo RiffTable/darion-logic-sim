@@ -155,7 +155,7 @@ class IC:
             gate.clone(i, pseudo)
 
     def load_to_cluster(self, cluster: set):
-        cluster.add(self.outputs+self.inputs+self.internal)
+        cluster.update(self.outputs + self.inputs + self.internal)
 
     def copy_data(self, cluster: set) -> list:
         dictionary = [            

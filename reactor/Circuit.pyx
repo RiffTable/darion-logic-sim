@@ -34,10 +34,11 @@ cdef class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            if gt.id!=VARIABLE_ID:
-                gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
-            else:
-                gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
+            if DEBUG:
+                if gt.id!=VARIABLE_ID:
+                    gt.codename = gt.__class__.__name__+'-'+str(len(self.objlist[choice]))
+                else:
+                    gt.codename = chr(ord('A')+(rank) % 26)+str((rank+1)//26)
         return gt
 
     cpdef object getobj(self, tuple code):
@@ -398,7 +399,6 @@ cdef class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(myIC.json_data()))
         self.clearcircuit()
-        self.getIC(location)
 
 
     def getIC(self, location):
@@ -494,95 +494,102 @@ cdef class Circuit:
                 self.propagate(target)
             profile+=1
 
-    cdef void burn(self,Py_ssize_t index,Py_ssize_t size):
+    cdef void burn(self,Py_ssize_t index,Py_ssize_t size,void** read_queue,void** write_queue):
         cdef Gate gate,target
         cdef Profile* profile
         cdef Profile* end
+        cdef unsigned long long eval=0
         # keep propagating until everything settles
-        try:
-            while index<size:
-                gate = <Gate>self.queue[index]
+        cdef Py_ssize_t end_point=size
+        size=0
+        while index<end_point:
+            while index<end_point:
+                gate = <Gate>read_queue[index]
                 gate.scheduled=False
                 profile = gate.hitlist.data()
                 end = profile+gate.hitlist.size()
                 gate.output = ERROR
                 while profile!=end:
-                    self.eval_count+=1
+                    eval+=1
                     if profile.output!=ERROR:
                         target=<Gate>profile.target
                         if target.inputlimit!=1:
                             target.book[profile.output]-=1
                             target.book[ERROR]+=1
                         if target.output!=ERROR:
-                            self.queue[size]=<void*>target
+                            write_queue[size]=<void*>target
                             size+=1
                         profile.output = ERROR
                     profile+=1
                 index+=1
-        except Exception as e:
-            print(e)
-            return
-
+            index=0
+            end_point=size
+            size=0
+            read_queue,write_queue=write_queue,read_queue
+        self.eval_count+=eval
+        
     cdef void propagate(self,Gate origin):
         cdef Gate gate=origin,target
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low,gate_type,limit
         cdef Py_ssize_t new_output, profile_output,target_output
-        cdef Py_ssize_t index=0,end_point=1,size=1
+        cdef Py_ssize_t index=0,end_point=1,size=0
         cdef unsigned long long counter=0
+        cdef unsigned long long eval=0
+        cdef void** read_queue=self.queue[0]
+        cdef void** write_queue=self.queue[1]
+        read_queue[0]=<void*>origin
         if unlikely(origin.output==ERROR):
-            self.burn(index,size)
+            self.burn(index,end_point,read_queue,write_queue)
             return
-        self.queue[0]=<void*>origin
-        try:
-            while index<end_point:
-                if unlikely(counter>self.counter):
-                    self.burn(index,size)
-                    return
-                counter+=1
-                while index<end_point:
-                    gate = <Gate>self.queue[index]
-                    gate.scheduled=False
-                    new_output=gate.output
-                    profile = gate.hitlist.data()
-                    end = profile+gate.hitlist.size()
-                    while profile!=end:
-                        # input(f'Source {gate.codename} {profile.output} {new_output}')
-                        self.eval_count+=1
-                        profile_output = profile.output
-                        if profile_output!=new_output:
-                            target=<Gate>profile.target
-                            gate_type = target.id
-                            limit = target.inputlimit
-                            # input(f'Updating {target.codename} {target.output}')
-                            if limit==1:
-                                if gate_type==NOT_ID and new_output!=UNKNOWN:
-                                    target_output=new_output^1
-                                else:
-                                    target_output=new_output
-                            else:
-                                target.book[profile_output]-=1
-                                target.book[new_output]+=1
-                                high=target.book[HIGH]
-                                low=target.book[LOW]
-                                realsource = high+low
-                                if likely(realsource==limit) or unlikely(realsource and realsource+target.book[UNKNOWN]+target.book[ERROR]==limit):
-                                    if gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
-                                    elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
-                                    else:target_output = (high&1)^(gate_type&1)
-                                else: target_output = UNKNOWN
-                            if target_output!=target.output:
-                                target.output = target_output
-                                if not target.scheduled:
-                                    target.scheduled=True
-                                    self.queue[size]=<void*>target
-                                    size+=1
+        while end_point>0:
+            if unlikely(counter>self.counter):
+                self.eval_count+=eval
+                self.burn(index,end_point,read_queue,write_queue)
+                return
 
-                            profile.output = new_output
-                        profile+=1
-                    index+=1
-                end_point = size
-        except Exception as e:
-            print(e)
-            return
+            counter+=1
+            for index in range(end_point):
+                gate = <Gate>read_queue[index]
+                gate.scheduled=False
+                new_output=gate.output
+                profile = gate.hitlist.data()
+                end = profile+gate.hitlist.size()
+                while profile!=end:
+                    # input(f'Source {gate.codename} {profile.output} {new_output}')
+                    eval+=1
+                    profile_output = profile.output
+                    if profile_output!=new_output:
+                        target=<Gate>profile.target
+                        gate_type = target.id
+                        limit = target.inputlimit
+                        # input(f'Updating {target.codename} {target.output}')
+                        if limit==1:
+                            if gate_type==NOT_ID and new_output!=UNKNOWN:
+                                target_output=new_output^1
+                            else:
+                                target_output=new_output
+                        else:
+                            target.book[profile_output]-=1
+                            target.book[new_output]+=1
+                            high=target.book[HIGH]
+                            low=target.book[LOW]
+                            realsource = high+low
+                            if likely(realsource==limit) or unlikely(realsource and realsource+target.book[UNKNOWN]+target.book[ERROR]==limit):
+                                if gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
+                                elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
+                                else:target_output = (high&1)^(gate_type&1)
+                            else: target_output = UNKNOWN
+                        if target_output!=target.output:
+                            target.output = target_output
+                            if not target.scheduled:
+                                target.scheduled=True
+                                write_queue[size]=<void*>target
+                                size+=1
+
+                        profile.output = new_output
+                    profile+=1
+            end_point,size = size,0
+            read_queue,write_queue=write_queue,read_queue
+        self.eval_count+=eval

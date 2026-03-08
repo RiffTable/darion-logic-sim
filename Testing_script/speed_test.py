@@ -242,7 +242,7 @@ class AggressiveTestSuite:
         self.test_avalanche(layers=18)  # ~260K gates
         self.test_gridlock(size=200)
         self.test_echo_chamber(count=10_000)
-        self.test_black_hole(inputs=50_000)
+        self.test_black_hole(inputs=100_000)
         self.test_paradox_burn()
         self.test_mega_chain()
         self.test_extreme_fanout()
@@ -331,7 +331,7 @@ class AggressiveTestSuite:
             out(f"    Echo Chamber ({latches//1000}K latch):  {e['time']:.2f} ms")
         if 'black_hole' in self.perf_metrics:
             b = self.perf_metrics['black_hole']
-            out(f"    Black Hole ({b['gates']//1000}K inputs):   {b['time']*1000:.1f} us")
+            out(f"    Black Hole ({b['gates']//1000}K inputs):  {b['time']*1000:.1f} us")
         if 'paradox' in self.perf_metrics:
             p = self.perf_metrics['paradox']
             out(f"    Paradox (XOR loop):        {p['time']*1000:.1f} us")

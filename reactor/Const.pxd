@@ -8,7 +8,7 @@ cpdef enum:
     DESIGN = 0
     SIMULATE = 1
 
-    LIMIT = 2_000_000
+    LIMIT = 250_000
 
 
     AND_ID = 0
@@ -54,5 +54,4 @@ cpdef void set_MODE(Py_ssize_t mode)
 cpdef Py_ssize_t get_MODE()
 
 cdef public bint DEBUG = True
-cpdef void set_DEBUG(bint debug)
-cpdef bint get_DEBUG()
+cpdef void set_DEBUG()

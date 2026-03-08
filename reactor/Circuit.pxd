@@ -8,7 +8,7 @@ cdef class Circuit:
     cdef public list copydata
     cdef public int counter
     cdef public unsigned long long eval_count
-    cdef void* queue[LIMIT]
+    cdef void* queue[2][LIMIT]
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef list get_components(self)
@@ -34,4 +34,4 @@ cdef class Circuit:
     cpdef void reset(self)
     cdef void turnoff(self,Gate gate)
     cdef void propagate(self,Gate origin)
-    cdef void burn(self,Py_ssize_t index,Py_ssize_t size)
+    cdef void burn(self,Py_ssize_t index,Py_ssize_t size,void** read_queue,void** write_queue)

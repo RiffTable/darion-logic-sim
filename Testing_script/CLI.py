@@ -49,6 +49,7 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
+Const.set_DEBUG()
 circuit = Circuit()
 base = Event()
 

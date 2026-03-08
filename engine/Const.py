@@ -11,7 +11,7 @@ SIMULATE = 1
 
 UI_MODE = False
 
-LIMIT = 100
+LIMIT = 500_000
 
 AND_ID = 0
 NAND_ID = 1
@@ -40,10 +40,14 @@ TAG = SOURCES+1
 DESCRIPTION = SOURCES+2
 
 MODE = DESIGN
-
+DEBUG= True
 def set_MODE(mode):
     global MODE
     MODE = mode
 
 def get_MODE():
     return MODE
+
+def set_DEBUG():
+    global DEBUG
+    DEBUG=True

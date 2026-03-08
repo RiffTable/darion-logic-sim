@@ -3,6 +3,7 @@ import orjson
 import os
 from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import *
+import Const
 from IC import IC
 from Store import get
 
@@ -21,7 +22,7 @@ class Circuit:
         self.objlist: list[list] = [[] for _ in range(TOTAL)]
         self.copydata: list = []
         self.counter: int = 0
-        self.queue: list = []
+        self.queue: list = [[None] * LIMIT, [None] * LIMIT]  # double buffer: fixed [2][LIMIT]
         self.eval_count = 0
 
     def set_UI_MODE(self, mode):
@@ -40,11 +41,11 @@ class Circuit:
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
             name = gt.__class__.__name__
-
-            if name == 'Variable':
-                gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
-            else:
-                gt.codename = name + '-' + str(len(self.objlist[choice]))
+            if Const.DEBUG:
+                if gt.id == VARIABLE_ID:
+                    gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
+                else:
+                    gt.codename = name + '-' + str(len(self.objlist[choice]))
 
         return gt
 
@@ -469,13 +470,12 @@ class Circuit:
                 target.output = UNKNOWN
                 self.propagate(target)
 
-    def burn(self, index: int):
+    def burn(self, read_buf: list, read_end: int, write_buf: list):
         """Error propagation — flood-fill ERROR through the graph."""
-        size = len(self.queue)
-        # keep propagating until everything settles
-        while index < size:
-            while index < size:
-                gate = self.queue[index]
+        write_end: int = 0
+        while read_end > 0:
+            for i in range(read_end):
+                gate = read_buf[i]
                 gate.scheduled = False
                 gate.output = ERROR
                 for profile in gate.hitlist:
@@ -483,38 +483,40 @@ class Circuit:
                         target = profile.target
                         if target.inputlimit != 1:
                             target.book[profile.output] -= 1
-                            target.book[gate.output] += 1
+                            target.book[ERROR] += 1
                         if target.output != ERROR:
-                            self.queue.append(target)
+                            write_buf[write_end] = target
+                            write_end += 1
                         profile.output = ERROR
-                index += 1
-            size = len(self.queue)
-        if UI_MODE:
-            for gate in self.queue:
-                for listener in gate.listener:
-                    listener(gate.output)
-        self.queue.clear()
+            if UI_MODE:
+                for i in range(read_end):
+                    gate = read_buf[i]
+                    for listener in gate.listener:
+                        listener(gate.output)
+            read_buf, write_buf = write_buf, read_buf
+            read_end, write_end = write_end, 0
 
     def propagate(self, origin: Gate):
-        """Single queue, index-based traversal, inline gate evaluation, scheduled flag."""
-        index = 0
-        size = 1
-        counter = 0
+        """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
+        read_buf: list = self.queue[0]
+        write_buf: list = self.queue[1]
+        read_buf[0] = origin
+        read_end: int = 1
+        write_end: int = 0
+        counter: int = 0
 
         if origin.output == ERROR:
-            self.burn(index)
+            self.burn(read_buf, read_end, write_buf)
             return
 
-        self.queue.append(origin)
-
-        while index < size:
+        while read_end > 0:
             if counter > self.counter:
-                self.burn(index)
+                self.burn(read_buf, read_end, write_buf)
                 return
             counter += 1
 
-            while index < size:
-                gate = self.queue[index]
+            for i in range(read_end):
+                gate = read_buf[i]
                 gate.scheduled = False
                 new_output = gate.output
                 for profile in gate.hitlist:
@@ -552,14 +554,16 @@ class Circuit:
                             target.output = target_output
                             if not target.scheduled:
                                 target.scheduled = True
-                                self.queue.append(target)
+                                write_buf[write_end] = target
+                                write_end += 1
 
                         profile.output = new_output
 
-                index += 1
-            size = len(self.queue)
-        if UI_MODE:
-            for gate in self.queue:
-                for listener in gate.listener:
-                    listener(gate.output)
-        self.queue.clear()
+            if UI_MODE:
+                for i in range(read_end):
+                    gate = read_buf[i]
+                    for listener in gate.listener:
+                        listener(gate.output)
+            read_buf, write_buf = write_buf, read_buf
+            read_end, write_end = write_end, 0
+
