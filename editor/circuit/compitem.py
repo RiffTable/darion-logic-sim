@@ -5,7 +5,8 @@ from core.LogicCore import *
 from core.Enums import Facing, CompEdge, Prop
 import core.grid as GRID
 
-from editor.styles import LightTheme, DarkTheme, Font
+import editor.theme as theme
+from editor.styles import Font
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 if TYPE_CHECKING:
@@ -22,12 +23,6 @@ class CompItem(QGraphicsItem):
 	DESC: str
 	NAME: str
 	LOGIC: int
-
-	@property
-	def colors(self):
-		settings = QSettings("Darion", "Darion Logic Sim")
-		dark_theme = settings.value("dark_theme", True, type=bool)
-		return DarkTheme if dark_theme else LightTheme
 
 	def __init__(self, pos: QPointF, **kwargs):
 		# Properties
@@ -100,6 +95,9 @@ class CompItem(QGraphicsItem):
 		#=> betterHoverEnter, betterHoverLeave
 		#=> draw
 	
+	@property
+	def colors(self):
+		return theme.get_theme()
 
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())

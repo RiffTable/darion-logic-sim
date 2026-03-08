@@ -3,8 +3,8 @@ from functools import partial
 from typing import Any
 from core.QtCore import *
 from core.Enums import Prop
-from editor.styles import DarkTheme, LightTheme
 
+import editor.theme as theme
 from editor.circuit.compitem import CompItem
 
 
@@ -25,7 +25,7 @@ class PropertiesPanel(QWidget):
 
     def buildUI(self):
         self.setFixedWidth(175)
-        self.apply_theme_stylesheet()
+        self.apply_theme()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)
@@ -74,14 +74,9 @@ class PropertiesPanel(QWidget):
         outer.addLayout(form)
         outer.addStretch()
         
-    @property
-    def colors(self):
-        settings = QSettings("Darion", "Darion Logic Sim")
-        dark_theme = settings.value("dark_theme", True, type=bool)
-        return DarkTheme if dark_theme else LightTheme
 
-    def apply_theme_stylesheet(self):
-        colors = self.colors
+    def apply_theme(self):
+        colors = theme.get_theme()
         self.setStyleSheet(f"""
             PropertiesPanel {{
                 background: {colors.secondary_bg.name()};
@@ -109,8 +104,8 @@ class PropertiesPanel(QWidget):
             }}
         """)
 
-    def on_theme_changed(self, theme_name):
-        self.apply_theme_stylesheet()
+    def on_theme_changed(self):
+        self.apply_theme()
         self.update()
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):

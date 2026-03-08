@@ -1,5 +1,6 @@
 from core.QtCore import *
 import editor.actions as Actions
+import editor.theme as theme
 
 class BaseMenu(QMenu):
     def __init__(self, title, parent=None):
@@ -52,21 +53,16 @@ class SettingsMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        # Theme toggle
-        self.theme_manager = self.parent().theme_manager if self.parent() else None  # type: ignore
-        initial_checked = self.theme_manager.current_theme == "dark" if self.theme_manager else True
+        initial_checked = theme.is_dark()
         
         Actions.addCheckable(self, "invert-scroll", "Invert Mouse Scrolling")
         Actions.addCheckable(self, "disable-peeking", "Disable Pins Peeking")
         Actions.addCheckable(self, "hide-grid", "Hide Grid")
         Actions.addCheckable(self, "dark-theme", "Dark Theme", initial_checked, self.toggle_theme)
 
-        if self.theme_manager:
-            self.theme_manager.theme_changed.connect(self.on_theme_changed)
-    
     def toggle_theme(self, checked):
-        if self.theme_manager:
-            self.theme_manager.apply_theme("dark" if checked else "light")
-    
-    def on_theme_changed(self, theme_name):
-        Actions.get("dark-theme").setChecked(theme_name == "dark")
+        theme.set_theme(checked)
+        
+        if self.parent() and hasattr(self.parent(), 'theme_manager'):
+            self.parent().theme_manager.apply_palette()
+            self.parent().theme_manager.theme_changed.emit()

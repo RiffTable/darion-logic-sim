@@ -1,56 +1,58 @@
 from PySide6.QtGui import QColor, QFont
 
 class LightTheme:
-    text           = QColor("#2f3b44")
-    hl_text_bg     = QColor("#36b9e0")
-    primary_bg     = QColor("#c1c1b8")
-    secondary_bg   = QColor("#d6d6cd")
-    tooltip_text   = QColor("#f5f5ed")
-    tooltip_bg     = QColor("#4a4f4a")
-    button         = QColor("#b2b2a8")
+    text           = QColor("#1f2c39")
+    hl_text_bg     = QColor("#3677e0")
+    primary_bg     = QColor("#cfd5db")
+    secondary_bg   = QColor("#e1e6ec")
+    tooltip_text   = QColor("#f8fafc")
+    tooltip_bg     = QColor("#263542")
+    button         = QColor("#bcc3cb")
     
-    comp_active    = QColor("#3fd226")
-    comp_body      = QColor("#c8c8bf")
+    comp_active    = QColor("#2fc51b")
+    comp_body      = QColor("#d2d9e0")
 
-    signal_high    = QColor("#2abc20")
-    signal_low     = QColor("#979e94")
-    signal_error   = QColor("#bf6b6b")
-    signal_unknown = QColor("#7f9fbf")
+    signal_high    = QColor("#229513")
+    signal_low     = QColor("#5f6468")
+    signal_error   = QColor("#dd2929")
+    signal_unknown = QColor("#609ac9")
 
-    pin_high       = QColor("#6f8c6a")
-    pin_low        = QColor("#bf8f4a")
-    pin_hover      = QColor("#6b8c9c")
+    pin_high       = QColor("#1fa110")
+    pin_low        = QColor("#c5591b")
+    pin_hover      = QColor("#45676b")
 
-    LED_on         = QColor("#ef911f")
-    LED_off        = QColor("#c8c8bf")
+    LED_on         = QColor("#f1c40f")
+    LED_off        = QColor("#d2d9e0")
     
-    outline        = QColor("#6f6f66")
+    outline        = QColor("#6f7d8c")
+
 
 class DarkTheme:
-	text           = QColor("#ffffff")
-	hl_text_bg     = QColor("#2f65ca")
-	primary_bg     = QColor("#1e1e1e")
-	secondary_bg   = QColor("#2b2b2b")
-	tooltip_text   = QColor("#ff0000")
-	tooltip_bg     = QColor("#ffffff")
-	button         = QColor("#3c3f41")
+    text           = QColor("#ecf0f3")
+    hl_text_bg     = QColor("#2f65ca")
+    primary_bg     = QColor("#03070c")
+    secondary_bg   = QColor("#121c26")
+    tooltip_text   = QColor("#ff0000")
+    tooltip_bg     = QColor("#ffffff")
+    button         = QColor("#1e2a36")
 
-	comp_active    = QColor("#2fc51b")
-	comp_body      = QColor("#47494b")
+    comp_active    = QColor("#31ce1c")
+    comp_body      = QColor("#17222d")
 
-	signal_high    = QColor("#229513")
-	signal_low     = QColor("#5f6468")
-	signal_error   = QColor("#dd2929")
-	signal_unknown = QColor("#609ac9")
+    signal_high    = QColor("#229513")
+    signal_low     = QColor("#5f6468")
+    signal_error   = QColor("#dd2929")
+    signal_unknown = QColor("#609ac9")
 
-	pin_high       = QColor("#2fc51b")
-	pin_low        = QColor("#c5591b")
-	pin_hover      = QColor("#cccccc")
+    pin_high       = QColor("#229513")
+    pin_low        = QColor("#c5591b")
+    pin_hover      = QColor("#6b8c9c")
 
-	LED_on         = QColor("#f1c40f")
-	LED_off        = QColor("#47494b")
+    LED_on         = QColor("#f1c40f")
+    LED_off        = QColor("#17222d")
+    
+    outline        = QColor("#314152")
 
-	outline        = QColor("#000000")
 
 class Font:
-	default        = QFont("Segoe UI", 12, QFont.Weight.Bold)
+    default        = QFont("Segoe UI", 12, QFont.Weight.Bold)

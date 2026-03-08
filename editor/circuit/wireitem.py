@@ -3,7 +3,7 @@ from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 from core.LogicCore import *
 
-from editor.styles import LightTheme, DarkTheme
+import editor.theme as theme
 
 if TYPE_CHECKING:
 	from .canvas import CircuitScene
@@ -16,12 +16,6 @@ if TYPE_CHECKING:
 class WireItem(QGraphicsPathItem):
 	_COUNT = 1    # NO CONNECTION = ZERO (0)
 	MINWALK = 2
-
-	@property
-	def colors(self):
-		settings = QSettings("Darion", "Darion Logic Sim")
-		dark_theme = settings.value("dark_theme", True, type=bool)
-		return DarkTheme if dark_theme else LightTheme
 	
 	def __init__(self, beg: OutputPinItem, end: InputPinItem):
 		super().__init__()
@@ -44,6 +38,11 @@ class WireItem(QGraphicsPathItem):
 		self._updateShape()
 
 		WireItem._COUNT += 1
+	
+	
+	@property
+	def colors(self):
+		return theme.get_theme
 	
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())

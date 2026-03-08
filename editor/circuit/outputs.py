@@ -4,8 +4,6 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, Prop
 
-from editor.styles import LightTheme, DarkTheme
-
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
@@ -19,12 +17,6 @@ class OutputItem(CompItem):
 	NAME=DESC="LED"
 	def getRelSize(self): return (4, 2)
 	def getRelPadding(self): return (0, 4)
-
-	@property
-	def colors(self):
-		settings = QSettings("Darion", "Darion Logic Sim")
-		dark_theme = settings.value("dark_theme", True, type=bool)
-		return DarkTheme if dark_theme else LightTheme
 
 	def __init__(self, pos: QPointF, **kwargs):
 		super().__init__(pos, **kwargs)

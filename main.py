@@ -6,7 +6,6 @@ from core.QtCore import *
 from core.LogicCore import *
 
 from editor.theme import ThemeManager
-from editor.styles import LightTheme, DarkTheme
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
@@ -25,6 +24,8 @@ class AppWindow(QMainWindow):
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
 		
+		if theme_manager:
+			theme_manager.theme_changed.connect(self.refresh_theme)
 
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
@@ -73,6 +74,10 @@ class AppWindow(QMainWindow):
 		layout_main.addLayout(self.dragbar)
 		layout_main.addWidget(self.view)
 		layout_main.addWidget(self.props_panel)
+
+	def refresh_theme(self):
+		self.props_panel.apply_theme()
+		self.cscene.update() 
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app

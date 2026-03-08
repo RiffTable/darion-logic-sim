@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
 	Qt, QObject, QEvent, QTimer, QKeyCombination,
-	QPoint, QPointF, QLineF, QRectF, QSettings
+	QPoint, QPointF, QLineF, QRectF, QSettings, Signal
 )
 from PySide6.QtGui import (
 	QGuiApplication, QInputDevice, QAction, QKeySequence, QCursor,
