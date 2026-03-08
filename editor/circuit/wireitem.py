@@ -42,7 +42,7 @@ class WireItem(QGraphicsPathItem):
 	
 	@property
 	def colors(self):
-		return theme.get_theme
+		return theme.get_theme()
 	
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())

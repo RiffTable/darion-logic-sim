@@ -10,7 +10,7 @@ import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
 from editor.tools.menu import FileMenu, EditMenu, ProjectMenu, SettingsMenu
-
+from editor.tools.sidebar import ComponentSidebar
 
 
 
@@ -49,31 +49,17 @@ class AppWindow(QMainWindow):
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
-		self.dragbar = QVBoxLayout()
-		self.dragbar.setSpacing(10)
-		gatelists = {
-			"NOT Gate": 0,
-			"AND Gate": 1,
-			"NAND Gate": 2,
-			"OR Gate": 3,
-			"NOR Gate": 4,
-			"XOR Gate": 5,
-			"XNOR Gate": 6,
-			"INPUT": 11,
-			"LED": 21,
-		}
+		self.sidebar = ComponentSidebar(self)
+		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
 
-		for text, comp_id in gatelists.items():
-			btn = QPushButton(text)
-			btn.setMinimumHeight(50)
-			btn.clicked.connect(partial(self.cscene.addComp, 0, 0, comp_id))
-			# btn.clicked.connect(lambda: self.scene().addComp(0, 0, comp_id))
-			self.dragbar.addWidget(btn)
-		self.dragbar.addStretch()
-		
-		layout_main.addLayout(self.dragbar)
+		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
 		layout_main.addWidget(self.props_panel)
+
+	def spawn_component(self, comp_id: int):
+		view_center = self.view.viewport().rect().center()
+		scene_spawn_pos = self.view.mapToScene(view_center)
+		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
 
 	def refresh_theme(self):
 		self.props_panel.apply_theme()
