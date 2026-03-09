@@ -2,7 +2,7 @@
 from Gates cimport Gate, Variable,Profile
 from libcpp.vector cimport vector
 from Const cimport LIMIT
-
+from IC cimport IC
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
@@ -18,20 +18,31 @@ cdef class Circuit:
     cpdef void listVar(self)
     cpdef bint setlimits(self, Gate gate, int size)
     cpdef void connect(self, Gate target, Gate source, int index)
-    cpdef void toggle(self, Variable target, int value)
+    cpdef void toggle(self, Gate target, int value)
     cpdef void disconnect(self, Gate target, int index)
     cpdef void delobj(self, object gate)
-    cpdef list flatten_circuit(self)
+    cpdef IC build_ic(self)
+    cpdef IC getIC(self, location)
+    cpdef object get_ic(self, str location)
+    cpdef IC load_ic(self, list crct)
+    cpdef void save_as_ic(self, str location, str ic_name)
+    cpdef void readfromjson(self,str location)
+    cpdef void writetojson(self,str location)
     cpdef void renewobj(self, object gate)
     cpdef void hide(self, list gatelist)
     cpdef void reveal(self, list gatelist)
     cpdef void output(self, Gate gate)
+    cpdef void ic_pin_change(self)
+    cpdef void reorder(self, object gate, int index)
     cpdef void generate(self, list circuit)
     cpdef str truthTable(self)
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)
     cpdef void reset(self)
+    cpdef void copy(self, list components)
+    cpdef list paste(self)
+    cpdef void transfer_info(self, Gate gate, int id)
     cdef void turnoff(self,Gate gate)
     cdef void propagate(self,Gate origin)
     cdef void burn(self,Py_ssize_t index,Py_ssize_t size,void** read_queue,void** write_queue)

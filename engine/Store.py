@@ -1,22 +1,22 @@
 
-from Gates import AND, NAND, OR, NOR, XOR, XNOR, NOT, Variable, Probe, In, Out
+from Gates import Gate
 from IC import IC
-
-
-_gateobjects = (
-    AND,
-    NAND,
-    OR,
-    NOR,
-    XOR,
-    XNOR,
-    NOT,
-    Variable,
-    Probe,
-    In,
-    Out,
-    IC,
+from Const import IC_ID
+namelist=(
+    'AND',
+    'NAND',
+    'OR',
+    'NOR',
+    'XOR',
+    'XNOR',
+    'NOT',
+    'Variable',
+    'Probe',
+    'In',
+    'Out',
+    'IC',
 )
 
 def get(choice):
-    return _gateobjects[choice]()
+    if choice==IC_ID:return IC(choice,namelist[choice])
+    else:return Gate(choice,namelist[choice])

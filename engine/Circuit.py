@@ -45,8 +45,9 @@ class Circuit:
                 if gt.id == VARIABLE_ID:
                     gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
                 else:
-                    gt.codename = name + '-' + str(len(self.objlist[choice]))
-
+                    gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
+            if gt.id == VARIABLE_ID:
+                gt.output = LOW if get_MODE() != DESIGN else UNKNOWN
         return gt
 
     def getobj(self, code: tuple):
@@ -120,10 +121,6 @@ class Circuit:
                     self.turnoff(pin)
             else:
                 self.turnoff(gate)
-
-    def replace_gates(self,gate1:Gate,gate2:Gate):
-        """Replace gate1 with gate2. Only works for gates"""
-        gate1.transfer_info(gate2)
 
 
     def reveal(self, gatelist: list):
@@ -263,7 +260,7 @@ class Circuit:
         print("\n" + "=" * 90)
 
     def writetojson(self, location: str):
-        circuit = [gate.json_data() for gate in self.get_components()]
+        circuit = [gate.full_data() for gate in self.get_components()]
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
@@ -305,8 +302,20 @@ class Circuit:
         if get_MODE()!=DESIGN:
             self.simulate(SIMULATE)
 
-    def flatten_circuit(self):
-        dictionary = []
+    def transfer_info(self,gate:Gate, id:int):
+        if id>=IC_ID or id<0:
+            return
+        real_source=[source for source in gate.sources if source is not None ]
+        length=len(real_source)
+        if not real_source or (length==1 and id!=VARIABLE_ID) or (length>1 and id<VARIABLE_ID):
+            if gate.sources[0] is None:
+                self.objlist[gate.code[0]][gate.code[1]]=None
+                gate.id = id
+                gate.code=(id,len(self.objlist[id]))
+                self.objlist[id].append(gate)
+
+    def build_ic(self):
+        my_ic=self.getcomponent(IC_ID)
         queue=[]
         index=0
         size=0
@@ -335,40 +344,60 @@ class Circuit:
                     size+=1
             index+=1
         pins=len(inputs)+len(outputs)
-        for index in range(pins):
-            gate = queue[index]
-            dictionary.append(gate.json_data())
+        for input_pin in inputs:
+            my_ic.addgate(input_pin)
+        for output_pin in outputs:
+            my_ic.addgate(output_pin)
         for index in range(pins,size):
             gate = queue[index]
             if gate.id >= INPUT_PIN_ID:
                 continue
-            dictionary.append(gate.json_data())
-        return dictionary
+            my_ic.addgate(gate)
+        my_ic.counter = size
+        self.counter += size
+        return self.objlist[IC_ID].pop()
 
-    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = ""):
-        if any(g is not None for g in self.objlist[VARIABLE_ID]):
-            print('Delete Variables First')
+    def ic_pin_change(self):
+        for var in self.objlist[VARIABLE_ID]:
+            if var is not None:
+                var.code=(INPUT_PIN_ID,len(self.objlist[INPUT_PIN_ID]))
+                var.id=INPUT_PIN_ID
+                self.objlist[INPUT_PIN_ID].append(var)
+        self.objlist[VARIABLE_ID].clear()
+        for probe in self.objlist[PROBE_ID]:
+            if probe is not None:
+                probe.code=(OUTPUT_PIN_ID,len(self.objlist[OUTPUT_PIN_ID]))
+                probe.id=OUTPUT_PIN_ID
+                self.objlist[OUTPUT_PIN_ID].append(probe)
+        self.objlist[PROBE_ID].clear()
+
+    def reorder(self,gate:Gate|IC,index:int):
+        lst=self.objlist[gate.id]
+        if index<0 or index>=len(lst):
             return
+        old=lst[index]
+        lst[index]=gate
+        lst[gate.code[1]]=old
+        if old:old.code,gate.code=gate.code,old.code
+        else:gate.code=(gate.code[0],index)
+
+    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = "",cluster=None):
+        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
+            self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
             if gate and gate.sources[0] is not None:
                 raise ValueError('Input Pin has extra sources')
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
-        if len(self.get_ics()):
-            flattened = self.flatten_circuit()
-            self.clearcircuit()
-            self.generate(flattened)
-        lst = self.get_components()
-        myIC = self.getcomponent(IC_ID)
-        myIC.custom_name = ic_name
-        myIC.tag = tag
-        myIC.description = description
-        for component in lst:
-            myIC.addgate(component)
+        my_ic=self.build_ic()
+        my_ic.custom_name = ic_name
+        my_ic.tag = tag
+        my_ic.description = description
         with open(location, 'wb') as file:
-            file.write(orjson.dumps(myIC.json_data()))
+            file.write(orjson.dumps(my_ic.partial_data()))        
         self.clearcircuit()
+ 
 
     def get_ic(self, location: str):
         with open(location, 'rb') as file:
@@ -406,18 +435,16 @@ class Circuit:
         if not components:
             return
         self.copydata = []
-        cluster = set()
+        cluster = []
         for i in components:
             i.load_to_cluster(cluster)
         for i in components:
-            self.copydata.append(i.copy_data(cluster))
-        with open('clipboard.json', 'wb') as file:
-            file.write(orjson.dumps(self.copydata))
-        self.copydata = [i.code for i in components]
+            self.copydata.append(i.partial_data())
+        for i in cluster:
+            i.scheduled=False
 
     def paste(self):
-        with open('clipboard.json', 'rb') as file:
-            circuit = orjson.loads(file.read())
+        circuit = self.copydata
         pseudo = {}
         pseudo[('X', 'X')] = None
         new_items = []
@@ -504,7 +531,6 @@ class Circuit:
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
-
         if origin.output == ERROR:
             self.burn(read_buf, read_end, write_buf)
             return

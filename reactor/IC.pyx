@@ -4,7 +4,7 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: nonecheck=False
-from Gates cimport Gate, In, Out, Profile, hide, reveal, pop
+from Gates cimport Gate, Probe, Profile, hide, reveal, pop
 from Store cimport get,decode
 from Const cimport *
 
@@ -12,15 +12,17 @@ cdef class IC:
     def __cinit__(self):
         self.id = IC_ID
         self.counter = 0
-    def __init__(self):
+    def __init__(self, int id, str name):
         self.inputs = []
         self.internal = []
         self.outputs = []
 
-        self.codename = 'IC'
+        self.codename = name
         self.custom_name = ''
         self.code = ()
         self.map = []
+        self.tag = ''
+        self.description = ''
 
     def __repr__(self):
         return self.codename if self.custom_name == '' else self.custom_name
@@ -41,7 +43,7 @@ cdef class IC:
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-            gt.codename = gt.__class__.__name__+'-'+str(rank)
+            gt.codename = gt.codename+'-'+str(rank)
             gt.code = (choice, rank, self.code)
         return gt
 
@@ -55,7 +57,7 @@ cdef class IC:
         else:
             rank = len(self.internal)
             self.internal.append(source)
-        source.codename = source.__class__.__name__+'-'+str(rank)
+        source.codename = source.codename+'-'+str(rank)
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):
@@ -63,6 +65,10 @@ cdef class IC:
         pseudo[('X', 'X')] = None
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
+        if len(dictionary) > TAG:
+            self.tag = dictionary[TAG]
+        if len(dictionary) > DESCRIPTION:
+            self.description = dictionary[DESCRIPTION]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
@@ -83,27 +89,40 @@ cdef class IC:
             gate = pseudo[code]
             gate.clone(i, pseudo)
 
-    cpdef void load_to_cluster(self, set cluster):
+    cpdef void load_to_cluster(self, list cluster):
         cdef Gate i
         for i in self.outputs+self.inputs+self.internal:
-            cluster.add(i)
-
-    cpdef list copy_data(self, set cluster):
+            cluster.append(i)
+            i.scheduled=True
+ 
+    cpdef list full_data(self):
+        cdef Gate i
         cdef list dictionary = [            
             self.custom_name,
             self.code,
-            [i.code for i in self.outputs+self.inputs+self.internal],
-            [i.copy_data(cluster) for i in self.outputs+self.inputs+self.internal],
+            [],
+            [],
+            self.tag,
+            self.description
         ]
+        for i in self.inputs+self.outputs+self.internal:
+            dictionary[COMPONENTS].append(i.code)
+            dictionary[MAP].append(i.full_data())
         return dictionary
-    
-    cpdef list json_data(self):
+
+    cpdef list partial_data(self):
+        cdef Gate i
         cdef list dictionary = [            
             self.custom_name,
             self.code,
-            [i.code for i in self.outputs+self.inputs+self.internal],
-            [i.json_data() for i in self.outputs+self.inputs+self.internal],
+            [],
+            [],
+            self.tag,
+            self.description
         ]
+        for i in self.inputs+self.outputs+self.internal:
+            dictionary[COMPONENTS].append(i.code)
+            dictionary[MAP].append(i.partial_data())
         return dictionary
 
 
@@ -116,8 +135,8 @@ cdef class IC:
             gate.clone(i, pseudo)
 
     cpdef void hide(self):
-        cdef Out pin_out
-        cdef In pin_in
+        cdef Gate pin_out
+        cdef Gate pin_in
         cdef Profile* hitlist
         cdef int index
         cdef int loc
@@ -137,8 +156,8 @@ cdef class IC:
                     pop(src.hitlist, <void*>pin_in, index)
 
     cpdef void reveal(self):
-        cdef In pin_in
-        cdef Out pin_out
+        cdef Gate pin_in
+        cdef Gate pin_out
         cdef int index
         cdef int loc
         cdef Profile* hitlist

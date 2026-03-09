@@ -17,8 +17,8 @@ cpdef enum:
     NOR_ID = 3
     XOR_ID = 4
     XNOR_ID = 5
-    NOT_ID = 6
-    VARIABLE_ID = 7
+    VARIABLE_ID = 6
+    NOT_ID = 7
     PROBE_ID = 8
     INPUT_PIN_ID = 9
     OUTPUT_PIN_ID = 10
@@ -33,8 +33,8 @@ cpdef enum:
     SOURCES=NAME+4
     VALUE=SOURCES
     MAP=SOURCES
-
-
+    TAG=SOURCES+1
+    DESCRIPTION=SOURCES+2
 
 cdef extern from *:
     """
@@ -53,5 +53,5 @@ cdef public Py_ssize_t MODE = DESIGN
 cpdef void set_MODE(Py_ssize_t mode)
 cpdef Py_ssize_t get_MODE()
 
-cdef public bint DEBUG = True
+cdef public bint DEBUG = False
 cpdef void set_DEBUG()

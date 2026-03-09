@@ -767,7 +767,7 @@ def run_profiler():
 
     levels = [
         build_level_0_linear, build_level_1_parallel, build_level_2_fanout_tree,
-        build_level_3_memory_maze, build_level_4_glitch_avalanche, 
+        build_level_3_memory_maze, build_level_4_glitch_avalanche, build_level_5_event_hurricane,
         build_level_6_sparse_fanin, build_level_7_braid, build_level_8_diamond, build_level_9_hamming_ecc,
         build_level_10_ripple_carry_adder, build_level_11_priority_encoder, build_level_12_wallace_tree,
         build_level_13_sr_latch_farm, build_level_14_sparse_random_dag, build_level_15_decoder_tree,

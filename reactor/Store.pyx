@@ -1,24 +1,25 @@
-from Gates cimport NOT, AND, NAND, OR, NOR, XOR, XNOR, Variable, Probe, In, Out
+from Gates cimport Gate,NOT, Variable, Probe
 from IC cimport IC
-
-
-cdef tuple _gateobjects = (
-    AND,
-    NAND,
-    OR,
-    NOR,
-    XOR,
-    XNOR,
-    NOT,
-    Variable,
-    Probe,
-    In,
-    Out,
-    IC
+from Const cimport *
+cdef tuple namelist=(
+    'AND',
+    'NAND',
+    'OR',
+    'NOR',
+    'XOR',
+    'XNOR',
+    'NOT',
+    'Variable',
+    'Probe',
+    'In',
+    'Out',
+    'IC',
 )
 
 cdef object get(int choice):
-    return _gateobjects[choice]()
+    if choice==IC_ID:return IC(choice,namelist[choice])
+    else:return Gate(choice,namelist[choice])
+
 
 cdef tuple decode(object code):
     if len(code) == 2:

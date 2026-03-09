@@ -33,13 +33,19 @@ cdef inline void reveal(Profile& profile,Gate source):
     target.sources[profile.index] = source
 
 cdef class Gate:
-    def __init__(self):
-        self.sources: list = [None, None]
-        self.inputlimit = 2
+    def __init__(self, int id, str name):
+        self.id = id
+        self.codename = name
+        if id >= VARIABLE_ID:
+            self.inputlimit = 1
+            self.sources: list = [None]
+        else:
+            self.inputlimit = 2
+            self.sources:list=[None,None]
         self.output = UNKNOWN
+        self.value = 0
         self.scheduled = False
         self.code = ()
-        self.codename = ''
         self.custom_name = ''
 
     def __repr__(self):
@@ -59,25 +65,50 @@ cdef class Gate:
         return result
 
     cdef void process(self):
-        cdef uint16_t* book=self.book
-        cdef int gate_type = self.id
-        cdef int low=book[LOW]
-        cdef int high=book[HIGH]
-        cdef int realsource = high+low
+        cdef uint16_t* book
+        cdef int gate_type
+        cdef int limit
+        cdef int low
+        cdef int high
+        cdef int realsource
+        cdef Gate source
+        
         if MODE == DESIGN:
             self.output = UNKNOWN
         else:
-            if realsource==self.inputlimit or (realsource and realsource+book[ERROR]+book[UNKNOWN]==self.inputlimit):
-                if gate_type<=NAND_ID:self.output = (low==0)^(gate_type&1)
-                elif gate_type<=NOR_ID:self.output = (high>0)^(gate_type&1)
-                else:self.output = (high&1)^(gate_type&1)
+            if self.id==VARIABLE_ID:
+                self.output=self.value
+            limit=self.inputlimit
+            gate_type=self.id
+            if limit == 1:
+                if gate_type==VARIABLE_ID:
+                    self.output=self.value
+                else:
+                    source=<Gate>PyList_GET_ITEM(self.sources, 0)
+                    if source is None:
+                        self.output=UNKNOWN
+                    elif source.output>=ERROR:
+                        self.output=source.output
+                    else:
+                        self.output=source.output^(gate_type==NOT_ID)
             else:
-                self.output = UNKNOWN
+                book = self.book
+                high = book[HIGH]
+                low = book[LOW]
+                realsource = high+low
+                if likely(realsource==limit) or unlikely(realsource and realsource+book[ERROR]+book[UNKNOWN]==limit):
+                    if gate_type<=NAND_ID:self.output = (low==0)^(gate_type&1)
+                    elif gate_type<=NOR_ID:self.output = (high>0)^(gate_type&1)
+                    else:self.output = (high&1)^(gate_type&1)
+                else:
+                    self.output = UNKNOWN
        
     cpdef void rename(self,str name):
         self.custom_name = name
 
     cdef void connect(self, Gate source, int index):
+        if self.id==VARIABLE_ID or self.sources[index] is not None:
+            return
         source.hitlist.emplace_back(<void*>self, index, source.output)
         self.sources[index] = source
         self.book[source.output] += 1
@@ -86,19 +117,23 @@ cdef class Gate:
         else:
             self.process()
     cdef void disconnect(self,int index):
+        if self.id==VARIABLE_ID or self.sources[index] is None:
+            return
         cdef Gate source = self.sources[index]
         pop(source.hitlist, <void*>self, index)
         self.sources[index] = None
         self.book[source.output] -= 1
-        self.process()
+        self.output=UNKNOWN
    
     cdef void reset(self):
+        cdef uint16_t* book
+        if self.id<VARIABLE_ID:
+            book = self.book
+            book[3] += book[0] + book[1] + book[2]
+            book[0] = book[1] = book[2] = 0
         self.output = UNKNOWN
         cdef Profile* profile = self.hitlist.data()
         cdef Profile* end = profile + self.hitlist.size()
-        cdef uint16_t* book = self.book
-        book[3] += book[0] + book[1] + book[2]
-        book[0] = book[1] = book[2] = 0
         while profile<end:
             profile.output=UNKNOWN
             profile+=1
@@ -112,17 +147,19 @@ cdef class Gate:
             hide(hitlist[i])
         
         # disconnect from sources (this gate's inputs)
-        cdef Profile* src_hitlist
         cdef list sources=self.sources
         n=len(sources)
         cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                pop(source.hitlist, <void*>self, i)
+        if self.id!=VARIABLE_ID:
+            for i in range(n):
+                source=<Gate>PyList_GET_ITEM(sources,i)
+                if source is not None:
+                    pop(source.hitlist, <void*>self, i)
         self.output=UNKNOWN
-        cdef uint16_t* book = self.book
-        book[0] = book[1] = book[2] = book[3] = 0
+        cdef uint16_t* book
+        if self.id<VARIABLE_ID:
+            book = self.book
+            book[0] = book[1] = book[2] = book[3] = 0
 
     cdef void reveal(self):
         cdef Profile* hitlist = self.hitlist.data()
@@ -130,11 +167,12 @@ cdef class Gate:
         cdef list sources=self.sources
         cdef Py_ssize_t n=len(sources)
         cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                source.hitlist.emplace_back(<void*>self, i, source.output)
-                self.book[source.output]+=1
+        if self.id!=VARIABLE_ID:
+            for i in range(n):
+                source=<Gate>PyList_GET_ITEM(sources,i)
+                if source is not None:
+                    source.hitlist.emplace_back(<void*>self, i, source.output)
+                    self.book[source.output]+=1
         n=self.hitlist.size()
         # reconnect to targets (this gate's outputs)
         for i in range(n):
@@ -142,7 +180,7 @@ cdef class Gate:
         self.process()
 
     cpdef bint setlimits(self,int size):
-        if size<2:
+        if size<2 or self.id>=VARIABLE_ID:
             return False
         cdef int i
         cdef int n
@@ -169,305 +207,46 @@ cdef class Gate:
             return 'X'
         return 'T' if self.output == HIGH else 'F'
 
-    cpdef list json_data(self):
-        dictionary = [
-            
+    cpdef list full_data(self):
+        cdef Gate source
+        cdef list dictionary = [
             self.custom_name,
             self.code,
             self.inputlimit,
-            [source.code if source else ('X', 'X') for source in self.sources],
+            self.value if self.id==VARIABLE_ID else [source.code if source else ('X', 'X') for source in self.sources],
             ]
         return dictionary
 
-    cpdef list copy_data(self, set cluster):
-        dictionary = [
-            
-            "",
+    cpdef list partial_data(self):
+        cdef Gate source
+        cdef list dictionary = [
+            self.custom_name,
             self.code,
             self.inputlimit,
-            [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
+            self.value if self.id==VARIABLE_ID else [source.code if source and source.scheduled else ('X', 'X') for source in self.sources],
             ]
         return dictionary
 
     cpdef void clone(self, list dictionary,dict pseudo):
         self.custom_name = dictionary[CUSTOM_NAME]
-        self.setlimits(dictionary[INPUTLIMIT])
-        for index,source in enumerate(dictionary[SOURCES]):
-            if source[0]!='X':
-                self.connect(pseudo[decode(source)],index)
+        if self.id==VARIABLE_ID:
+            self.value = dictionary[VALUE]
+        else:
+            self.setlimits(dictionary[INPUTLIMIT])
+            for index,source in enumerate(dictionary[SOURCES]):
+                if source[0]!='X':
+                    self.connect(pseudo[decode(source)],index)
 
-    cpdef void load_to_cluster(self,set cluster):
-        cluster.add(self)
+    cpdef void load_to_cluster(self,list cluster):
+        cluster.append(self)
+        self.scheduled=True
 
 cdef class Variable(Gate):
-    def __cinit__(self):
-        self.id = VARIABLE_ID
-    def __init__(self):
-        Gate.__init__(self)
-        self.value = 0
-        self.inputlimit = 1
-        self.output = UNKNOWN if MODE == DESIGN else self.value
-        self.sources.pop()
-    cpdef bint setlimits(self,int size):
-        return False
-    cdef void connect(self, Gate source, int index):
-        pass
-    cdef void disconnect(self, int index):
-        pass
-
-    cdef void reset(self):
-        self.output = UNKNOWN
-        cdef Profile* profile = self.hitlist.data()
-        cdef Profile* end = profile + self.hitlist.size()
-        while profile != end:
-            profile.output=UNKNOWN
-            profile+=1
-    
-    cdef void process(self):
-        if MODE == DESIGN:
-            self.output = UNKNOWN
-        else:
-            self.output = self.value
-
-    cpdef list json_data(self):
-        dictionary = [
-            
-            self.custom_name,
-            self.code,
-            self.inputlimit,
-            self.value,
-        ]
-        return dictionary
-
-    cpdef void clone(self,list dictionary, dict pseudo):
-        self.custom_name = dictionary[CUSTOM_NAME]
-        self.value = dictionary[VALUE]
-
-    cpdef list copy_data(self,set cluster):
-        dictionary = [
-            
-            "",
-            self.code,
-            self.inputlimit,
-            self.value,
-            ]
-        return dictionary
-
-    cdef void hide(self):
-        cdef Profile* hitlist = self.hitlist.data()
-        for i in range(self.hitlist.size()):
-            hide(hitlist[i])
-
-    cdef void reveal(self):
-        cdef Profile* hitlist = self.hitlist.data()
-        for i in range(self.hitlist.size()):
-            reveal(hitlist[i], self)
+    pass
 
 cdef class Probe(Gate):
-    def __cinit__(self):
-        self.id = PROBE_ID
-    def __init__(self):
-        Gate.__init__(self)
-        self.inputlimit = 1
-        self.sources.pop()
-
-    cdef void connect(self, Gate source, int index):
-        source.hitlist.emplace_back(<void*>self, index, source.output)
-        self.sources[index] = source
-        self.output=source.output
-    cdef void disconnect(self,int index):
-        cdef Gate source = self.sources[index]
-        pop(source.hitlist, <void*>self, index)
-        self.sources[index] = None
-        self.output=UNKNOWN
-   
-    cdef void reset(self):
-        self.output = UNKNOWN
-        cdef Profile* profile = self.hitlist.data()
-        cdef Profile* end = profile + self.hitlist.size()
-        while profile<end:
-            profile.output=UNKNOWN
-            profile+=1
-
-    cdef void hide(self):
-        cdef Py_ssize_t i
-        cdef Py_ssize_t n=self.hitlist.size()
-        cdef Profile* hitlist = self.hitlist.data()
-        for i in range(n):
-            hide(hitlist[i])
-        
-        cdef Profile* src_hitlist
-        cdef list sources=self.sources
-        n=len(sources)
-        cdef Gate source
-        for i in range(n):
-            source=<Gate>PyList_GET_ITEM(sources,i)
-            if source is not None:
-                pop(source.hitlist, <void*>self, i)
-        self.output=UNKNOWN
-
-    cdef void reveal(self):
-        cdef Profile* hitlist = self.hitlist.data()
-        cdef Py_ssize_t i
-        cdef list sources=self.sources
-        cdef Py_ssize_t n=len(sources)
-        cdef Gate source=self.sources[0]
-        if source:
-            source.hitlist.emplace_back(<void*>self, 0, source.output)
-            self.output=source.output
-        n=self.hitlist.size()
-        for i in range(n):
-            reveal(hitlist[i], self)        
-
-    cpdef bint setlimits(self,int size):
-        return False
-
-
-    cpdef list copy_data(self, set cluster):
-        dictionary = [
-            
-            self.custom_name, 
-            self.code,
-            self.inputlimit,
-            [source.code if source and source in cluster else ('X', 'X') for source in self.sources],
-            ]
-        return dictionary
-
-    cpdef void clone(self, list dictionary, dict pseudo):
-        self.custom_name = dictionary[CUSTOM_NAME]
-        self.setlimits(dictionary[INPUTLIMIT])
-        for index,source in enumerate(dictionary[SOURCES]):
-            if source[0]!='X':
-                self.connect(pseudo[decode(source)],index)
-
-    cdef void process(self):
-        cdef Gate source=self.sources[0]
-        if MODE == DESIGN:
-            self.output = UNKNOWN
-        elif source is not None:
-            self.output = source.output
-        else:
-            self.output = UNKNOWN
-
-cdef class In(Probe):
-    def __cinit__(self):
-        self.id = INPUT_PIN_ID
-
-cdef class Out(Probe):
-    def __cinit__(self):
-        self.id = OUTPUT_PIN_ID
+    pass
 
 cdef class NOT(Gate):
-    """NOT gate - inverts the input"""
-    def __cinit__(self):
-        self.id = NOT_ID
-    def __init__(self):
-        Gate.__init__(self)
-        self.inputlimit = 1
-        self.sources = [None]
-
-    cdef void connect(self, Gate source, int index):
-        source.hitlist.emplace_back(<void*>self, index, source.output)
-        self.sources[index] = source
-        if source.output>=ERROR:
-            self.output=source.output
-        else:
-            self.output=source.output^1
-    cdef void disconnect(self,int index):
-        cdef Gate source = self.sources[index]
-        pop(source.hitlist, <void*>self, index)
-        self.sources[index] = None
-        self.output=UNKNOWN
-   
-    cdef void reset(self):
-        self.output = UNKNOWN
-        cdef Profile* profile = self.hitlist.data()
-        cdef Profile* end = profile + self.hitlist.size()
-        while profile<end:
-            profile.output=UNKNOWN
-            profile+=1
-
-    cdef void hide(self):
-        cdef Py_ssize_t i
-        cdef Py_ssize_t n=self.hitlist.size()
-        cdef Profile* hitlist = self.hitlist.data()
-        for i in range(n):
-            hide(hitlist[i])
-        
-        cdef Gate source=self.sources[0]
-        if source:
-            pop(source.hitlist, <void*>self, 0)
-        self.output=UNKNOWN
-
-    cdef void reveal(self):
-        cdef Profile* hitlist = self.hitlist.data()
-        cdef Py_ssize_t i
-        cdef list sources=self.sources
-        cdef Py_ssize_t n=len(sources)
-        cdef Gate source=self.sources[0]
-        if source:
-            source.hitlist.emplace_back(<void*>self, 0, source.output)
-            if source.output>=ERROR:
-                self.output=source.output
-            else:
-                self.output=source.output^1
-        n=self.hitlist.size()
-        for i in range(n):
-            reveal(hitlist[i], self)   
-
-    cdef void process(self):
-        cdef Gate source=self.sources[0]
-        cdef int output
-        if MODE == DESIGN or source is None:
-            self.output = UNKNOWN
-        else:
-            output=source.output
-            if output == UNKNOWN:
-                self.output = UNKNOWN
-            else:
-                self.output = output^1
-
-cdef class AND(Gate):
-    """AND gate - outputs 1 only if all inputs are 1"""
-    def __cinit__(self):
-        self.id = AND_ID
-    def __init__(self):
-        Gate.__init__(self)
-
-cdef class OR(Gate):
-    """OR gate - outputs 1 if any input is 1"""
-    def __cinit__(self):
-        self.id = OR_ID
-    def __init__(self):
-        Gate.__init__(self)
-
-cdef class XOR(Gate):
-    """XOR gate - outputs 1 if odd number of inputs are 1"""
-    def __cinit__(self):
-        self.id = XOR_ID
-    def __init__(self):
-        Gate.__init__(self)
-
-cdef class NAND(Gate):
-    """NAND gate - NOT AND"""
-    def __cinit__(self):
-        self.id = NAND_ID
-    def __init__(self):
-        Gate.__init__(self)
-
-cdef class NOR(Gate):
-    """NOR gate - NOT OR"""
-    def __cinit__(self):
-        self.id = NOR_ID
-    def __init__(self):
-        Gate.__init__(self)
-
-
-cdef class XNOR(Gate):
-    """XNOR gate - NOT XOR"""
-    def __cinit__(self):
-        self.id = XNOR_ID
-    def __init__(self):
-        Gate.__init__(self)
-
+    pass
 

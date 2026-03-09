@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from Gates import Gate, In, Out, Profile, pop, hide_profile, reveal_profile
+from Gates import Gate, Profile, pop, hide_profile, reveal_profile
 from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES, TAG, DESCRIPTION
 
 class IC:
@@ -11,7 +11,7 @@ class IC:
         'id', 'counter', 'tag', 'description',
     ]
 
-    def __init__(self):
+    def __init__(self,id:int,name:str):
         self.id: int = IC_ID
         self.counter: int = 0
         self.inputs: list[In] = []
@@ -47,7 +47,7 @@ class IC:
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-                gt.codename = gt.__class__.__name__ + '-' + str(len(self.internal))
+                gt.codename = gt.codename+ '-' + str(len(self.internal))
             gt.code = (choice, rank, self.code)
         return gt
 
@@ -64,7 +64,7 @@ class IC:
         else:
             rank = len(self.internal)
             self.internal.append(source)
-            source.codename = source.__class__.__name__ + '-' + str(len(self.internal))
+            source.codename = source.codename+ '-' + str(len(self.internal))
         source.code = (source.code[0], rank, self.code)
 
     def configure(self, dictionary: list):
@@ -89,7 +89,9 @@ class IC:
             gate = self.getcomponent(comp_code[0])
             pseudo[self.decode(comp_code)] = gate
 
-    def create_data(self):
+   
+
+    def full_data(self) -> list:
         dictionary = [            
             self.custom_name,
             self.code,
@@ -98,53 +100,37 @@ class IC:
             self.tag,
             self.description
         ]
-        queue=[]
-        index=0
-        size=0
-        for gate in self.outputs+self.inputs:
-            gate.scheduled=True
-            queue.append(gate)
-        size=len(queue)
-        index=len(self.outputs)
-        while index<size:
-            gate = queue[index]
-            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
-                for profile in gate.hitlist:
-                    target = profile.target
-                    target.sources[profile.index] = gate.sources[0]
-            elif gate.id==OUTPUT_PIN_ID and gate.hitlist:
-                for profile in gate.hitlist:
-                    target = profile.target
-                    target.sources[profile.index] = gate.sources[0]
-            for profile in gate.hitlist:
-                target = profile.target
-                if not target.scheduled:
-                    target.scheduled = True
-                    queue.append(target)
-                    size+=1
-            index+=1
-        pins=len(self.inputs)+len(self.outputs)
-        for index in range(pins):
-            gate = queue[index]
-            dictionary[COMPONENTS].append(gate.code)
-            dictionary[MAP].append(gate.json_data())
-        for index in range(pins,size):
-            gate = queue[index]
-            if gate.id >= INPUT_PIN_ID:
-                continue
-            dictionary[COMPONENTS].append(gate.code)
-            dictionary[MAP].append(gate.json_data())
+        for i in self.inputs+self.outputs+self.internal:
+            dictionary[COMPONENTS].append(i.code)
+            dictionary[MAP].append(i.full_data())
         return dictionary
 
-    def json_data(self) -> list:
+    def partial_data(self, cluster: list) -> list:
         dictionary = [            
             self.custom_name,
             self.code,
-            [i.code for i in self.outputs+self.inputs+self.internal],
-            [i.json_data() for i in self.outputs+self.inputs+self.internal],
+            [],
+            [],
             self.tag,
             self.description
         ]
+        for i in self.inputs+self.outputs+self.internal:
+            dictionary[COMPONENTS].append(i.code)
+            dictionary[MAP].append(i.partial_data(cluster))
+        return dictionary
+
+    def partial_data(self):
+        dictionary=[
+            self.custom_name,
+            self.code,
+            [],
+            [],
+            self.tag,
+            self.description
+        ]
+        for i in self.inputs+self.outputs+self.internal:
+            dictionary[COMPONENTS].append(i.code)
+            dictionary[MAP].append(i.partial_data())
         return dictionary
 
     def clone(self, pseudo: dict):
@@ -154,20 +140,10 @@ class IC:
             gate = pseudo[code]
             gate.clone(i, pseudo)
 
-    def load_to_cluster(self, cluster: set):
-        cluster.update(self.outputs + self.inputs + self.internal)
-
-    def copy_data(self, cluster: set) -> list:
-        dictionary = [            
-            self.custom_name,
-            self.code,
-            [i.code for i in self.outputs+self.inputs+self.internal],
-            [i.copy_data(cluster) for i in self.outputs+self.inputs+self.internal],
-            self.tag,
-            self.description
-        ]
-        return dictionary
-        
+    def load_to_cluster(self, cluster: list):
+        for i in self.inputs+self.outputs+self.internal:
+            cluster.append(i)
+            i.scheduled=True   
 
     def implement(self, pseudo: dict):
         """Build connections from the map (paste path)."""

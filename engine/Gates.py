@@ -12,6 +12,7 @@ class Profile:
         self.target: Gate = target
         self.index: int = index
         self.output: int = output
+        
 
     def __repr__(self) -> str:
         return f"{self.target}"
@@ -44,26 +45,28 @@ def reveal_profile(profile: Profile, source: Gate):
     target.sources[profile.index] = source
 
 
-
-
 class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
         'output', 'scheduled', 'id', 'code', 'codename', 'custom_name',
-        'listener',
+        'listener','value',
     ]
 
-    def __init__(self):
-
-        self.sources: list[Gate | None] = [None, None]
+    def __init__(self,id:int,name:str):
+        self.id=id
+        self.codename=name
         self.hitlist: list[Profile] = []
-        self.inputlimit: int = 2
+        if id>=VARIABLE_ID:
+            self.inputlimit=1
+            self.sources=[None]
+        else:
+            self.inputlimit=2
+            self.sources: list[Gate | None] = [None, None]
         self.book: list[int] = [0, 0, 0, 0]  # [LOW, HIGH, ERROR, UNKNOWN]
         self.output: int = UNKNOWN
+        self.value=0
         self.scheduled: bool = False
-        self.id: int = -1
         self.code: tuple = ()
-        self.codename: str = ''
         self.custom_name: str = ''
         self.listener = []
 
@@ -84,50 +87,49 @@ class Gate:
         if get_MODE() == DESIGN:
             self.output = UNKNOWN
         else:
-            high = self.book[HIGH]
-            low = self.book[LOW]
-            realsource = high + low
-            if realsource == self.inputlimit or (realsource and realsource + self.book[ERROR] + self.book[UNKNOWN] == self.inputlimit):
-                gate_type = self.id
-                if gate_type <= NAND_ID:
-                    target_output = int(low == 0)
-                elif gate_type <= NOR_ID:
-                    target_output = int(high > 0)
+            if self.id==VARIABLE_ID:
+                self.output=self.value
+            limit=self.inputlimit
+            id=self.id
+            if limit == 1:
+                if id==VARIABLE_ID:
+                    self.output=self.value
                 else:
-                    target_output = high & 1
-                target_output ^= (gate_type & 1)
-                self.output = target_output
+                    source=self.sources[0]
+                    if source is None:
+                        self.output=UNKNOWN
+                    elif source.output>=ERROR:
+                        self.output=source.output
+                    else:
+                        self.output=source.output^(id==NOT_ID)
             else:
-                self.output = UNKNOWN
+                book = self.book
+                high = book[HIGH]
+                low = book[LOW]
+                realsource = high + low
+                if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                    if id <= NAND_ID:
+                        self.output = int(low == 0)
+                    elif id <= NOR_ID:
+                        self.output = int(high > 0)
+                    else:
+                        self.output = high & 1
+                    self.output ^= (id & 1)
+                else:
+                    self.output = UNKNOWN
 
     def rename(self, name: str):
         self.custom_name = name
 
-    def transfer_info(self, gate: Gate):
-        if gate.id==IC_ID:
-            return
-        if gate.id!=VARIABLE_ID:
-            gate.setlimits(self.inputlimit)
-            if gate.inputlimit!=self.inputlimit:
-                new_sources=[source for source in self.sources if source is not None]
-                if len(new_sources)<=gate.inputlimit:
-                    for index,source in enumerate(new_sources):
-                        gate.connect(source,index)  
-            else:
-                for index,source in enumerate(self.sources):
-                    if source is not None:
-                        gate.connect(source,index)
-        self.hide()
-        for profile in self.hitlist:
-            profile.target.connect(gate,profile.index)
+
 
     def connect(self, source: Gate, index: int):
         """Connect source -> self at pin index."""
-
+        if self.id==VARIABLE_ID or self.sources[index] is not None:
+            return
         source.hitlist.append(Profile(self, index, source.output))
         self.sources[index] = source
         self.book[source.output] += 1
-
         if source.output == ERROR:
             self.output = ERROR
         else:
@@ -135,20 +137,21 @@ class Gate:
 
     def disconnect(self, index: int):
         """Disconnect pin at index."""
-        source: Gate = self.sources[index]
-        if source is None:
+        if self.id==VARIABLE_ID or self.sources[index] is None:
             return
+        source: Gate = self.sources[index]
         pop(source.hitlist, self, index)
         self.sources[index] = None
         self.book[source.output] -= 1
-        self.process()
+        self.output=UNKNOWN
 
     def reset(self):
         """Reset to UNKNOWN state."""
-        self.output = UNKNOWN
-        book = self.book
-        book[UNKNOWN] += book[LOW] + book[HIGH] + book[ERROR]
-        book[LOW] = book[HIGH] = book[ERROR] = 0
+        if self.id<VARIABLE_ID:
+            book = self.book
+            book[UNKNOWN] += book[LOW] + book[HIGH] + book[ERROR]
+            book[LOW] = book[HIGH] = book[ERROR] = 0
+        self.output = UNKNOWN        
         for profile in self.hitlist:
             profile.output = UNKNOWN
 
@@ -156,26 +159,28 @@ class Gate:
         """Soft-disconnect from all targets and sources."""
         for profile in self.hitlist:
             hide_profile(profile)
-
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                pop(source.hitlist, self, i)
+        if self.id!=VARIABLE_ID:
+            for i, source in enumerate(self.sources):
+                if source is not None:
+                    pop(source.hitlist, self, i)
         self.output = UNKNOWN
-        self.book[:] = [0, 0, 0, 0]
+        if self.id<VARIABLE_ID:
+            self.book[:]=[0,0,0,0]
 
     def reveal(self):
         """Reconnect to sources and targets."""
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                source.hitlist.append(Profile(self, i, source.output))
-                self.book[source.output] += 1
+        if self.id!=VARIABLE_ID:
+            for i, source in enumerate(self.sources):
+                if source is not None:
+                    source.hitlist.append(Profile(self, i, source.output))
+                    self.book[source.output] += 1
 
         for profile in self.hitlist:
             reveal_profile(profile, self)
         self.process()
 
     def setlimits(self, size: int) -> bool:
-        if size < 2:
+        if size < 2 or self.id>=VARIABLE_ID:
             return False
         if size > self.inputlimit:
             for _ in range(size - self.inputlimit):
@@ -198,22 +203,20 @@ class Gate:
             return 'X'
         return 'T' if self.output == HIGH else 'F'
 
-    def json_data(self) -> list:
+    def full_data(self) -> list:
         return [
-            
             self.custom_name,
             self.code,
             self.inputlimit,
-            [s.code if s else ('X', 'X') for s in self.sources],
+            self.value if self.id==VARIABLE_ID else [s.code if s else ('X', 'X') for s in self.sources],
         ]
 
-    def copy_data(self, cluster: set) -> list:
+    def partial_data(self) -> list:
         return [
-            
-            "",
+            self.custom_name,
             self.code,
             self.inputlimit,
-            [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
+            self.value if self.id==VARIABLE_ID else [s.code if s and s.scheduled else ('X', 'X') for s in self.sources],
         ]
 
     def decode(self, code: list) -> tuple:
@@ -223,261 +226,27 @@ class Gate:
 
     def clone(self, dictionary: list, pseudo: dict):
         self.custom_name = dictionary[CUSTOM_NAME]
-        self.setlimits(dictionary[INPUTLIMIT])
-        for index, source in enumerate(dictionary[SOURCES]):
-            if source[0] != 'X':
-                self.connect(pseudo[self.decode(source)], index)
+        if self.id==VARIABLE_ID:
+            self.value = dictionary[VALUE]
+        else:
+            self.setlimits(dictionary[INPUTLIMIT])
+            for index, source in enumerate(dictionary[SOURCES]):
+                if source[0] != 'X':
+                    self.connect(pseudo[self.decode(source)], index)
 
-    def load_to_cluster(self, cluster: set):
-        cluster.add(self)
-
-
-
+    def load_to_cluster(self, cluster: list):
+        cluster.append(self)
+        self.scheduled=True
 
 class Variable(Gate):
-    __slots__ = ['value']
-
-    def __init__(self):
-        super().__init__()
-        self.id = VARIABLE_ID
-        self.value: int = 0
-        self.inputlimit = 1
-        self.output = UNKNOWN if get_MODE() == DESIGN else self.value
-        self.sources = [None]
-
-    def setlimits(self, size: int) -> bool:
-        return False
-
-    def connect(self, source: Gate, index: int):
-        pass
-
-    def disconnect(self, index: int):
-        pass
-
-    def process(self):
-        if get_MODE() == DESIGN:
-            self.output = UNKNOWN
-        else:
-            self.output = self.value
-
-    def reset(self):
-        self.output = UNKNOWN
-        for profile in self.hitlist:
-            profile.output = UNKNOWN
-
-    def json_data(self) -> list:
-        return [
-            
-            self.custom_name,
-            self.code,
-            self.inputlimit,
-            self.value,
-        ]
-
-    def clone(self, dictionary: list, pseudo: dict):
-        self.custom_name = dictionary[CUSTOM_NAME]
-        self.value = dictionary[VALUE]
-
-    def copy_data(self, cluster: set) -> list:
-        return [
-            
-            "",
-            self.code,
-            self.inputlimit,
-            self.value,
-        ]
-
-    def hide(self):
-        for profile in self.hitlist:
-            hide_profile(profile)
-
-    def reveal(self):
-        for profile in self.hitlist:
-            reveal_profile(profile, self)
-
-
+    pass
 
 
 class Probe(Gate):
-    def __init__(self):
-        super().__init__()
-        self.id = PROBE_ID
-        self.inputlimit = 1
-        self.sources = [None]
-
-    def setlimits(self, size: int) -> bool:
-        return False
-
-
-
-    def process(self):
-        if get_MODE() == DESIGN:
-            self.output = UNKNOWN
-        elif self.sources[0] is not None:
-            self.output = self.sources[0].output
-        else:
-            self.output = UNKNOWN
-
-    def connect(self, source: Gate, index: int):
-        source.hitlist.append(Profile(self, index, source.output))
-        self.sources[index] = source
-        self.output = source.output
-
-    def disconnect(self, index: int):
-        source = self.sources[index]
-        if source is None:
-            return
-        pop(source.hitlist, self, index)
-        self.sources[index] = None
-        self.output = UNKNOWN
-
-    def reset(self):
-        self.output = UNKNOWN
-        for profile in self.hitlist:
-            profile.output = UNKNOWN
-
-    def hide(self):
-        for profile in self.hitlist:
-            hide_profile(profile)
-        for i, source in enumerate(self.sources):
-            if source is not None:
-                pop(source.hitlist, self, i)
-        self.output = UNKNOWN
-
-    def reveal(self):
-        source = self.sources[0]
-        if source is not None:
-            source.hitlist.append(Profile(self, 0, source.output))
-            self.output = source.output
-        for profile in self.hitlist:
-            reveal_profile(profile, self)
-
-    def copy_data(self, cluster: set) -> list:
-        return [
-            self.custom_name,
-            self.code,
-            self.inputlimit,
-            [s.code if s and s in cluster else ('X', 'X') for s in self.sources],
-        ]
-
-    def clone(self, dictionary: list, pseudo: dict):
-        self.custom_name = dictionary[CUSTOM_NAME]
-        self.setlimits(dictionary[INPUTLIMIT])
-        for index, source in enumerate(dictionary[SOURCES]):
-            if source[0] != 'X':
-                self.connect(pseudo[self.decode(source)], index)
-
-
-class In(Probe):
-    def __init__(self):
-        super().__init__()
-        self.id = INPUT_PIN_ID
-
-
-class Out(Probe):
-    def __init__(self):
-        super().__init__()
-        self.id = OUTPUT_PIN_ID
-
-
+    pass
 
 
 class NOT(Gate):
     """NOT gate — inverts the input."""
+    pass
 
-    def __init__(self):
-        super().__init__()
-        self.id = NOT_ID
-        self.inputlimit = 1
-        self.sources = [None]
-
-    def process(self):
-        if get_MODE() == DESIGN:
-            self.output = UNKNOWN
-        elif self.sources[0] is not None:
-            output = self.sources[0].output
-            if output == UNKNOWN:
-                self.output = UNKNOWN
-            else:
-                self.output = output ^ 1
-        else:
-            self.output = UNKNOWN
-
-    def connect(self, source: Gate, index: int):
-        source.hitlist.append(Profile(self, index, source.output))
-        self.sources[index] = source
-        if source.output >= ERROR:
-            self.output = source.output
-        else:
-            self.output = source.output ^ 1
-
-    def disconnect(self, index: int):
-        source = self.sources[index]
-        if source is None:
-            return
-        pop(source.hitlist, self, index)
-        self.sources[index] = None
-        self.output = UNKNOWN
-
-    def reset(self):
-        self.output = UNKNOWN
-        for profile in self.hitlist:
-            profile.output = UNKNOWN
-
-    def hide(self):
-        for profile in self.hitlist:
-            hide_profile(profile)
-        source = self.sources[0]
-        if source is not None:
-            pop(source.hitlist, self, 0)
-        self.output = UNKNOWN
-
-    def reveal(self):
-        source = self.sources[0]
-        if source is not None:
-            source.hitlist.append(Profile(self, 0, source.output))
-            if source.output >= ERROR:
-                self.output = source.output
-            else:
-                self.output = source.output ^ 1
-        for profile in self.hitlist:
-            reveal_profile(profile, self)
-
-
-
-
-class AND(Gate):
-    """AND gate — outputs 1 only if all inputs are 1"""
-    def __init__(self):
-        super().__init__()
-        self.id = AND_ID
-
-class NAND(Gate):
-    """NAND gate — NOT AND"""
-    def __init__(self):
-        super().__init__()
-        self.id = NAND_ID
-
-class OR(Gate):
-    """OR gate — outputs 1 if any input is 1"""
-    def __init__(self):
-        super().__init__()
-        self.id = OR_ID
-
-class NOR(Gate):
-    """NOR gate — NOT OR"""
-    def __init__(self):
-        super().__init__()
-        self.id = NOR_ID
-
-class XOR(Gate):
-    """XOR gate — outputs 1 if odd number of inputs are 1"""
-    def __init__(self):
-        super().__init__()
-        self.id = XOR_ID
-
-class XNOR(Gate):
-    """XNOR gate — NOT XOR"""
-    def __init__(self):
-        super().__init__()
-        self.id = XNOR_ID

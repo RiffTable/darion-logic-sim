@@ -50,6 +50,7 @@ cdef class Gate:
     cdef public uint8_t id
     cdef public uint16_t inputlimit
     cdef public uint8_t output
+    cdef public uint8_t value
     cdef public bint scheduled
     
     # --- 4-BYTE ALIGNED CONTINUED (ARRAYS) ---
@@ -74,40 +75,18 @@ cdef class Gate:
     cdef void reveal(self)
     cpdef bint setlimits(self, int size)
     cpdef str getoutput(self)
-    cpdef list json_data(self)
-    cpdef list copy_data(self, set cluster)
+    cpdef list full_data(self)
+    cpdef list partial_data(self)
     cpdef void clone(self, list dictionary, dict pseudo)
-    cpdef void load_to_cluster(self, set cluster)
+    cpdef void load_to_cluster(self, list cluster)
 
 cdef class Variable(Gate):
-    cdef public int value
+    pass
 
 cdef class Probe(Gate):
     pass
 
-cdef class In(Probe):
-    pass
-
-cdef class Out(Probe):
-    pass
 
 cdef class NOT(Gate):
     pass
 
-cdef class AND(Gate):
-    pass
-
-cdef class NAND(Gate):
-    pass
-
-cdef class OR(Gate):
-    pass
-
-cdef class NOR(Gate):
-    pass
-
-cdef class XOR(Gate):
-    pass
-
-cdef class XNOR(Gate):
-    pass

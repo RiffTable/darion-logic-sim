@@ -54,8 +54,6 @@ from Event_Manager import Event
 from Control import Add
 import Const
 from Gates import Gate, Variable, Probe
-from Gates import NOT, AND, NAND, OR, NOR, XOR, XNOR
-from Gates import In, Out
 from IC import IC
 
 
