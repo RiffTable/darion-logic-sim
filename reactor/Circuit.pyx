@@ -403,6 +403,8 @@ cdef class Circuit:
                 gate.id = id
                 gate.code = (id, len(self.objlist[id]))
                 self.objlist[id].append(gate)
+                gate.process()
+                self.propagate(gate)
 
     cpdef void reorder(self, object gate, int index):
         cdef list lst = self.objlist[(<Gate>gate).id]

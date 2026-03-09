@@ -313,7 +313,8 @@ class Circuit:
                 gate.id = id
                 gate.code=(id,len(self.objlist[id]))
                 self.objlist[id].append(gate)
-
+                gate.process()
+                self.propagate(gate)
     def build_ic(self):
         my_ic=self.getcomponent(IC_ID)
         queue=[]
