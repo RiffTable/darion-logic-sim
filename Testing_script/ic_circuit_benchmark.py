@@ -362,7 +362,7 @@ def run_integrity(backend, label):
         c_adder.connect(out_pins[i], si, 0)
         prev_carry = ci
     c_adder.connect(out_pins[4], prev_carry, 0)
-    c_adder.save_as_ic(tmp_adder, "RippleAdder4")
+    c_adder.save_as_ic(tmp_adder, "RippleAdder4", "", "", None)
 
     # Load IC into a fresh circuit and verify 9+6=15
     c2 = new_sim(backend)
@@ -408,7 +408,7 @@ def run_integrity(backend, label):
     op = c_inner.getcomponent(backend['OUTPUT_PIN_ID'])
     ng = c_inner.getcomponent(backend['NOT_ID'])
     c_inner.connect(ng, ip, 0); c_inner.connect(op, ng, 0)
-    c_inner.save_as_ic(tmp_inner, "InnerNOT")
+    c_inner.save_as_ic(tmp_inner, "InnerNOT", "", "", None)
 
     # Outer circuit wraps two inner ICs in series: NOT(NOT(x)) = x
     c_outer = new_sim(backend)
@@ -419,7 +419,7 @@ def run_integrity(backend, label):
     c_outer.connect(ic_a.inputs[0], i_pin, 0)
     c_outer.connect(ic_b.inputs[0], ic_a.outputs[0], 0)
     c_outer.connect(o_pin, ic_b.outputs[0], 0)
-    c_outer.save_as_ic(tmp_outer, "DoubleNOT")
+    c_outer.save_as_ic(tmp_outer, "DoubleNOT", "", "", None)
 
     # Load and verify
     c3 = new_sim(backend)
@@ -441,7 +441,7 @@ def run_integrity(backend, label):
     ip_e = c_err.getcomponent(backend['INPUT_PIN_ID'])
     op_e = c_err.getcomponent(backend['OUTPUT_PIN_ID'])
     c_err.connect(op_e, ip_e, 0)
-    c_err.save_as_ic(tmp_err, "Passthrough")
+    c_err.save_as_ic(tmp_err, "Passthrough", "", "", None)
 
     c4 = new_sim(backend)
     ic_pt = c4.getIC(tmp_err)
@@ -532,7 +532,7 @@ def bench_complex_ic(backend, gate_count, tmp_path):
     create_ms, c = timed(create)
 
     def do_save():
-        c.save_as_ic(tmp_path, "ComplexIC")
+        c.save_as_ic(tmp_path, "ComplexIC", "", "", None)
     save_ms, _ = timed(do_save)
 
     def do_load():
@@ -557,7 +557,7 @@ def bench_complex_ic(backend, gate_count, tmp_path):
 
 def bench_ic_save_load(backend, circuit, tmp_path):
     def do_save():
-        circuit.save_as_ic(tmp_path, "BenchIC")
+        circuit.save_as_ic(tmp_path, "BenchIC", "", "", None)
     save_ms, _ = timed(do_save)
 
     def do_load():
@@ -726,7 +726,7 @@ def run_single_backend(label, use_reactor):
         op0 = cn.getcomponent(backend['OUTPUT_PIN_ID'])
         ng0 = cn.getcomponent(backend['NOT_ID'])
         cn.connect(ng0, ip0, 0); cn.connect(op0, ng0, 0)
-        cn.save_as_ic(fp0, "Nest0")
+        cn.save_as_ic(fp0, "Nest0", "", "", None)
         nest_files.append(fp0)
 
         t_nest = time.perf_counter_ns()
@@ -739,7 +739,7 @@ def run_single_backend(label, use_reactor):
             inner = cw.getIC(prev_fp)
             cw.connect(inner.inputs[0], wi, 0)
             cw.connect(wo, inner.outputs[0], 0)
-            cw.save_as_ic(new_fp, f"Nest{level}")
+            cw.save_as_ic(new_fp, f"Nest{level}", "", "", None)
             nest_files.append(new_fp)
         nest_ms = (time.perf_counter_ns() - t_nest) / 1_000_000
 

@@ -519,7 +519,7 @@ def submenu_project():
                 continue
             name = input("Enter filename for IC (e.g. my_ic.json): ")
             if name:
-                circuit.save_as_ic(name, ic_name)
+                circuit.save_as_ic(name, ic_name, "", "", None)
                 base.undolist.clear()
                 base.redolist.clear()
                 print("IC Saved.")

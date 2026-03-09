@@ -382,7 +382,22 @@ class Circuit:
         if old:old.code,gate.code=gate.code,old.code
         else:gate.code=(gate.code[0],index)
 
-    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = "",cluster=None):
+    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = "",components=None):
+        '''sandboxing if components are given'''
+        if components:
+            crct=Circuit()
+            crct.copydata = []
+            cluster = []
+            for i in components:
+                i.load_to_cluster(cluster)
+            for i in components:
+                crct.copydata.append(i.partial_data())
+            for i in cluster:
+                i.scheduled=False
+            crct.paste()
+            crct.save_as_ic(location, ic_name, tag, description)
+            return
+
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
             self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
@@ -391,14 +406,17 @@ class Circuit:
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
+
+
         my_ic=self.build_ic()
         my_ic.custom_name = ic_name
         my_ic.tag = tag
         my_ic.description = description
         with open(location, 'wb') as file:
             file.write(orjson.dumps(my_ic.partial_data()))        
-        self.clearcircuit()
- 
+        self.clearcircuit() 
+
+    
 
     def get_ic(self, location: str):
         with open(location, 'rb') as file:

@@ -418,7 +418,21 @@ cdef class Circuit:
         else:
             gate.code = (gate.code[0], index)
 
-    cpdef void save_as_ic(self, str location, str ic_name):
+    cpdef void save_as_ic(self, str location, str ic_name, str tag,str description, list components):
+        cdef Circuit crct
+        cdef list cluster=[]
+        if components:
+            crct=Circuit()
+            crct.copydata = []
+            for i in components:
+                i.load_to_cluster(cluster)
+            for i in components:
+                crct.copydata.append(i.partial_data())
+            for i in cluster:
+                i.scheduled=False
+            crct.paste()
+            crct.save_as_ic(location, ic_name, tag, description,None)
+            return
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
             self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
@@ -427,7 +441,6 @@ cdef class Circuit:
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and (<Gate>gate).hitlist.size() > 0:
                 raise ValueError('Output Pin has extra targets')
-        cdef list cluster=None
 
         cdef IC my_ic = self.build_ic()
         my_ic.custom_name = ic_name
