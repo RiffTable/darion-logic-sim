@@ -420,16 +420,9 @@ cdef class Circuit:
 
     cpdef void save_as_ic(self, str location, str ic_name, str tag,str description, list components):
         cdef Circuit crct
-        cdef list cluster=[]
         if components:
             crct=Circuit()
-            crct.copydata = []
-            for i in components:
-                i.load_to_cluster(cluster)
-            for i in components:
-                crct.copydata.append(i.partial_data())
-            for i in cluster:
-                i.scheduled=False
+            crct.copy(components)
             crct.paste()
             crct.save_as_ic(location, ic_name, tag, description,None)
             return
@@ -444,8 +437,8 @@ cdef class Circuit:
 
         cdef IC my_ic = self.build_ic()
         my_ic.custom_name = ic_name
-        # my_ic.tag = tag
-        # my_ic.description = description
+        my_ic.tag = tag
+        my_ic.description = description
         with open(location, 'wb') as file:
             file.write(orjson.dumps(my_ic.partial_data()))
         self.clearcircuit()

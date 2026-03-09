@@ -386,14 +386,7 @@ class Circuit:
         '''sandboxing if components are given'''
         if components:
             crct=Circuit()
-            crct.copydata = []
-            cluster = []
-            for i in components:
-                i.load_to_cluster(cluster)
-            for i in components:
-                crct.copydata.append(i.partial_data())
-            for i in cluster:
-                i.scheduled=False
+            crct.copy(components)
             crct.paste()
             crct.save_as_ic(location, ic_name, tag, description)
             return
@@ -406,7 +399,6 @@ class Circuit:
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
-
 
         my_ic=self.build_ic()
         my_ic.custom_name = ic_name

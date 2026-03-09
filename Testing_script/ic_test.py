@@ -2,12 +2,27 @@ import sys
 import os
 import time
 import gc
+import argparse
 
-# Ensure imports work whether run from root or inside the engine directory
-if os.path.exists('engine'):
-    sys.path.append('engine')
-elif os.path.exists('Circuit.py'):
-    sys.path.append('.')
+# --- BACKEND SELECTION ---
+parser = argparse.ArgumentParser(description='Run IC Integrity Tests')
+parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+args, unknown = parser.parse_known_args()
+
+# Support Pyinstaller, Nuitka, and direct Python script relative paths
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
+    root_dir = script_dir
+else:
+    root_dir = os.path.dirname(script_dir)
+
+# Backend Selection Logic
+if args.engine:
+    print("Using Engine (Python) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'engine'))
+else:
+    print("Using Reactor (Cython) Backend")
+    sys.path.insert(0, os.path.join(root_dir, 'reactor'))
 
 from Circuit import Circuit
 from Const import *
@@ -199,60 +214,65 @@ def test_nested_ic():
     ])
     print("PASSED")
 
-def benchmark_ic_vs_raw():
-    print("Running Test 4: Benchmark (Raw vs IC - 1000 NOT Gates) ...")
-    GATE_COUNT = 1000
-    ITERATIONS = 5000 
-    WARMUP = 200
+def benchmark_creation_time():
+    print("Running Test 4: Creation Time Benchmark (Full vs Sandbox) ...")
+    GATE_COUNT = 2000
+    ITERATIONS = 50
 
-    # -- RAW BENCHMARK --
-    c_raw = Circuit()
-    var_raw = c_raw.getcomponent(VARIABLE_ID)
-    probe_raw = c_raw.getcomponent(PROBE_ID)
+    # Helper function to quickly build a massive circuit
+    def build_test_circuit():
+        c = Circuit()
+        v = c.getcomponent(VARIABLE_ID)
+        p = c.getcomponent(PROBE_ID)
+        gates = []
+        prev = v
+        for _ in range(GATE_COUNT):
+            not_g = c.getcomponent(NOT_ID)
+            c.connect(not_g, prev, 0)
+            prev = not_g
+            gates.append(not_g)
+        c.connect(p, prev, 0)
+        return c, v, p, gates
 
-    prev = var_raw
-    for _ in range(GATE_COUNT):
-        not_g = c_raw.getcomponent(NOT_ID)
-        c_raw.connect(not_g, prev, 0)
-        prev = not_g
-    c_raw.connect(probe_raw, prev, 0)
+    print(f"  -> Building and saving {GATE_COUNT} gates, {ITERATIONS} times...")
 
-    for i in range(WARMUP):
-        c_raw.toggle(var_raw, i % 2)
-
+    # -- 1. Benchmark FULL Save --
+    full_times = []
+    # Disable GC during timed blocks to prevent random stutter
     gc.disable() 
-    start_raw = time.perf_counter()
-    for i in range(ITERATIONS):
-        c_raw.toggle(var_raw, i % 2)
-    time_raw = time.perf_counter() - start_raw
+    for _ in range(ITERATIONS):
+        c, _, _, _ = build_test_circuit()
+        
+        t0 = time.perf_counter()
+        c.save_as_ic("bench_create_full.json", "FullChain", "", "", None)
+        t1 = time.perf_counter()
+        
+        full_times.append(t1 - t0)
     gc.enable()
-    
-    print(f"  -> Raw Chain processing time: {time_raw:.5f}s")
-    c_raw.save_as_ic("bench_chain.json", "NotChain", "", "", None)
+    avg_full = sum(full_times) / ITERATIONS
 
-    # -- IC BENCHMARK --
-    c_ic = Circuit()
-    var_ic = c_ic.getcomponent(VARIABLE_ID)
-    probe_ic = c_ic.getcomponent(PROBE_ID)
-    ic_chip = c_ic.getIC("bench_chain.json")
-
-    c_ic.connect(ic_chip.inputs[0], var_ic, 0)
-    c_ic.connect(probe_ic, ic_chip.outputs[0], 0)
-
-    for i in range(WARMUP):
-        c_ic.toggle(var_ic, i % 2)
-
+    # -- 2. Benchmark SANDBOX Save --
+    sandbox_times = []
     gc.disable()
-    start_ic = time.perf_counter()
-    for i in range(ITERATIONS):
-        c_ic.toggle(var_ic, i % 2)
-    time_ic = time.perf_counter() - start_ic
+    for _ in range(ITERATIONS):
+        c, v, p, gates = build_test_circuit()
+        comp_list = [v] + gates + [p] # Include all components in the sandbox
+        
+        t0 = time.perf_counter()
+        c.save_as_ic("bench_create_sand.json", "SandChain", "", "", comp_list)
+        t1 = time.perf_counter()
+        
+        sandbox_times.append(t1 - t0)
     gc.enable()
+    avg_sandbox = sum(sandbox_times) / ITERATIONS
+
+    # -- RESULTS --
+    print(f"  -> Avg Full IC Creation:     {avg_full:.5f}s")
+    print(f"  -> Avg Sandbox IC Creation:  {avg_sandbox:.5f}s")
     
-    print(f"  -> Wrapped IC processing time: {time_ic:.5f}s")
-    diff = abs(time_ic - time_raw) / max(time_raw, 0.0001) * 100
-    print(f"  -> Performance Diff: {diff:.2f}%")
-    print("PASSED (Benchmark Complete)\n")
+    diff = avg_sandbox / max(avg_full, 0.0001)
+    print(f"  -> Sandboxing Overhead:      {diff:.2f}x")
+    print("PASSED (Creation Benchmark Complete)\n")
 
 def test_invalid_pin_exceptions():
     print("Running Test 5: Invalid Pin Exceptions (Guardrails) ...", end=" ")
@@ -473,7 +493,7 @@ if __name__ == "__main__":
         test_simple_circuit()
         test_sandboxing()
         test_nested_ic()
-        benchmark_ic_vs_raw()
+        benchmark_creation_time()
         test_invalid_pin_exceptions()
         test_feedback_loop()
         test_empty_and_floating()
@@ -489,7 +509,8 @@ if __name__ == "__main__":
             "sandbox_or.json", 
             "half_adder.json", 
             "full_adder.json", 
-            "bench_chain.json",
+            "bench_create_full.json",
+            "bench_create_sand.json",
             "should_fail_in.json",
             "should_fail_out.json",
             "sr_latch.json",
