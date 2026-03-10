@@ -193,3 +193,35 @@ class Rename(Command):
         self.gate.custom_name = self.old_name
     def redo(self):
         self.gate.custom_name = self.new_name
+
+class TransferInfo(Command):
+    __slots__ = ['circuit', 'gate', 'new_id', 'old_id']
+    def __init__(self, circuit:Circuit, gate:Gate, new_id:int):
+        self.circuit = circuit
+        self.gate = gate
+        self.new_id = new_id
+        self.old_id = gate.id
+    def execute(self):
+        if self.old_id == self.new_id: return False
+        self.circuit.transfer_info(self.gate, self.new_id)
+        return True
+    def undo(self):
+        self.circuit.transfer_info(self.gate, self.old_id)
+    def redo(self):
+        self.circuit.transfer_info(self.gate, self.new_id)
+
+class Reorder(Command):
+    __slots__ = ['circuit', 'gate', 'new_index', 'old_index']
+    def __init__(self, circuit:Circuit, gate:Gate, new_index:int):
+        self.circuit = circuit
+        self.gate = gate
+        self.new_index = new_index
+        self.old_index = gate.code[1]
+    def execute(self):
+        if self.new_index == self.old_index: return False
+        self.circuit.reorder(self.gate, self.new_index)
+        return True
+    def undo(self):
+        self.circuit.reorder(self.gate, self.old_index)
+    def redo(self):
+        self.circuit.reorder(self.gate, self.new_index)

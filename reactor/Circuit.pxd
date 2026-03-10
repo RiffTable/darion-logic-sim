@@ -36,7 +36,7 @@ cdef class Circuit:
     cpdef void ic_pin_change(self)
     cpdef void reorder(self, object gate, int index)
     cpdef void generate(self, list circuit)
-    cpdef str truthTable(self)
+    cpdef str truthTable(self, list variables, list outputs)
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)

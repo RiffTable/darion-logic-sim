@@ -141,58 +141,98 @@ class Circuit:
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
-
-    def truthTable(self) -> str:
-        """Generate a truth table."""
-        variables = self.get_variables()
+  
+    def truthTable(self, variables: list = None, outputs: list = None) -> str:
+        """Gray Code optimized Truth Table with sorting and string caching."""
+      
+        if variables is None:
+            variables = self.get_variables()
         if not variables:
             return ''
 
         gate_list = []
-        for item in self.get_components():
-            gate_type = item.id
-            if gate_type == VARIABLE_ID:
-                continue
-            elif gate_type != IC_ID:
-                gate_list.append(item)
-            else:
-                for pin in item.outputs:
-                    gate_list.append(pin)
+        if outputs is not None:
+            gate_list = outputs
+        else:
+            for item in self.get_components():
+                gate_type = item.id
+                if gate_type == VARIABLE_ID:
+                    continue
+                elif gate_type != IC_ID:
+                    gate_list.append(item)
+                else:
+                    for pin in item.outputs:
+                        gate_list.append(pin)
 
         n = len(variables)
         rows_count = 1 << n
 
-        var_names = [v.codename for v in variables]
-        gate_names = [v.codename for v in gate_list]
+        var_names = [str(v) for v in variables]
+        gate_names = [str(v) for v in gate_list]
         all_names = var_names + gate_names
 
         col_width = max((len(name) for name in all_names), default=4) + 2
+
+        IN_MAP = [
+            "0".center(col_width),
+            "1".center(col_width)
+        ]
+        OUT_MAP = [
+            "F".center(col_width),
+            "T".center(col_width),
+            "1/0".center(col_width),
+            "X".center(col_width)
+        ]
 
         header_parts = [name.center(col_width) for name in all_names]
         header = " | ".join(header_parts)
         separator = "─" * len(header)
 
-        Table = [separator + '\n', header + '\n', separator + '\n']
+        raw_rows = [None]*rows_count
+        gray = 0
+        prev_gray = 0
 
         for i in range(rows_count):
-            inputs = []
-            for j in range(n):
+            # Gray Code Sequence
+            prev_gray = gray
+            gray = i ^ (i >> 1)
+            
+            if i != 0:
+                mask = prev_gray ^ gray
+                changed_bit = mask.bit_length() - 1
+                j = (n - 1) - changed_bit
+                
                 var = variables[j]
-                bit = 1 if (i & (1 << (n - j - 1))) else 0
+                bit = 1 if (gray & mask) else 0
                 if bit != var.output:
                     var.output = bit
                     self.propagate(var)
-                inputs.append(str(bit))
+            else:
+                for j in range(n):
+                    var = variables[j]
+                    if var.output != 0:
+                        var.output = 0
+                        self.propagate(var)
 
-            output_vals = [str(gate.getoutput()) for gate in gate_list]
-            row_data = inputs + output_vals
-            row_parts = [val.center(col_width) for val in row_data]
-            row = " | ".join(row_parts)
-            Table.append(row + '\n')
+            # Fast tuple extraction
+            v_states = tuple(var.output for var in variables)
+            g_states = tuple(gate.output for gate in gate_list)
+            raw_rows[gray]=(v_states, g_states)
 
         self.simulate(SIMULATE)
-        Table.append(separator + '\n')
-        return "".join(Table)
+        
+        # Sort tuples mathematically to restore Standard Binary order
+        raw_rows.sort(key=lambda x: x[0])
+        
+        final_table_lines = [separator, header, separator]
+        for v_states, g_states in raw_rows:
+            row_parts = [IN_MAP[v] for v in v_states]
+            row_parts.extend(OUT_MAP[g] for g in g_states)
+            final_table_lines.append(" | ".join(row_parts))
+            
+        final_table_lines.append(separator)
+        final_table_lines.append("")
+        return "\n".join(final_table_lines)
 
     def diagnose(self):
         """Print a detailed report."""

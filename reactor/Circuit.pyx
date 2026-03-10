@@ -141,37 +141,40 @@ cdef class Circuit:
     cpdef void output(self, Gate gate):
         print(f'{gate} output is {gate.getoutput()}')
 
-    cpdef str truthTable(self):
-        cdef list variables = self.get_variables()
-        if len(variables) == 0 or len(variables)>16 or MODE==DESIGN:
-            return 
+    cpdef str truthTable(self, list variables, list outputs):
+        if variables is None:
+            variables = self.get_variables()
+        if len(variables) == 0 or len(variables) > 16 or MODE== DESIGN:
+            return ""
+
         cdef list gate_list = []
-        cdef list var_names, gate_names, inputs, output_vals, all_names, row_data, header_parts
-        cdef list Table = []
-        cdef str row, header, separator
-        cdef int col_width, bit
-        cdef Py_ssize_t i, j, n, k
-        cdef int gate_type
+        cdef list var_names, gate_names, all_names, header_parts, final_table_lines, raw_rows, row_parts
+        cdef str header, separator
+        cdef int col_width, bit, gate_type
+        cdef Py_ssize_t i, j, k, n
+        cdef list IN_MAP, OUT_MAP
+        cdef tuple v_states, g_states
+        
         # Filter gatelist
-        for item in self.get_components():
-            # Use simple type checking or isinstance depending on your import availability
-            gate_type = item.id
-            if gate_type == VARIABLE_ID: 
-                continue
-            elif gate_type != IC_ID:
-                gate_list.append(item)
-            else:
-                # Assuming item is an IC
-                for pin in item.outputs:
-                    gate_list.append(pin)
+        if outputs is not None:
+            gate_list = outputs
+        else:
+            for item in self.get_components():
+                gate_type = item.id
+                if gate_type == VARIABLE_ID: 
+                    continue
+                elif gate_type != IC_ID:
+                    gate_list.append(item)
+                else:
+                    for pin in item.outputs:
+                        gate_list.append(pin)
 
         n = len(variables)
-        # 1 << n is bitwise for 2^n
         cdef int rows_count = 1 << n
-        cdef Gate var
-        # Collect decoded variable codenames
-        var_names = [v.codename for v in variables]
-        gate_names = [v.codename for v in gate_list]
+        cdef Gate var, gate
+
+        var_names = [str(v) for v in variables]
+        gate_names = [str(v) for v in gate_list]
         all_names = var_names + gate_names
 
         if len(all_names) > 0:
@@ -179,38 +182,76 @@ cdef class Circuit:
         else:
             col_width = 4
 
+        # Pre-compute formatting maps
+        IN_MAP = [
+            "0".center(col_width),
+            "1".center(col_width)
+        ]
+        OUT_MAP = [
+            "F".center(col_width),
+            "T".center(col_width),
+            "1/0".center(col_width),
+            "X".center(col_width)
+        ]
+
         header_parts = [name.center(col_width) for name in all_names]
         header = " | ".join(header_parts)
         separator = "─" * len(header)
 
-        Table.append(separator + '\n')
-        Table.append(header + '\n')
-        Table.append(separator + '\n')
-
-        for i in range(rows_count):
-            inputs = []
-            for j in range(n):
-                # Retrieve variable
-                var = variables[j]
-                
-                # Calculate bit
-                bit = 1 if (i & (1 << (n - j - 1))) else 0
-                if bit!=var.output:
-                    var.output=bit
-                    self.propagate(var)
-                inputs.append(str(bit))                
-            # Calculate outputs
-            output_vals = [str(gate.getoutput()) for gate in gate_list]
-            
-            row_data = inputs + output_vals
-            row_parts = [val.center(col_width) for val in row_data]
-            
-            row = " | ".join(row_parts)
-            Table.append(row + '\n')
-        self.simulate(SIMULATE)
-        Table.append(separator + '\n')
+        raw_rows = [None]*rows_count
         
-        return "".join(Table)
+        cdef int gray = 0
+        cdef int prev_gray = 0
+        cdef int mask, changed_bit, temp, bl
+
+        # --- HEAVY LOOP ---
+        for i in range(rows_count):
+            prev_gray = gray
+            gray = i ^ (i >> 1)
+            
+            if i != 0:
+                mask = prev_gray ^ gray
+                
+                # Pure C equivalent of mask.bit_length() - 1
+                temp = mask
+                bl = 0
+                while temp > 0:
+                    bl += 1
+                    temp >>= 1
+                changed_bit = bl - 1
+                
+                j = (n - 1) - changed_bit
+                var = variables[j]
+                bit = 1 if (gray & mask) else 0
+                if bit != var.output:
+                    var.output = bit
+                    self.propagate(var)
+            else:
+                for j in range(n):
+                    var = variables[j]
+                    if var.output != 0:
+                        var.output = 0
+                        self.propagate(var)
+
+            # Fast list comprehensions cast to tuples
+            v_states = tuple([(<Gate>v).output for v in variables])
+            g_states = tuple([(<Gate>g).output for g in gate_list])
+            raw_rows[gray]=(v_states, g_states)
+
+        self.simulate(SIMULATE)
+
+        # --- STRING JOINING PHASE ---
+        
+        final_table_lines = [separator, header, separator]
+        for v_states, g_states in raw_rows:
+            row_parts = [IN_MAP[v] for v in v_states]
+            row_parts.extend([OUT_MAP[g] for g in g_states])
+            final_table_lines.append(" | ".join(row_parts))
+            
+        final_table_lines.append(separator)
+        final_table_lines.append("")
+        
+        return "\n".join(final_table_lines)
 
     def diagnose(self):
         print("=" * 90)

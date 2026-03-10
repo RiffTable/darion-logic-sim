@@ -304,6 +304,7 @@ class AggressiveTestSuite:
         self.test_truth_table_8_inputs()
         self.test_truth_table_10_inputs()
         self.test_truth_table_complex()
+        self.test_truth_table_partial()
         
         # ==================== PART 8: REAL-WORLD STRESS ====================
         self.section("REAL-WORLD STRESS")
@@ -1041,7 +1042,7 @@ class AggressiveTestSuite:
                 c2.connect(g, v1, 0)
                 c2.connect(g, v2, 1)
         c2.simulate(Const.SIMULATE)
-        tt = c2.truthTable()
+        tt = c2.truthTable(None,None)
         self.assert_test(tt is not None and len(tt) > 0, "truthTable with all gate types")
 
         # writetojson / readfromjson
@@ -1955,7 +1956,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         start = time.perf_counter_ns()
-        table = c.truthTable()
+        table = c.truthTable(None,None)
         duration = (time.perf_counter_ns() - start) / 1_000_000
         
         self.assert_test(table is not None, f"4-input (16 rows): {duration:.2f} ms")
@@ -1976,7 +1977,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         start = time.perf_counter_ns()
-        table = c.truthTable()
+        table = c.truthTable(None,None)
         duration = (time.perf_counter_ns() - start) / 1_000_000
         
         self.assert_test(table is not None, f"6-input (64 rows): {duration:.2f} ms")
@@ -1992,7 +1993,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         start = time.perf_counter_ns()
-        table = c.truthTable()
+        table = c.truthTable(None,None)
         duration = (time.perf_counter_ns() - start) / 1_000_000
         
         self.assert_test(table is not None, f"8-input (256 rows): {duration:.2f} ms")
@@ -2008,7 +2009,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         start = time.perf_counter_ns()
-        table = c.truthTable()
+        table = c.truthTable(None,None)
         duration = (time.perf_counter_ns() - start) / 1_000_000
         
         self.assert_test(table is not None, f"10-input (1024 rows): {duration:.2f} ms")
@@ -2056,8 +2057,33 @@ class AggressiveTestSuite:
         self.assert_test(sum_out.output == Const.HIGH, "Full adder Sum(1,0,0)=1")
         self.assert_test(cout.output == Const.LOW, "Full adder Cout(1,0,0)=0")
         
-        table = c.truthTable()
+        table = c.truthTable(None,None)
         self.assert_test(table is not None, "Full adder truth table")
+
+    def test_truth_table_partial(self):
+        """Partial truth table specifying variables and outputs"""
+        c = Circuit()
+        
+        # A + B -> XOR, A * B -> AND
+        a = c.getcomponent(Const.VARIABLE_ID)
+        b = c.getcomponent(Const.VARIABLE_ID)
+        x = c.getcomponent(Const.VARIABLE_ID) # Extraneous variable
+        
+        xor1 = c.getcomponent(Const.XOR_ID)
+        c.connect(xor1, a, 0); c.connect(xor1, b, 1)
+        
+        and1 = c.getcomponent(Const.AND_ID)
+        c.connect(and1, x, 0); c.connect(and1, b, 1)
+        
+        c.simulate(Const.SIMULATE)
+        
+        start = time.perf_counter_ns()
+        table = c.truthTable([a, b], [xor1])
+        duration = (time.perf_counter_ns() - start) / 1_000_000
+        
+        self.assert_test(table is not None, f"Partial table A,B -> XOR1 ({duration:.2f} ms)")
+        rows = len(table.strip().split('\n')) if table else 0
+        self.assert_test(rows >= 4, f"Partial table rows: {rows}")
 
     # =========================================================================
     # PART 7: SPEED BENCHMARKS
