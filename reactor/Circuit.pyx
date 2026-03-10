@@ -204,21 +204,30 @@ cdef class Circuit:
         cdef int prev_gray = 0
         cdef int mask, changed_bit, temp, bl
 
-        # --- HEAVY LOOP ---
         for i in range(rows_count):
             prev_gray = gray
             gray = i ^ (i >> 1)
             
             if i != 0:
-                mask = prev_gray ^ gray
+                mask = prev_gray ^ gray # always a power of 2 since only 1 bit changes and xor will mark only one bit as active
                 
-                # Pure C equivalent of mask.bit_length() - 1
-                temp = mask
-                bl = 0
-                while temp > 0:
-                    bl += 1
-                    temp >>= 1
-                changed_bit = bl - 1
+                if mask == 1: changed_bit = 0
+                elif mask == 2: changed_bit = 1
+                elif mask == 4: changed_bit = 2
+                elif mask == 8: changed_bit = 3
+                elif mask == 16: changed_bit = 4
+                elif mask == 32: changed_bit = 5
+                elif mask == 64: changed_bit = 6
+                elif mask == 128: changed_bit = 7
+                elif mask == 256: changed_bit = 8
+                elif mask == 512: changed_bit = 9
+                elif mask == 1024: changed_bit = 10
+                elif mask == 2048: changed_bit = 11
+                elif mask == 4096: changed_bit = 12
+                elif mask == 8192: changed_bit = 13
+                elif mask == 16384: changed_bit = 14
+                elif mask == 32768: changed_bit = 15
+                else: changed_bit = 0 
                 
                 j = (n - 1) - changed_bit
                 var = variables[j]

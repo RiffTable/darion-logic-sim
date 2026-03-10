@@ -221,9 +221,6 @@ class Circuit:
 
         self.simulate(SIMULATE)
         
-        # Sort tuples mathematically to restore Standard Binary order
-        raw_rows.sort(key=lambda x: x[0])
-        
         final_table_lines = [separator, header, separator]
         for v_states, g_states in raw_rows:
             row_parts = [IN_MAP[v] for v in v_states]
