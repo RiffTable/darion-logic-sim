@@ -18,5 +18,9 @@ namelist=(
 )
 
 def get(choice):
-    if choice==IC_ID:return IC(choice,namelist[choice])
-    else:return Gate(choice,namelist[choice])
+    if DEBUG:
+        if choice==IC_ID:return IC(choice,namelist[choice])
+        else:return Gate(choice,namelist[choice])
+    else:
+        if choice==IC_ID:return IC(choice,None)
+        else:return Gate(choice,None)
