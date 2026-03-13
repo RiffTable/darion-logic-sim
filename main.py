@@ -9,7 +9,7 @@ import editor.theme as theme
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
-from editor.tools.menu import FileMenu, EditMenu, ProjectMenu, SettingsMenu
+from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, SettingsMenu
 from editor.tools.sidebar import ComponentSidebar
 
 
@@ -26,6 +26,7 @@ class AppWindow(QMainWindow):
 
 		theme.theme_changed.connect(self.refresh_theme)
 
+
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
 		self.cscene = self.view.cscene
@@ -37,8 +38,10 @@ class AppWindow(QMainWindow):
 		menubar: QMenuBar = self.menuBar()
 		menubar.addMenu(FileMenu(self))
 		menubar.addMenu(EditMenu(self))
+		menubar.addMenu(ViewMenu(self))
 		menubar.addMenu(ProjectMenu(self))
 		menubar.addMenu(SettingsMenu(self))
+
 
 		###======= PROPERTIES PANEL =======###
 		self.props_panel = PropertiesPanel(self)
@@ -56,6 +59,9 @@ class AppWindow(QMainWindow):
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
 		self.sidebar = ComponentSidebar(self)
 		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
+		self.scroll_inverted = False
+		#self.peeking_disabled = False
+		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
@@ -69,7 +75,24 @@ class AppWindow(QMainWindow):
 		theme.apply_palette(QApplication.instance())
 		self.props_panel.apply_theme()
 		#self.sidebar.apply_theme()
-		self.cscene.update() 
+		self.cscene.update()
+
+	def load_settings(self):
+		settings = QSettings()
+		self.scroll_inverted = settings.value("settings/invert_scroll", False, type=bool)
+		#self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
+
+		self.view.setScrollInverted(self.scroll_inverted)
+		# self.view.setPeekingDisabled(self.peeking_disabled)
+	
+	
+	def setScrollInverted(self, inverted):
+		self.scroll_inverted = inverted
+		settings = QSettings()
+		settings.setValue("settings/invert_scroll", inverted)
+		
+		if hasattr(self, 'view'):
+			self.view.setScrollInverted(inverted)
 
 	def update_props_initial_position(self):
 		panel_x = self.x() + self.width() - self.props_panel.width() - 20
