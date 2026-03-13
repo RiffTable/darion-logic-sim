@@ -9,6 +9,8 @@ from editor.circuit.compitem import CompItem
 
 
 class PropertiesPanel(QWidget):
+    positionChanged = Signal(QPoint)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.comp: CompItem|None = None
@@ -16,12 +18,9 @@ class PropertiesPanel(QWidget):
         self.widgets: dict[Prop, Any] = {}
         self.buildUI()
         self.hide()
-    
-        if parent and hasattr(parent, 'theme_manager'):
-            self.theme_manager = parent.theme_manager
-            self.theme_manager.theme_changed.connect(self.on_theme_changed)
-        else:
-            self.theme_manager = None
+
+        self.drag_pos = None
+        self.title.installEventFilter(self)
 
     def buildUI(self):
         self.setFixedWidth(175)
@@ -48,21 +47,13 @@ class PropertiesPanel(QWidget):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Properties
-        # All compItems have "pos", "tag", "facing", "mirror"
-        self.labels[Prop.POS] = QLabel("Pos:")
-        self.widgets[Prop.POS] = QLabel("-")
+        # All compItems have "tag", "facing"
 
         self.labels[Prop.TAG] = QLabel("Tag:")
         self.widgets[Prop.TAG] = QLabel("-")
 
         self.labels[Prop.FACING] = QLabel("Facing:")
         self.widgets[Prop.FACING] = QLabel("-")
-
-        self.labels[Prop.MIRROR] = QLabel("Mirror:")
-        self.widgets[Prop.MIRROR] = QLabel("-")
-
-        self.labels[Prop.STATE] = QLabel("State:")
-        self.widgets[Prop.STATE] = QLabel("-")
 
         self.labels[Prop.INPUTSIZE] = QLabel("No of Inputs:")
         self.widgets[Prop.INPUTSIZE] = QSpinBox()
@@ -107,6 +98,26 @@ class PropertiesPanel(QWidget):
     def on_theme_changed(self):
         self.apply_theme()
         self.update()
+
+    def eventFilter(self, obj, event):
+        if obj is self.title and event.type() == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                return True
+        elif obj is self.title and event.type() == QEvent.Type.MouseMove:
+            if event.buttons() & Qt.MouseButton.LeftButton and self.drag_pos:
+                self.move(event.globalPosition().toPoint() - self.drag_pos)
+                return True
+        elif obj is self.title and event.type() == QEvent.Type.MouseButtonRelease:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.drag_pos = None
+                return True
+        return super().eventFilter(obj, event)
+    
+    def moveEvent(self, event):
+        """Emit the new absolute position whenever the panel moves."""
+        super().moveEvent(event)
+        self.positionChanged.emit(self.pos())
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
         n = len(selectedItems)
