@@ -41,10 +41,7 @@ class PinItem(QGraphicsRectItem):
 		self.label = ""
 
 		self.setPos(relpos)
-
-	@property
-	def colors(self):
-		return theme.get_theme()
+		theme.theme_changed.connect(self.updateVisual)
 	
 	@property
 	def cscene(self):     return cast('CircuitScene', self.scene())
@@ -115,8 +112,9 @@ class PinItem(QGraphicsRectItem):
 		))
 	
 	def updateVisual(self):
+		colors= theme.get_theme()
 		if self.isHighlighted:
-			self.setBrush(QBrush(self.colors.pin_hover))
+			self.setBrush(QBrush(colors.pin_hover))
 		
 		elif self._wire:
 			self.setBrush(Qt.BrushStyle.NoBrush)
@@ -125,10 +123,10 @@ class PinItem(QGraphicsRectItem):
 			# Pin color matches wire color if no wires is attached.
 			# In case, you want to know the output without connecting wires :)
 			match self.state:
-				case Const.HIGH:  self.setBrush(QBrush(self.colors.pin_high))
-				case Const.LOW:   self.setBrush(QBrush(self.colors.pin_low))
-				case Const.ERROR: self.setBrush(QBrush(self.colors.signal_error))
-				case _:           self.setBrush(QBrush(self.colors.signal_unknown))
+				case Const.HIGH:  self.setBrush(QBrush(colors.pin_high))
+				case Const.LOW:   self.setBrush(QBrush(colors.pin_low))
+				case Const.ERROR: self.setBrush(QBrush(colors.signal_error))
+				case _:           self.setBrush(QBrush(colors.signal_unknown))
 
 
 

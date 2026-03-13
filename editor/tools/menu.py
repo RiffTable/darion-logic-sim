@@ -61,8 +61,4 @@ class SettingsMenu(BaseMenu):
         Actions.addCheckable(self, "dark-theme", "Dark Theme", initial_checked, self.toggle_theme)
 
     def toggle_theme(self, checked):
-        theme.set_theme(checked)
-        
-        if self.parent() and hasattr(self.parent(), 'theme_manager'):
-            self.parent().theme_manager.apply_palette()
-            self.parent().theme_manager.theme_changed.emit()
+        theme.set_theme(checked)  

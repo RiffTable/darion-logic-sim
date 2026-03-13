@@ -38,11 +38,7 @@ class WireItem(QGraphicsPathItem):
 		self._updateShape()
 
 		WireItem._COUNT += 1
-	
-	
-	@property
-	def colors(self):
-		return theme.get_theme()
+		theme.theme_changed.connect(self.updateState)
 	
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
@@ -92,11 +88,12 @@ class WireItem(QGraphicsPathItem):
 	
 	# Events
 	def updateState(self):
+		colors = theme.get_theme()
 		match self.source.state:
-			case Const.HIGH:  self.setPen(QPen(self.colors.signal_high, 3))
-			case Const.LOW:   self.setPen(QPen(self.colors.signal_low, 3))
-			case Const.ERROR: self.setPen(QPen(self.colors.signal_error, 3))
-			case _:           self.setPen(QPen(self.colors.signal_unknown, 3))
+			case Const.HIGH:  self.setPen(QPen(colors.signal_high, 3))
+			case Const.LOW:   self.setPen(QPen(colors.signal_low, 3))
+			case Const.ERROR: self.setPen(QPen(colors.signal_error, 3))
+			case _:           self.setPen(QPen(colors.signal_unknown, 3))
 		# if self.isSelected(): color = QColor("#f39c12")
 	
 	def updateShape(self):

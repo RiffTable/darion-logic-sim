@@ -5,7 +5,7 @@ from functools import partial
 from core.QtCore import *
 from core.LogicCore import *
 
-from editor.theme import ThemeManager
+import editor.theme as theme
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
@@ -15,18 +15,16 @@ from editor.tools.sidebar import ComponentSidebar
 
 
 class AppWindow(QMainWindow):
-	def __init__(self, theme_manager=None):
+	def __init__(self):
 		super().__init__()
-		self.theme_manager = theme_manager
 		self.setWindowTitle("Not LogiSim")
 		self.setMinimumSize(800, 500)
 
 		central = QWidget()
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
-		
-		if theme_manager:
-			theme_manager.theme_changed.connect(self.refresh_theme)
+
+		theme.theme_changed.connect(self.refresh_theme)
 
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
@@ -68,7 +66,9 @@ class AppWindow(QMainWindow):
 		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
 
 	def refresh_theme(self):
+		theme.apply_palette(QApplication.instance())
 		self.props_panel.apply_theme()
+		#self.sidebar.apply_theme()
 		self.cscene.update() 
 
 	def update_props_initial_position(self):
@@ -230,15 +230,14 @@ if __name__ == "__main__":
 	###======= APP THEME =======###
 	app.setStyle("Fusion")
 
-	theme_manager = ThemeManager(app)
-	theme_manager.load_saved_theme()
+	theme.apply_palette(app)
 
 
 	###======= APP WINDOW =======###
 	QCoreApplication.setOrganizationName("NotLogiSim")
 	QCoreApplication.setApplicationName("NotLogiSim")
 
-	window = AppWindow(theme_manager)
+	window = AppWindow()
 	
 	settings = QSettings()
 	if settings.contains("main_window/geometry"):

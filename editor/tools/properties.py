@@ -17,6 +17,8 @@ class PropertiesPanel(QWidget):
         self.labels: dict[Prop, QLabel] = {}
         self.widgets: dict[Prop, Any] = {}
         self.buildUI()
+        theme.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
         self.hide()
 
         self.drag_pos = None
@@ -24,7 +26,6 @@ class PropertiesPanel(QWidget):
 
     def buildUI(self):
         self.setFixedWidth(175)
-        self.apply_theme()
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)
@@ -115,7 +116,6 @@ class PropertiesPanel(QWidget):
         return super().eventFilter(obj, event)
     
     def moveEvent(self, event):
-        """Emit the new absolute position whenever the panel moves."""
         super().moveEvent(event)
         self.positionChanged.emit(self.pos())
 

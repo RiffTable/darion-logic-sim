@@ -52,6 +52,7 @@ class CompItem(QGraphicsItem):
 			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setAcceptHoverEvents(True)
+		theme.theme_changed.connect(self.update)
 
 		# Behavior
 		self._dirty = True
