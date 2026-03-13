@@ -72,13 +72,19 @@ class SettingsMenu(BaseMenu):
         Actions.addCheckable(self, "invert-scroll", "Invert Mouse Scrolling",
                            self.is_scroll_inverted(), 
                            lambda checked: main_window.setScrollInverted(checked))
-        Actions.addCheckable(self, "disable-peeking", "Disable Pins Peeking")
+        Actions.addCheckable(self, "disable-peeking", "Disable Pins Peeking",
+                           self.is_peeking_disabled(),
+                           lambda checked: main_window.setPeekingDisabled(checked))
         Actions.addCheckable(self, "hide-grid", "Hide Grid")
         Actions.addCheckable(self, "dark-theme", "Dark Theme", initial_checked, self.toggle_theme)
 
     def is_scroll_inverted(self):
         settings = QSettings()
         return settings.value("settings/invert_scroll", False, type=bool)
+    
+    def is_peeking_disabled(self):
+        settings = QSettings()
+        return settings.value("settings/disable_peeking", False, type=bool)
 
     def toggle_theme(self, checked):
         theme.set_theme(checked)  

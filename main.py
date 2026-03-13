@@ -60,7 +60,7 @@ class AppWindow(QMainWindow):
 		self.sidebar = ComponentSidebar(self)
 		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
 		self.scroll_inverted = False
-		#self.peeking_disabled = False
+		self.peeking_disabled = False
 		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
@@ -80,10 +80,10 @@ class AppWindow(QMainWindow):
 	def load_settings(self):
 		settings = QSettings()
 		self.scroll_inverted = settings.value("settings/invert_scroll", False, type=bool)
-		#self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
+		self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
 
 		self.view.setScrollInverted(self.scroll_inverted)
-		# self.view.setPeekingDisabled(self.peeking_disabled)
+		self.cscene.setPeekingDisabled(self.peeking_disabled)
 	
 	
 	def setScrollInverted(self, inverted):
@@ -93,6 +93,15 @@ class AppWindow(QMainWindow):
 		
 		if hasattr(self, 'view'):
 			self.view.setScrollInverted(inverted)
+
+	def setPeekingDisabled(self, disabled):
+		self.peeking_disabled = disabled
+		settings = QSettings()
+		settings.setValue("settings/disable_peeking", disabled)
+		
+		# Apply the setting to the scene
+		if hasattr(self, 'cscene'):
+			self.cscene.setPeekingDisabled(disabled)
 
 	def update_props_initial_position(self):
 		panel_x = self.x() + self.width() - self.props_panel.width() - 20

@@ -23,6 +23,7 @@ class OutputItem(CompItem):
 
 		# Properties
 		self.state: int = Const.LOW
+		self.peeking_disabled = False
 		
 		# Pins Setup
 		if self._setupDefaultPins:
@@ -48,6 +49,9 @@ class OutputItem(CompItem):
 		self.update()
 	
 	def proxyPin(self) -> InputPinItem | None:
+		# Don't show proxy pin if peeking is disabled
+		if self.peeking_disabled:
+			return None
 		return None if self.inputPin.hasWire() else self.inputPin
 
 	def draw(self, painter, option, widget):
