@@ -1,7 +1,7 @@
 
 from Gates import Gate
 from IC import IC
-from Const import IC_ID
+from Const import IC_ID,DEBUG
 namelist=(
     'AND',
     'NAND',
