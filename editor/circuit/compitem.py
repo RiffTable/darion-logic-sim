@@ -331,7 +331,7 @@ class CompItem(QGraphicsItem):
 
 
 		if option.state & QStyle.StateFlag.State_Selected:    # type: ignore ; fuck off pyright
-			painter.setPen(QPen(Color.hl_text_bg, 2, Qt.PenStyle.DashLine))
+			painter.setPen(QPen(self.colors.hl_text_bg, 2, Qt.PenStyle.DashLine))
 		else:
 			painter.setPen(QPen(self.colors.outline, 2))
 		painter.setBrush(self.colors.comp_body)

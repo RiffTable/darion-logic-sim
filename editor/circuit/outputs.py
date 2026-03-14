@@ -59,5 +59,5 @@ class OutputItem(CompItem):
 		# painter.setPen(QPen(Color.outline, 2))
 		match self.state:
 			case Const.HIGH:  painter.setBrush(QBrush(self.colors.LED_on))
-			case Const.ERROR: painter.setBrush(QBrush(self.colors.LED_error))
+			case Const.ERROR: painter.setBrush(QBrush(self.colors.LED_on.darker(150)))
 			case _:           painter.setBrush(QBrush(self.colors.LED_off))
