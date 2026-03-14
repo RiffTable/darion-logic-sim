@@ -1,5 +1,5 @@
 from core.QtCore import *
-
+import editor.theme as theme
 
 class CategorySection(QWidget):
     def __init__(self, title, parent=None):
@@ -22,15 +22,24 @@ class CategorySection(QWidget):
         self.layout.addWidget(self.content)
         self.toggle.toggled.connect(self.content.setVisible)
         
-        self.toggle.setStyleSheet(self.get_toggle_style())
-        self.content.setStyleSheet(self.get_content_style())
+        theme.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
 
     # Stylesheet functions
-    def get_toggle_style(self):
+    def apply_theme(self):
+        colors = theme.get_theme()
+
+        self.toggle.setStyleSheet(self.get_toggle_style(colors))
+        self.content.setStyleSheet(self.get_content_style(colors))
+
+        for btn in self.buttons:
+            btn.setStyleSheet(self.get_button_style(colors))
+
+    def get_toggle_style(self, colors):
         return f"""
             QPushButton {{
-                background-color: #1a1d23;
-                color: #d1d5db;
+                background-color: {colors.secondary_bg.name()};
+                color: {colors.text.name()};
                 text-align: left;
                 padding: 15px;
                 border: none;
@@ -41,23 +50,24 @@ class CategorySection(QWidget):
                 text-transform: uppercase;
             }}
             QPushButton:hover {{ 
-                background-color: #24292f; 
+                background-color: {colors.button.name()}; 
             }}
             QPushButton:checked {{
+                background-color: {colors.sidebar_toggle.name()};
                 border-bottom: none; 
-                color: #ffffff;
+                color: {colors.tooltip_bg.name()};
             }}"""
 
-    def get_content_style(self):
+    def get_content_style(self, colors):
         return f"""
-            background-color: #0d1117; 
+            background-color: {colors.primary_bg.name()}; 
             border: none;
         """
 
-    def get_button_style(self):
+    def get_button_style(self, colors):
         return f"""
             QPushButton {{
-                color: #8b949e;
+                color: {colors.text.name()};
                 padding: 8px 30px;
                 text-align: left;
                 border: none;
@@ -65,14 +75,15 @@ class CategorySection(QWidget):
                 font-family: 'Segoe UI', 'Monaco', monospace;
             }}
             QPushButton:hover {{ 
-                color: white; 
-                background-color: #161b22; 
+                color: {colors.tooltip_bg.name()}; 
+                background-color: {colors.button.name()}; 
             }}"""
 
     def add_item(self, text, comp_id):
+        colors = theme.get_theme()
         btn = QPushButton(text)
         btn.setProperty("comp_id", comp_id)
-        btn.setStyleSheet(self.get_button_style())
+        btn.setStyleSheet(self.get_button_style(colors))
         self.content_layout.addWidget(btn)
         self.buttons.append(btn)
         return btn
@@ -109,41 +120,39 @@ class ComponentSidebar(QWidget):
         
         self.setup_ui()
 
-        self.setStyleSheet(self.get_main_style())
-        self.search.setStyleSheet(self.get_search_style())
-        self.scroll.setStyleSheet(self.get_scroll_style())
+        theme.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
 
     # Stylesheet functions
-    def get_main_style(self):
-        return f"""
-            ComponentSidebar {{
-                background-color: #1a1d23;
-                border-right: 1px solid #3d444d;
-            }}"""
+    def apply_theme(self):
+        colors = theme.get_theme()
+        
+        self.search.setStyleSheet(self.get_search_style(colors))
+        self.scroll.setStyleSheet(self.get_scroll_style())
 
-    def get_search_style(self):
+    def get_search_style(self, colors):
         return f"""
             QLineEdit {{
-                background-color: #0d1117;
+                background-color: {colors.primary_bg.name()};
                 border: 1px solid #3d444d;
                 border-radius: 4px;
-                color: white;
+                color: {colors.tooltip_bg.name()};
                 padding: 8px;
                 margin: 15px;
                 font-family: 'Segoe UI', 'Monaco', monospace;
             }}
             QLineEdit:focus {{ 
-                border: 1px solid #58a6ff; 
+                border: 1px solid {colors.hl_text_bg.name()}; 
             }}
             QLineEdit QPushButton {{
-                color: #8b949e;
+                color: {colors.text.name()};
                 border: none;
                 background: none;
                 font-weight: bold;
                 padding-right: 5px;
             }}
             QLineEdit QPushButton:hover {{
-                color: white; 
+                color: {colors.tooltip_bg.name()}; 
             }}"""
 
     def get_scroll_style(self):

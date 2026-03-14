@@ -25,10 +25,11 @@ class LightTheme:
     LED_off        = QColor("#d2d9e0")
     
     outline        = QColor("#6f7d8c")
+    sidebar_toggle = QColor("#bac1ca")
 
 
 class DarkTheme:
-    text           = QColor("#ecf0f3")
+    text           = QColor("#d8dee6")
     hl_text_bg     = QColor("#2f65ca")
     primary_bg     = QColor("#03070c")
     secondary_bg   = QColor("#121c26")
@@ -52,6 +53,7 @@ class DarkTheme:
     LED_off        = QColor("#17222d")
     
     outline        = QColor("#314152")
+    sidebar_toggle = QColor("#07101f")
 
 
 class Font:
