@@ -37,7 +37,7 @@ class AppWindow(QMainWindow):
 		self.current_file_path: str|None = None
 
 		self.setupQActions()
-		
+
 		###======= MENUS =======###
 		menubar: QMenuBar = self.menuBar()
 		menubar.addMenu(FileMenu(self))
@@ -66,7 +66,6 @@ class AppWindow(QMainWindow):
 
 		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
-		layout_main.addWidget(self.props_panel)
 
 		# Final Setup
 		self.refreshIClist()
@@ -81,9 +80,11 @@ class AppWindow(QMainWindow):
 		settings = QSettings()
 		self.scroll_inverted = settings.value("settings/invert_scroll", False, type=bool)
 		self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
+		self.grid_hidden = settings.value("settings/hide_grid", False, type=bool)
 
 		self.view.setScrollInverted(self.scroll_inverted)
 		self.cscene.setPeekingDisabled(self.peeking_disabled)
+		self.cscene.setGridHidden(self.grid_hidden)
 	
 	
 	def setScrollInverted(self, inverted):
@@ -101,6 +102,14 @@ class AppWindow(QMainWindow):
 		
 		if hasattr(self, 'cscene'):
 			self.cscene.setPeekingDisabled(disabled)
+
+	def setGridHidden(self, hidden: bool):
+		self.grid_hidden = hidden
+		settings = QSettings()
+		settings.setValue("settings/hide_grid", hidden)
+		
+		if hasattr(self, 'cscene'):
+			self.cscene.setGridHidden(hidden)
 
 	def update_props_position(self):
 		panel_x = self.x() + self.width() - self.props_panel.width() - 15
@@ -144,7 +153,7 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
-		Actions.add(self, "exit", "Exit", self.close, SK.Quit)    # Ctrl+Q
+		Actions.add(self, "exit", "Exit", self.close, SK.Quit) # Alt+F4
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))

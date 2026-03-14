@@ -34,6 +34,7 @@ class CircuitScene(QGraphicsScene):
 		self._state = EditorState.NORMAL
 		self.defaultFacing = Facing.EAST
 		self.defaultMirror = False
+		self.grid_hidden = False 
 
 		# Wiring logic
 		self.ghostWire: WireItem|None = None
@@ -53,6 +54,10 @@ class CircuitScene(QGraphicsScene):
 			if isinstance(item, CompItem):
 				if hasattr(item, 'peekingPin'):
 					item.peeking_disabled = disabled
+
+	def setGridHidden(self, hidden: bool):
+		self.grid_hidden = hidden
+		self.update() 
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
@@ -288,6 +293,9 @@ class CircuitScene(QGraphicsScene):
 		bg_color = colors.primary_bg
 		grid_color = colors.bg_grid
 		painter.fillRect(rect, bg_color)
+
+		if self.grid_hidden:
+			return
 
 		rect_left = int(rect.left())
 		rect_top =  int(rect.top())
