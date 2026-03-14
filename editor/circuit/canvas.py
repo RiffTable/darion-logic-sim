@@ -25,6 +25,7 @@ class CircuitScene(QGraphicsScene):
 		self.iclist: list = []
 
 		self._rmb_last_pos = QPointF()
+		self.peeking_disabled = False
 
 		# Clipboard
 		self.clipboard = { "comps": [], "wires": [], "iclist": [] }
@@ -44,6 +45,14 @@ class CircuitScene(QGraphicsScene):
 
 		self.addItem(self.ghostPin)
 
+
+	def setPeekingDisabled(self, disabled):
+		self.peeking_disabled = disabled
+		
+		for item in self.items():
+			if isinstance(item, CompItem):
+				if hasattr(item, 'peekingPin'):
+					item.peeking_disabled = disabled
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:

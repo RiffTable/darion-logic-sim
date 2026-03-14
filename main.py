@@ -7,10 +7,12 @@ from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
 
-from editor.styles import Color
+import editor.theme as theme
 import editor.actions as Actions
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
+from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, SettingsMenu
+from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
 
 
@@ -20,54 +22,105 @@ class AppWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setWindowTitle("Not LogiSim")
+		self.setMinimumSize(800, 500)
 
 		central = QWidget()
 		self.setCentralWidget(central)
 		layout_main = QHBoxLayout(central)
-		
+
+		theme.theme_changed.connect(self.refresh_theme)
+
 
 		###======= CIRCUIT =======###
 		self.view = CircuitView()
 		self.cscene = self.view.cscene
 		self.current_file_path: str|None = None
 
+		###======= MENUS =======###
+		menubar: QMenuBar = self.menuBar()
+		menubar.addMenu(FileMenu(self))
+		menubar.addMenu(EditMenu(self))
+		menubar.addMenu(ViewMenu(self))
+		menubar.addMenu(ProjectMenu(self))
+		menubar.addMenu(SettingsMenu(self))
+
+
 		###======= PROPERTIES PANEL =======###
-		self.props_panel = PropertiesPanel()
+		self.props_panel = PropertiesPanel(self)
 		self.cscene.selectionChanged.connect(
 			lambda: self.props_panel.selectionChanged(self.cscene.selectedItems())
+		)
+		self.props_panel.setWindowFlags(
+			Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
 		)
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
-		self.dragbar = QVBoxLayout()
-		self.dragbar.setSpacing(10)
-		gatelists = {
-			"NOT Gate": 0,
-			"AND Gate": 1,
-			"NAND Gate": 2,
-			"OR Gate": 3,
-			"NOR Gate": 4,
-			"XOR Gate": 5,
-			"XNOR Gate": 6,
-			"INPUT": 11,
-			"LED": 21,
-		}
+		self.sidebar = ComponentSidebar(self)
+		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
+		self.scroll_inverted = False
+		self.peeking_disabled = False
+		self.load_settings()
 
-		for text, comp_id in gatelists.items():
-			btn = QPushButton(text)
-			btn.setMinimumHeight(50)
-			btn.clicked.connect(partial(self.cscene.addComp, 0, 0, comp_id))
-			# btn.clicked.connect(lambda: self.scene().addComp(0, 0, comp_id))
-			self.dragbar.addWidget(btn)
-		self.dragbar.addStretch()
-		
-		layout_main.addLayout(self.dragbar)
+		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
 		layout_main.addWidget(self.props_panel)
 
 		# Final Setup
 		self.refreshIClist()
 		self.setupQActions()
+
+	def refresh_theme(self):
+		theme.apply_palette(QApplication.instance())
+		self.props_panel.apply_theme()
+		#self.sidebar.apply_theme()
+		self.cscene.update()
+
+	def load_settings(self):
+		settings = QSettings()
+		self.scroll_inverted = settings.value("settings/invert_scroll", False, type=bool)
+		self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
+
+		self.view.setScrollInverted(self.scroll_inverted)
+		self.cscene.setPeekingDisabled(self.peeking_disabled)
+	
+	
+	def setScrollInverted(self, inverted):
+		self.scroll_inverted = inverted
+		settings = QSettings()
+		settings.setValue("settings/invert_scroll", inverted)
+		
+		if hasattr(self, 'view'):
+			self.view.setScrollInverted(inverted)
+
+	def setPeekingDisabled(self, disabled):
+		self.peeking_disabled = disabled
+		settings = QSettings()
+		settings.setValue("settings/disable_peeking", disabled)
+		
+		if hasattr(self, 'cscene'):
+			self.cscene.setPeekingDisabled(disabled)
+
+	def update_props_position(self):
+		panel_x = self.x() + self.width() - self.props_panel.width() - 15
+		panel_y = self.y() + 65
+		self.props_panel.move(panel_x, panel_y)
+	
+	def moveEvent(self, event):
+		super().moveEvent(event)
+		if self.props_panel.isVisible():
+			self.update_props_position()
+	
+	def resizeEvent(self, event):
+		super().resizeEvent(event)
+		QSettings().setValue("main_window/geometry", self.saveGeometry())
+		if self.props_panel.isVisible():
+			self.update_props_position()
+
+	def spawn_component(self, comp_id: int):
+		view_center = self.view.viewport().rect().center()
+		scene_spawn_pos = self.view.mapToScene(view_center)
+		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app
@@ -100,9 +153,9 @@ class AppWindow(QMainWindow):
 
 		### Viewport functions
 		view = self.view
-		Actions.add(view, "zoom_in", "Zoom In", view.zoomInOnMouse) \
+		Actions.add(view, "zoom-in", "Zoom In", view.zoomInOnMouse) \
 			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
-		Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
+		Actions.add(view, "zoom-out", "Zoom Out", view.zoomOutFromMouse) \
 			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
 		Actions.add(view, "undo", "Undo", view.undo, SK.Undo)   # Ctrl+Z
 		Actions.add(view, "redo", "Redo", view.redo) \
@@ -111,7 +164,7 @@ class AppWindow(QMainWindow):
 
 		### Canvas functions
 		scene = self.cscene
-		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
+		Actions.add(view, "select-all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
 		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)   # Ctrl+C
 		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)     # Ctrl+V
 		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)       # Ctrl+X
@@ -288,34 +341,32 @@ class AppWindow(QMainWindow):
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
 
-	###======= APP COLOR PALETTE =======###
+	###======= APP THEME =======###
 	app.setStyle("Fusion")
-	dark_palette = QPalette()
-	Role = QPalette.ColorRole
 
-	palette_colors = {
-		Role.Window         : Color.secondary_bg,
-		Role.WindowText     : Color.text,
-		Role.Base           : Color.primary_bg,
-		Role.AlternateBase  : Color.secondary_bg,
-		Role.ToolTipBase    : Color.tooltip_bg,
-		Role.ToolTipText    : Color.tooltip_text,
-		Role.Text           : Color.text,
-		Role.Button         : Color.button,
-		Role.ButtonText     : Color.text,
-		Role.Highlight      : Color.hl_text_bg,
-		Role.HighlightedText: Color.text,
-	}
-	for role, color in palette_colors.items():
-		dark_palette.setColor(QPalette.ColorGroup.All, role, color)
-	app.setPalette(dark_palette)
+	theme.apply_palette(app)
 
 
 	###======= APP WINDOW =======###
+	QCoreApplication.setOrganizationName("NotLogiSim")
+	QCoreApplication.setApplicationName("NotLogiSim")
+
 	window = AppWindow()
-	window.resize(1000, 600)
+	
+	settings = QSettings()
+	if settings.contains("main_window/geometry"):
+		window.restoreGeometry(settings.value("main_window/geometry"))
+	else:
+		window.resize(1000, 600)
+
 	window.show()
 
 	# Starts with an empty canvas
 
+	QTimer.singleShot(100, window.update_props_position)
+
+	app.aboutToQuit.connect(
+		lambda: QSettings().setValue("main_window/geometry", window.saveGeometry())
+		)
+	
 	sys.exit(app.exec())

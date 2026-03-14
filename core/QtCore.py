@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 	QPushButton, QLabel, QLineEdit, QTextEdit, QSpinBox,
 	QVBoxLayout, QHBoxLayout, QFormLayout,
 	QDialog, QFileDialog, QInputDialog, QMessageBox,
-	QDialogButtonBox,
+	QDialogButtonBox, QMenu, QMenuBar, QLineEdit, QScrollArea,
 
 	QGraphicsScene, QGraphicsView,
 	QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
 	Qt, QObject, QEvent, QTimer, QKeyCombination,
-	QPoint, QPointF, QLineF, QRect, QRectF,
+	QPoint, QPointF, QLineF, QRect, QRectF,QCoreApplication, QSettings, Signal
 )
 from PySide6.QtGui import (
 	QGuiApplication, QInputDevice, QAction, QKeySequence, QCursor,

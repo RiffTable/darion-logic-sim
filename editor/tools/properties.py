@@ -3,8 +3,8 @@ from functools import partial
 from typing import Any
 from core.QtCore import *
 from core.Enums import Prop
-from editor.styles import Color, Font
 
+import editor.theme as theme
 from editor.circuit.compitem import CompItem
 
 
@@ -15,36 +15,12 @@ class PropertiesPanel(QWidget):
         self.labels: dict[Prop, QLabel] = {}
         self.widgets: dict[Prop, Any] = {}
         self.buildUI()
+        theme.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
         self.hide()
 
     def buildUI(self):
         self.setFixedWidth(175)
-        self.setStyleSheet(f"""
-            PropertiesPanel {{
-                background: {Color.secondary_bg.name()};
-                border-radius: 8px;
-            }}
-            QLabel#title {{
-                font-size: 13px;
-                font-weight: bold;
-                color: {Color.text.name()};
-                padding-bottom: 4px;
-            }}
-            QLabel {{
-                color: {Color.text.name()};
-                font-size: 11px;
-            }}
-            QSpinBox {{
-                background: {Color.primary_bg.name()};
-                color: {Color.text.name()};
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 2px 4px;
-            }}
-            QSpinBox::up-button, QSpinBox::down-button {{
-                width: 16px;
-            }}
-        """)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)
@@ -67,18 +43,13 @@ class PropertiesPanel(QWidget):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Properties
-        # All compItems have "pos", "tag", "facing", "mirror"
-        self.labels[Prop.POS] = QLabel("Pos:")
-        self.widgets[Prop.POS] = QLabel("-")
+        # All compItems have "tag", "facing"
 
         self.labels[Prop.TAG] = QLabel("Tag:")
         self.widgets[Prop.TAG] = QLabel("-")
 
         self.labels[Prop.FACING] = QLabel("Facing:")
         self.widgets[Prop.FACING] = QLabel("-")
-
-        self.labels[Prop.MIRROR] = QLabel("Mirror:")
-        self.widgets[Prop.MIRROR] = QLabel("-")
 
         self.labels[Prop.STATE] = QLabel("State:")
         self.widgets[Prop.STATE] = QLabel("-")
@@ -92,7 +63,40 @@ class PropertiesPanel(QWidget):
 
         outer.addLayout(form)
         outer.addStretch()
-    
+        
+
+    def apply_theme(self):
+        colors = theme.get_theme()
+        self.setStyleSheet(f"""
+            PropertiesPanel {{
+                background: {colors.secondary_bg.name()};
+                border-radius: 8px;
+            }}
+            QLabel#title {{
+                font-size: 13px;
+                font-weight: bold;
+                color: {colors.text.name()};
+                padding-bottom: 4px;
+            }}
+            QLabel {{
+                color: {colors.text.name()};
+                font-size: 11px;
+            }}
+            QSpinBox {{
+                background: {colors.primary_bg.name()};
+                color: {colors.text.name()};
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 2px 4px;
+            }}
+            QSpinBox::up-button, QSpinBox::down-button {{
+                width: 16px;
+            }}
+        """)
+
+    def on_theme_changed(self):
+        self.apply_theme()
+        self.update()
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
         n = len(selectedItems)
@@ -129,6 +133,8 @@ class PropertiesPanel(QWidget):
                         spinbox.blockSignals(False)
                     elif prop == Prop.FACING:
                         self.widgets[prop].setText(compProps[prop].name.capitalize())
+                    elif prop == Prop.STATE:
+                        self.widgets[prop].setText("ON" if compProps[prop] else "OFF")
                     else:
                         self.widgets[prop].setText(str(compProps[prop]))
 
