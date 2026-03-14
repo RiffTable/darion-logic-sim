@@ -51,9 +51,6 @@ class AppWindow(QMainWindow):
 		self.props_panel.setWindowFlags(
 			Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint
 		)
-		self.update_props_initial_position()
-		self.props_panel.positionChanged.connect(self.update_props_offset)
-		self.props_offset = None
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
@@ -65,11 +62,6 @@ class AppWindow(QMainWindow):
 
 		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
-
-	def spawn_component(self, comp_id: int):
-		view_center = self.view.viewport().rect().center()
-		scene_spawn_pos = self.view.mapToScene(view_center)
-		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
 
 	def refresh_theme(self):
 		theme.apply_palette(QApplication.instance())
@@ -99,25 +91,29 @@ class AppWindow(QMainWindow):
 		settings = QSettings()
 		settings.setValue("settings/disable_peeking", disabled)
 		
-		# Apply the setting to the scene
 		if hasattr(self, 'cscene'):
 			self.cscene.setPeekingDisabled(disabled)
 
-	def update_props_initial_position(self):
-		panel_x = self.x() + self.width() - self.props_panel.width() - 20
-		panel_y = self.y() + 75
+	def update_props_position(self):
+		panel_x = self.x() + self.width() - self.props_panel.width() - 15
+		panel_y = self.y() + 65
 		self.props_panel.move(panel_x, panel_y)
-
-	def update_props_offset(self, panel_pos):
-		self.props_offset = panel_pos - self.pos()
-
+	
 	def moveEvent(self, event):
 		super().moveEvent(event)
-		if (hasattr(self, 'props_offset') and self.props_offset is not None
-				and self.props_panel.isVisible()):
-			self.props_panel.move(self.pos() + self.props_offset)
-		elif not hasattr(self, 'props_offset') or self.props_offset is None:
-			self.update_props_initial_position()
+		if self.props_panel.isVisible():
+			self.update_props_position()
+	
+	def resizeEvent(self, event):
+		super().resizeEvent(event)
+		QSettings().setValue("main_window/geometry", self.saveGeometry())
+		if self.props_panel.isVisible():
+			self.update_props_position()
+
+	def spawn_component(self, comp_id: int):
+		view_center = self.view.viewport().rect().center()
+		scene_spawn_pos = self.view.mapToScene(view_center)
+		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app
@@ -279,8 +275,7 @@ if __name__ == "__main__":
 
 	window.show()
 
-	window.cscene.addComp(100, 100, 5)
-	window.cscene.addComp(100, 200, 11)
+	QTimer.singleShot(100, window.update_props_position)
 
 	app.aboutToQuit.connect(
 		lambda: QSettings().setValue("main_window/geometry", window.saveGeometry())

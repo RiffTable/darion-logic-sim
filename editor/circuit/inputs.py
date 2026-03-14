@@ -49,6 +49,7 @@ class InputItem(CompItem):
 	def unitStateChanged(self, state: int):
 		self.state = state
 		self.outputPin.logicalStateChanged(state)
+		self.PropertyChanged()
 	
 	def setState(self, state: bool):
 		bookish = Const.HIGH if state else Const.LOW

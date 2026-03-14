@@ -9,8 +9,6 @@ from editor.circuit.compitem import CompItem
 
 
 class PropertiesPanel(QWidget):
-    positionChanged = Signal(QPoint)
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.comp: CompItem|None = None
@@ -20,9 +18,6 @@ class PropertiesPanel(QWidget):
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
         self.hide()
-
-        self.drag_pos = None
-        self.title.installEventFilter(self)
 
     def buildUI(self):
         self.setFixedWidth(175)
@@ -55,6 +50,9 @@ class PropertiesPanel(QWidget):
 
         self.labels[Prop.FACING] = QLabel("Facing:")
         self.widgets[Prop.FACING] = QLabel("-")
+
+        self.labels[Prop.STATE] = QLabel("State:")
+        self.widgets[Prop.STATE] = QLabel("-")
 
         self.labels[Prop.INPUTSIZE] = QLabel("No of Inputs:")
         self.widgets[Prop.INPUTSIZE] = QSpinBox()
@@ -100,25 +98,6 @@ class PropertiesPanel(QWidget):
         self.apply_theme()
         self.update()
 
-    def eventFilter(self, obj, event):
-        if obj is self.title and event.type() == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton:
-                self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-                return True
-        elif obj is self.title and event.type() == QEvent.Type.MouseMove:
-            if event.buttons() & Qt.MouseButton.LeftButton and self.drag_pos:
-                self.move(event.globalPosition().toPoint() - self.drag_pos)
-                return True
-        elif obj is self.title and event.type() == QEvent.Type.MouseButtonRelease:
-            if event.button() == Qt.MouseButton.LeftButton:
-                self.drag_pos = None
-                return True
-        return super().eventFilter(obj, event)
-    
-    def moveEvent(self, event):
-        super().moveEvent(event)
-        self.positionChanged.emit(self.pos())
-
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
         n = len(selectedItems)
 
@@ -154,6 +133,8 @@ class PropertiesPanel(QWidget):
                         spinbox.blockSignals(False)
                     elif prop == Prop.FACING:
                         self.widgets[prop].setText(compProps[prop].name.capitalize())
+                    elif prop == Prop.STATE:
+                        self.widgets[prop].setText("ON" if compProps[prop] else "OFF")
                     else:
                         self.widgets[prop].setText(str(compProps[prop]))
 

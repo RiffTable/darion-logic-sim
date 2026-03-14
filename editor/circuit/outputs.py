@@ -47,6 +47,7 @@ class OutputItem(CompItem):
 	def unitStateChanged(self, state: int):
 		self.state = state
 		self.update()
+		self.PropertyChanged()
 	
 	def proxyPin(self) -> InputPinItem | None:
 		# Don't show proxy pin if peeking is disabled
