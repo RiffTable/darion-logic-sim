@@ -36,6 +36,8 @@ class AppWindow(QMainWindow):
 		self.cscene = self.view.cscene
 		self.current_file_path: str|None = None
 
+		self.setupQActions()
+		
 		###======= MENUS =======###
 		menubar: QMenuBar = self.menuBar()
 		menubar.addMenu(FileMenu(self))
@@ -68,7 +70,6 @@ class AppWindow(QMainWindow):
 
 		# Final Setup
 		self.refreshIClist()
-		self.setupQActions()
 
 	def refresh_theme(self):
 		theme.apply_palette(QApplication.instance())
@@ -143,6 +144,7 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
+		Actions.add(self, "exit", "Exit", self.close, SK.Quit)    # Ctrl+Q
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))

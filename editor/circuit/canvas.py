@@ -5,7 +5,7 @@ from core.LogicCore import *
 from core.Enums import CompEdge, Facing, EditorState
 import core.grid as GRID
 
-from editor.styles import Color
+import editor.theme as theme
 from .catalog import (
 	LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
 	InputItem, OutputItem,
@@ -284,8 +284,9 @@ class CircuitScene(QGraphicsScene):
 		super().keyPressEvent(event)
 	
 	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
-		bg_color = Color.primary_bg
-		grid_color = Color.bg_grid
+		colors = theme.get_theme()
+		bg_color = colors.primary_bg
+		grid_color = colors.bg_grid
 		painter.fillRect(rect, bg_color)
 
 		rect_left = int(rect.left())

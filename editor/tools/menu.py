@@ -18,7 +18,7 @@ class FileMenu(BaseMenu):
         self.addAction(Actions.get("open"))
         self.addSeparator()
         self.addAction(Actions.get("save"))
-        self.addAction(Actions.get("save-as"))
+        self.addAction(Actions.get("save_as"))
         self.addSeparator()
         self.addAction(Actions.get("exit"))
 
@@ -43,10 +43,10 @@ class ViewMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self.addAction(Actions.get("select-all"))
+        self.addAction(Actions.get("select_all"))
         self.addAction(Actions.get("delete"))
-        self.addAction(Actions.get("zoom-in"))
-        self.addAction(Actions.get("zoom-out"))
+        self.addAction(Actions.get("zoom_in"))
+        self.addAction(Actions.get("zoom_out"))
 
 
 class ProjectMenu(BaseMenu):
@@ -69,14 +69,14 @@ class SettingsMenu(BaseMenu):
         
         main_window = self.parent()
         
-        Actions.addCheckable(self, "invert-scroll", "Invert Mouse Scrolling",
+        Actions.addCheckable(self, "invert_scroll", "Invert Mouse Scrolling",
                            self.is_scroll_inverted(), 
                            lambda checked: main_window.setScrollInverted(checked))
-        Actions.addCheckable(self, "disable-peeking", "Disable Pins Peeking",
+        Actions.addCheckable(self, "disable_peeking", "Disable Pins Peeking",
                            self.is_peeking_disabled(),
                            lambda checked: main_window.setPeekingDisabled(checked))
-        Actions.addCheckable(self, "hide-grid", "Hide Grid")
-        Actions.addCheckable(self, "dark-theme", "Dark Theme", initial_checked, self.toggle_theme)
+        Actions.addCheckable(self, "hide_grid", "Hide Grid")
+        Actions.addCheckable(self, "dark_theme", "Dark Theme", initial_checked, self.toggle_theme)
 
     def is_scroll_inverted(self):
         settings = QSettings()

@@ -31,3 +31,13 @@ def add(
 	parent.addAction(act)
 	_action_list[key] = act
 	return act
+
+def addCheckable(parent: QWidget, key: str, text: str, isChecked: bool = False, slot: Callable|None = None, shortcut = None) -> QAction:
+    act = QAction(text, parent)
+    act.setCheckable(True)
+    act.setChecked(isChecked)
+    if slot:     act.toggled.connect(slot)
+    if shortcut: act.setShortcut(shortcut)
+    parent.addAction(act)
+    _action_list[key] = act
+    return act
