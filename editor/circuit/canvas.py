@@ -47,14 +47,6 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(self.ghostPin)
 
 
-	def setPeekingDisabled(self, disabled):
-		self.peeking_disabled = disabled
-		
-		for item in self.items():
-			if isinstance(item, CompItem):
-				if hasattr(item, 'peekingPin'):
-					item.peeking_disabled = disabled
-
 	def setGridHidden(self, hidden: bool):
 		self.grid_hidden = hidden
 		self.update() 
@@ -136,7 +128,7 @@ class CircuitScene(QGraphicsScene):
 
 					self.removeComp(comp)
 
-					inpin = cast(In, logic.getcomponent(Const.INPUT_PIN_ID))
+					inpin = cast(Gate, logic.getcomponent(Const.INPUT_PIN_ID))
 					for g, i in targets:
 						logic.connect(g, inpin, i)
 				else:

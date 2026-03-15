@@ -97,10 +97,6 @@ class CompItem(QGraphicsItem):
 		#    => getData, get/set Properties
 		#    => pinUpdate, proxyPin, betterHoverEnter, betterHoverLeave
 		#    => draw
-	
-	@property
-	def colors(self):
-		return theme.get_theme()
 
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())
@@ -330,17 +326,18 @@ class CompItem(QGraphicsItem):
 		if self._dirty: self._updateShape(); self._dirty = False
 
 
+		colors = theme.get_theme()
 		if option.state & QStyle.StateFlag.State_Selected:    # type: ignore ; fuck off pyright
-			painter.setPen(QPen(self.colors.hl_text_bg, 2, Qt.PenStyle.DashLine))
+			painter.setPen(QPen(colors.hl_text_bg, 2, Qt.PenStyle.DashLine))
 		else:
-			painter.setPen(QPen(self.colors.outline, 2))
-		painter.setBrush(self.colors.comp_body)
+			painter.setPen(QPen(colors.outline, 2))
+		painter.setBrush(colors.comp_body)
 
 		self.draw(painter, option, widget)
 		painter.drawRect(self._rect)
 
 
-		painter.setPen(self.colors.text)
+		painter.setPen(colors.text)
 		painter.setFont(Font.default)
 		painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
 	

@@ -1,7 +1,7 @@
 import sys
 import json
-from functools import partial
 from pathlib import Path
+from typing import cast
 
 from core.Enums import Facing
 from core.QtCore import *
@@ -21,7 +21,7 @@ from editor.tools.ICdialog import ICSetupDialog
 class AppWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setWindowTitle("Not LogiSim")
+		self.setWindowTitle("Darion Logic Sim")
 		self.setMinimumSize(800, 500)
 
 		central = QWidget()
@@ -61,7 +61,6 @@ class AppWindow(QMainWindow):
 		self.sidebar = ComponentSidebar(self)
 		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
 		self.scroll_inverted = False
-		self.peeking_disabled = False
 		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
@@ -78,38 +77,24 @@ class AppWindow(QMainWindow):
 
 	def load_settings(self):
 		settings = QSettings()
-		self.scroll_inverted = settings.value("settings/invert_scroll", False, type=bool)
-		self.peeking_disabled = settings.value("settings/disable_peeking", False, type=bool)
-		self.grid_hidden = settings.value("settings/hide_grid", False, type=bool)
+		self.scroll_inverted = cast(bool, settings.value("settings/invert_scroll", False, type=bool))
+		self.cscene.peeking_disabled = cast(bool, settings.value("settings/disable_peeking", False, type=bool))
+		self.grid_hidden = cast(bool, settings.value("settings/hide_grid", False, type=bool))
 
 		self.view.setScrollInverted(self.scroll_inverted)
-		self.cscene.setPeekingDisabled(self.peeking_disabled)
 		self.cscene.setGridHidden(self.grid_hidden)
 	
 	
-	def setScrollInverted(self, inverted):
+	def setScrollInverted(self, inverted: bool):
 		self.scroll_inverted = inverted
-		settings = QSettings()
-		settings.setValue("settings/invert_scroll", inverted)
-		
-		if hasattr(self, 'view'):
-			self.view.setScrollInverted(inverted)
+		self.view.setScrollInverted(inverted)
 
-	def setPeekingDisabled(self, disabled):
-		self.peeking_disabled = disabled
-		settings = QSettings()
-		settings.setValue("settings/disable_peeking", disabled)
-		
-		if hasattr(self, 'cscene'):
-			self.cscene.setPeekingDisabled(disabled)
+	def setPeekingDisabled(self, disabled: bool):
+		self.cscene.peeking_disabled = disabled
 
 	def setGridHidden(self, hidden: bool):
-		self.grid_hidden = hidden
-		settings = QSettings()
-		settings.setValue("settings/hide_grid", hidden)
-		
-		if hasattr(self, 'cscene'):
-			self.cscene.setGridHidden(hidden)
+		self.grid_hidden = hidden		
+		self.cscene.setGridHidden(hidden)
 
 	def update_props_position(self):
 		panel_x = self.x() + self.width() - self.props_panel.width() - 15
@@ -153,7 +138,7 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
-		Actions.add(self, "exit", "Exit", self.close, SK.Quit) # Alt+F4
+		Actions.add(self, "exit",    "Exit",    self.close,      SK.Quit)
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
@@ -352,16 +337,13 @@ class AppWindow(QMainWindow):
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
 
-	###======= APP THEME =======###
+	# App Theme
 	app.setStyle("Fusion")
-
 	theme.apply_palette(app)
 
-
-	###======= APP WINDOW =======###
-	QCoreApplication.setOrganizationName("NotLogiSim")
-	QCoreApplication.setApplicationName("NotLogiSim")
-
+	# App Window
+	QCoreApplication.setOrganizationName("Darion")
+	QCoreApplication.setApplicationName("Darion Logic Sim")
 	window = AppWindow()
 	
 	settings = QSettings()

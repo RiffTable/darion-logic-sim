@@ -136,11 +136,11 @@ class PinItem(QGraphicsRectItem):
 class InputPinItem(PinItem):
 	def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: tuple[Gate, int] | tuple[In, int] | None = None
+		self.logical: tuple[Gate, int] | None = None
 		self.state = Const.LOW
 		self.updateVisual()
 
-	def setLogical(self, input: Gate | In, index: int = 0) -> Self:
+	def setLogical(self, input: Gate, index: int = 0) -> Self:
 		# It's a builder function
 		if input.id==Const.INPUT_PIN_ID:
 			self.logical = (input, 0)

@@ -64,8 +64,6 @@ class GateItem(CompItem):
 		# Final Setup
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
-
-		self.peeking_disabled = False
 	
 
 	### Properties Data
@@ -174,10 +172,9 @@ class GateItem(CompItem):
 
 	### Smart Hover + Proxy System
 	def peekOut(self):
-		# Don't peek if disabled
-		if self.peeking_disabled:
-			return
 		# "Peek Out": Peeks out the "Peeking Pin"
+		if self.cscene.peeking_disabled:
+			return
 		if self.proxyIndex == len(self.inputPins) \
 		and len(self.inputPins) < self.maxInput \
 		and self.cscene.checkState(EditorState.WIRING):
@@ -185,8 +182,7 @@ class GateItem(CompItem):
 			self.updateShape()
 	
 	def betterHoverEnter(self):
-		if not self.peeking_disabled:
-			self.peekOut()
+		self.peekOut()
 	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created

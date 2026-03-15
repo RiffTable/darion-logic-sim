@@ -3,6 +3,7 @@ from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, Prop
+from editor import theme
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
@@ -23,7 +24,6 @@ class OutputItem(CompItem):
 
 		# Properties
 		self.state: int = Const.LOW
-		self.peeking_disabled = False
 		
 		# Pins Setup
 		if self._setupDefaultPins:
@@ -50,14 +50,12 @@ class OutputItem(CompItem):
 		self.PropertyChanged()
 	
 	def proxyPin(self) -> InputPinItem | None:
-		# Don't show proxy pin if peeking is disabled
-		if self.peeking_disabled:
-			return None
 		return None if self.inputPin.hasWire() else self.inputPin
 
 	def draw(self, painter, option, widget):
+		colors = theme.get_theme()
 		# painter.setPen(QPen(Color.outline, 2))
 		match self.state:
-			case Const.HIGH:  painter.setBrush(QBrush(self.colors.LED_on))
-			case Const.ERROR: painter.setBrush(QBrush(self.colors.LED_on.darker(150)))
-			case _:           painter.setBrush(QBrush(self.colors.LED_off))
+			case Const.HIGH:  painter.setBrush(QBrush(colors.LED_on))
+			case Const.ERROR: painter.setBrush(QBrush(colors.LED_on.darker(150)))
+			case _:           painter.setBrush(QBrush(colors.LED_off))

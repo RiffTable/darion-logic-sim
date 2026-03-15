@@ -1,3 +1,4 @@
+from typing import cast
 from core.QtCore import *
 import editor.actions as Actions
 import editor.theme as theme
@@ -65,32 +66,9 @@ class SettingsMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        initial_checked = theme.is_dark()
-        
         main_window = self.parent()
         
-        Actions.addCheckable(self, "invert_scroll", "Invert Mouse Scrolling",
-                           self.is_scroll_inverted(), 
-                           lambda checked: main_window.setScrollInverted(checked))
-        Actions.addCheckable(self, "disable_peeking", "Disable Pins Peeking",
-                           self.is_peeking_disabled(),
-                           lambda checked: main_window.setPeekingDisabled(checked))
-        Actions.addCheckable(self, "hide_grid", "Hide Grid",
-                           self.is_grid_hidden(),
-                           lambda checked: main_window.setGridHidden(checked))
-        Actions.addCheckable(self, "dark_theme", "Dark Theme", initial_checked, self.toggle_theme)
-
-    def is_scroll_inverted(self):
-        settings = QSettings()
-        return settings.value("settings/invert_scroll", False, type=bool)
-    
-    def is_peeking_disabled(self):
-        settings = QSettings()
-        return settings.value("settings/disable_peeking", False, type=bool)
-    
-    def is_grid_hidden(self):
-        settings = QSettings()
-        return settings.value("settings/hide_grid", False, type=bool)
-
-    def toggle_theme(self, checked):
-        theme.set_theme(checked)  
+        Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, main_window.setScrollInverted)
+        Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, main_window.setPeekingDisabled)
+        Actions.addSettingsCheckable(self, "hide_grid", "Hide Grid", False, main_window.setGridHidden)
+        Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", False, theme.set_theme)

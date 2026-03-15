@@ -3,6 +3,7 @@ from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
+from editor import theme
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
@@ -72,7 +73,8 @@ class InputItem(CompItem):
 	
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
+		colors = theme.get_theme()
 		if self.state == Const.HIGH:
-			painter.setBrush(self.colors.comp_active)
+			painter.setBrush(colors.comp_active)
 		else:
-			painter.setBrush(self.colors.comp_body)
+			painter.setBrush(colors.comp_body)
