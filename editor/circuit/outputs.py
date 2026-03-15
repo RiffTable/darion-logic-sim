@@ -53,9 +53,9 @@ class OutputItem(CompItem):
 		return None if self.inputPin.hasWire() else self.inputPin
 
 	def draw(self, painter, option, widget):
-		colors = theme.get_theme()
+		Color = theme.get_theme()
 		# painter.setPen(QPen(Color.outline, 2))
 		match self.state:
-			case Const.HIGH:  painter.setBrush(QBrush(colors.LED_on))
-			case Const.ERROR: painter.setBrush(QBrush(colors.LED_on.darker(150)))
-			case _:           painter.setBrush(QBrush(colors.LED_off))
+			case Const.HIGH:  painter.setBrush(QBrush(Color.LED_on))
+			case Const.ERROR: painter.setBrush(QBrush(Color.LED_on.darker(150)))
+			case _:           painter.setBrush(QBrush(Color.LED_off))

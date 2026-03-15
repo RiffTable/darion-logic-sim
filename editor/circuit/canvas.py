@@ -25,7 +25,6 @@ class CircuitScene(QGraphicsScene):
 		self.iclist: list = []
 
 		self._rmb_last_pos = QPointF()
-		self.peeking_disabled = False
 
 		# Clipboard
 		self.clipboard = { "comps": [], "wires": [], "iclist": [] }
@@ -34,6 +33,7 @@ class CircuitScene(QGraphicsScene):
 		self._state = EditorState.NORMAL
 		self.defaultFacing = Facing.EAST
 		self.defaultMirror = False
+		self.peeking_disabled = False
 		self.grid_hidden = False 
 
 		# Wiring logic
@@ -281,13 +281,13 @@ class CircuitScene(QGraphicsScene):
 		super().keyPressEvent(event)
 	
 	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
-		colors = theme.get_theme()
-		bg_color = colors.primary_bg
-		grid_color = colors.bg_grid
-		painter.fillRect(rect, bg_color)
-
 		if self.grid_hidden:
 			return
+		Color = theme.get_theme()
+		bg_color = Color.primary_bg
+		grid_color = Color.bg_grid
+		painter.fillRect(rect, bg_color)
+
 
 		rect_left = int(rect.left())
 		rect_top =  int(rect.top())
@@ -393,6 +393,11 @@ class CircuitScene(QGraphicsScene):
 			elif isinstance(item, CompItem):
 				if item in self.comps: self.removeComp(item)
 	
+	def selectNone(self):
+		for item in self.selectedItems():
+			item.setSelected(False)
+		self.clearSelection()
+
 	def selectAllComps(self):
 		self.clearSelection()
 		for item in self.comps:

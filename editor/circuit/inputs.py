@@ -73,8 +73,8 @@ class InputItem(CompItem):
 	
 	def draw(self, painter, option, widget):
 		# painter.setPen(QPen(Color.outline, 2))
-		colors = theme.get_theme()
+		Color = theme.get_theme()
 		if self.state == Const.HIGH:
-			painter.setBrush(colors.comp_active)
+			painter.setBrush(Color.comp_active)
 		else:
-			painter.setBrush(colors.comp_body)
+			painter.setBrush(Color.comp_body)

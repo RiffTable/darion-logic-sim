@@ -36,6 +36,10 @@ class EditMenu(BaseMenu):
         self.addAction(Actions.get("cut"))
         self.addAction(Actions.get("copy"))
         self.addAction(Actions.get("paste"))
+        self.addAction(Actions.get("delete"))
+        self.addSeparator()
+        self.addAction(Actions.get("select_none"))
+        self.addAction(Actions.get("select_all"))
 
 
 class ViewMenu(BaseMenu):
@@ -44,8 +48,6 @@ class ViewMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        self.addAction(Actions.get("select_all"))
-        self.addAction(Actions.get("delete"))
         self.addAction(Actions.get("zoom_in"))
         self.addAction(Actions.get("zoom_out"))
 
@@ -66,9 +68,7 @@ class SettingsMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        main_window = self.parent()
-        
-        Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, main_window.setScrollInverted)
-        Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, main_window.setPeekingDisabled)
-        Actions.addSettingsCheckable(self, "hide_grid", "Hide Grid", False, main_window.setGridHidden)
-        Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", False, theme.set_theme)
+        Actions.get("invert_scroll")
+        Actions.get("disable_peeking")
+        Actions.get("hide_grid")
+        Actions.get("dark_theme")

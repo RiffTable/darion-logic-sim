@@ -42,7 +42,7 @@ def addCheckable(parent: QWidget, key: str, text: str, isChecked: bool = False, 
 def addSettingsCheckable(parent: QWidget, key: str, text: str, defaultValue: bool = False, slot: Callable[[bool], None]|None = None, shortcut = None) -> QAction:
     """Creates Checkable QAction also able to read and write from QSettings"""
     act = QAction(text, parent)
-    state = cast(bool, QSettings().value(f"settings/{key}", defaultValue, type=bool))
+    state = bool(QSettings().value(f"settings/{key}", defaultValue, type=bool))
 
     act.setCheckable(True)
     act.setChecked(state)

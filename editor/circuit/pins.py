@@ -112,9 +112,9 @@ class PinItem(QGraphicsRectItem):
 		))
 	
 	def updateVisual(self):
-		colors= theme.get_theme()
+		Color = theme.get_theme()
 		if self.isHighlighted:
-			self.setBrush(QBrush(colors.pin_hover))
+			self.setBrush(QBrush(Color.pin_hover))
 		
 		elif self._wire:
 			self.setBrush(Qt.BrushStyle.NoBrush)
@@ -123,10 +123,10 @@ class PinItem(QGraphicsRectItem):
 			# Pin color matches wire color if no wires is attached.
 			# In case, you want to know the output without connecting wires :)
 			match self.state:
-				case Const.HIGH:  self.setBrush(QBrush(colors.pin_high))
-				case Const.LOW:   self.setBrush(QBrush(colors.pin_low))
-				case Const.ERROR: self.setBrush(QBrush(colors.signal_error))
-				case _:           self.setBrush(QBrush(colors.signal_unknown))
+				case Const.HIGH:  self.setBrush(QBrush(Color.pin_high))
+				case Const.LOW:   self.setBrush(QBrush(Color.pin_low))
+				case Const.ERROR: self.setBrush(QBrush(Color.signal_error))
+				case _:           self.setBrush(QBrush(Color.signal_unknown))
 
 
 
@@ -169,10 +169,10 @@ class InputPinItem(PinItem):
 class OutputPinItem(PinItem):
 	def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
 		super().__init__(parent, relpos, facing)
-		self.logical: Gate | Out | None = None
+		self.logical: Gate | None = None
 		self.updateVisual()
 
-	def setLogical(self, output: Gate | Out):
+	def setLogical(self, output: Gate):
 		self.logical = output
 		return self
 	

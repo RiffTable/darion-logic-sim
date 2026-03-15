@@ -42,8 +42,6 @@ class CircuitView(QGraphicsView):
 
 		# Zooming
 		self.viewScale = 1
-
-		
 		self.scroll_inverted = False
 	
 	
@@ -99,9 +97,6 @@ class CircuitView(QGraphicsView):
 			event.accept(); return
 		
 		return super().mouseReleaseEvent(event)
-    
-	def setScrollInverted(self, inverted):
-		self.scroll_inverted = inverted
 	
 	def wheelEvent(self, event: QWheelEvent):
 		pixelDelta = event.pixelDelta()
@@ -120,12 +115,10 @@ class CircuitView(QGraphicsView):
 			if abs(dy) <= 10: return
 
 			factor = 1.25 if dy > 0 else 0.8
-			if self.scroll_inverted:
-				factor = 0.8 if dy > 0 else 1.25
 
 			self.applyZoom(
 				event.position().toPoint(),
-				factor
+				(-factor if self.scroll_inverted else +factor)
 			)
 	
 	def viewportEvent(self, event: QEvent):
@@ -134,7 +127,7 @@ class CircuitView(QGraphicsView):
 			if gestEvent.gestureType() == Qt.NativeGestureType.ZoomNativeGesture:
 				self.applyZoom(
 					gestEvent.position().toPoint(),
-					1.0 + gestEvent.value()
+					1.0 + (-gestEvent.value() if self.scroll_inverted else +gestEvent.value())
 				)
 				return True
 		return super().viewportEvent(event)

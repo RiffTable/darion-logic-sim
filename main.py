@@ -60,7 +60,6 @@ class AppWindow(QMainWindow):
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
 		self.sidebar = ComponentSidebar(self)
 		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
-		self.scroll_inverted = False
 		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
@@ -70,31 +69,21 @@ class AppWindow(QMainWindow):
 		self.refreshIClist()
 
 	def refresh_theme(self):
-		theme.apply_palette(QApplication.instance())
+		theme.apply_palette(cast(QApplication, QApplication.instance()))
 		self.props_panel.apply_theme()
-		#self.sidebar.apply_theme()
+		# self.sidebar.apply_theme()
 		self.cscene.update()
 
 	def load_settings(self):
 		settings = QSettings()
-		self.scroll_inverted = cast(bool, settings.value("settings/invert_scroll", False, type=bool))
-		self.cscene.peeking_disabled = cast(bool, settings.value("settings/disable_peeking", False, type=bool))
-		self.grid_hidden = cast(bool, settings.value("settings/hide_grid", False, type=bool))
-
-		self.view.setScrollInverted(self.scroll_inverted)
-		self.cscene.setGridHidden(self.grid_hidden)
-	
+		self.setScrollInverted(bool(settings.value("settings/invert_scroll", False, type=bool)))
+		self.setPeekingDisabled(bool(settings.value("settings/disable_peeking", False, type=bool)))
+		self.cscene.setGridHidden(bool(settings.value("settings/hide_grid", False, type=bool)))
 	
 	def setScrollInverted(self, inverted: bool):
-		self.scroll_inverted = inverted
-		self.view.setScrollInverted(inverted)
-
+		self.view.scroll_inverted = inverted
 	def setPeekingDisabled(self, disabled: bool):
 		self.cscene.peeking_disabled = disabled
-
-	def setGridHidden(self, hidden: bool):
-		self.grid_hidden = hidden		
-		self.cscene.setGridHidden(hidden)
 
 	def update_props_position(self):
 		panel_x = self.x() + self.width() - self.props_panel.width() - 15
@@ -139,6 +128,10 @@ class AppWindow(QMainWindow):
 		Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
 		Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
 		Actions.add(self, "exit",    "Exit",    self.close,      SK.Quit)
+
+		Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, self.setScrollInverted)
+		Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, self.setPeekingDisabled)
+		Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", False, theme.set_theme)
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
@@ -160,6 +153,9 @@ class AppWindow(QMainWindow):
 
 		### Canvas functions
 		scene = self.cscene
+		Actions.addSettingsCheckable(view, "hide_grid", "Hide Grid", False, scene.setGridHidden)
+
+		Actions.add(view, "select_none", "Select None", scene.selectNone, SK.Deselect) # Ctrl+A
 		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
 		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)   # Ctrl+C
 		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)     # Ctrl+V
@@ -355,11 +351,6 @@ if __name__ == "__main__":
 	window.show()
 
 	# Starts with an empty canvas
-
 	QTimer.singleShot(100, window.update_props_position)
-
-	app.aboutToQuit.connect(
-		lambda: QSettings().setValue("main_window/geometry", window.saveGeometry())
-		)
-	
+	app.aboutToQuit.connect(lambda: QSettings().setValue("main_window/geometry", window.saveGeometry()))
 	sys.exit(app.exec())
