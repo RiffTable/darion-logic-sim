@@ -114,11 +114,13 @@ class CircuitView(QGraphicsView):
 			dy = angleDelta.y()
 			if abs(dy) <= 10: return
 
+			if self.scroll_inverted:
+				dy = -dy
+				
 			factor = 1.25 if dy > 0 else 0.8
 
 			self.applyZoom(
-				event.position().toPoint(),
-				(-factor if self.scroll_inverted else +factor)
+				event.position().toPoint(), factor
 			)
 	
 	def viewportEvent(self, event: QEvent):

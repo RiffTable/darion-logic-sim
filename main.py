@@ -82,6 +82,7 @@ class AppWindow(QMainWindow):
 	
 	def setScrollInverted(self, inverted: bool):
 		self.view.scroll_inverted = inverted
+		
 	def setPeekingDisabled(self, disabled: bool):
 		self.cscene.peeking_disabled = disabled
 

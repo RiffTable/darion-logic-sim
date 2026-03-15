@@ -68,7 +68,7 @@ class SettingsMenu(BaseMenu):
         self.setup_menu()
 
     def setup_menu(self):
-        Actions.get("invert_scroll")
-        Actions.get("disable_peeking")
-        Actions.get("hide_grid")
-        Actions.get("dark_theme")
+        self.addAction(Actions.get("invert_scroll"))
+        self.addAction(Actions.get("disable_peeking"))
+        self.addAction(Actions.get("hide_grid"))
+        self.addAction(Actions.get("dark_theme"))
