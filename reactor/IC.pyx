@@ -23,6 +23,11 @@ cdef class IC:
         self.map = []
         self.tag = ''
         self.description = ''
+        # Reserve gate_infolist upfront so the vector never reallocates.
+        # gate.info stores a raw C++ pointer into this vector's buffer;
+        # any reallocation would invalidate all existing gate.info pointers,
+        # causing heap corruption when connect/disconnect dereferences them.
+        self.gate_infolist.reserve(LIMIT)
 
     def __repr__(self):
         return self.codename if self.custom_name == '' else self.custom_name

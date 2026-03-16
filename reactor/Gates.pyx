@@ -103,6 +103,35 @@ cdef class Gate:
                     else:self.output = (high&1)^(gate_type&1)
                 else:
                     self.output = UNKNOWN
+        cdef CPP_Gate* info=self.info
+        if MODE == DESIGN:
+            info.output = UNKNOWN
+        else:
+            if info.type==VARIABLE_ID:
+                info.output=self.value
+            gate_type=info.type
+            if gate_type>=VARIABLE_ID:
+                if gate_type==VARIABLE_ID:
+                    info.output=self.value
+                else:
+                    source=<Gate>PyList_GET_ITEM(self.sources, 0)
+                    if source is None:
+                        info.output=UNKNOWN
+                    elif source.output>=ERROR:
+                        info.output=source.output
+                    else:
+                        info.output=source.output^(gate_type==NOT_ID)
+            else:
+                book = info.book
+                high = book[HIGH]
+                low = book[LOW]
+                realsource = high+low
+                if likely(realsource==limit) or unlikely(realsource and realsource+book[ERROR]+book[UNKNOWN]==limit):
+                    if gate_type<=NAND_ID:info.output = (low==0)^(gate_type&1)
+                    elif gate_type<=NOR_ID:info.output = (high>0)^(gate_type&1)
+                    else:info.output = (high&1)^(gate_type&1)
+                else:
+                    info.output = UNKNOWN
        
     cpdef void rename(self,str name):
         self.custom_name = name
@@ -164,12 +193,15 @@ cdef class Gate:
 
     cdef void hide(self):
         # disconnect from targets (this gate's outputs)
+        # Only iterate the Python-side hitlist; propagate()/burn() only use it.
+        # Iterating info.hitlist as well would double-decrement target book counts.
         cdef CPP_Gate* info=self.info
         cdef Py_ssize_t i
         cdef Py_ssize_t n=self.hitlist.size()
         cdef Profile* hitlist = self.hitlist.data()
         for i in range(n):
             hide(hitlist[i])
+        # Mirror the state reset on the C++ shadow hitlist profiles
         n=info.hitlist.size()
         hitlist = info.hitlist.data()
         for i in range(n):
@@ -185,7 +217,7 @@ cdef class Gate:
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
                     source_info=source.info
-                    pop(self.hitlist, <void*>source, i)
+                    pop(source.hitlist, <void*>self, i)
                     pop(source_info.hitlist, <void*>self, i)
         self.output=UNKNOWN
         cdef uint16_t* book
@@ -214,13 +246,17 @@ cdef class Gate:
                     self.info.book[source_info.output]+=1
                     self.book[source.output]+=1
         n=self.hitlist.size()
-        # reconnect to targets (this gate's outputs)
+        # reconnect to targets via Python-side hitlist only.
+        # Do NOT also iterate info.hitlist — that would double-increment
+        # target.book[UNKNOWN] and double-set target.sources, corrupting
+        # the book counts and preventing simulation from converging.
         for i in range(n):
-            reveal(hitlist[i], self)    
+            reveal(hitlist[i], self)
+
         n=info.hitlist.size()
         hitlist = info.hitlist.data()
         for i in range(n):
-            reveal(hitlist[i], self)    
+            reveal(hitlist[i], self)
         self.process()
 
     cpdef bint setlimits(self,int size):
