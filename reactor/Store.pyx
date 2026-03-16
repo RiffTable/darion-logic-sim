@@ -19,13 +19,15 @@ cdef tuple namelist=(
 
 cdef object get(int choice, vector[CPP_Gate]& gate_infolist):
     cdef Gate gate
-    cdef int location
+    cdef uint16_t lim
     if choice==IC_ID:return IC(choice,namelist[choice])
-    else:        
+    else:
         gate = Gate(choice,namelist[choice])
-        gate_infolist.emplace_back(CPP_Gate(<void*>gate,choice))
-        gate.info = &gate_infolist.back()
-        return gate    
+        # inputlimit: gates with id >= VARIABLE_ID are single-input (1), others are 2
+        lim = 1 if choice >= VARIABLE_ID else 2
+        gate_infolist.emplace_back(CPP_Gate(<void*>gate, choice, lim))
+        gate.info = gate_infolist.size()-1
+        return gate
 
 
 cdef tuple decode(object code):

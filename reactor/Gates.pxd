@@ -35,60 +35,51 @@ cdef class Variable
 
 cdef extern from "Profile.h":
     cdef cppclass Profile:
-        void* target
+        int target
         int index
         int output
         Profile()
-        Profile(void* target, int pin_index, int output)
+        Profile(int target, int pin_index, int output)
     cdef cppclass CPP_Gate:
         void* gate
         uint8_t type
         uint8_t output
         uint8_t value
         uint8_t scheduled
+        uint16_t inputlimit
         uint16_t book[4]
         vector[Profile] hitlist
         CPP_Gate()
-        CPP_Gate(void* g, uint8_t t)
+        CPP_Gate(void* g, uint8_t t, uint16_t lim)
 
 cdef void hide(Profile& profile)
-cdef void reveal(Profile& profile,Gate source)
-cdef void pop(vector[Profile]& hitlist, void* target, int pin_index)
+cdef void reveal(Profile& profile, Gate source, vector[CPP_Gate]& gate_infolist)
+cdef void pop(vector[Profile]& hitlist, int target, int pin_index)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
     cdef public uint8_t id
-    cdef public uint16_t inputlimit
-    cdef public uint8_t output
-    cdef public uint8_t value
-    cdef public bint scheduled
-    cdef CPP_Gate* info
-    
-    # --- 4-BYTE ALIGNED CONTINUED (ARRAYS) ---
-    cdef public uint16_t book[4]
-    
-    # --- 8-BYTE ALIGNED (C++ VECTORS) ---
-    cdef vector[Profile] hitlist
-    cdef public list sources
+    cdef int info
     
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
+    cdef public list sources
     cdef public tuple code
     cdef public str codename
     cdef public str custom_name
 
-    cdef void process(self)
+    cdef void process(self, vector[CPP_Gate]& gate_infolist)
     cpdef void rename(self, str name)
 
-    cdef void connect(self, Gate source, int index)
-    cdef void disconnect(self, int index)
-    cdef void reset(self)
-    cdef void hide(self)
-    cdef void reveal(self)
-    cpdef bint setlimits(self, int size)
+    cdef void connect(self, Gate source, int index, vector[CPP_Gate]& gate_infolist)
+    cdef void disconnect(self, int index, vector[CPP_Gate]& gate_infolist)
+    cdef void reset(self, vector[CPP_Gate]& gate_infolist)
+    cdef void hide(self, vector[CPP_Gate]& gate_infolist)
+    cdef void reveal(self, vector[CPP_Gate]& gate_infolist)
+    cdef bint setlimits(self, int size, vector[CPP_Gate]& gate_infolist)
     cpdef str getoutput(self)
-    cpdef list full_data(self)
-    cpdef list partial_data(self)
-    cpdef void clone(self, list dictionary, dict pseudo)
+    cdef list full_data(self, vector[CPP_Gate]& gate_infolist)
+    cdef list partial_data(self, vector[CPP_Gate]& gate_infolist)
+    cdef void clone(self, list dictionary, dict pseudo, vector[CPP_Gate]& gate_infolist)
     cpdef void load_to_cluster(self, list cluster)
 
 cdef class Variable(Gate):

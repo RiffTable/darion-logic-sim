@@ -4,8 +4,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: nonecheck=False
-from Gates cimport Gate, Probe, Profile, hide, reveal, pop
-from Store cimport get,decode
+from Gates cimport Gate, Probe, Profile, CPP_Gate, hide, reveal, pop, vector
+from Store cimport get, decode
 from Const cimport *
 
 cdef class IC:
@@ -24,9 +24,6 @@ cdef class IC:
         self.tag = ''
         self.description = ''
         # Reserve gate_infolist upfront so the vector never reallocates.
-        # gate.info stores a raw C++ pointer into this vector's buffer;
-        # any reallocation would invalidate all existing gate.info pointers,
-        # causing heap corruption when connect/disconnect dereferences them.
         self.gate_infolist.reserve(LIMIT)
 
     def __repr__(self):
@@ -38,31 +35,31 @@ cdef class IC:
     cpdef object getcomponent(self, int choice):
         cdef object gt = get(choice, self.gate_infolist)
         if gt:
-            self.counter+=1
-            if gt.id==INPUT_PIN_ID:
+            self.counter += 1
+            if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-            elif gt.id==OUTPUT_PIN_ID:
+            elif gt.id == OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
             else:
                 rank = len(self.internal)
                 self.internal.append(gt)
-            gt.codename = gt.codename+'-'+str(rank)
+            gt.codename = gt.codename + '-' + str(rank)
             gt.code = (choice, rank, self.code)
         return gt
 
     cpdef void addgate(self, object source):
-        if source.id==INPUT_PIN_ID:
+        if source.id == INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-        elif source.id==OUTPUT_PIN_ID:
+        elif source.id == OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
         else:
             rank = len(self.internal)
             self.internal.append(source)
-        source.codename = source.codename+'-'+str(rank)
+        source.codename = source.codename + '-' + str(rank)
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):
@@ -83,26 +80,23 @@ cdef class IC:
             gate = self.getcomponent(comp_code[0])
             pseudo[decode(comp_code)] = gate
 
-
-
     cpdef void clone(self, dict pseudo):
         cdef object gate
         cdef object code
-
         for i in self.map:
             code = decode(i[CODE])
             gate = pseudo[code]
-            gate.clone(i, pseudo)
+            (<Gate>gate).clone(i, pseudo, self.gate_infolist)
 
     cpdef void load_to_cluster(self, list cluster):
         cdef Gate i
-        for i in self.outputs+self.inputs+self.internal:
+        for i in self.outputs + self.inputs + self.internal:
             cluster.append(i)
-            i.scheduled=True
- 
+            i.scheduled = True
+
     cpdef list full_data(self):
         cdef Gate i
-        cdef list dictionary = [            
+        cdef list dictionary = [
             self.custom_name,
             self.code,
             [],
@@ -110,14 +104,14 @@ cdef class IC:
             self.tag,
             self.description
         ]
-        for i in self.inputs+self.outputs+self.internal:
+        for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.full_data())
+            dictionary[MAP].append(i.full_data(self.gate_infolist))
         return dictionary
 
     cpdef list partial_data(self):
         cdef Gate i
-        cdef list dictionary = [            
+        cdef list dictionary = [
             self.custom_name,
             self.code,
             [],
@@ -125,11 +119,10 @@ cdef class IC:
             self.tag,
             self.description
         ]
-        for i in self.inputs+self.outputs+self.internal:
+        for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.partial_data())
+            dictionary[MAP].append(i.partial_data(self.gate_infolist))
         return dictionary
-
 
     cpdef void implement(self, dict pseudo):
         cdef object gate
@@ -137,55 +130,63 @@ cdef class IC:
         for i in self.map:
             code = decode(i[CODE])
             gate = pseudo[code]
-            gate.clone(i, pseudo)
+            (<Gate>gate).clone(i, pseudo, self.gate_infolist)
 
     cpdef void hide(self):
-        cdef Gate pin_out
-        cdef Gate pin_in
+        cdef Gate pin_out, pin_in, src
+        cdef CPP_Gate* pin_out_info
+        cdef CPP_Gate* src_info
         cdef Profile* hitlist
         cdef int index
-        cdef int loc
-        cdef size_t i
-        cdef size_t size
-        cdef Gate src
-        cdef Gate target
+        cdef size_t i, sz
+
+        # Disconnect outputs from external targets
         for pin_out in self.outputs:
-            hitlist = pin_out.hitlist.data()
-            size = pin_out.hitlist.size()
-            for i in range(size):
+            pin_out_info = &self.gate_infolist[pin_out.info]
+            hitlist = pin_out_info.hitlist.data()
+            sz = pin_out_info.hitlist.size()
+            for i in range(sz):
                 hide(hitlist[i])
+
+        # Disconnect inputs from external sources
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
                 if source is not None:
                     src = <Gate>source
-                    pop(src.hitlist, <void*>pin_in, index)
+                    src_info = &self.gate_infolist[src.info]
+                    pop(src_info.hitlist, pin_in.info, index)
 
     cpdef void reveal(self):
-        cdef Gate pin_in
-        cdef Gate pin_out
-        cdef int index
-        cdef int loc
+        cdef Gate pin_in, pin_out, source
+        cdef CPP_Gate* pin_in_info
+        cdef CPP_Gate* pin_out_info
+        cdef CPP_Gate* src_info
         cdef Profile* hitlist
-        cdef size_t i
-        cdef size_t size
-        cdef Gate src
-        for pin_in in self.inputs:
-            source=<Gate>pin_in.sources[0]
-            if source is not None:
-                source.hitlist.emplace_back(<void*>pin_in, 0, source.output)
-            pin_in.process()
+        cdef size_t i, sz
 
-            pin_in.process()
+        # Re-register in external source hitlists
+        for pin_in in self.inputs:
+            pin_in_info = &self.gate_infolist[pin_in.info]
+            source = <Gate>pin_in.sources[0]
+            if source is not None:
+                src_info = &self.gate_infolist[source.info]
+                src_info.hitlist.emplace_back(pin_in.info, 0, src_info.output)
+            pin_in.process(self.gate_infolist)
+
+        # Reconnect output targets via hitlist
         for pin_out in self.outputs:
-            hitlist = pin_out.hitlist.data()
-            size = pin_out.hitlist.size()
-            for i in range(size):
-                reveal(hitlist[i], pin_out)      
+            pin_out_info = &self.gate_infolist[pin_out.info]
+            hitlist = pin_out_info.hitlist.data()
+            sz = pin_out_info.hitlist.size()
+            for i in range(sz):
+                reveal(hitlist[i], pin_out, self.gate_infolist)
 
     cpdef void reset(self):
-        for i in self.inputs+self.internal+self.outputs:
-            if i.id!=IC_ID:
-                (<Gate>i).reset()
+        cdef Gate g
+        for i in self.inputs + self.internal + self.outputs:
+            if i.id != IC_ID:
+                g = <Gate>i
+                g.reset(self.gate_infolist)
             else:
                 (<IC>i).reset()
 
@@ -196,40 +197,54 @@ cdef class IC:
     cpdef void showoutputpins(self):
         for i, gate in enumerate(self.outputs):
             print(f'{i}. {gate}')
-    # cdef purge(self):
-    #     for i in self.inputs+self.internal+self.outputs:
-    #         i.purge()
+
     cpdef void info(self):
         """Show all IC components in an organized way."""
+        cdef Gate pin
+        cdef CPP_Gate* pin_info
+        cdef Profile* p
+        cdef Profile* pend
         print(f"\n  IC: {self.codename} (Code: {self.code})")
         print("  " + "-" * 40)
 
         if self.inputs:
             print("  INPUTS:")
-            print("  INPUTS:")
             for pin in self.inputs:
-                targets = [str(target) for target in pin.hitlist]
+                targets = []
+                pin_info = &self.gate_infolist[pin.info]
+                p = pin_info.hitlist.data()
+                pend = p + pin_info.hitlist.size()
+                while p < pend:
+                    targets.append(str(<Gate>self.gate_infolist[p.target].gate))
+                    p += 1
                 print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         if self.internal:
             print("  INTERNAL:")
             for comp in self.internal:
-                if comp.id==IC_ID:
+                if comp.id == IC_ID:
                     (<IC>comp).info()
                 else:
-                    if isinstance(comp.sources, list):
-                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
+                    pin = <Gate>comp
+                    if isinstance(pin.sources, list):
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(pin.sources) if c is not None]
                         ch_str = ", ".join(ch) if ch else "None"
                     else:
-                        ch_str = f"val:{comp.sources}"
-                    # Targets
-                    tgt = [str(target) for target in comp.hitlist]
+                        ch_str = f"val:{pin.sources}"
+                    tgt = []
+                    pin_info = &self.gate_infolist[pin.info]
+                    p = pin_info.hitlist.data()
+                    pend = p + pin_info.hitlist.size()
+                    while p < pend:
+                        tgt.append(str(<Gate>self.gate_infolist[p.target].gate))
+                        p += 1
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
         if self.outputs:
             print("  OUTPUTS:")
             for pin in self.outputs:
+                pin = <Gate>pin
                 if isinstance(pin.sources, list):
                     ch = [f"{c}" for c in pin.sources if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
