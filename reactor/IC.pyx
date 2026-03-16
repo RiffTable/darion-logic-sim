@@ -31,7 +31,7 @@ cdef class IC:
         return self.codename if self.custom_name == '' else self.custom_name
 
     cpdef object getcomponent(self, int choice):
-        cdef object gt = get(choice)
+        cdef object gt = get(choice, self.gate_infolist)
         if gt:
             self.counter+=1
             if gt.id==INPUT_PIN_ID:

@@ -1,5 +1,5 @@
 # distutils: language = c++
-from Gates cimport Gate, Variable,Profile
+from Gates cimport Gate, Variable,Profile,CPP_Gate
 from libcpp.vector cimport vector
 from Const cimport LIMIT
 from IC cimport IC
@@ -10,6 +10,7 @@ cdef class Circuit:
     cdef public int counter
     cdef public unsigned long long eval_count
     cdef void* queue[2][LIMIT]
+    cdef vector[CPP_Gate] gate_infolist
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef list get_components(self)

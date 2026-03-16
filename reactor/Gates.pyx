@@ -36,6 +36,7 @@ cdef class Gate:
     def __init__(self, int id, str name):
         self.id = id
         self.codename = name
+        self.info=NULL
         if id >= VARIABLE_ID:
             self.inputlimit = 1
             self.sources: list = [None]
@@ -106,59 +107,93 @@ cdef class Gate:
     cpdef void rename(self,str name):
         self.custom_name = name
 
-    cdef void connect(self, Gate source, int index):
+    cdef void connect(self, Gate source,int index):
         if self.id==VARIABLE_ID or self.sources[index] is not None:
             return
+        cdef CPP_Gate* source_info=source.info
+        cdef CPP_Gate* self_info=self.info
+        source_info.hitlist.emplace_back(<void*>self, index, source.output)
         source.hitlist.emplace_back(<void*>self, index, source.output)
         self.sources[index] = source
         self.book[source.output] += 1
+        self_info.book[source_info.output] += 1
+        self_info.output = source.output
         if source.output==ERROR:
             self.output = ERROR
+            self_info.output=ERROR
         else:
             self.process()
     cdef void disconnect(self,int index):
         if self.id==VARIABLE_ID or self.sources[index] is None:
             return
         cdef Gate source = self.sources[index]
+        cdef CPP_Gate* source_info=source.info
+        cdef CPP_Gate* self_info=self.info
+        pop(source_info.hitlist, <void*>self, index)
         pop(source.hitlist, <void*>self, index)
         self.sources[index] = None
+        self_info.book[self_info.output] -= 1
         self.book[source.output] -= 1
+        self_info.output = UNKNOWN
         self.output=UNKNOWN
    
     cdef void reset(self):
         cdef uint16_t* book
+        cdef CPP_Gate* info=self.info
         if self.id<VARIABLE_ID:
             book = self.book
             book[3] += book[0] + book[1] + book[2]
             book[0] = book[1] = book[2] = 0
+        # dod
+        if self.id<VARIABLE_ID:
+            book = info.book
+            book[3] += book[0] + book[1] + book[2]
+            book[0] = book[1] = book[2] = 0
         self.output = UNKNOWN
+        info.output=UNKNOWN
         cdef Profile* profile = self.hitlist.data()
         cdef Profile* end = profile + self.hitlist.size()
+        while profile<end:
+            profile.output=UNKNOWN
+            profile+=1
+        profile = info.hitlist.data()
+        end = profile + info.hitlist.size()
         while profile<end:
             profile.output=UNKNOWN
             profile+=1
 
     cdef void hide(self):
         # disconnect from targets (this gate's outputs)
+        cdef CPP_Gate* info=self.info
         cdef Py_ssize_t i
         cdef Py_ssize_t n=self.hitlist.size()
         cdef Profile* hitlist = self.hitlist.data()
         for i in range(n):
             hide(hitlist[i])
-        
+        n=info.hitlist.size()
+        hitlist = info.hitlist.data()
+        for i in range(n):
+            hide(hitlist[i])
         # disconnect from sources (this gate's inputs)
         cdef list sources=self.sources
+        
         n=len(sources)
         cdef Gate source
+        cdef CPP_Gate* source_info
         if self.id!=VARIABLE_ID:
             for i in range(n):
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
-                    pop(source.hitlist, <void*>self, i)
+                    source_info=source.info
+                    pop(self.hitlist, <void*>source, i)
+                    pop(source_info.hitlist, <void*>self, i)
         self.output=UNKNOWN
         cdef uint16_t* book
         if self.id<VARIABLE_ID:
             book = self.book
+            book[0] = book[1] = book[2] = book[3] = 0
+        if self.id<VARIABLE_ID:
+            book = info.book
             book[0] = book[1] = book[2] = book[3] = 0
 
     cdef void reveal(self):
@@ -167,16 +202,25 @@ cdef class Gate:
         cdef list sources=self.sources
         cdef Py_ssize_t n=len(sources)
         cdef Gate source
+        cdef CPP_Gate* source_info
+        cdef CPP_Gate* info=self.info
         if self.id!=VARIABLE_ID:
             for i in range(n):
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
+                    source_info=source.info
                     source.hitlist.emplace_back(<void*>self, i, source.output)
+                    source_info.hitlist.emplace_back(<void*>self, i, self.output)
+                    self.info.book[source_info.output]+=1
                     self.book[source.output]+=1
         n=self.hitlist.size()
         # reconnect to targets (this gate's outputs)
         for i in range(n):
-            reveal(hitlist[i], self)        
+            reveal(hitlist[i], self)    
+        n=info.hitlist.size()
+        hitlist = info.hitlist.data()
+        for i in range(n):
+            reveal(hitlist[i], self)    
         self.process()
 
     cpdef bint setlimits(self,int size):

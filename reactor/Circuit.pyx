@@ -26,7 +26,7 @@ cdef class Circuit:
         return 'Circuit'
 
     cpdef object getcomponent(self,int choice):
-        gt = get(choice)
+        gt = get(choice,self.gate_infolist)
         if gt:
             self.counter+=1
             rank = len(self.objlist[choice])

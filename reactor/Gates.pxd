@@ -40,6 +40,16 @@ cdef extern from "Profile.h":
         int output
         Profile()
         Profile(void* target, int pin_index, int output)
+    cdef cppclass CPP_Gate:
+        void* gate
+        uint8_t type
+        uint8_t output
+        uint8_t value
+        uint8_t scheduled
+        uint16_t book[4]
+        vector[Profile] hitlist
+        CPP_Gate()
+        CPP_Gate(void* g, uint8_t t)
 
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
@@ -52,6 +62,7 @@ cdef class Gate:
     cdef public uint8_t output
     cdef public uint8_t value
     cdef public bint scheduled
+    cdef CPP_Gate* info
     
     # --- 4-BYTE ALIGNED CONTINUED (ARRAYS) ---
     cdef public uint16_t book[4]

@@ -1,6 +1,6 @@
 # distutils: language = c++
 from libcpp.vector cimport vector
-from Gates cimport Gate, Profile
+from Gates cimport Gate, Profile,CPP_Gate
 
 cdef class IC:
     cdef public list inputs
@@ -14,6 +14,7 @@ cdef class IC:
     cdef public int counter
     cdef public str tag
     cdef public str description
+    cdef vector[CPP_Gate] gate_infolist
 
     cpdef object getcomponent(self, int choice)
     cpdef void addgate(self, object source)
