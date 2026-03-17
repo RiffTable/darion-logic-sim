@@ -91,7 +91,7 @@ cdef class IC:
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
             cluster.append(i)
-            i.info_ptr.scheduled = True
+            i.info_ptr[0][i.info].scheduled = True
 
     cpdef list full_data(self):
         cdef Gate i
@@ -142,7 +142,7 @@ cdef class IC:
         # Disconnect outputs from external targets
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         for pin_out in self.outputs:
-            pin_out_info = pin_out.info_ptr
+            pin_out_info = &gate_infolist[pin_out.info]
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
@@ -153,7 +153,7 @@ cdef class IC:
             for index, source in enumerate(pin_in.sources):
                 if source is not None:
                     src = <Gate>source
-                    src_info = src.info_ptr
+                    src_info = &gate_infolist[src.info]
                     pop(src_info.hitlist, pin_in.info, index)
 
     cpdef void reveal(self):
@@ -163,19 +163,20 @@ cdef class IC:
         cdef CPP_Gate* src_info
         cdef Profile* hitlist
         cdef size_t i, sz
-
+        cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         # Re-register in external source hitlists
+
         for pin_in in self.inputs:
-            pin_in_info = pin_in.info_ptr
+            pin_in_info = &gate_infolist[pin_in.info]
             source = <Gate>pin_in.sources[0]
             if source is not None:
-                src_info = source.info_ptr
+                src_info = &gate_infolist[source.info]
                 src_info.hitlist.emplace_back(pin_in.info, 0, src_info.output)
             pin_in.process()
 
         # Reconnect output targets via hitlist
         for pin_out in self.outputs:
-            pin_out_info = pin_out.info_ptr
+            pin_out_info = &gate_infolist[pin_out.info]
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
@@ -206,16 +207,16 @@ cdef class IC:
         cdef Profile* pend
         print(f"\n  IC: {self.codename} (Code: {self.code})")
         print("  " + "-" * 40)
-
+        cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         if self.inputs:
             print("  INPUTS:")
             for pin in self.inputs:
                 targets = []
-                pin_info = pin.info_ptr
+                pin_info = &gate_infolist[pin.info]
                 p = pin_info.hitlist.data()
                 pend = p + pin_info.hitlist.size()
                 while p < pend:
-                    targets.append(str(<Gate>self.gate_infolist[p.target].gate))
+                    targets.append(str(<Gate>gate_infolist[p.target].gate))
                     p += 1
                 print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
@@ -232,11 +233,11 @@ cdef class IC:
                     else:
                         ch_str = f"val:{pin.sources}"
                     tgt = []
-                    pin_info = pin.info_ptr
+                    pin_info = &gate_infolist[pin.info]
                     p = pin_info.hitlist.data()
                     pend = p + pin_info.hitlist.size()
                     while p < pend:
-                        tgt.append(str(<Gate>self.gate_infolist[p.target].gate))
+                        tgt.append(str(<Gate>gate_infolist[p.target].gate))
                         p += 1
                     tgt_str = ", ".join(tgt) if tgt else "None"
                     print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")

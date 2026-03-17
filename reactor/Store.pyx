@@ -9,8 +9,8 @@ cdef tuple namelist=(
     'NOR',
     'XOR',
     'XNOR',
-    'NOT',
     'Variable',
+    'NOT',
     'Probe',
     'In',
     'Out',
@@ -30,7 +30,7 @@ cdef object get(int choice, vector[CPP_Gate]& gate_infolist):
         lim = 1 if choice >= VARIABLE_ID else 2
         gate_infolist.emplace_back(CPP_Gate(<void*>gate, choice, lim))
         gate.info = gate_infolist.size()-1
-        gate.info_ptr = &gate_infolist[gate.info]
+        gate.info_ptr = &gate_infolist
         return gate
 
 

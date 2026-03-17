@@ -60,7 +60,7 @@ cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
     cdef public uint8_t id
     cdef int info
-    cdef CPP_Gate* info_ptr
+    cdef vector[CPP_Gate]* info_ptr
     
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public list sources
