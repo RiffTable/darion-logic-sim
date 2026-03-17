@@ -442,17 +442,22 @@ cdef class Circuit:
 
     cpdef void ic_pin_change(self):
         cdef Gate var, probe
+        cdef CPP_Gate* info
         for var in self.objlist[VARIABLE_ID]:
             if var is not None:
+                info = &self.gate_infolist[var.info]
                 var.code = (INPUT_PIN_ID, len(self.objlist[INPUT_PIN_ID]))
                 var.id = INPUT_PIN_ID
+                info.type = INPUT_PIN_ID
                 self.objlist[INPUT_PIN_ID].append(var)
         self.objlist[VARIABLE_ID].clear()
 
         for probe in self.objlist[PROBE_ID]:
             if probe is not None:
+                info = &self.gate_infolist[probe.info]
                 probe.code = (OUTPUT_PIN_ID, len(self.objlist[OUTPUT_PIN_ID]))
                 probe.id = OUTPUT_PIN_ID
+                info.type = OUTPUT_PIN_ID
                 self.objlist[OUTPUT_PIN_ID].append(probe)
         self.objlist[PROBE_ID].clear()
 
