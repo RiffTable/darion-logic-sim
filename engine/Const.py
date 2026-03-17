@@ -9,7 +9,6 @@ DESIGN = 0
 SIMULATE = 1
 
 
-UI_MODE = False
 
 LIMIT = 500_000
 

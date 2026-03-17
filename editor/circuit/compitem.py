@@ -63,7 +63,6 @@ class CompItem(QGraphicsItem):
 
 		if self.LOGIC != Const.IC_ID:
 			self._unit = cast(Any, logic.getcomponent(self.LOGIC))
-			self._unit.listener.append(self.unitStateChanged)
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
@@ -97,6 +96,8 @@ class CompItem(QGraphicsItem):
 		#    => getData, get/set Properties
 		#    => pinUpdate, proxyPin, betterHoverEnter, betterHoverLeave
 		#    => draw
+
+		self._last_rendered_value = None
 
 
 	@property

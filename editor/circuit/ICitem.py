@@ -53,11 +53,10 @@ class ICitem(CompItem):
 		for i, inpin in enumerate(self._unit.inputs):
 			pin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][i])
 			pin.setLogical(inpin)
-		
+
 		for i, outpin in enumerate(self._unit.outputs):
 			pin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][i])
 			pin.setLogical(outpin)
-			outpin.listener.append(pin.logicalStateChanged)
 
 
 

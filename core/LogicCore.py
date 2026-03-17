@@ -22,4 +22,3 @@ else:
 
 logic = Circuit()
 logic.simulate(Const.SIMULATE)
-logic.set_UI_MODE(True)

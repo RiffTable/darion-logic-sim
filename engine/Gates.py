@@ -49,7 +49,7 @@ class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
         'output', 'scheduled', 'id', 'code', 'codename', 'custom_name',
-        'listener','value',
+        'value',
     ]
 
     def __init__(self,id:int,name:str):
@@ -68,7 +68,6 @@ class Gate:
         self.scheduled: bool = False
         self.code: tuple = ()
         self.custom_name: str = ''
-        self.listener = []
 
     def __repr__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name
@@ -76,11 +75,6 @@ class Gate:
     def __str__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name
 
-    def update_ui(self):
-        for func in self.listener:
-            if func is None:
-                continue
-            func(self.output)
 
     def process(self):
         """Calculate output from book counts."""

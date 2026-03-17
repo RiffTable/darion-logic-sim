@@ -25,9 +25,7 @@ class Circuit:
         self.queue: list = [[None] * LIMIT, [None] * LIMIT]  # double buffer: fixed [2][LIMIT]
         self.eval_count = 0
 
-    def set_UI_MODE(self, mode):
-        global UI_MODE
-        UI_MODE = mode
+
 
     def __repr__(self):
         return 'Circuit'
@@ -563,11 +561,6 @@ class Circuit:
                             write_buf[write_end] = target
                             write_end += 1
                         profile.output = ERROR
-            if UI_MODE:
-                for i in range(read_end):
-                    gate = read_buf[i]
-                    for listener in gate.listener:
-                        listener(gate.output)
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
 
@@ -633,11 +626,6 @@ class Circuit:
 
                         profile.output = new_output
 
-            if UI_MODE:
-                for i in range(read_end):
-                    gate = read_buf[i]
-                    for listener in gate.listener:
-                        listener(gate.output)
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
 

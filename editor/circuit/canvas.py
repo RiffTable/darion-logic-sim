@@ -45,7 +45,36 @@ class CircuitScene(QGraphicsScene):
 		self.ghostPin.setAcceptedMouseButtons(MouseBtn.NoButton)
 
 		self.addItem(self.ghostPin)
+		# adding timer system for auto refresh
+		self.ui_update_timer = QTimer(self)
+		self.ui_update_timer.timeout.connect(self.poll_ui_state)
+		self.ui_update_timer.start(16) # ~60 FPS (16ms)
 
+	def poll_ui_state(self):
+		"""Called every frame (~60fps). Fully decoupled from backend listeners.
+		- Regular gates: polls unit.output, fires unitStateChanged on change
+		  (which cascades to output pin and any connected wires).
+		- ICitems: polls each output pin's underlying Gate individually,
+		  fires logicalStateChanged on the pin directly when it changes.
+		  pin.state is used as the last-rendered sentinel (set by logicalStateChanged)."""
+		for comp in self.comps:
+			unit = comp._unit
+			if unit is None:
+				continue
+
+			if comp.LOGIC == Const.IC_ID:
+				# IC has multiple output gates — poll each output pin separately
+				for pin in comp._pinslist[CompEdge.OUTPUT]:
+					if pin.logical is not None:
+						current = pin.logical.output
+						if current != pin.state:
+							pin.logicalStateChanged(current)
+			else:
+				# Regular gate: single unit output drives unitStateChanged
+				current = unit.output
+				if current != comp._last_rendered_value:
+					comp._last_rendered_value = current
+					comp.unitStateChanged(current)
 
 	def setGridHidden(self, hidden: bool):
 		self.grid_hidden = hidden
