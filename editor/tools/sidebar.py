@@ -4,9 +4,9 @@ import editor.theme as theme
 class CategorySection(QWidget):
     def __init__(self, title, parent=None):
         super().__init__(parent)
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(0)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
         self.toggle = QPushButton(title)
         self.toggle.setCheckable(True)
@@ -18,8 +18,8 @@ class CategorySection(QWidget):
         self.content.setVisible(False)
         
         self.buttons = []
-        self.layout.addWidget(self.toggle)
-        self.layout.addWidget(self.content)
+        self.main_layout.addWidget(self.toggle)
+        self.main_layout.addWidget(self.content)
         self.toggle.toggled.connect(self.content.setVisible)
         
         theme.theme_changed.connect(self.apply_theme)
@@ -128,7 +128,7 @@ class ComponentSidebar(QWidget):
         colors = theme.get_theme()
         
         self.search.setStyleSheet(self.get_search_style(colors))
-        self.scroll.setStyleSheet(self.get_scroll_style())
+        self.scroll_area.setStyleSheet(self.get_scroll_style())
 
     def get_search_style(self, colors):
         return f"""
@@ -171,19 +171,19 @@ class ComponentSidebar(QWidget):
         self.search.setPlaceholderText("Search components...")
         
         clear = QAction("✕", self)
-        self.search.addAction(clear, QLineEdit.TrailingPosition)
+        self.search.addAction(clear, QLineEdit.ActionPosition.TrailingPosition)
         clear.triggered.connect(self.clear_search)
         self.search.textChanged.connect(lambda: self.search_timer.start())
         layout.addWidget(self.search)
 
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
         
         container = QWidget()
         self.menu = QVBoxLayout(container)
         self.menu.setContentsMargins(0, 0, 0, 0)
         self.menu.setSpacing(0)
-        self.menu.setAlignment(Qt.AlignTop)
+        self.menu.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         categories = [
             ("Gates", [("NOT",0), ("AND",1), ("NAND",2), ("OR",3), ("NOR",4), ("XOR",5), ("XNOR",6)]),
@@ -200,8 +200,8 @@ class ComponentSidebar(QWidget):
             self.menu.addWidget(section)
             self.sections.append(section)
 
-        self.scroll.setWidget(container)
-        layout.addWidget(self.scroll)
+        self.scroll_area.setWidget(container)
+        layout.addWidget(self.scroll_area)
 
     def apply_filter(self):
         text = self.search.text().strip()
