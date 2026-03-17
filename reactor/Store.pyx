@@ -1,4 +1,5 @@
-from Gates cimport Gate,NOT, Variable, Probe
+from Gates cimport Gate,CPP_Gate,vector
+from libcpp.vector cimport vector
 from IC cimport IC
 from Const cimport *
 cdef tuple namelist=(
@@ -16,13 +17,21 @@ cdef tuple namelist=(
     'IC',
 )
 
-cdef object get(int choice):
-    if DEBUG:
-        if choice==IC_ID:return IC(choice,namelist[choice])
-        else:return Gate(choice,namelist[choice])
+cdef object get(int choice, vector[CPP_Gate]& gate_infolist):
+    cdef Gate gate
+    cdef uint16_t lim
+    cdef IC ic
+    if choice==IC_ID:
+        ic = IC(choice,namelist[choice])
+        ic.gate_infolist_ptr = &gate_infolist
+        return ic
     else:
-        if choice==IC_ID:return IC(choice,None)
-        else:return Gate(choice,None)
+        gate = Gate(choice,namelist[choice])
+        lim = 1 if choice >= VARIABLE_ID else 2
+        gate_infolist.emplace_back(CPP_Gate(<void*>gate, choice, lim))
+        gate.info = gate_infolist.size()-1
+        gate.info_ptr = &gate_infolist[gate.info]
+        return gate
 
 
 cdef tuple decode(object code):
