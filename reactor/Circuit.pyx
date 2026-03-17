@@ -254,7 +254,7 @@ cdef class Circuit:
         OUT_MAP = [
             "F".center(col_width),
             "T".center(col_width),
-            "1/0".center(col_width),
+            "E".center(col_width),
             "X".center(col_width)
         ]
 

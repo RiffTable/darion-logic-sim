@@ -250,7 +250,7 @@ cdef class Gate:
         cdef int output=self.info_ptr[0][self.info].output
         if output == HIGH: return 'T'
         elif output == LOW: return 'F'
-        elif output == ERROR: return 'T/F'
+        elif output == ERROR: return 'E'
         else: return 'X'
         
     cpdef list full_data(self):
