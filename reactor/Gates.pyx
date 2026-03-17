@@ -54,7 +54,8 @@ cdef class Gate:
 
     def __str__(self):
         return self.codename if self.custom_name == '' else self.custom_name
-
+    def __int__(self):
+        return self.id
     @property
     def hitlist(self):
         cdef list targets = []

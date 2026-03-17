@@ -84,21 +84,21 @@ cdef class Circuit:
         cdef int prev = info.output
         target.connect(source, index)
         if prev != info.output:
-            self.propagate(target)
+            self.propagate(target.info)
 
     cpdef void toggle(self, Gate target, int value):
         cdef CPP_Gate* info = &self.gate_infolist[target.info]
         if value != info.output:
             info.value = value
             info.output = value if MODE == SIMULATE else UNKNOWN
-            self.propagate(target)
+            self.propagate(target.info)
 
     cpdef void disconnect(self, Gate target, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.info]
         cdef int prev = info.output
         target.disconnect(index)
         if prev != info.output:
-            self.propagate(target)
+            self.propagate(target.info)
 
     cpdef void hide(self, list gatelist):
         cdef Gate pin
@@ -136,14 +136,69 @@ cdef class Circuit:
             if gate.id == IC_ID:
                 ic = <IC>gate
                 for pin in ic.outputs:
-                    self.propagate(pin)
+                    self.propagate(pin.info)
             else:
-                self.propagate(gate)
+                self.propagate((<Gate>gate).info)
 
     # Result
     cpdef void output(self, Gate gate):
         print(f'{gate} output is {gate.getoutput()}')
+        
+    cdef bytearray table(self,vector[int] &var,vector[int] &gate):
+        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
+        cdef int var_size=var.size()
+        cdef int gate_size=gate.size()
+        cdef int row=1<<var_size,col=var_size+gate_size
+        cdef bytearray matrix=bytearray(row*col)
+        cdef unsigned char[:] view=matrix
+        cdef int i,j,k,bit
+        cdef int gray = 0
+        cdef int prev_gray = 0
+        cdef int mask, changed_bit, offset
 
+        for i in range(row):
+            prev_gray = gray
+            gray = i ^ (i >> 1)
+
+            if i != 0:
+                mask = prev_gray ^ gray
+
+                if mask == 1: changed_bit = 0
+                elif mask == 2: changed_bit = 1
+                elif mask == 4: changed_bit = 2
+                elif mask == 8: changed_bit = 3
+                elif mask == 16: changed_bit = 4
+                elif mask == 32: changed_bit = 5
+                elif mask == 64: changed_bit = 6
+                elif mask == 128: changed_bit = 7
+                elif mask == 256: changed_bit = 8
+                elif mask == 512: changed_bit = 9
+                elif mask == 1024: changed_bit = 10
+                elif mask == 2048: changed_bit = 11
+                elif mask == 4096: changed_bit = 12
+                elif mask == 8192: changed_bit = 13
+                elif mask == 16384: changed_bit = 14
+                elif mask == 32768: changed_bit = 15
+                else: changed_bit = 0
+
+                j = (var_size - 1) - changed_bit
+                bit = 1 if (gray & mask) else 0
+                gate_infolist[var[j]].output = bit
+                self.propagate(var[j])
+            else:
+                for j in range(var_size):
+                    if gate_infolist[var[j]].output != 0:
+                        gate_infolist[var[j]].output = 0
+                        self.propagate(var[j])
+
+            # Fast C-level list creation instead of .append()
+            offset=col*gray
+            for k in range(var_size):
+                view[offset+k] = gate_infolist[var[k]].output
+            for k in range(gate_size):
+                view[offset+var_size+k] = gate_infolist[gate[k]].output
+        return matrix
+        
     cpdef str truthTable(self, list variables, list outputs):
         if variables is None:
             variables = self.get_variables()
@@ -151,7 +206,7 @@ cdef class Circuit:
             return ""
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
         cdef list gate_list = []
-        cdef list var_names, gate_names, all_names, header_parts, final_table_lines, raw_rows, row_parts
+        cdef list var_names, gate_names, all_names, header_parts, final_table_lines, row_parts
         cdef str header, separator
         cdef int col_width, bit, gate_type
         cdef Py_ssize_t i, j, k, n
@@ -179,7 +234,13 @@ cdef class Circuit:
         var_names = [str(v) for v in variables]
         gate_names = [str(v) for v in gate_list]
         all_names = var_names + gate_names
-
+        cdef vector[int] var_vector
+        cdef vector[int] gate_vector
+        for gate in variables:
+            var_vector.push_back((<Gate>gate).info)
+        for gate in gate_list:
+            gate_vector.push_back((<Gate>gate).info)
+        cdef bytearray raw_rows = self.table(var_vector, gate_vector)
         if len(all_names) > 0:
             col_width = max([len(name) for name in all_names]) + 2
         else:
@@ -201,68 +262,15 @@ cdef class Circuit:
         header = " | ".join(header_parts)
         separator = "─" * len(header)
 
-        raw_rows = [None] * rows_count
-
-        cdef int gray = 0
-        cdef int prev_gray = 0
-        cdef int mask, changed_bit, temp, bl
-
-        for i in range(rows_count):
-            prev_gray = gray
-            gray = i ^ (i >> 1)
-
-            if i != 0:
-                mask = prev_gray ^ gray
-
-                if mask == 1: changed_bit = 0
-                elif mask == 2: changed_bit = 1
-                elif mask == 4: changed_bit = 2
-                elif mask == 8: changed_bit = 3
-                elif mask == 16: changed_bit = 4
-                elif mask == 32: changed_bit = 5
-                elif mask == 64: changed_bit = 6
-                elif mask == 128: changed_bit = 7
-                elif mask == 256: changed_bit = 8
-                elif mask == 512: changed_bit = 9
-                elif mask == 1024: changed_bit = 10
-                elif mask == 2048: changed_bit = 11
-                elif mask == 4096: changed_bit = 12
-                elif mask == 8192: changed_bit = 13
-                elif mask == 16384: changed_bit = 14
-                elif mask == 32768: changed_bit = 15
-                else: changed_bit = 0
-
-                j = (n - 1) - changed_bit
-                var = variables[j]
-                var_info = &gate_infolist[var.info]
-                bit = 1 if (gray & mask) else 0
-                if bit != var_info.output:
-                    var_info.output = bit
-                    self.propagate(var)
-            else:
-                for j in range(n):
-                    var = variables[j]
-                    var_info = &gate_infolist[var.info]
-                    if var_info.output != 0:
-                        var_info.output = 0
-                        self.propagate(var)
-
-            # Fast list comprehensions cast to tuples
-            v_states = []
-            g_states = []
-            for v in variables:
-                v_states.append(gate_infolist[(<Gate>v).info].output)
-            for g in gate_list:
-                g_states.append(gate_infolist[(<Gate>g).info].output)
-            raw_rows[gray] = (v_states, g_states)
-
         self.simulate(SIMULATE)
 
         # --- STRING JOINING PHASE ---
         final_table_lines = [separator, header, separator]
-        for v_states, g_states in raw_rows:
-            row_parts = [IN_MAP[v] for v in v_states]
-            row_parts.extend([OUT_MAP[g] for g in g_states])
+        cdef int total=len(variables)+len(gate_list)
+
+        for i in range(rows_count):
+            row_parts = [IN_MAP[raw_rows[i*total+j]] for j in range(n)]
+            row_parts.extend([OUT_MAP[raw_rows[i*total+n+j]] for j in range(len(gate_list))])
             final_table_lines.append(" | ".join(row_parts))
 
         final_table_lines.append(separator)
@@ -485,7 +493,7 @@ cdef class Circuit:
                 info = &self.gate_infolist[gate.info]
                 info.type = id
                 gate.process()
-                self.propagate(gate)
+                self.propagate(gate.info)
 
     cpdef void reorder(self, object gate, int index):
         cdef list lst = self.objlist[(<Gate>gate).id]
@@ -624,7 +632,7 @@ cdef class Circuit:
             if variable is not None:
                 info = &self.gate_infolist[variable.info]
                 info.output = info.value
-                self.propagate(variable)
+                self.propagate(variable.info)
 
     cpdef void reset(self):
         cdef Gate g
@@ -646,7 +654,7 @@ cdef class Circuit:
             if profile.target != self_idx:
                 target = <Gate>gate_infolist[profile.target].gate
                 gate_infolist[target.info].output = UNKNOWN
-                self.propagate(target)
+                self.propagate(target.info)
             profile += 1
 
     cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue):
@@ -658,10 +666,11 @@ cdef class Circuit:
         cdef int gidx, tidx
         cdef CPP_Gate* info
         cdef CPP_Gate* target_info
+        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         size = 0
         while index < end_point:
             while index < end_point:
-                info = &self.gate_infolist[read_queue[index]]
+                info = &gate_infolist[read_queue[index]]
                 info.scheduled = False
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
@@ -686,7 +695,7 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    cdef void propagate(self, Gate origin):
+    cdef void propagate(self, int origin):
         cdef Gate gate, target
         cdef Profile* profile
         cdef Profile* end
@@ -697,13 +706,12 @@ cdef class Circuit:
         cdef unsigned long long eval = 0
         cdef int* read_queue = self.queue[0]
         cdef int* write_queue = self.queue[1]
-        cdef int gidx = origin.info
-        cdef int tidx
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
         cdef uint16_t *book
-        read_queue[0] = gidx
-        if unlikely(self.gate_infolist[gidx].output == ERROR):
+        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+        read_queue[0] = origin
+        if unlikely(gate_infolist[origin].output == ERROR):
             self.burn(index, end_point, read_queue, write_queue)
             return
 
@@ -715,8 +723,7 @@ cdef class Circuit:
 
             counter += 1
             for index in range(end_point):
-                gidx = read_queue[index]
-                self_info = &self.gate_infolist[gidx]
+                self_info = &gate_infolist[read_queue[index]]
                 self_info.scheduled = False
                 new_output = self_info.output
                 profile = self_info.hitlist.data()
@@ -725,7 +732,7 @@ cdef class Circuit:
                     eval += 1
                     profile_output = profile.output
                     if profile_output != new_output:
-                        target_info = &self.gate_infolist[profile.target]
+                        target_info = &gate_infolist[profile.target]
                         gate_type = target_info.type
                         limit = target_info.inputlimit
                         if gate_type >= NOT_ID:
