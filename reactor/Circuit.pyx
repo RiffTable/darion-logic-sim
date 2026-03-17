@@ -15,16 +15,13 @@ cdef class Circuit:
     def __cinit__(self):
         self.counter = 0
         self.eval_count = 0
+        self.gate_infolist.reserve(2_000_000)
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
         self.objlist = [
             [] for i in range(TOTAL)]
         self.copydata = []
-        # Reserve gate_infolist upfront so the vector never reallocates.
-        # gate.info stores an index into this vector; we reserved LIMIT slots
-        # so the buffer never needs to move.
-        self.gate_infolist.reserve(2_000_000)
 
     def __repr__(self):
         return 'Circuit'
@@ -41,6 +38,8 @@ cdef class Circuit:
                     gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
                 else:
                     gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
+            if gt.id == VARIABLE_ID:
+                (<Gate>gt).info_ptr.output = UNKNOWN if MODE==DESIGN else LOW
         return gt
 
     cpdef object getobj(self, tuple code):
