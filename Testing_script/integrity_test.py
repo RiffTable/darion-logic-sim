@@ -384,8 +384,9 @@ class AggressiveTestSuite:
         ]
         count = 1000
         
+        c = Circuit()
         for gate_id, gate_name in gate_types:
-            gates = [Gate(gate_id, gate_name) for _ in range(count)]
+            gates = [c.getcomponent(gate_id) for _ in range(count)]
             all_unknown = all(g.output == Const.UNKNOWN for g in gates)
             self.assert_test(len(gates) == count and all_unknown, f"{gate_name} x{count}")
 
@@ -575,7 +576,7 @@ class AggressiveTestSuite:
         
         passed = True
         for size in [10, 100, 500, 1000, 500, 100, 10, 2]:
-            g.setlimits(size)
+            c.setlimits(g, size)
             if g.inputlimit != size:
                 passed = False
                 break

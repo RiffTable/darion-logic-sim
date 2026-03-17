@@ -806,7 +806,7 @@ def run_profiler():
             
             # Multi-pass execution loop
             for _ in range(NUM_PASSES):
-                master.value = LOW
+                circuit.toggle(master, LOW)
                 circuit.simulate(DESIGN)
                 circuit.simulate(SIMULATE)
                 

@@ -153,7 +153,7 @@ def profile_cache():
     # Geometric Progression ~15% growth
     test_sizes = []
     current_size = 100
-    while current_size <= 2_500_000:
+    while current_size <= 2_000_000:
         test_sizes.append(current_size)
         current_size = int(current_size * 1.15)
 

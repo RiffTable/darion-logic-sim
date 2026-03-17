@@ -4,7 +4,7 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 # cython: nonecheck=False
-from Gates cimport Gate, Probe, Profile, CPP_Gate, hide, reveal, pop, vector
+from Gates cimport Gate, Probe, Profile, CPP_Gate, hide, reveal, pop, vector,CPP_Gate,vector
 from Store cimport get, decode
 from Const cimport *
 
@@ -23,8 +23,7 @@ cdef class IC:
         self.map = []
         self.tag = ''
         self.description = ''
-        # Reserve gate_infolist upfront so the vector never reallocates.
-        self.gate_infolist.reserve(LIMIT)
+        self.gate_infolist_ptr=NULL
 
     def __repr__(self):
         return self.codename if self.custom_name == '' else self.custom_name
@@ -33,7 +32,7 @@ cdef class IC:
         return self.codename if self.custom_name == '' else self.custom_name
 
     cpdef object getcomponent(self, int choice):
-        cdef object gt = get(choice, self.gate_infolist)
+        cdef object gt = get(choice, self.gate_infolist_ptr[0])
         if gt:
             self.counter += 1
             if gt.id == INPUT_PIN_ID:
@@ -81,18 +80,18 @@ cdef class IC:
             pseudo[decode(comp_code)] = gate
 
     cpdef void clone(self, dict pseudo):
-        cdef object gate
-        cdef object code
+        cdef Gate gate
+        cdef tuple code
         for i in self.map:
             code = decode(i[CODE])
             gate = pseudo[code]
-            (<Gate>gate).clone(i, pseudo, self.gate_infolist)
+            gate.clone(i, pseudo)
 
     cpdef void load_to_cluster(self, list cluster):
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
             cluster.append(i)
-            i.scheduled = True
+            i.info_ptr.scheduled = True
 
     cpdef list full_data(self):
         cdef Gate i
@@ -106,7 +105,7 @@ cdef class IC:
         ]
         for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.full_data(self.gate_infolist))
+            dictionary[MAP].append(i.full_data())
         return dictionary
 
     cpdef list partial_data(self):
@@ -121,16 +120,16 @@ cdef class IC:
         ]
         for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.partial_data(self.gate_infolist))
+            dictionary[MAP].append(i.partial_data())
         return dictionary
 
     cpdef void implement(self, dict pseudo):
-        cdef object gate
-        cdef object code
+        cdef Gate gate
+        cdef tuple code
         for i in self.map:
             code = decode(i[CODE])
             gate = pseudo[code]
-            (<Gate>gate).clone(i, pseudo, self.gate_infolist)
+            gate.clone(i, pseudo)
 
     cpdef void hide(self):
         cdef Gate pin_out, pin_in, src
@@ -141,19 +140,20 @@ cdef class IC:
         cdef size_t i, sz
 
         # Disconnect outputs from external targets
+        cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         for pin_out in self.outputs:
-            pin_out_info = &self.gate_infolist[pin_out.info]
+            pin_out_info = pin_out.info_ptr
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
-                hide(hitlist[i])
+                hide(hitlist[i],gate_infolist)
 
         # Disconnect inputs from external sources
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
                 if source is not None:
                     src = <Gate>source
-                    src_info = &self.gate_infolist[src.info]
+                    src_info = src.info_ptr
                     pop(src_info.hitlist, pin_in.info, index)
 
     cpdef void reveal(self):
@@ -166,27 +166,27 @@ cdef class IC:
 
         # Re-register in external source hitlists
         for pin_in in self.inputs:
-            pin_in_info = &self.gate_infolist[pin_in.info]
+            pin_in_info = pin_in.info_ptr
             source = <Gate>pin_in.sources[0]
             if source is not None:
-                src_info = &self.gate_infolist[source.info]
+                src_info = source.info_ptr
                 src_info.hitlist.emplace_back(pin_in.info, 0, src_info.output)
-            pin_in.process(self.gate_infolist)
+            pin_in.process()
 
         # Reconnect output targets via hitlist
         for pin_out in self.outputs:
-            pin_out_info = &self.gate_infolist[pin_out.info]
+            pin_out_info = pin_out.info_ptr
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
-                reveal(hitlist[i], pin_out, self.gate_infolist)
+                reveal(hitlist[i], pin_out)
 
     cpdef void reset(self):
         cdef Gate g
         for i in self.inputs + self.internal + self.outputs:
             if i.id != IC_ID:
                 g = <Gate>i
-                g.reset(self.gate_infolist)
+                g.reset()
             else:
                 (<IC>i).reset()
 
@@ -211,7 +211,7 @@ cdef class IC:
             print("  INPUTS:")
             for pin in self.inputs:
                 targets = []
-                pin_info = &self.gate_infolist[pin.info]
+                pin_info = pin.info_ptr
                 p = pin_info.hitlist.data()
                 pend = p + pin_info.hitlist.size()
                 while p < pend:
@@ -232,7 +232,7 @@ cdef class IC:
                     else:
                         ch_str = f"val:{pin.sources}"
                     tgt = []
-                    pin_info = &self.gate_infolist[pin.info]
+                    pin_info = pin.info_ptr
                     p = pin_info.hitlist.data()
                     pend = p + pin_info.hitlist.size()
                     while p < pend:

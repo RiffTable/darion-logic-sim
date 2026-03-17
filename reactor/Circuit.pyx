@@ -78,12 +78,12 @@ cdef class Circuit:
             print(f'{i}. {gate}')
 
     cpdef bint setlimits(self, Gate gate, int size):
-        return gate.setlimits(size, self.gate_infolist)
+        return gate.setlimits(size)
 
     cpdef void connect(self, Gate target, Gate source, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.info]
         cdef int prev = info.output
-        target.connect(source, index, self.gate_infolist)
+        target.connect(source, index)
         if prev != info.output:
             self.propagate(target)
 
@@ -97,7 +97,7 @@ cdef class Circuit:
     cpdef void disconnect(self, Gate target, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.info]
         cdef int prev = info.output
-        target.disconnect(index, self.gate_infolist)
+        target.disconnect(index)
         if prev != info.output:
             self.propagate(target)
 
@@ -110,7 +110,7 @@ cdef class Circuit:
                 ic.hide()
             else:
                 pin = <Gate>gate
-                pin.hide(self.gate_infolist)
+                pin.hide()
             self.delobj(gate)
 
         for gate in gatelist:
@@ -130,7 +130,7 @@ cdef class Circuit:
                 ic.reveal()
             else:
                 pin = <Gate>gate
-                pin.reveal(self.gate_infolist)
+                pin.reveal()
             self.renewobj(gate)
 
         for gate in reversed(gatelist):
@@ -158,7 +158,7 @@ cdef class Circuit:
         cdef Py_ssize_t i, j, k, n
         cdef list IN_MAP, OUT_MAP
         cdef tuple v_states, g_states
-
+         
         # Filter gatelist
         if outputs is not None:
             gate_list = outputs
@@ -176,7 +176,7 @@ cdef class Circuit:
         n = len(variables)
         cdef int rows_count = 1 << n
         cdef Gate var, gate
-
+        cdef CPP_Gate* var_info
         var_names = [str(v) for v in variables]
         gate_names = [str(v) for v in gate_list]
         all_names = var_names + gate_names
@@ -235,15 +235,17 @@ cdef class Circuit:
 
                 j = (n - 1) - changed_bit
                 var = variables[j]
+                var_info = var.info_ptr
                 bit = 1 if (gray & mask) else 0
-                if bit != var.output:
-                    var.output = bit
+                if bit != var_info.output:
+                    var_info.output = bit
                     self.propagate(var)
             else:
                 for j in range(n):
                     var = variables[j]
-                    if var.output != 0:
-                        var.output = 0
+                    var_info = var.info_ptr
+                    if var_info.output != 0:
+                        var_info.output = 0
                         self.propagate(var)
 
             # Fast list comprehensions cast to tuples
@@ -341,9 +343,9 @@ cdef class Circuit:
 
     cpdef void writetojson(self, str location):
         cdef list circuit = []
-        cdef Gate gate
+        cdef object gate
         for gate in self.get_components():
-            circuit.append(gate.full_data(self.gate_infolist))
+            circuit.append(gate.full_data())
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
@@ -363,7 +365,7 @@ cdef class Circuit:
                 ic.load_components(i, pseudo)
             elif obj.id == VARIABLE_ID:
                 gate = <Gate>obj
-                gate.output = UNKNOWN
+                gate.info_ptr.output = UNKNOWN
             pseudo[code] = obj
         for i in circuit:  # connect components
             code = decode(i[CODE])
@@ -374,7 +376,7 @@ cdef class Circuit:
                 self.counter += ic.counter
             else:
                 gate = <Gate>obj
-                gate.clone(i, pseudo, self.gate_infolist)
+                gate.clone(i, pseudo)
 
     cpdef void readfromjson(self, str location):
         cdef list circuit
@@ -396,7 +398,7 @@ cdef class Circuit:
         cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
         cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
-            gate.scheduled = True
+            gate.info_ptr.scheduled = True
             queue.append(gate)
         cdef Py_ssize_t size = len(queue)
         cdef Py_ssize_t index = len(outputs)
@@ -421,8 +423,8 @@ cdef class Circuit:
             end = profile + info.hitlist.size()
             while profile != end:
                 target = <Gate>self.gate_infolist[profile.target].gate
-                if not target.scheduled:
-                    target.scheduled = True
+                if not target.info_ptr.scheduled:
+                    target.info_ptr.scheduled = True
                     queue.append(target)
                     size += 1
                 profile += 1
@@ -472,7 +474,7 @@ cdef class Circuit:
                 # Update CPP_Gate type as well
                 info = &self.gate_infolist[gate.info]
                 info.type = id
-                gate.process(self.gate_infolist)
+                gate.process()
                 self.propagate(gate)
 
     cpdef void reorder(self, object gate, int index):
@@ -560,11 +562,11 @@ cdef class Circuit:
         for i in components:
             if i.id != IC_ID:
                 g = <Gate>i
-                self.copydata.append(g.partial_data(self.gate_infolist))
+                self.copydata.append(g.partial_data())
             else:
                 self.copydata.append(i.partial_data())
         for i in cluster:
-            i.scheduled = False
+            (<Gate>i).info_ptr.scheduled = False
 
     cpdef list paste(self):
         cdef list circuit
@@ -597,7 +599,7 @@ cdef class Circuit:
                 self.counter += (<IC>gate).counter
             elif gate:
                 g = <Gate>gate
-                g.clone(gate_info, pseudo, self.gate_infolist)
+                g.clone(gate_info, pseudo)
 
         if MODE != DESIGN:
             self.simulate(SIMULATE)
@@ -619,7 +621,7 @@ cdef class Circuit:
         for i in self.get_components():
             if i.id != IC_ID:
                 g = <Gate>i
-                g.reset(self.gate_infolist)
+                g.reset()
             else:
                 (<IC>i).reset()
 
@@ -631,7 +633,7 @@ cdef class Circuit:
         while profile != end:
             if profile.target != self_idx:
                 target = <Gate>self.gate_infolist[profile.target].gate
-                target.output = UNKNOWN
+                target.info_ptr.output = UNKNOWN
                 self.propagate(target)
             profile += 1
 
@@ -642,30 +644,27 @@ cdef class Circuit:
         cdef unsigned long long eval = 0
         cdef Py_ssize_t end_point = size
         cdef int gidx, tidx
+        cdef CPP_Gate* info
+        cdef CPP_Gate* target_info
         size = 0
         while index < end_point:
             while index < end_point:
-                gidx = read_queue[index]
-                gate = <Gate>self.gate_infolist[gidx].gate
-                gate.scheduled = False
-                self.gate_infolist[gidx].scheduled = False
-                profile = self.gate_infolist[gidx].hitlist.data()
-                end = profile + self.gate_infolist[gidx].hitlist.size()
-                self.gate_infolist[gidx].output = ERROR
-                gate.output = ERROR
+                info = &self.gate_infolist[read_queue[index]]
+                info.scheduled = False
+                profile = info.hitlist.data()
+                end = profile + info.hitlist.size()
+                info.output = ERROR
                 while profile != end:
                     eval += 1
                     if profile.output != ERROR:
-                        tidx = profile.target
-                        target = <Gate>self.gate_infolist[tidx].gate
-                        if self.gate_infolist[tidx].inputlimit != 1:
-                            self.gate_infolist[tidx].book[profile.output] -= 1
-                            self.gate_infolist[tidx].book[ERROR] += 1
-                        if self.gate_infolist[tidx].output != ERROR:
-                            write_queue[size] = tidx
+                        target_info = &self.gate_infolist[profile.target]
+                        if target_info.inputlimit != 1:
+                            target_info.book[profile.output] -= 1
+                            target_info.book[ERROR] += 1
+                        if target_info.output != ERROR:
+                            write_queue[size] = profile.target
                             size += 1
-                        target.output = ERROR
-                        self.gate_infolist[tidx].output = ERROR
+                        target_info.output = ERROR
                         profile.output = ERROR
                     profile += 1
                 index += 1
