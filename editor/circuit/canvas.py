@@ -48,7 +48,6 @@ class CircuitScene(QGraphicsScene):
 		# adding timer system for auto refresh
 		screen=QGuiApplication.primaryScreen()
 		fps=screen.refreshRate()
-		print(fps)
 		fps=60 if fps==0 else fps
 		self.ui_update_timer = QTimer(self)
 		self.ui_update_timer.timeout.connect(self.poll_ui_state)
