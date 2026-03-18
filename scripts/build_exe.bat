@@ -111,7 +111,9 @@ set "N=!N! --include-module=Event_Manager"
 set "N=!N! --include-module=Control"
 set "N=!N! --include-package=orjson"
 set "N=!N! --include-package=psutil"
-
+:: for ui 
+set "N=!N! --enable-plugin=pyside6"
+set "N=!N! --windows-console-mode=disable"
 :: ---------------------------------------------------------------
 :: 8. BUILD
 :: ---------------------------------------------------------------
