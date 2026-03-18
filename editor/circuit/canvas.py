@@ -46,15 +46,17 @@ class CircuitScene(QGraphicsScene):
 
 		self.addItem(self.ghostPin)
 		# adding timer system for auto refresh
-		screen=QGuiApplication.primaryScreen()
-		fps=screen.refreshRate()
-		fps=60 if fps==0 else fps
 		self.ui_update_timer = QTimer(self)
 		self.ui_update_timer.timeout.connect(self.poll_ui_state)
-		self.ui_update_timer.start(1000//fps) # ~60 FPS (16ms)
+		self.ui_update_timer.start(16) # ~60 FPS (16ms)
 
 	def poll_ui_state(self):
-		# updates screen per frame
+		"""Called every frame (~60fps). Fully decoupled from backend listeners.
+		- Regular gates: polls unit.output, fires unitStateChanged on change
+		  (which cascades to output pin and any connected wires).
+		- ICitems: polls each output pin's underlying Gate individually,
+		  fires logicalStateChanged on the pin directly when it changes.
+		  pin.state is used as the last-rendered sentinel (set by logicalStateChanged)."""
 		for comp in self.comps:
 			unit = comp._unit
 			if unit is None:
