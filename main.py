@@ -70,8 +70,6 @@ class AppWindow(QMainWindow):
 
 	def refresh_theme(self):
 		theme.apply_palette(cast(QApplication, QApplication.instance()))
-		self.props_panel.apply_theme()
-		# self.sidebar.apply_theme()
 		self.cscene.update()
 
 	def load_settings(self):
@@ -132,7 +130,7 @@ class AppWindow(QMainWindow):
 
 		Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, self.setScrollInverted)
 		Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, self.setPeekingDisabled)
-		Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", False, theme.set_theme)
+		Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", True, theme.set_theme)
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
