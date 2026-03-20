@@ -657,8 +657,7 @@ cdef class Circuit:
                 self.propagate(target.info)
             profile += 1
 
-    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue):
-        cdef Gate gate, target
+    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil:
         cdef Profile* profile
         cdef Profile* end
         cdef unsigned long long eval = 0
@@ -695,8 +694,7 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    cdef void propagate(self, int origin):
-        cdef Gate gate, target
+    cdef void propagate(self, int origin) nogil:
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low, gate_type, limit
