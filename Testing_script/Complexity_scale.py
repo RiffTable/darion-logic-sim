@@ -23,6 +23,7 @@ else:
 
 parser = argparse.ArgumentParser(description='Topology Complexity Profiler')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--optimize', action='store_true', help='Call circuit.optimize() after building each topology')
 args, _ = parser.parse_known_args()
 
 if args.engine:
@@ -789,7 +790,11 @@ def run_profiler():
             
             master, count, theoretical_evals, desc = builder(circuit, size, VARIABLE_ID, NOT_ID, XOR_ID, AND_ID=AND_ID)
             if not desc_name: desc_name = desc
-            
+
+            # If --optimize is active, reorder the circuit's internal memory layout
+            if args.optimize:
+                circuit.optimize()
+
             # Skip if theoretical load exceeds extreme bounds (prevents L5 100K hang)
             if theoretical_evals > MAX_EVALS_PER_PASS:
                 results.append(-1.0)
@@ -872,7 +877,7 @@ if __name__ == "__main__":
     with open(_LOG, "a", encoding="utf-8") as _lf:
         _lf.write(f"\n{'='*70}\n")
         _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        _lf.write(f"ARGS : backend={backend_name}\n")
+        _lf.write(f"ARGS : backend={backend_name}  optimize={args.optimize}\n")
         _lf.write(f"{'='*70}\n")
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)

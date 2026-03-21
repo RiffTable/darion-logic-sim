@@ -34,6 +34,8 @@ parser = argparse.ArgumentParser(description='Run Cache Profiler')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
 parser.add_argument('--mode', type=str, choices=['linear', 'realistic', 'chaotic'], default='realistic',
                     help="Memory fragmentation mode (default: realistic)")
+parser.add_argument('--optimize', action='store_true',
+                    help='Run optimize() benchmark after the cache profile (chaotic circuit, before/after A/B test)')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -171,6 +173,8 @@ def profile_cache():
 
     for idx, size in enumerate(test_sizes):
         c, start_node = build_chain(size, mode=args.mode)
+        if args.optimize:
+            c.optimize()
         current_ram = get_ram_mb() - base_ram
         
         # Calibration
@@ -306,7 +310,7 @@ if __name__ == "__main__":
     with open(_LOG, "a", encoding="utf-8") as _lf:
         _lf.write(f"\n{'='*70}\n")
         _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        _lf.write(f"ARGS : backend={_backend}  mode={args.mode}\n")
+        _lf.write(f"ARGS : backend={_backend}  mode={args.mode}  optimize={args.optimize}\n")
         _lf.write(f"{'='*70}\n")
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)

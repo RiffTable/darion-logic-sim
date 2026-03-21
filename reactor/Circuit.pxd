@@ -19,6 +19,7 @@ cdef class Circuit:
     cpdef void listComponent(self)
     cpdef void listVar(self)
     cpdef bint setlimits(self, Gate gate, int size)
+    cpdef void optimize(self)
     cpdef void connect(self, Gate target, Gate source, int index)
     cpdef void toggle(self, Gate target, int value)
     cpdef void disconnect(self, Gate target, int index)

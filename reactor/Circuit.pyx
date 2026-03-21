@@ -11,6 +11,7 @@ from IC cimport IC
 from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from libc.stdint cimport uint16_t
+from libcpp.algorithm cimport sort
 cdef class Circuit:
     def __cinit__(self):
         self.counter = 0
@@ -359,6 +360,79 @@ cdef class Circuit:
             circuit.append(gate.full_data())
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
+
+    cpdef void optimize(self):
+        cdef int i=0,j=0,n
+        cdef vector[int] queue,hash_map,in_degree
+        n=self.gate_infolist.size()
+        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
+        queue.resize(n)
+        hash_map.resize(n)
+        in_degree.resize(n)
+        cdef Profile* profile, *end
+        # queue all floating gates
+        cdef CPP_Gate* info
+        for i in range(n):
+            info=&gate_infolist[i]
+            profile=info.hitlist.data()
+            end=profile+info.hitlist.size()
+            while profile<end:
+                in_degree[profile.target]+=1
+                profile+=1
+        cdef int degree=0,index=0
+        i=0
+        for index in range(n):
+            if in_degree[index]==0:
+                queue[j]=index
+                j+=1
+        while i<j:
+            info=&gate_infolist[queue[i]]
+            hash_map[queue[i]]=i
+            profile=info.hitlist.data()
+            end=profile+info.hitlist.size()
+            while profile<end:
+                if in_degree[profile.target]>0:
+                    in_degree[profile.target]-=1
+                    if in_degree[profile.target]==0:
+                        queue[j]=profile.target
+                        j+=1
+                profile+=1
+            i+=1
+        if j<n:
+            for index in range(n):
+                if in_degree[index]>0:
+                    queue[j]=index
+                    in_degree[index]=0
+                    j+=1
+                    while i<j:
+                        info=&gate_infolist[queue[i]]
+                        hash_map[queue[i]]=i
+                        profile=info.hitlist.data()
+                        end=profile+info.hitlist.size()
+                        while profile<end:
+                            if in_degree[profile.target]>0:
+                                in_degree[profile.target]-=1
+                                if in_degree[profile.target]==0:
+                                    queue[j]=profile.target
+                                    j+=1
+                            profile+=1
+                        i+=1
+
+        # create new info_list
+        cdef vector[CPP_Gate] new_gate_infolist
+        new_gate_infolist.resize(n)
+        cdef Gate gate
+        for i in range(n):
+            new_gate_infolist[i]=gate_infolist[queue[i]]
+            gate=<Gate>new_gate_infolist[i].gate
+            if gate is not None:
+                gate.info=i
+            profile=new_gate_infolist[i].hitlist.data()
+            end=profile+new_gate_infolist[i].hitlist.size()
+            while profile<end:
+                profile.target=hash_map[profile.target]
+                profile+=1
+        self.gate_infolist.swap(new_gate_infolist)
 
     cpdef void generate(self, list circuit):
         cdef dict pseudo = {}

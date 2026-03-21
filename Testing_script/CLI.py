@@ -4,6 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Run CLI')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--optimize', action='store_true', help='Reserved: call c.optimize() for future CLI use')
 args, unknown = parser.parse_known_args()
 
 # Support Pyinstaller, Nuitka, and direct Python script relative paths

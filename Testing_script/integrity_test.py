@@ -33,6 +33,7 @@ LOG_FILE = "master_test_results.txt"
 import argparse
 parser = argparse.ArgumentParser(description='Run Master Integrity Tests')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--optimize', action='store_true', help='Call c.optimize() on circuits before benchmarking')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -67,6 +68,7 @@ from IC import IC
 from Control import Add, AddIC, Delete, Connect, Disconnect, Paste, Toggle, SetLimits, Rename
 
 Const.LIMIT = 100_000
+USE_OPTIMIZE = args.optimize
 
 
 class AggressiveTestSuite:
@@ -110,6 +112,11 @@ class AggressiveTestSuite:
             gc.enable()
             
         return (end - start) / 1_000_000
+
+    def maybe_optimize(self, c):
+        """If --optimize was passed, call c.optimize() to reorder internal memory layout."""
+        if USE_OPTIMIZE:
+            c.optimize()
 
     @staticmethod
     def format_time(ms):
@@ -1250,6 +1257,7 @@ class AggressiveTestSuite:
             c.connect(n, prev, 0)
             prev = n
         
+        self.maybe_optimize(c)
         c.toggle(v, Const.HIGH)
         self.assert_test(prev.output == Const.HIGH, f"1000-deep chain HIGH->HIGH")
         
@@ -1273,6 +1281,7 @@ class AggressiveTestSuite:
             c.connect(g, const_high, 1)
             gates.append(g)
         
+        self.maybe_optimize(c)
         start = time.perf_counter_ns()
         c.toggle(v, Const.HIGH)
         duration = (time.perf_counter_ns() - start) / 1_000_000
@@ -2581,6 +2590,8 @@ class AggressiveTestSuite:
             cout = c.getcomponent(Const.OR_ID)
             c.connect(cout, and1, 0); c.connect(cout, and2, 1)
             prev_carry = cout
+
+        self.maybe_optimize(c)
 
         total_gates = bits * 5
         def set_value(vars_list, val):

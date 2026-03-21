@@ -10,6 +10,9 @@ struct Profile {
     int output;
     Profile() : target(-1), index(0), output(0){}
     Profile(int t, int i, int o) : target(t),index(i), output(o){}
+    bool operator<(const Profile& other) const {
+        return target < other.target;
+    }
 };
 struct CPP_Gate {
     void* gate;

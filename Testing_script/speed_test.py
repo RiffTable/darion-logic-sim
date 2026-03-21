@@ -21,6 +21,7 @@ LOG_FILE = "test_results.txt"
 import argparse
 parser = argparse.ArgumentParser(description='Run Speed Tests')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--optimize', action='store_true', help='Call c.optimize() on circuits before benchmarking')
 args, unknown = parser.parse_known_args()
 
 
@@ -56,6 +57,8 @@ import Const
 from Gates import Gate, Variable, Probe
 from IC import IC
 
+
+USE_OPTIMIZE = args.optimize
 
 class AggressiveTestSuite:
     def __init__(self):
@@ -105,6 +108,11 @@ class AggressiveTestSuite:
             gc.enable()
             
         return (end - start) / 1_000_000, eval_delta
+
+    def maybe_optimize(self, c):
+        """If --optimize was passed, call c.optimize() to reorder internal memory layout."""
+        if USE_OPTIMIZE:
+            c.optimize()
 
     @staticmethod
     def format_time(ms):
@@ -394,6 +402,7 @@ class AggressiveTestSuite:
             prev = g
 
         c.simulate(Const.SIMULATE)
+        self.maybe_optimize(c)
         c.toggle(inp, 0)
         
         # Warmup: Toggle to 1 then back to 0
@@ -430,6 +439,7 @@ class AggressiveTestSuite:
             layer = next_l
 
         c.simulate(Const.SIMULATE)
+        self.maybe_optimize(c)
         c.toggle(root, 0)
 
         # Warmup
@@ -481,6 +491,7 @@ class AggressiveTestSuite:
                 # Removed setlimits(1) optimization
 
         c.simulate(Const.SIMULATE)
+        self.maybe_optimize(c)
         c.toggle(trig, 0)
 
         # Warmup
@@ -610,6 +621,7 @@ class AggressiveTestSuite:
                 self.progress(i, count)
 
         c.simulate(Const.SIMULATE)
+        self.maybe_optimize(c)
         c.toggle(inp, 0)
         
         # Warmup
@@ -895,6 +907,7 @@ class AggressiveTestSuite:
             prev = g
             
         c.simulate(Const.SIMULATE)
+        self.maybe_optimize(c)
         c.toggle(root, 0)
         c.toggle(root, 1)
         c.toggle(root, 0)

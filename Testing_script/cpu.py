@@ -31,6 +31,8 @@ from datetime import datetime
 parser = argparse.ArgumentParser(description='8-Bit CPU Core Benchmark')
 parser.add_argument('--engine', action='store_true',
                     help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--optimize', action='store_true',
+                    help='Call c.optimize() after building the CPU circuit before benchmarking')
 args, unknown = parser.parse_known_args()
 
 # -- path resolution (PyInstaller / Nuitka / direct Python) -------------------
@@ -321,6 +323,13 @@ def benchmark():
      zf, cf, sf, of, op3, sh3, sel2, imm8,
      pc_q, pc_ph) = build_cpu(c)
     build_ms = (time.perf_counter() - t_build) * 1000
+
+    opt_ms = 0.0
+    if args.optimize:
+        t_opt = time.perf_counter()
+        c.optimize()
+        opt_ms = (time.perf_counter() - t_opt) * 1000
+
     gates    = c.counter
 
     lines = []
@@ -386,7 +395,8 @@ def benchmark():
     out(box(f"{'  DARION LOGIC SIM  ─  8-BIT CPU CORE BENCHMARK  v3.0':^{W-2}}"))
     rule()
     ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    out(box(f"  {ts}  |  Backend: {backend_name}  |  Gates: {gates:,}  |  Build: {build_ms:.1f} ms"))
+    opt_info = f"  |  optimize: {opt_ms:.1f} ms" if args.optimize else ""
+    out(box(f"  {ts}  |  Backend: {backend_name}  |  Gates: {gates:,}  |  Build: {build_ms:.1f} ms{opt_info}"))
     out(box(f"  System: {platform.system()} {platform.release()}   Python {platform.python_version()}"))
     rule()
 
