@@ -273,26 +273,24 @@ cdef class Gate:
         
     cpdef list full_data(self):
         cdef CPP_Gate* info = &self.location_ptr[0][self.location]
-        cdef Gate source
         cdef list dictionary = [
             self.custom_name,
             self.id,
+            self.location,
             info.inputlimit,
             info.value if info.type == VARIABLE_ID else list(self._sources),
-            self.location
             ]
         return dictionary
 
     cpdef list partial_data(self):
         cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
         cdef CPP_Gate* info = &gate_infolist[self.location]
-        cdef Gate source
         cdef list dictionary = [
             self.custom_name,
             self.id,
+            self.location,
             info.inputlimit,
             info.value if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and gate_infolist[src_loc].scheduled else -1 for src_loc in self._sources],
-            self.location
             ]
         return dictionary
 

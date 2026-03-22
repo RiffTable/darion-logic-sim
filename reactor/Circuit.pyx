@@ -628,7 +628,7 @@ cdef class Circuit:
     cpdef object get_ic(self, str location):
         with open(location, 'rb') as file:
             crct = orjson.loads(file.read())
-        if isinstance(crct[COMPONENTS], list):
+        if isinstance(crct[LOCATION], list):
             return crct
         else:
             print('Cannot Convert to IC')

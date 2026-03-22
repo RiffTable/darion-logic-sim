@@ -98,15 +98,11 @@ cdef class IC:
         cdef list dictionary = [
             self.custom_name,
             IC_ID,
-            [],
-            [],
             self.code,
             self.tag,
+            [i.full_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
         ]
-        for i in self.inputs + self.outputs + self.internal:
-            dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.full_data())
         return dictionary
 
     cpdef list partial_data(self):
@@ -114,15 +110,11 @@ cdef class IC:
         cdef list dictionary = [
             self.custom_name,
             IC_ID,
-            [],
-            [],
             self.code,
             self.tag,
+            [i.partial_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
         ]
-        for i in self.inputs + self.outputs + self.internal:
-            dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.partial_data())
         return dictionary
 
     cpdef void implement(self, dict pseudo):
