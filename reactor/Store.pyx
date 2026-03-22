@@ -17,20 +17,23 @@ cdef tuple namelist=(
     'IC',
 )
 
-cdef object get(int choice, vector[CPP_Gate]& gate_infolist):
+cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
     cdef Gate gate
     cdef uint16_t lim
     cdef IC ic
     if choice==IC_ID:
         ic = IC(choice,namelist[choice])
         ic.gate_infolist_ptr = &gate_infolist
+        ic.gate_verse = gate_verse
         return ic
     else:
         gate = Gate(choice,namelist[choice])
         lim = 1 if choice >= VARIABLE_ID else 2
-        gate_infolist.emplace_back(CPP_Gate(<void*>gate, choice, lim))
-        gate.info = gate_infolist.size()-1
-        gate.info_ptr = &gate_infolist
+        gate_infolist.emplace_back(CPP_Gate(choice, lim))
+        gate.location = gate_infolist.size()-1
+        gate.location_ptr = &gate_infolist
+        gate.gate_verse = gate_verse
+        gate_verse.append(gate)
         return gate
 
 

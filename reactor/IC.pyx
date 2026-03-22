@@ -7,7 +7,7 @@
 from Gates cimport Gate, Probe, Profile, CPP_Gate, hide, reveal, pop, vector,CPP_Gate,vector
 from Store cimport get, decode
 from Const cimport *
-
+from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 cdef class IC:
     def __cinit__(self):
         self.id = IC_ID
@@ -32,7 +32,7 @@ cdef class IC:
         return self.codename if self.custom_name == '' else self.custom_name
 
     cpdef object getcomponent(self, int choice):
-        cdef object gt = get(choice, self.gate_infolist_ptr[0])
+        cdef object gt = get(choice, self.gate_infolist_ptr[0],self.gate_verse)
         if gt:
             self.counter += 1
             if gt.id == INPUT_PIN_ID:
@@ -91,7 +91,7 @@ cdef class IC:
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
             cluster.append(i)
-            i.info_ptr[0][i.info].scheduled = True
+            i.location_ptr[0][i.location].scheduled = True
 
     cpdef list full_data(self):
         cdef Gate i
@@ -142,19 +142,19 @@ cdef class IC:
         # Disconnect outputs from external targets
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         for pin_out in self.outputs:
-            pin_out_info = &gate_infolist[pin_out.info]
+            pin_out_info = &gate_infolist[pin_out.location]
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
-                hide(hitlist[i],gate_infolist)
+                hide(hitlist[i],gate_infolist, self.gate_verse)
 
         # Disconnect inputs from external sources
         for pin_in in self.inputs:
             for index, source in enumerate(pin_in.sources):
                 if source is not None:
                     src = <Gate>source
-                    src_info = &gate_infolist[src.info]
-                    pop(src_info.hitlist, pin_in.info, index)
+                    src_info = &gate_infolist[src.location]
+                    pop(src_info.hitlist, pin_in.location, index)
 
     cpdef void reveal(self):
         cdef Gate pin_in, pin_out, source
@@ -167,20 +167,20 @@ cdef class IC:
         # Re-register in external source hitlists
 
         for pin_in in self.inputs:
-            pin_in_info = &gate_infolist[pin_in.info]
+            pin_in_info = &gate_infolist[pin_in.location]
             source = <Gate>pin_in.sources[0]
             if source is not None:
-                src_info = &gate_infolist[source.info]
-                src_info.hitlist.emplace_back(pin_in.info, 0, src_info.output)
+                src_info = &gate_infolist[source.location]
+                src_info.hitlist.emplace_back(pin_in.location, 0, src_info.output)
             pin_in.process()
 
         # Reconnect output targets via hitlist
         for pin_out in self.outputs:
-            pin_out_info = &gate_infolist[pin_out.info]
+            pin_out_info = &gate_infolist[pin_out.location]
             hitlist = pin_out_info.hitlist.data()
             sz = pin_out_info.hitlist.size()
             for i in range(sz):
-                reveal(hitlist[i], pin_out)
+                reveal(hitlist[i], pin_out, self.gate_verse)
 
     cpdef void reset(self):
         cdef Gate g
@@ -205,6 +205,7 @@ cdef class IC:
         cdef CPP_Gate* pin_info
         cdef Profile* p
         cdef Profile* pend
+        cdef list gate_verse = self.gate_verse
         print(f"\n  IC: {self.codename} (Code: {self.code})")
         print("  " + "-" * 40)
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
@@ -212,40 +213,35 @@ cdef class IC:
             print("  INPUTS:")
             for pin in self.inputs:
                 targets = []
-                pin_info = &gate_infolist[pin.info]
+                pin_info = &gate_infolist[pin.location]
                 p = pin_info.hitlist.data()
                 pend = p + pin_info.hitlist.size()
                 while p < pend:
-                    targets.append(str(<Gate>gate_infolist[p.target].gate))
+                    targets.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
                     p += 1
                 print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
         if self.internal:
             print("  INTERNAL:")
-            for comp in self.internal:
-                if comp.id == IC_ID:
-                    (<IC>comp).info()
+            for pin in self.internal:
+                if isinstance(pin.sources, list):
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(pin.sources) if c is not None]
+                    ch_str = ", ".join(ch) if ch else "None"
                 else:
-                    pin = <Gate>comp
-                    if isinstance(pin.sources, list):
-                        ch = [f"[{i}]:{c}" for i, c in enumerate(pin.sources) if c is not None]
-                        ch_str = ", ".join(ch) if ch else "None"
-                    else:
-                        ch_str = f"val:{pin.sources}"
-                    tgt = []
-                    pin_info = &gate_infolist[pin.info]
-                    p = pin_info.hitlist.data()
-                    pend = p + pin_info.hitlist.size()
-                    while p < pend:
-                        tgt.append(str(<Gate>gate_infolist[p.target].gate))
-                        p += 1
-                    tgt_str = ", ".join(tgt) if tgt else "None"
-                    print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
+                    ch_str = f"val:{pin.sources}"
+                tgt = []
+                pin_info = &gate_infolist[pin.location]
+                p = pin_info.hitlist.data()
+                pend = p + pin_info.hitlist.size()
+                while p < pend:
+                    tgt.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
+                    p += 1
+                tgt_str = ", ".join(tgt) if tgt else "None"
+                print(f"    {pin.codename}: out={pin.getoutput()}, sources={ch_str}, targets={tgt_str}")
 
         if self.outputs:
             print("  OUTPUTS:")
             for pin in self.outputs:
-                pin = <Gate>pin
                 if isinstance(pin.sources, list):
                     ch = [f"{c}" for c in pin.sources if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"

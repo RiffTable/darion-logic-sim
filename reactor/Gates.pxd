@@ -41,7 +41,6 @@ cdef extern from "Profile.h":
         Profile()
         Profile(int target, int pin_index, int output)
     cdef cppclass CPP_Gate:
-        void* gate
         uint8_t type
         uint8_t output
         uint8_t value
@@ -50,20 +49,20 @@ cdef extern from "Profile.h":
         uint16_t book[4]
         vector[Profile] hitlist
         CPP_Gate()
-        CPP_Gate(void* g, uint8_t t, uint16_t lim)
+        CPP_Gate(uint8_t t, uint16_t lim)
 
-cdef void hide(Profile& profile, CPP_Gate* gate_infolist)
-cdef void reveal(Profile& profile, Gate source)
+cdef void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse)
+cdef void reveal(Profile& profile, Gate source, list gate_verse)
 cdef void pop(vector[Profile]& hitlist, int target, int pin_index)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
     cdef public uint8_t id
-    cdef int info
-    cdef vector[CPP_Gate]* info_ptr
-    
+    cdef int location
+    cdef vector[CPP_Gate]* location_ptr
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public list sources
+    cdef public list gate_verse
     cdef public tuple code
     cdef public str codename
     cdef public str custom_name

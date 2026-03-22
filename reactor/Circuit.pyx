@@ -17,6 +17,7 @@ cdef class Circuit:
         self.counter = 0
         self.eval_count = 0
         self.gate_infolist.reserve(500_000)
+        self.gate_verse = []
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
@@ -30,7 +31,7 @@ cdef class Circuit:
     def infolist_size(self):
         return self.gate_infolist.size()
     cpdef object getcomponent(self, int choice):
-        gt = get(choice, self.gate_infolist)
+        gt = get(choice, self.gate_infolist, self.gate_verse)
         if gt:
             self.counter += 1
             rank = len(self.objlist[choice])
@@ -42,7 +43,7 @@ cdef class Circuit:
                 else:
                     gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
             if gt.id == VARIABLE_ID:
-                self.gate_infolist[(<Gate>gt).info].output = UNKNOWN if MODE==DESIGN else LOW
+                self.gate_infolist[(<Gate>gt).location].output = UNKNOWN if MODE==DESIGN else LOW
         return gt
 
     cpdef object getobj(self, tuple code):
@@ -83,25 +84,25 @@ cdef class Circuit:
         return gate.setlimits(size)
 
     cpdef void connect(self, Gate target, Gate source, int index):
-        cdef CPP_Gate* info = &self.gate_infolist[target.info]
+        cdef CPP_Gate* info = &self.gate_infolist[target.location]
         cdef int prev = info.output
         target.connect(source, index)
         if prev != info.output:
-            self.propagate(target.info)
+            self.propagate(target.location)
 
     cpdef void toggle(self, Gate target, int value):
-        cdef CPP_Gate* info = &self.gate_infolist[target.info]
+        cdef CPP_Gate* info = &self.gate_infolist[target.location]
         if value != info.output:
             info.value = value
             info.output = value if MODE == SIMULATE else UNKNOWN
-            self.propagate(target.info)
+            self.propagate(target.location)
 
     cpdef void disconnect(self, Gate target, int index):
-        cdef CPP_Gate* info = &self.gate_infolist[target.info]
+        cdef CPP_Gate* info = &self.gate_infolist[target.location]
         cdef int prev = info.output
         target.disconnect(index)
         if prev != info.output:
-            self.propagate(target.info)
+            self.propagate(target.location)
 
     cpdef void hide(self, list gatelist):
         cdef Gate pin
@@ -139,9 +140,9 @@ cdef class Circuit:
             if gate.id == IC_ID:
                 ic = <IC>gate
                 for pin in ic.outputs:
-                    self.propagate(pin.info)
+                    self.propagate(pin.location)
             else:
-                self.propagate((<Gate>gate).info)
+                self.propagate((<Gate>gate).location)
 
     # Result
     cpdef void output(self, Gate gate):
@@ -240,9 +241,9 @@ cdef class Circuit:
         cdef vector[int] var_vector
         cdef vector[int] gate_vector
         for gate in variables:
-            var_vector.push_back((<Gate>gate).info)
+            var_vector.push_back((<Gate>gate).location)
         for gate in gate_list:
-            gate_vector.push_back((<Gate>gate).info)
+            gate_vector.push_back((<Gate>gate).location)
         cdef bytearray raw_rows = self.table(var_vector, gate_vector)
         if len(all_names) > 0:
             col_width = max([len(name) for name in all_names]) + 2
@@ -307,7 +308,7 @@ cdef class Circuit:
             print("-" * total_width)
 
             for comp in gates:
-                info = &self.gate_infolist[comp.info]
+                info = &self.gate_infolist[comp.location]
                 if isinstance(comp.sources, list):
                     ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
@@ -321,7 +322,7 @@ cdef class Circuit:
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile < end:
-                    tgt.append(str(<Gate>self.gate_infolist[profile.target].gate))
+                    tgt.append(str(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target)))
                     profile += 1
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
@@ -431,14 +432,18 @@ cdef class Circuit:
         cdef Gate gate
         for i in range(active_gates):
             new_gate_infolist[i]=gate_infolist[queue[i]]
-            gate=<Gate>new_gate_infolist[i].gate
-            gate.info=i
             profile=new_gate_infolist[i].hitlist.data()
             end=profile+new_gate_infolist[i].hitlist.size()
             while profile<end:
                 profile.target=hash_map[profile.target]
                 profile+=1
         self.gate_infolist.swap(new_gate_infolist)
+        cdef list new_gate_verse = []
+        for i in range(active_gates):
+            gate=<Gate>PyList_GET_ITEM(self.gate_verse, queue[i])
+            gate.location=i
+            new_gate_verse.append(gate)
+        self.gate_verse[:] = new_gate_verse
 
     cpdef void generate(self, list circuit):
         cdef dict pseudo = {}
@@ -457,7 +462,7 @@ cdef class Circuit:
                 ic.load_components(i, pseudo)
             elif obj.id == VARIABLE_ID:
                 gate = <Gate>obj
-                gate_infolist[gate.info].output = UNKNOWN
+                gate_infolist[gate.location].output = UNKNOWN
             pseudo[code] = obj
         for i in circuit:  # connect components
             code = decode(i[CODE])
@@ -491,33 +496,34 @@ cdef class Circuit:
         cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
         cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
-            gate_infolist[gate.info].scheduled = True
+            gate_infolist[gate.location].scheduled = True
             queue.append(gate)
         cdef Py_ssize_t size = len(queue)
         cdef Py_ssize_t index = len(outputs)
+        cdef list gate_verse = self.gate_verse
         while index < size:
             gate = queue[index]
-            info = &gate_infolist[gate.info]
+            info = &gate_infolist[gate.location]
             if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile != end:
-                    target = <Gate>self.gate_infolist[profile.target].gate
+                    target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
                     target.sources[profile.index] = gate.sources[0]
                     profile += 1
             elif gate.id == OUTPUT_PIN_ID and not info.hitlist.empty():
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile != end:
-                    target = <Gate>self.gate_infolist[profile.target].gate
+                    target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
                     target.sources[profile.index] = gate.sources[0]
                     profile += 1
             profile = info.hitlist.data()
             end = profile + info.hitlist.size()
             while profile != end:
-                target = <Gate>self.gate_infolist[profile.target].gate
-                if not gate_infolist[target.info].scheduled:
-                    gate_infolist[target.info].scheduled = True
+                target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
+                if not gate_infolist[target.location].scheduled:
+                    gate_infolist[target.location].scheduled = True
                     queue.append(target)
                     size += 1
                 profile += 1
@@ -539,7 +545,7 @@ cdef class Circuit:
         cdef CPP_Gate* info
         for var in self.objlist[VARIABLE_ID]:
             if var is not None:
-                info = &self.gate_infolist[var.info]
+                info = &self.gate_infolist[var.location]
                 var.code = (INPUT_PIN_ID, len(self.objlist[INPUT_PIN_ID]))
                 var.id = INPUT_PIN_ID
                 info.type = INPUT_PIN_ID
@@ -548,7 +554,7 @@ cdef class Circuit:
 
         for probe in self.objlist[PROBE_ID]:
             if probe is not None:
-                info = &self.gate_infolist[probe.info]
+                info = &self.gate_infolist[probe.location]
                 probe.code = (OUTPUT_PIN_ID, len(self.objlist[OUTPUT_PIN_ID]))
                 probe.id = OUTPUT_PIN_ID
                 info.type = OUTPUT_PIN_ID
@@ -570,10 +576,10 @@ cdef class Circuit:
                 gate.code = (id, len(self.objlist[id]))
                 self.objlist[id].append(gate)
                 # Update CPP_Gate type as well
-                info = &self.gate_infolist[gate.info]
+                info = &self.gate_infolist[gate.location]
                 info.type = id
                 gate.process()
-                self.propagate(gate.info)
+                self.propagate(gate.location)
 
     cpdef void reorder(self, object gate, int index):
         cdef list lst = self.objlist[(<Gate>gate).id]
@@ -604,7 +610,7 @@ cdef class Circuit:
                 raise ValueError('Input Pin has extra sources')
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate:
-                info = &self.gate_infolist[(<Gate>gate).info]
+                info = &self.gate_infolist[(<Gate>gate).location]
                 if info.hitlist.size() > 0:
                     raise ValueError('Output Pin has extra targets')
 
@@ -643,9 +649,10 @@ cdef class Circuit:
                 self.objlist[i].pop()
 
     cpdef void clearcircuit(self):
+        self.gate_infolist.clear()
+        self.gate_verse.clear()
         for i in range(TOTAL):
             self.objlist[i].clear()
-        self.gate_infolist.clear()
         self.counter = 0
 
     cpdef void copy(self, list components):
@@ -665,7 +672,7 @@ cdef class Circuit:
             else:
                 self.copydata.append(item.partial_data())
         for gate in cluster:
-            self.gate_infolist[gate.info].scheduled = False
+            self.gate_infolist[gate.location].scheduled = False
 
     cpdef list paste(self):
         cdef list circuit
@@ -710,9 +717,9 @@ cdef class Circuit:
         set_MODE(Mod)
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
-                info = &self.gate_infolist[variable.info]
+                info = &self.gate_infolist[variable.location]
                 info.output = info.value
-                self.propagate(variable.info)
+                self.propagate(variable.location)
 
     cpdef void reset(self):
         cdef Gate g
@@ -726,15 +733,16 @@ cdef class Circuit:
 
     cdef inline void turnoff(self, Gate gate):
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        cdef Profile* profile = gate_infolist[gate.info].hitlist.data()
-        cdef Profile* end = profile + gate_infolist[gate.info].hitlist.size()
+        cdef Profile* profile = gate_infolist[gate.location].hitlist.data()
+        cdef Profile* end = profile + gate_infolist[gate.location].hitlist.size()
         cdef Gate target
-        cdef int self_idx = gate.info
+        cdef int self_idx = gate.location
+        cdef list gate_verse = self.gate_verse
         while profile != end:
             if profile.target != self_idx:
-                target = <Gate>gate_infolist[profile.target].gate
-                gate_infolist[target.info].output = UNKNOWN
-                self.propagate(target.info)
+                target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
+                gate_infolist[target.location].output = UNKNOWN
+                self.propagate(target.location)
             profile += 1
 
     cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil:

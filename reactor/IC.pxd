@@ -15,6 +15,7 @@ cdef class IC:
     cdef public str tag
     cdef public str description
     cdef vector[CPP_Gate]* gate_infolist_ptr
+    cdef public list gate_verse
 
     cpdef object getcomponent(self, int choice)
     cpdef void addgate(self, object source)
