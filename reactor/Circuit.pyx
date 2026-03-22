@@ -26,7 +26,9 @@ cdef class Circuit:
 
     def __repr__(self):
         return 'Circuit'
-
+    @property
+    def infolist_size(self):
+        return self.gate_infolist.size()
     cpdef object getcomponent(self, int choice):
         gt = get(choice, self.gate_infolist)
         if gt:
@@ -372,8 +374,13 @@ cdef class Circuit:
         cdef Profile* profile, *end
         # queue all floating gates
         cdef CPP_Gate* info
+        cdef int active_gates=n
         for i in range(n):
             info=&gate_infolist[i]
+            if info.type==DEAD_ID:
+                in_degree[i]=-1
+                active_gates-=1
+                continue
             profile=info.hitlist.data()
             end=profile+info.hitlist.size()
             while profile<end:
@@ -398,7 +405,7 @@ cdef class Circuit:
                         j+=1
                 profile+=1
             i+=1
-        if j<n:
+        if j<active_gates:
             for index in range(n):
                 if in_degree[index]>0:
                     queue[j]=index
@@ -420,13 +427,12 @@ cdef class Circuit:
 
         # create new info_list
         cdef vector[CPP_Gate] new_gate_infolist
-        new_gate_infolist.resize(n)
+        new_gate_infolist.resize(active_gates)
         cdef Gate gate
-        for i in range(n):
+        for i in range(active_gates):
             new_gate_infolist[i]=gate_infolist[queue[i]]
             gate=<Gate>new_gate_infolist[i].gate
-            if gate is not None:
-                gate.info=i
+            gate.info=i
             profile=new_gate_infolist[i].hitlist.data()
             end=profile+new_gate_infolist[i].hitlist.size()
             while profile<end:

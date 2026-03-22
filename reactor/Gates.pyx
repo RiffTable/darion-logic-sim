@@ -56,6 +56,13 @@ cdef class Gate:
         return self.codename if self.custom_name == '' else self.custom_name
     def __int__(self):
         return self.id
+    def __dealloc__(self):
+        cdef CPP_Gate* info
+        if self.info_ptr!=NULL:
+            info = &self.info_ptr[0][self.info]
+            info.gate = NULL
+            info.type=DEAD_ID
+            info.hitlist.clear()
     @property
     def hitlist(self):
         cdef list targets = []

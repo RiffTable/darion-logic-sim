@@ -16,9 +16,6 @@ else:
 	from Circuit import Circuit
 	from Gates import Gate
 	from IC import IC
-
-
-
-
+	
 logic = Circuit()
 logic.simulate(Const.SIMULATE)

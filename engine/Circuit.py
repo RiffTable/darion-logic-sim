@@ -47,7 +47,10 @@ class Circuit:
             if gt.id == VARIABLE_ID:
                 gt.output = LOW if get_MODE() != DESIGN else UNKNOWN
         return gt
-
+    
+    def optimize(self):
+        pass
+    
     def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 

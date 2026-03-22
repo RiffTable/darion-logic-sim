@@ -10,7 +10,7 @@ cpdef enum:
 
     LIMIT = 250_000
 
-
+    DEAD_ID=255
     AND_ID = 0
     NAND_ID = 1
     OR_ID = 2
