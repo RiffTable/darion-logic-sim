@@ -363,6 +363,16 @@ cdef class Circuit:
         with open(location, 'wb') as file:
             file.write(orjson.dumps(circuit))
 
+    cpdef void refresh(self):
+        cdef list circuit = []
+        cdef object gate
+        for gate in self.get_components():
+            circuit.append(gate.full_data())
+        self.clearcircuit()
+        self.generate(circuit)
+        if MODE != DESIGN:
+            self.simulate(SIMULATE)
+
     cpdef void optimize(self):
         cdef int i=0,j=0,n
         cdef vector[int] queue,hash_map,in_degree

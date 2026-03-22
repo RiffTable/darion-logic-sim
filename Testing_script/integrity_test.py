@@ -1258,6 +1258,10 @@ class AggressiveTestSuite:
             prev = n
         
         self.maybe_optimize(c)
+        # After optimize(), refresh() recreates all gate objects — re-fetch stale refs.
+        if USE_OPTIMIZE:
+            v    = c.objlist[Const.VARIABLE_ID][0]
+            prev = c.objlist[Const.NOT_ID][999]  # last in the 1000-deep NOT chain
         c.toggle(v, Const.HIGH)
         self.assert_test(prev.output == Const.HIGH, f"1000-deep chain HIGH->HIGH")
         
@@ -1282,6 +1286,11 @@ class AggressiveTestSuite:
             gates.append(g)
         
         self.maybe_optimize(c)
+        # After optimize(), refresh() recreates all gate objects — re-fetch stale refs.
+        if USE_OPTIMIZE:
+            v          = c.objlist[Const.VARIABLE_ID][0]
+            const_high = c.objlist[Const.VARIABLE_ID][1]
+            gates      = [g for g in c.objlist[Const.AND_ID] if g is not None]
         start = time.perf_counter_ns()
         c.toggle(v, Const.HIGH)
         duration = (time.perf_counter_ns() - start) / 1_000_000
@@ -2592,6 +2601,16 @@ class AggressiveTestSuite:
             prev_carry = cout
 
         self.maybe_optimize(c)
+
+        # After optimize(), the reactor calls refresh() which recreates all gate
+        # objects. Any references captured before the call are now stale/detached.
+        # Re-fetch from c.objlist using the original build-order ranks.
+        if USE_OPTIMIZE:
+            a_vars    = [c.objlist[Const.VARIABLE_ID][i]       for i in range(bits)]
+            b_vars    = [c.objlist[Const.VARIABLE_ID][bits + i] for i in range(bits)]
+            cin_var   =  c.objlist[Const.VARIABLE_ID][2 * bits]
+            sum_gates = [c.objlist[Const.XOR_ID][2 * i + 1]    for i in range(bits)]
+            prev_carry =  c.objlist[Const.OR_ID][bits - 1]
 
         total_gates = bits * 5
         def set_value(vars_list, val):
