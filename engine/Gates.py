@@ -75,6 +75,8 @@ class Gate:
     def __str__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name
 
+    def register(self):
+        pass
 
     def process(self):
         """Calculate output from book counts."""

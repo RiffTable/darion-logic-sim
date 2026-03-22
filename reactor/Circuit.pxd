@@ -21,8 +21,8 @@ cdef class Circuit:
     cpdef void listVar(self)
     cpdef bint setlimits(self, Gate gate, int size)
     cpdef void optimize(self)
-    cpdef void connect(self, Gate target, Gate source, int index)
-    cpdef void toggle(self, Gate target, int value)
+    cpdef void connect(self, Gate target, int source, int index)
+    cpdef void toggle(self, int target, int value)
     cpdef void disconnect(self, Gate target, int index)
     cpdef void delobj(self, object gate)
     cpdef IC build_ic(self)
@@ -48,6 +48,6 @@ cdef class Circuit:
     cpdef void copy(self, list components)
     cpdef list paste(self)
     cpdef void transfer_info(self, Gate gate, int id)
-    cdef void turnoff(self, Gate gate)
+    cdef void turnoff(self, int gate) nogil
     cdef void propagate(self, int origin) nogil
     cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil

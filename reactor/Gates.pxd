@@ -61,7 +61,7 @@ cdef class Gate:
     cdef int location
     cdef vector[CPP_Gate]* location_ptr
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
-    cdef public list sources
+    cdef public list _sources
     cdef public list gate_verse
     cdef public tuple code
     cdef public str codename
@@ -69,8 +69,8 @@ cdef class Gate:
 
     cdef void process(self)
     cpdef void rename(self, str name)
-
-    cdef void connect(self, Gate source, int index)
+    cpdef void deregister(self)
+    cdef void connect(self, int source, int index)
     cdef void disconnect(self, int index)
     cdef void reset(self)
     cdef void hide(self)

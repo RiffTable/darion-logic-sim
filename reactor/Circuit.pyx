@@ -11,7 +11,6 @@ from IC cimport IC
 from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from libc.stdint cimport uint16_t
-from libcpp.algorithm cimport sort
 cdef class Circuit:
     def __cinit__(self):
         self.counter = 0
@@ -83,19 +82,19 @@ cdef class Circuit:
     cpdef bint setlimits(self, Gate gate, int size):
         return gate.setlimits(size)
 
-    cpdef void connect(self, Gate target, Gate source, int index):
+    cpdef void connect(self, Gate target, int source, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.location]
         cdef int prev = info.output
         target.connect(source, index)
         if prev != info.output:
             self.propagate(target.location)
 
-    cpdef void toggle(self, Gate target, int value):
-        cdef CPP_Gate* info = &self.gate_infolist[target.location]
+    cpdef void toggle(self, int target, int value):
+        cdef CPP_Gate* info = &self.gate_infolist[target]
         if value != info.output:
             info.value = value
             info.output = value if MODE == SIMULATE else UNKNOWN
-            self.propagate(target.location)
+            self.propagate(target)
 
     cpdef void disconnect(self, Gate target, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.location]
@@ -310,7 +309,7 @@ cdef class Circuit:
             for comp in gates:
                 info = &self.gate_infolist[comp.location]
                 if isinstance(comp.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c != -1]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{comp.sources}"
@@ -345,13 +344,13 @@ cdef class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        ch = [f"{c}" for c in pin.sources if c != -1] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        ch = [f"{c}" for c in pin.sources if c != -1] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
@@ -367,79 +366,74 @@ cdef class Circuit:
     cpdef void optimize(self):
         cdef int i=0,j=0,n
         cdef vector[int] queue,hash_map,in_degree
-        n=self.gate_infolist.size()
-        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        queue.resize(n)
-        hash_map.resize(n)
-        in_degree.resize(n)
         cdef Profile* profile, *end
-        # queue all floating gates
-        cdef CPP_Gate* info
-        cdef int active_gates=n
-        for i in range(n):
-            info=&gate_infolist[i]
-            if info.type==DEAD_ID:
-                in_degree[i]=-1
-                active_gates-=1
-                continue
-            profile=info.hitlist.data()
-            end=profile+info.hitlist.size()
-            while profile<end:
-                in_degree[profile.target]+=1
-                profile+=1
         cdef int degree=0,index=0
-        i=0
-        for index in range(n):
-            if in_degree[index]==0:
-                queue[j]=index
-                j+=1
-        while i<j:
-            info=&gate_infolist[queue[i]]
-            hash_map[queue[i]]=i
-            profile=info.hitlist.data()
-            end=profile+info.hitlist.size()
-            while profile<end:
-                if in_degree[profile.target]>0:
-                    in_degree[profile.target]-=1
-                    if in_degree[profile.target]==0:
-                        queue[j]=profile.target
-                        j+=1
-                profile+=1
-            i+=1
-        if j<active_gates:
-            for index in range(n):
-                if in_degree[index]>0:
-                    queue[j]=index
-                    in_degree[index]=0
-                    j+=1
-                    while i<j:
-                        info=&gate_infolist[queue[i]]
-                        hash_map[queue[i]]=i
-                        profile=info.hitlist.data()
-                        end=profile+info.hitlist.size()
-                        while profile<end:
-                            if in_degree[profile.target]>0:
-                                in_degree[profile.target]-=1
-                                if in_degree[profile.target]==0:
-                                    queue[j]=profile.target
-                                    j+=1
-                            profile+=1
-                        i+=1
-
-        # create new info_list
+        cdef CPP_Gate* info
         cdef vector[CPP_Gate] new_gate_infolist
-        new_gate_infolist.resize(active_gates)
+        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
         cdef Gate gate
-        for i in range(active_gates):
-            new_gate_infolist[i]=gate_infolist[queue[i]]
-            profile=new_gate_infolist[i].hitlist.data()
-            end=profile+new_gate_infolist[i].hitlist.size()
-            while profile<end:
-                profile.target=hash_map[profile.target]
-                profile+=1
-        self.gate_infolist.swap(new_gate_infolist)
+        with nogil:
+            n=self.gate_infolist.size()
+            queue.resize(n)
+            hash_map.resize(n)
+            in_degree.resize(n)
+            for i in range(n):
+                info=&gate_infolist[i]
+                profile=info.hitlist.data()
+                end=profile+info.hitlist.size()
+                while profile<end:
+                    in_degree[profile.target]+=1
+                    profile+=1
+            i=0
+            for index in range(n):
+                if in_degree[index]==0:
+                    queue[j]=index
+                    j+=1
+            while i<j:
+                info=&gate_infolist[queue[i]]
+                hash_map[queue[i]]=i
+                profile=info.hitlist.data()
+                end=profile+info.hitlist.size()
+                while profile<end:
+                    if in_degree[profile.target]>0:
+                        in_degree[profile.target]-=1
+                        if in_degree[profile.target]==0:
+                            queue[j]=profile.target
+                            j+=1
+                    profile+=1
+                i+=1
+            if j<n:
+                for index in range(n):
+                    if in_degree[index]>0:
+                        queue[j]=index
+                        in_degree[index]=0
+                        j+=1
+                        while i<j:
+                            info=&gate_infolist[queue[i]]
+                            hash_map[queue[i]]=i
+                            profile=info.hitlist.data()
+                            end=profile+info.hitlist.size()
+                            while profile<end:
+                                if in_degree[profile.target]>0:
+                                    in_degree[profile.target]-=1
+                                    if in_degree[profile.target]==0:
+                                        queue[j]=profile.target
+                                        j+=1
+                                profile+=1
+                            i+=1
+
+            # create new info_list
+            new_gate_infolist.resize(n)
+            for i in range(n):
+                new_gate_infolist[i]=gate_infolist[queue[i]]
+                profile=new_gate_infolist[i].hitlist.data()
+                end=profile+new_gate_infolist[i].hitlist.size()
+                while profile<end:
+                    profile.target=hash_map[profile.target]
+                    profile+=1
+            self.gate_infolist.swap(new_gate_infolist)
         cdef list new_gate_verse = []
-        for i in range(active_gates):
+        for i in range(n):
             gate=<Gate>PyList_GET_ITEM(self.gate_verse, queue[i])
             gate.location=i
             new_gate_verse.append(gate)
@@ -447,33 +441,32 @@ cdef class Circuit:
 
     cpdef void generate(self, list circuit):
         cdef dict pseudo = {}
-        pseudo[('X', 'X')] = None
+        pseudo[-1] = None
         cdef object obj
         cdef Gate gate
         cdef IC ic
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        for i in circuit:  # load to pseudo
-            code = decode(i[CODE])
-            obj = self.getcomponent(code[0])
-            if obj.id == IC_ID:
-                ic = <IC>obj
-                ic.custom_name = i[CUSTOM_NAME]
-                ic.map = i[MAP]
-                ic.load_components(i, pseudo)
-            elif obj.id == VARIABLE_ID:
-                gate = <Gate>obj
-                gate_infolist[gate.location].output = UNKNOWN
-            pseudo[code] = obj
-        for i in circuit:  # connect components
-            code = decode(i[CODE])
-            obj = pseudo[code]
-            if obj.id == IC_ID:
-                ic = <IC>obj
+        cdef list info
+        for info in circuit:  # load to pseudo
+            if info[ID] == IC_ID:
+                ic = <IC>self.getcomponent(info[ID])
+                ic.custom_name = info[CUSTOM_NAME]
+                ic.map = info[MAP]
+                ic.load_components(info, pseudo)
+                pseudo[tuple(info[LOCATION])] = ic
+            else:
+                gate = <Gate>self.getcomponent(info[ID])
+                if gate.id == VARIABLE_ID:
+                    gate_infolist[gate.location].output = UNKNOWN
+                pseudo[info[LOCATION]] = gate
+        for info in circuit:  # connect components
+            if info[ID] == IC_ID:
+                ic = pseudo[tuple(info[LOCATION])]
                 ic.implement(pseudo)
                 self.counter += ic.counter
             else:
-                gate = <Gate>obj
-                gate.clone(i, pseudo)
+                gate = pseudo[info[LOCATION]]
+                gate.clone(info, pseudo)
 
     cpdef void readfromjson(self, str location):
         cdef list circuit
@@ -504,19 +497,19 @@ cdef class Circuit:
         while index < size:
             gate = queue[index]
             info = &gate_infolist[gate.location]
-            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+            if gate.id == INPUT_PIN_ID and gate._sources[0] != -1:
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile != end:
                     target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
-                    target.sources[profile.index] = gate.sources[0]
+                    target._sources[profile.index] = gate._sources[0]
                     profile += 1
             elif gate.id == OUTPUT_PIN_ID and not info.hitlist.empty():
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile != end:
                     target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
-                    target.sources[profile.index] = gate.sources[0]
+                    target._sources[profile.index] = gate._sources[0]
                     profile += 1
             profile = info.hitlist.data()
             end = profile + info.hitlist.size()
@@ -567,10 +560,10 @@ cdef class Circuit:
         cdef int length
         if id >= IC_ID or id < 0:
             return
-        real_source = [source for source in gate.sources if source is not None]
+        real_source = [source for source in gate._sources if source != -1]
         length = len(real_source)
         if not real_source or (length == 1 and id != VARIABLE_ID) or (length > 1 and id < VARIABLE_ID):
-            if gate.sources[0] is None:
+            if gate._sources[0] == -1:
                 self.objlist[gate.code[0]][gate.code[1]] = None
                 gate.id = id
                 gate.code = (id, len(self.objlist[id]))
@@ -606,7 +599,7 @@ cdef class Circuit:
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
             self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
-            if gate and (<Gate>gate).sources[0] is not None:
+            if gate and (<Gate>gate)._sources[0] != -1:
                 raise ValueError('Input Pin has extra sources')
         for gate in self.objlist[OUTPUT_PIN_ID]:
             if gate:
@@ -677,35 +670,39 @@ cdef class Circuit:
     cpdef list paste(self):
         cdef list circuit
         cdef dict pseudo
-        cdef list new_items
+        cdef list new_items=[]
         cdef tuple code
-        cdef object gate
         cdef Gate g
         circuit = self.copydata
         pseudo = {}
-        pseudo[('X', 'X')] = None
+        pseudo[-1] = None
         new_items = []
-        for i in circuit:  # load to pseudo
-            code = i[CODE]
-            gate = self.getcomponent(code[0])
-            new_items.append(gate)
-            if gate.id == IC_ID:
-                gate.custom_name = i[CUSTOM_NAME]
-                gate.map = i[MAP]
-                gate.load_components(i, pseudo)
-            elif gate.id == VARIABLE_ID:
-                gate.output = UNKNOWN
-            pseudo[code] = gate
+        cdef Gate gate
+        cdef IC ic
+        cdef list info,gate_info
+        for info in circuit:  # load to pseudo
+            if info[ID] == IC_ID:
+                ic = <IC>self.getcomponent(info[ID])
+                ic.custom_name = info[CUSTOM_NAME]
+                ic.map = info[MAP]
+                ic.load_components(info, pseudo)
+                pseudo[tuple(info[LOCATION])] = ic
+                new_items.append(ic)
+            else:
+                gate = <Gate>self.getcomponent(info[ID])
+                if gate.id == VARIABLE_ID:
+                    gate.output = UNKNOWN
+                pseudo[info[LOCATION]] = gate
+                new_items.append(gate)
 
         for gate_info in circuit:  # connect components
-            code = gate_info[CODE]
-            gate = pseudo[code]
-            if gate.id == IC_ID:
-                (<IC>gate).implement(pseudo)
-                self.counter += (<IC>gate).counter
-            elif gate:
-                g = <Gate>gate
-                g.clone(gate_info, pseudo)
+            if gate_info[ID] == IC_ID:
+                ic = pseudo[tuple(gate_info[LOCATION])]
+                ic.implement(pseudo)
+                self.counter += ic.counter
+            else:
+                gate = pseudo[gate_info[LOCATION]]
+                gate.clone(gate_info, pseudo)
 
         if MODE != DESIGN:
             self.simulate(SIMULATE)
@@ -731,18 +728,15 @@ cdef class Circuit:
             else:
                 (<IC>i).reset()
 
-    cdef inline void turnoff(self, Gate gate):
+    cdef inline void turnoff(self, int gate) nogil:
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        cdef Profile* profile = gate_infolist[gate.location].hitlist.data()
-        cdef Profile* end = profile + gate_infolist[gate.location].hitlist.size()
-        cdef Gate target
-        cdef int self_idx = gate.location
-        cdef list gate_verse = self.gate_verse
+        cdef Profile* profile = gate_infolist[gate].hitlist.data()
+        cdef Profile* end = profile + gate_infolist[gate].hitlist.size()
+        cdef int self_idx = gate
         while profile != end:
             if profile.target != self_idx:
-                target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
-                gate_infolist[target.location].output = UNKNOWN
-                self.propagate(target.location)
+                gate_infolist[profile.target].output = UNKNOWN
+                self.propagate(profile.target)
             profile += 1
 
     cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil:

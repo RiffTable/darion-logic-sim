@@ -28,14 +28,16 @@ cpdef enum:
     NAME=-1
     CUSTOM_NAME=NAME+1
     CODE=NAME+2
+    ID=NAME+2
     COMPONENTS=NAME+3
     INPUTLIMIT=COMPONENTS
     SOURCES=NAME+4
     VALUE=SOURCES
     MAP=SOURCES
-    TAG=SOURCES+1
-    DESCRIPTION=SOURCES+2
-
+    LOCATION=NAME+5
+    TAG=NAME+6
+    DESCRIPTION=NAME+7
+    
 cdef extern from *:
     """
     #if defined(__GNUC__) || defined(__clang__)

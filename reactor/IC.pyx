@@ -75,16 +75,16 @@ cdef class IC:
 
     cpdef void load_components(self, list dictionary, dict pseudo):
         cdef object gate
-        for comp_code in dictionary[COMPONENTS]:
-            gate = self.getcomponent(comp_code[0])
-            pseudo[decode(comp_code)] = gate
+        cdef list comp_code
+        for comp_code in dictionary[MAP]:
+            gate = self.getcomponent(comp_code[ID])
+            pseudo[comp_code[LOCATION]] = gate
 
     cpdef void clone(self, dict pseudo):
         cdef Gate gate
         cdef tuple code
         for i in self.map:
-            code = decode(i[CODE])
-            gate = pseudo[code]
+            gate = pseudo[i[LOCATION]]
             gate.clone(i, pseudo)
 
     cpdef void load_to_cluster(self, list cluster):
@@ -97,11 +97,12 @@ cdef class IC:
         cdef Gate i
         cdef list dictionary = [
             self.custom_name,
+            IC_ID,
+            [],
+            [],
             self.code,
-            [],
-            [],
             self.tag,
-            self.description
+            self.description,
         ]
         for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
@@ -112,11 +113,12 @@ cdef class IC:
         cdef Gate i
         cdef list dictionary = [
             self.custom_name,
+            IC_ID,
+            [],
+            [],
             self.code,
-            [],
-            [],
             self.tag,
-            self.description
+            self.description,
         ]
         for i in self.inputs + self.outputs + self.internal:
             dictionary[COMPONENTS].append(i.code)
@@ -127,8 +129,7 @@ cdef class IC:
         cdef Gate gate
         cdef tuple code
         for i in self.map:
-            code = decode(i[CODE])
-            gate = pseudo[code]
+            gate = pseudo[i[LOCATION]]
             gate.clone(i, pseudo)
 
     cpdef void hide(self):
@@ -150,10 +151,9 @@ cdef class IC:
 
         # Disconnect inputs from external sources
         for pin_in in self.inputs:
-            for index, source in enumerate(pin_in.sources):
-                if source is not None:
-                    src = <Gate>source
-                    src_info = &gate_infolist[src.location]
+            for index, source_loc in enumerate(<list>pin_in._sources):
+                if source_loc != -1:
+                    src_info = &gate_infolist[source_loc]
                     pop(src_info.hitlist, pin_in.location, index)
 
     cpdef void reveal(self):
@@ -166,11 +166,12 @@ cdef class IC:
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         # Re-register in external source hitlists
 
+        cdef int source_loc
         for pin_in in self.inputs:
             pin_in_info = &gate_infolist[pin_in.location]
-            source = <Gate>pin_in.sources[0]
-            if source is not None:
-                src_info = &gate_infolist[source.location]
+            source_loc = pin_in._sources[0]
+            if source_loc != -1:
+                src_info = &gate_infolist[source_loc]
                 src_info.hitlist.emplace_back(pin_in.location, 0, src_info.output)
             pin_in.process()
 
@@ -225,7 +226,7 @@ cdef class IC:
             print("  INTERNAL:")
             for pin in self.internal:
                 if isinstance(pin.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(pin.sources) if c is not None]
+                    ch = [f"[{i}]:{c}" for i, c in enumerate(pin.sources) if c != -1]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{pin.sources}"
@@ -243,7 +244,7 @@ cdef class IC:
             print("  OUTPUTS:")
             for pin in self.outputs:
                 if isinstance(pin.sources, list):
-                    ch = [f"{c}" for c in pin.sources if c is not None]
+                    ch = [f"{c}" for c in pin.sources if c != -1]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = "None"

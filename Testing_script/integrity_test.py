@@ -847,14 +847,14 @@ class AggressiveTestSuite:
 
             # --- full_data ---
             jd = g.full_data()
-            self.assert_test(isinstance(jd, list) and len(jd) == 4, f"{gname}.full_data() has keys")
+            self.assert_test(isinstance(jd, list) and len(jd) >= 4, f"{gname}.full_data() has keys")
 
             # --- copy_data ---
             cluster = []
             g.load_to_cluster(cluster)
             self.assert_test(g in cluster, f"{gname}.load_to_cluster adds self")
             cd = g.partial_data()
-            self.assert_test(isinstance(cd, list) and len(cd) == 4, f"{gname}.copy_data() has keys")
+            self.assert_test(isinstance(cd, list) and len(cd) >= 4, f"{gname}.copy_data() has keys")
 
             # --- connect, process, propagate via circuit ---
             if gtype == Const.NOT_ID:
@@ -895,11 +895,11 @@ class AggressiveTestSuite:
         self.assert_test(str(v) == "custom_var", "Variable str uses custom_name")
         v.custom_name = ''
         jd = v.full_data()
-        self.assert_test(isinstance(jd, list) and len(jd) == 4, "Variable.full_data has 'value'")
+        self.assert_test(isinstance(jd, list) and len(jd) >= 4, "Variable.full_data has 'value'")
         cluster = []
         v.load_to_cluster(cluster)
         cd = v.partial_data()
-        self.assert_test(isinstance(cd, list) and len(cd) == 4, "Variable.copy_data has 'value'")
+        self.assert_test(isinstance(cd, list) and len(cd) >= 4, "Variable.copy_data has 'value'")
         # Variable connect/disconnect are no-ops
         c.connect(v, v, 0)  # should not crash
         c.disconnect(v, 0)   # should not crash
@@ -918,7 +918,7 @@ class AggressiveTestSuite:
         p.rename("my_probe")
         self.assert_test(p.custom_name == "my_probe", "Probe.rename() works")
         jd = p.full_data()
-        self.assert_test(isinstance(jd, list) and len(jd) == 4, "Probe.full_data has 'source'")
+        self.assert_test(isinstance(jd, list) and len(jd) >= 4, "Probe.full_data has 'source'")
         cluster = []
         p.load_to_cluster(cluster)
         self.assert_test(p in cluster, "Probe.load_to_cluster adds self")

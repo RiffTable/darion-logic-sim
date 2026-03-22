@@ -27,14 +27,14 @@ cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse
     target_info.book[profile.output] -= 1
     profile.output = UNKNOWN
     cdef Gate target_gate = <Gate>gate_verse[profile.target]
-    target_gate.sources[profile.index] = None
+    target_gate._sources[profile.index] = -1
 
 cdef inline void reveal(Profile& profile, Gate source, list gate_verse):
     cdef CPP_Gate* gate_infolist=source.location_ptr[0].data()
     cdef CPP_Gate* target_info = &gate_infolist[profile.target]
     target_info.book[UNKNOWN] += 1
     cdef Gate target_gate = <Gate>gate_verse[profile.target]
-    target_gate.sources[profile.index] = source
+    target_gate._sources[profile.index] = source.location
 
 
 cdef class Gate:
@@ -43,9 +43,9 @@ cdef class Gate:
         self.location = -1
         self.id = id
         if id >= VARIABLE_ID:
-            self.sources: list = [None]
+            self._sources = [-1]
         else:
-            self.sources: list = [None, None]
+            self._sources = [-1, -1]
         self.code = ()
         self.custom_name = ''
 
@@ -87,6 +87,17 @@ cdef class Gate:
     @property
     def value(self):
         return self.location_ptr[0][self.location].value
+    
+    @property
+    def sources(self):
+        cdef list source_list=[]
+        cdef int i
+        for i in self._sources:
+            if i != -1:
+                source_list.append(self.gate_verse[i])
+            else:
+                source_list.append(None)
+        return source_list
     @output.setter
     def output(self, int val):
         self.location_ptr[0][self.location].output = val
@@ -102,7 +113,7 @@ cdef class Gate:
         cdef int gate_type = info.type
         cdef int limit = info.inputlimit
         cdef int high, low, realsource
-        cdef Gate source
+        cdef int source_loc # Changed from Gate source to int source_loc
 
         if MODE == DESIGN:
             info.output = UNKNOWN
@@ -112,11 +123,11 @@ cdef class Gate:
             if gate_type == VARIABLE_ID:
                 info.output = info.value
             else:
-                source = <Gate>PyList_GET_ITEM(self.sources, 0)
-                if source is None:
+                source_loc = self._sources[0]
+                if source_loc == -1:
                     info.output = UNKNOWN
                 else:
-                    src_info = &gate_infolist[source.location]
+                    src_info = &gate_infolist[source_loc]
                     if src_info.output >= ERROR:
                         info.output = src_info.output
                     else:
@@ -136,24 +147,29 @@ cdef class Gate:
     cpdef void rename(self, str name):
         self.custom_name = name
 
-    cdef void connect(self, Gate source, int index):
-        cdef CPP_Gate* self_info = &self.location_ptr[0][self.location]
-        if self_info.type == VARIABLE_ID or self.sources[index] is not None:
+    cpdef void deregister(self):
+        self.all_gates[self.location] = None
+        self.location_ptr[0][self.location].type = -1
+
+    cdef void connect(self, int source, int index):
+        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* self_info = &gate_infolist[self.location]
+        if self_info.type == VARIABLE_ID or self._sources[index] != -1:
             return
-        cdef CPP_Gate* src_info = &source.location_ptr[0][source.location]
+        cdef CPP_Gate* src_info = &gate_infolist[source]
         src_info.hitlist.emplace_back(self.location, index, src_info.output)
-        self.sources[index] = source
+        self._sources[index] = source
         self_info.book[src_info.output] += 1
         self.process()
 
     cdef void disconnect(self, int index):
         cdef CPP_Gate* self_info = &self.location_ptr[0][self.location]
-        if self_info.type == VARIABLE_ID or self.sources[index] is None:
+        if self_info.type == VARIABLE_ID or self._sources[index] == -1:
             return
-        cdef Gate source = self.sources[index]
-        cdef CPP_Gate* src_info = &source.location_ptr[0][source.location]
+        cdef int src_loc = self._sources[index]
+        cdef CPP_Gate* src_info = &self.location_ptr[0][src_loc]
         pop(src_info.hitlist, self.location, index)
-        self.sources[index] = None
+        self._sources[index] = -1
         self_info.book[src_info.output] -= 1
         self_info.output = UNKNOWN
 
@@ -176,7 +192,7 @@ cdef class Gate:
         cdef CPP_Gate* target_info
         cdef Gate target_gate
         cdef list sources
-        cdef Gate source
+        cdef int source_loc
         cdef CPP_Gate* src_info
         cdef uint16_t* book
         cdef Py_ssize_t n
@@ -188,13 +204,13 @@ cdef class Gate:
         for i in range(n):
             hide(hitlist[i], gate_infolist, self.gate_verse)
 
-        sources = self.sources
+        sources = self._sources
         if info.type != VARIABLE_ID:
             n = len(sources)
             for i in range(n):
-                source = <Gate>PyList_GET_ITEM(sources, i)
-                if source is not None:
-                    src_info = &gate_infolist[source.location]
+                source_loc = sources[i]
+                if source_loc != -1:
+                    src_info = &gate_infolist[source_loc]
                     pop(src_info.hitlist, self.location, i)
 
         # 3. Zero out own state
@@ -204,18 +220,18 @@ cdef class Gate:
             book[0] = book[1] = book[2] = book[3] = 0
 
     cdef void reveal(self):
-        cdef list sources = self.sources
+        cdef list sources = self._sources
         cdef Py_ssize_t i
         cdef Py_ssize_t n = len(sources)
-        cdef Gate source
+        cdef int source_loc
         cdef CPP_Gate* src_info
         cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
         cdef CPP_Gate* info = &gate_infolist[self.location]
         if info.type != VARIABLE_ID:
             for i in range(n):
-                source = <Gate>PyList_GET_ITEM(sources, i)
-                if source is not None:
-                    src_info = &gate_infolist[source.location]
+                source_loc = sources[i]
+                if source_loc != -1:
+                    src_info = &gate_infolist[source_loc]
                     src_info.hitlist.emplace_back(self.location, i, src_info.output)
                     info.book[src_info.output] += 1
 
@@ -236,14 +252,14 @@ cdef class Gate:
 
         if size > current:
             for _ in range(size - current):
-                self.sources.append(None)
+                self._sources.append(-1)
             info.inputlimit = size
             return True
         elif size < current:
             for i in range(size, current):
-                if self.sources[i]:
+                if self._sources[i] != -1:
                     return False
-            self.sources = self.sources[:size]
+            self._sources = self._sources[:size]
             info.inputlimit = size
             return True
         return False
@@ -260,9 +276,10 @@ cdef class Gate:
         cdef Gate source
         cdef list dictionary = [
             self.custom_name,
-            self.code,
+            self.id,
             info.inputlimit,
-            info.value if info.type == VARIABLE_ID else [source.code if source else ('X', 'X') for source in self.sources],
+            info.value if info.type == VARIABLE_ID else list(self._sources),
+            self.location
             ]
         return dictionary
 
@@ -272,9 +289,10 @@ cdef class Gate:
         cdef Gate source
         cdef list dictionary = [
             self.custom_name,
-            self.code,
+            self.id,
             info.inputlimit,
-            info.value if info.type == VARIABLE_ID else [source.code if source and gate_infolist[source.location].scheduled else ('X', 'X') for source in self.sources],
+            info.value if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and gate_infolist[src_loc].scheduled else -1 for src_loc in self._sources],
+            self.location
             ]
         return dictionary
 
@@ -286,8 +304,8 @@ cdef class Gate:
         else:
             self.setlimits(dictionary[INPUTLIMIT])
             for index, source in enumerate(dictionary[SOURCES]):
-                if source[0] != 'X':
-                    self.connect(pseudo[decode(source)], index)
+                if source != -1:
+                    self.connect(pseudo[source], index)
 
     cpdef void load_to_cluster(self, list cluster):
         cluster.append(self)
