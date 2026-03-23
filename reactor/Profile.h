@@ -15,7 +15,7 @@ struct Profile {
     }
 };
 struct CPP_Gate {
-    uint8_t type;
+    int8_t type;
     uint8_t output;
     uint8_t value;
     uint8_t scheduled;

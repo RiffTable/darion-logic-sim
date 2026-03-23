@@ -50,17 +50,36 @@ cdef class Circuit:
     cpdef object getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
 
-    cpdef void delobj(self, object gate):
-        if gate.id == IC_ID:
-            self.counter -= gate.counter
+    cpdef void delobj(self, object obj):
+        cdef CPP_Gate* gate_info=self.gate_infolist.data()
+        cdef Gate gate
+        cdef IC ic
+        if obj.id == IC_ID:
+            ic = <IC>obj
+            self.counter += ic.counter
+            for gate in ic.outputs+ic.inputs+ic.internal:
+                gate_info[gate.location].type = -gate_info[gate.location].type -1
+        else:
+            gate = <Gate>obj
+            gate_info[gate.location].type = -gate_info[gate.location].type -1 
         self.counter -= 1
-        self.objlist[gate.code[0]][gate.code[1]] = None
+        self.objlist[obj.code[0]][obj.code[1]] = None
 
-    cpdef void renewobj(self, object gate):
-        if gate.id == IC_ID:
-            self.counter += gate.counter
+    cpdef void renewobj(self, object obj):
+        cdef CPP_Gate* gate_info=self.gate_infolist.data()
+        cdef Gate gate
+        cdef IC ic
+        if obj.id == IC_ID:
+            ic = <IC>obj
+            self.counter += ic.counter
+            for gate in ic.outputs+ic.inputs+ic.internal:
+                gate_info[gate.location].type = -gate_info[gate.location].type -1
+        else:
+            gate = <Gate>obj
+            gate_info[gate.location].type = -gate_info[gate.location].type -1 
         self.counter += 1
-        self.objlist[gate.code[0]][gate.code[1]] = gate
+        self.objlist[obj.code[0]][obj.code[1]] = obj
+
 
     cpdef list get_components(self):
         return [gate for sublist in self.objlist for gate in sublist if gate is not None]
@@ -129,13 +148,13 @@ cdef class Circuit:
         cdef Gate pin
         cdef IC ic
         for gate in reversed(gatelist):
+            self.renewobj(gate)
             if gate.id == IC_ID:
                 ic = <IC>gate
                 ic.reveal()
             else:
                 pin = <Gate>gate
                 pin.reveal()
-            self.renewobj(gate)
 
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
@@ -370,20 +389,19 @@ cdef class Circuit:
             file.write(orjson.dumps(circuit))
 
     cpdef void refresh(self):
-        cdef list circuit = []
-        cdef object gate
-        for gate in self.get_components():
-            circuit.append(gate.full_data())
-        self.clearcircuit()
-        self.generate(circuit)
-        if MODE != DESIGN:
-            self.simulate(SIMULATE)
+        self.optimize()
+        cdef int n=self.gate_infolist.size()
+        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
+        while n>0 and gate_infolist[n-1].type<0:
+            self.gate_verse.pop()
+            self.gate_infolist.pop_back()
+            n-=1
 
     cpdef void optimize(self):
         cdef int i=0,j=0,n
-        cdef vector[int] queue,hash_map,in_degree
+        cdef vector[int] queue,hash_map,in_degree,hidden
         cdef Profile* profile, *end
-        cdef int degree=0,index=0
+        cdef int degree=0,index=0,active_gates=0
         cdef CPP_Gate* info
         cdef vector[CPP_Gate] new_gate_infolist
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
@@ -393,8 +411,14 @@ cdef class Circuit:
             queue.resize(n)
             hash_map.resize(n)
             in_degree.resize(n)
+            active_gates=n
             for i in range(n):
                 info=&gate_infolist[i]
+                if info.type<0:
+                    in_degree[i]=-1
+                    active_gates-=1
+                    hidden.push_back(i)
+                    continue
                 profile=info.hitlist.data()
                 end=profile+info.hitlist.size()
                 while profile<end:
@@ -418,7 +442,7 @@ cdef class Circuit:
                             j+=1
                     profile+=1
                 i+=1
-            if j<n:
+            if j<active_gates:
                 for index in range(n):
                     if in_degree[index]>0:
                         queue[j]=index
@@ -437,7 +461,11 @@ cdef class Circuit:
                                         j+=1
                                 profile+=1
                             i+=1
-
+            # i is location of each hidden gate, it will be pushed to the end of queue
+            for i in hidden:
+                queue[j]=i
+                hash_map[i]=j
+                j+=1
             # create new info_list
             new_gate_infolist.resize(n)
             for i in range(n):
@@ -452,6 +480,9 @@ cdef class Circuit:
         for i in range(n):
             gate=<Gate>PyList_GET_ITEM(self.gate_verse, queue[i])
             gate.location=i
+            for index in range(len(gate._sources)):
+                if gate._sources[index] != -1:
+                    gate._sources[index] = hash_map[gate._sources[index]]
             new_gate_verse.append(gate)
         self.gate_verse[:] = new_gate_verse
 

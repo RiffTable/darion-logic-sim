@@ -1,6 +1,6 @@
 # distutils: language = c++
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, MODE
-from libc.stdint cimport uint16_t,uint8_t
+from libc.stdint cimport uint16_t,uint8_t,int8_t
 from libcpp.unordered_map cimport unordered_map
 
 cdef extern from "<vector>" namespace "std" nogil:
@@ -43,7 +43,7 @@ cdef extern from "Profile.h":
         Profile()
         Profile(int target, int pin_index, int output)
     cdef cppclass CPP_Gate:
-        uint8_t type
+        int8_t type
         uint8_t output
         uint8_t value
         uint8_t scheduled
@@ -60,7 +60,7 @@ cdef void pop(vector[Profile]& hitlist, int target, int pin_index)
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
     cdef public uint8_t id
-    cdef int location
+    cdef public int location
     cdef vector[CPP_Gate]* location_ptr
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public list _sources

@@ -172,7 +172,8 @@ class AggressiveTestSuite:
             # Show section completion
             if self._current_section != "_END_":
                 status_icon = "[OK]" if self.section_failed == 0 else "[FAIL]"
-                print(f"  {status_icon} {self._current_section}: {self.section_passed} passed ({duration:.0f}ms)")
+                fail_str = f" | {self.section_failed} FAILED" if self.section_failed > 0 else ""
+                print(f"  {status_icon} {self._current_section}: {self.section_passed} passed{fail_str} ({duration:.0f}ms)")
                 sys.stdout.flush()
         
         # Start new section
@@ -313,6 +314,28 @@ class AggressiveTestSuite:
         self.test_truth_table_complex()
         self.test_truth_table_partial()
         
+        # ==================== PART 7.5: REFRESH / OPTIMIZE (Reactor only) ====================
+        if use_reactor:
+            self.section("REFRESH / OPTIMIZE")
+            self.test_optimize_topological_order()
+            self.test_optimize_location_remap()
+            self.test_refresh_trims_trailing_deleted()
+            self.test_delobj_marks_negative_type()
+            self.test_delobj_counter_decrements()
+            self.test_refresh_delete_middle_gate()
+            self.test_refresh_delete_all_gates()
+            self.test_optimize_functional_correctness()
+            self.test_optimize_cache_ordering()
+            self.test_optimize_with_cycles()
+            self.test_refresh_after_ic_deletion()
+            self.test_optimize_reconnect_after()
+            self.test_refresh_idempotent()
+            self.test_optimize_large_circuit()
+            self.test_optimize_gate_verse_sync()
+            self.test_refresh_delete_readd()
+        else:
+            print("\n[REFRESH / OPTIMIZE] Skipped (Reactor-only, use --reactor)")
+
         # ==================== PART 8: REAL-WORLD STRESS ====================
         self.section("REAL-WORLD STRESS")
         self.test_ripple_adder_correctness(bits=16)
@@ -3115,6 +3138,544 @@ class AggressiveTestSuite:
         self.perf_metrics['reconvergent'] = {'time': duration, 'gates': total_gates}
 
 
+    # =========================================================================
+    # PART 7.5: REFRESH / OPTIMIZE TESTS  (Reactor-only)
+    # =========================================================================
+    # Key facts:
+    #   optimize() — Kahn topological sort on gate_infolist. Deleted nodes
+    #                (type < 0) are pushed to the END of the queue, then
+    #                gate_infolist and gate_verse are rewritten in sorted order.
+    #                Python-side gate.location is updated for every live gate.
+    #   refresh()  — calls optimize() FIRST, then pops any trailing entries
+    #                whose type < 0 (i.e. the deleted-node tail) to reclaim
+    #                memory.
+    #   delobj()   — sets gate_infolist[gate.location].type = -(previous+1),
+    #                sets objlist[code] = None, decrements c.counter.
+
+    def test_optimize_topological_order(self):
+        """After optimize(), every gate appears BEFORE all its targets in gate_infolist."""
+        self.subsection("optimize: topological order guaranteed")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        # Build a chain: v -> NOT0 -> NOT1 -> NOT2
+        v    = c.getcomponent(Const.VARIABLE_ID)
+        not0 = c.getcomponent(Const.NOT_ID)
+        not1 = c.getcomponent(Const.NOT_ID)
+        not2 = c.getcomponent(Const.NOT_ID)
+        c.connect(not0, v,    0)
+        c.connect(not1, not0, 0)
+        c.connect(not2, not1, 0)
+
+        c.optimize()
+
+        # Re-fetch by rank (optimize updates .location but not objlist order)
+        v    = c.objlist[Const.VARIABLE_ID][0]
+        not0 = c.objlist[Const.NOT_ID][0]
+        not1 = c.objlist[Const.NOT_ID][1]
+        not2 = c.objlist[Const.NOT_ID][2]
+
+        # Topo order: v < not0 < not1 < not2
+        topo_ok = (v.location < not0.location <
+                   not1.location < not2.location)
+        self.assert_test(topo_ok,
+            f"Topo order: v@{v.location} < not0@{not0.location} "
+            f"< not1@{not1.location} < not2@{not2.location}")
+
+    def test_optimize_location_remap(self):
+        """After optimize(), gate.location matches its actual slot in gate_infolist."""
+        self.subsection("optimize: location remap is consistent")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        gates = [c.getcomponent(Const.AND_ID) for _ in range(20)]
+        c.optimize()
+
+        # gate_verse[gate.location] must be gate itself
+        all_ok = all(
+            c.gate_verse[g.location] is g
+            for g in c.objlist[Const.AND_ID]
+            if g is not None
+        )
+        self.assert_test(all_ok, "All gate.location indices consistent with gate_verse")
+
+    def test_refresh_trims_trailing_deleted(self):
+        """refresh() removes trailing deleted (type<0) entries from gate_infolist."""
+        self.subsection("refresh: trims trailing deleted slots")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v  = c.getcomponent(Const.VARIABLE_ID)
+        g1 = c.getcomponent(Const.AND_ID)
+        g2 = c.getcomponent(Const.AND_ID)
+        c.connect(g1, v, 0)
+        c.connect(g2, v, 0)
+
+        size_before = c.infolist_size          # 3 entries
+        c.hide([g2])                           # marks g2 as deleted
+        # After hide, g2 is at its slot (type<0). optimize() will push it to
+        # the END.  refresh() will then pop it.
+        c.refresh()
+
+        size_after = c.infolist_size
+        # Exactly 1 deleted gate was trimmed
+        self.assert_test(size_after == size_before - 1,
+            f"infolist shrunk from {size_before} to {size_after} (expected {size_before-1})")
+
+    def test_delobj_marks_negative_type(self):
+        """delobj() must flip type to negative, leaving the slot in gate_infolist.
+        gate_infolist is not publicly accessible, so we verify the negative-type
+        invariant through observable side-effects only."""
+        self.subsection("delobj: type becomes negative")
+        c = Circuit()
+        g = c.getcomponent(Const.OR_ID)
+        size_before = c.infolist_size  # 1 slot
+        cnt_before  = c.counter        # 1
+
+        c.delobj(g)
+
+        # 1. Slot still present — size unchanged immediately after delobj
+        self.assert_test(c.infolist_size == size_before,
+            f"infolist_size unchanged by delobj ({c.infolist_size} == {size_before})")
+
+        # 2. objlist entry nulled
+        self.assert_test(c.objlist[Const.OR_ID][g.code[1]] is None,
+            "objlist slot set to None after delobj")
+
+        # 3. counter decremented
+        self.assert_test(c.counter == cnt_before - 1,
+            f"counter decremented: {cnt_before} -> {c.counter}")
+
+        # 4. Prove type is negative: refresh() calls optimize() which pushes
+        #    negative-type slots to the tail, then pops them.
+        #    If the slot had a negative type, infolist_size shrinks by exactly 1.
+        c.refresh()
+        self.assert_test(c.infolist_size == size_before - 1,
+            f"refresh() trimmed the deleted slot: {size_before} -> {c.infolist_size} "
+            f"(proves type was negative)")
+
+    def test_delobj_counter_decrements(self):
+        """delobj() decrements c.counter by 1 for regular gates."""
+        self.subsection("delobj: counter decrements correctly")
+        c = Circuit()
+        g1 = c.getcomponent(Const.NOT_ID)
+        g2 = c.getcomponent(Const.NOT_ID)
+        cnt_after_add = c.counter   # should be 2
+
+        c.delobj(g1)
+        self.assert_test(c.counter == cnt_after_add - 1,
+            f"counter: {cnt_after_add} -> {c.counter} (expected {cnt_after_add-1})")
+        c.delobj(g2)
+        self.assert_test(c.counter == cnt_after_add - 2,
+            f"counter: after 2nd delobj = {c.counter} (expected {cnt_after_add-2})")
+
+    def test_refresh_delete_middle_gate(self):
+        """Delete a middle gate, refresh() must produce a gapless, topo-correct list
+        and the remaining gates still simulate correctly."""
+        self.subsection("refresh: delete middle gate, circuit still works")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v    = c.getcomponent(Const.VARIABLE_ID)   # index 0
+        mid  = c.getcomponent(Const.NOT_ID)         # index 1  ← will be deleted
+        tail = c.getcomponent(Const.NOT_ID)         # index 2
+
+        c.connect(mid,  v,   0)
+        c.connect(tail, mid, 0)
+
+        # Delete the middle gate
+        c.hide([mid])   # hide disconnects wires + marks deleted
+        c.refresh()
+
+        # Re-fetch live references
+        v    = c.objlist[Const.VARIABLE_ID][0]
+        tail_alive = [g for g in c.objlist[Const.NOT_ID] if g is not None]
+
+        # Only tail remains (mid was connected to v only through wires now gone)
+        self.assert_test(len(tail_alive) == 1,
+            f"1 NOT gate after delete-middle + refresh (got {len(tail_alive)})")
+        # gate_verse is the authoritative live-gate count (v + tail = 2)
+        self.assert_test(len(c.gate_verse) == 2,
+            f"gate_verse has 2 live gates after delete-middle+refresh (got {len(c.gate_verse)})")
+
+        # gate_verse consistency: gate_verse[loc] is the gate at that location
+        for g in [v] + tail_alive:
+            self.assert_test(c.gate_verse[g.location] is g,
+                f"gate_verse[{g.location}] is the expected gate object")
+
+    def test_refresh_delete_all_gates(self):
+        """Deleting every gate then calling refresh() must yield an empty infolist."""
+        self.subsection("refresh: delete all gates yields empty infolist")
+        c = Circuit()
+        gates = [c.getcomponent(Const.AND_ID) for _ in range(10)]
+        size_before = c.infolist_size
+        self.assert_test(size_before == 10, f"10 gates added (got {size_before})")
+
+        c.hide(gates)
+        c.refresh()
+
+        self.assert_test(len(c.gate_verse) == 0,
+            f"gate_verse empty after delete-all + refresh (got {len(c.gate_verse)})")
+        self.assert_test(c.infolist_size == 0,
+            f"infolist_size == 0 after delete-all + refresh (got {c.infolist_size})")
+
+    def test_optimize_functional_correctness(self):
+        """optimize() must not alter simulation results — full truth-table check."""
+        self.subsection("optimize: functional correctness (full adder)")
+        # Build a 4-bit adder, verify 20 random sums, optimize, verify again
+        bits = 4
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        a_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        b_vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(bits)]
+        cin    = c.getcomponent(Const.VARIABLE_ID)
+        c.toggle(cin, Const.LOW)
+        prev_carry = cin
+        sum_gates  = []
+
+        for i in range(bits):
+            xor1 = c.getcomponent(Const.XOR_ID)
+            c.connect(xor1, a_vars[i], 0); c.connect(xor1, b_vars[i], 1)
+            sg = c.getcomponent(Const.XOR_ID)
+            c.connect(sg, xor1, 0); c.connect(sg, prev_carry, 1)
+            sum_gates.append(sg)
+            and1 = c.getcomponent(Const.AND_ID)
+            c.connect(and1, a_vars[i], 0); c.connect(and1, b_vars[i], 1)
+            and2 = c.getcomponent(Const.AND_ID)
+            c.connect(and2, prev_carry, 0); c.connect(and2, xor1, 1)
+            cout = c.getcomponent(Const.OR_ID)
+            c.connect(cout, and1, 0); c.connect(cout, and2, 1)
+            prev_carry = cout
+
+        def set_val(vars_list, val):
+            for i, v in enumerate(vars_list):
+                c.toggle(v, (val >> i) & 1)
+
+        def read_sum():
+            r = 0
+            for i, sg in enumerate(sum_gates):
+                if sg.output == Const.HIGH:
+                    r |= (1 << i)
+            if prev_carry.output == Const.HIGH:
+                r |= (1 << bits)
+            return r
+
+        import random as _rnd
+        _rnd.seed(99)
+        max_val = (1 << bits) - 1
+        test_cases = [(0,0),(1,1),(max_val,1),(max_val,max_val)] + \
+                     [(_rnd.randint(0,max_val), _rnd.randint(0,max_val)) for _ in range(16)]
+
+        # Verify BEFORE optimize
+        pre_ok = True
+        for a_val, b_val in test_cases:
+            set_val(a_vars, a_val); set_val(b_vars, b_val)
+            if read_sum() != a_val + b_val:
+                pre_ok = False; break
+        self.assert_test(pre_ok, "Adder correct BEFORE optimize")
+
+        # optimize
+        c.optimize()
+        # Re-fetch stale refs
+        a_vars    = [c.objlist[Const.VARIABLE_ID][i]        for i in range(bits)]
+        b_vars    = [c.objlist[Const.VARIABLE_ID][bits + i]  for i in range(bits)]
+        cin       =  c.objlist[Const.VARIABLE_ID][2 * bits]
+        prev_carry =  c.objlist[Const.OR_ID][bits - 1]
+        sum_gates = [c.objlist[Const.XOR_ID][2*i+1]         for i in range(bits)]
+
+        # Verify AFTER optimize
+        post_ok = True
+        for a_val, b_val in test_cases:
+            set_val(a_vars, a_val); set_val(b_vars, b_val)
+            if read_sum() != a_val + b_val:
+                post_ok = False; break
+        self.assert_test(post_ok, "Adder correct AFTER optimize")
+
+    def test_optimize_cache_ordering(self):
+        """optimize() must improve propagation speed by sorting gates topologically.
+        We time a NOT chain BEFORE and AFTER optimize; the result must be identical,
+        and the post-optimize time should not regress (we merely assert correctness
+        + do a sanity-ratio check that post / pre <= 2.0)."""
+        self.subsection("optimize: cache ordering — correctness & no regression")
+        n = 2000
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        prev = v
+        for _ in range(n):
+            g = c.getcomponent(Const.NOT_ID)
+            c.connect(g, prev, 0)
+            prev = g
+
+        # Warmup pass pre-optimize
+        c.toggle(v, Const.HIGH)
+        c.toggle(v, Const.LOW)
+
+        gc.disable()
+        t0 = time.perf_counter_ns()
+        c.toggle(v, Const.HIGH)
+        pre_ms = (time.perf_counter_ns() - t0) / 1_000_000
+        gc.enable()
+        expected_pre = 'T' if n % 2 == 0 else 'F'
+        self.assert_test(prev.getoutput() == expected_pre,
+            f"pre-optimize: chain output correct ({pre_ms:.3f} ms)")
+
+        # optimize + re-fetch
+        c.optimize()
+        v    = c.objlist[Const.VARIABLE_ID][0]
+        prev = c.objlist[Const.NOT_ID][n - 1]
+
+        # Warmup pass post-optimize
+        c.toggle(v, Const.LOW)
+        c.toggle(v, Const.HIGH)
+
+        gc.disable()
+        t1 = time.perf_counter_ns()
+        c.toggle(v, Const.LOW)
+        post_ms = (time.perf_counter_ns() - t1) / 1_000_000
+        gc.enable()
+        expected_post = 'F' if n % 2 == 0 else 'T'
+        self.assert_test(prev.getoutput() == expected_post,
+            f"post-optimize: chain output correct ({post_ms:.3f} ms)")
+
+        # Sanity: post must be within 2× of pre (usually much faster)
+        ratio = post_ms / pre_ms if pre_ms > 0 else 1.0
+        self.assert_test(ratio <= 2.0,
+            f"post/pre ratio {ratio:.2f} <= 2.0 (pre={pre_ms:.3f}ms post={post_ms:.3f}ms)")
+
+    def test_optimize_with_cycles(self):
+        """optimize() must handle feedback loops (SR latch) without crashing.
+        Cycle nodes should end up queued after the DAG portion — no infinite loop."""
+        self.subsection("optimize: cyclic circuit (SR latch) safe")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        s = c.getcomponent(Const.VARIABLE_ID)
+        r = c.getcomponent(Const.VARIABLE_ID)
+        q   = c.getcomponent(Const.NOR_ID)
+        qb  = c.getcomponent(Const.NOR_ID)
+        c.connect(q,  r,  0); c.connect(q,  qb, 1)
+        c.connect(qb, s,  0); c.connect(qb, q,  1)
+
+        # Record output state
+        c.toggle(s, Const.HIGH); c.toggle(s, Const.LOW)  # set
+        q_before = q.output
+
+        try:
+            c.optimize()
+            safe = True
+        except Exception as e:
+            safe = False
+
+        self.assert_test(safe, "optimize() on cyclic circuit did not crash")
+
+        # Re-fetch and verify circuit is still functional
+        q  = c.objlist[Const.NOR_ID][0]
+        qb = c.objlist[Const.NOR_ID][1]
+        # Output might reset during optimize (nodes are re-visited); verify not
+        # a segfault / error-state — just ensure simulation runs cleanly
+        s = c.objlist[Const.VARIABLE_ID][0]
+        r = c.objlist[Const.VARIABLE_ID][1]
+        c.toggle(r, Const.HIGH); c.toggle(r, Const.LOW)  # reset
+        self.assert_test(q.output == Const.LOW,  "After optimize: latch reset Q=LOW")
+        self.assert_test(qb.output == Const.HIGH, "After optimize: latch reset Qb=HIGH")
+
+    def test_refresh_after_ic_deletion(self):
+        """Deleting (hiding) an IC via delobj must mark ALL its internal gates
+        as deleted in gate_infolist; refresh() must then remove them all."""
+        self.subsection("refresh: IC deletion removes all internal slots")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        ic   = c.getcomponent(Const.IC_ID)
+        inp  = ic.getcomponent(Const.INPUT_PIN_ID)
+        out  = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        not_g = ic.getcomponent(Const.NOT_ID)
+        c.connect(not_g, inp, 0)
+        c.connect(out, not_g, 0)
+        # NOTE: do NOT manually adjust c.counter here — hide()→delobj()
+        # already does `self.counter += ic.counter` internally.
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        c.connect(inp, v, 0)
+
+        verse_before = len(c.gate_verse)  # IC + v (internal gates share infolist slots)
+
+        c.hide([ic])    # marks IC + all its internal gates as deleted
+
+        # After optimize, deleted gates go to end; refresh trims them
+        c.refresh()
+
+        # Only v should remain — gate_verse is the authoritative live-gate list
+        self.assert_test(len(c.gate_verse) == 1,
+            f"Only variable survives IC deletion+refresh "
+            f"(gate_verse len={len(c.gate_verse)}, expected 1)")
+
+    def test_optimize_reconnect_after(self):
+        """Connections made AFTER optimize() must work correctly — i.e. the new
+        gate's location is valid and propagation reaches it."""
+        self.subsection("optimize: connect new gate after optimize works")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g1 = c.getcomponent(Const.NOT_ID)
+        c.connect(g1, v, 0)
+
+        c.optimize()
+        v  = c.objlist[Const.VARIABLE_ID][0]
+        g1 = c.objlist[Const.NOT_ID][0]
+
+        # Add a new gate AFTER optimizing
+        g2 = c.getcomponent(Const.NOT_ID)
+        c.connect(g2, g1, 0)
+
+        c.toggle(v, Const.HIGH)   # v=1 -> g1=0 -> g2=1
+        self.assert_test(g1.output == Const.LOW,
+            "g1 (NOT v=HIGH) = LOW after optimize+reconnect")
+        self.assert_test(g2.output == Const.HIGH,
+            "g2 (NOT g1=LOW) = HIGH after optimize+reconnect")
+
+    def test_refresh_idempotent(self):
+        """Calling refresh() twice (or optimize() twice) must be idempotent —
+        same size, same gate order, same simulation results."""
+        self.subsection("refresh: idempotent (double call)")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g = c.getcomponent(Const.NOT_ID)
+        c.connect(g, v, 0)
+        c.toggle(v, Const.HIGH)
+
+        c.refresh()
+        size1 = c.infolist_size
+        v = c.objlist[Const.VARIABLE_ID][0]
+        g = c.objlist[Const.NOT_ID][0]
+        out1 = g.output
+
+        c.refresh()  # second call
+        size2 = c.infolist_size
+        v = c.objlist[Const.VARIABLE_ID][0]
+        g = c.objlist[Const.NOT_ID][0]
+        out2 = g.output
+
+        self.assert_test(size1 == size2,
+            f"infolist_size unchanged by double refresh ({size1} == {size2})")
+        self.assert_test(out1 == out2,
+            f"Gate output unchanged by double refresh ({out1} == {out2})")
+        # Toggle still works
+        c.toggle(v, Const.LOW)
+        g = c.objlist[Const.NOT_ID][0]
+        self.assert_test(g.output == Const.HIGH, "Toggle works after double refresh")
+
+    def test_optimize_large_circuit(self):
+        """optimize() on a 5000-gate NOT chain: no crash, gate_verse consistent,
+        simulation result correct."""
+        self.subsection("optimize: large circuit (5000 NOT)")
+        n = 5000
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        prev = v
+        for _ in range(n):
+            g = c.getcomponent(Const.NOT_ID)
+            c.connect(g, prev, 0)
+            prev = g
+
+        try:
+            c.optimize()
+            safe = True
+        except Exception as e:
+            safe = False
+        self.assert_test(safe, f"optimize() on {n+1}-gate circuit did not crash")
+
+        # Rebuild refs
+        v    = c.objlist[Const.VARIABLE_ID][0]
+        last = c.objlist[Const.NOT_ID][n - 1]
+
+        # gate_verse consistency (spot-check first, middle, last)
+        spots = [0, n // 2, n - 1]
+        verse_ok = all(
+            c.gate_verse[c.objlist[Const.NOT_ID][i].location]
+            is c.objlist[Const.NOT_ID][i]
+            for i in spots
+        )
+        self.assert_test(verse_ok, "gate_verse consistent after large optimize")
+
+        # Functional check
+        c.toggle(v, Const.HIGH)
+        expected = 'T' if n % 2 == 0 else 'F'
+        self.assert_test(last.getoutput() == expected,
+            f"{n}-NOT chain output correct after optimize")
+
+    def test_optimize_gate_verse_sync(self):
+        """gate_verse[i].location must equal i for every entry after optimize()."""
+        self.subsection("optimize: gate_verse[i].location == i for all i")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        # Mixed gate types to stress the remap
+        v1 = c.getcomponent(Const.VARIABLE_ID)
+        v2 = c.getcomponent(Const.VARIABLE_ID)
+        for _ in range(5):
+            g = c.getcomponent(Const.AND_ID)
+            c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for _ in range(5):
+            g = c.getcomponent(Const.OR_ID)
+            c.connect(g, v1, 0); c.connect(g, v2, 1)
+        for _ in range(5):
+            g = c.getcomponent(Const.NOT_ID)
+            c.connect(g, v1, 0)
+
+        c.optimize()
+
+        sync_ok = all(
+            c.gate_verse[i].location == i
+            for i in range(len(c.gate_verse))
+        )
+        self.assert_test(sync_ok,
+            "gate_verse[i].location == i for all entries after optimize")
+
+    def test_refresh_delete_readd(self):
+        """After refresh() removes a deleted gate, adding a fresh gate of the same
+        type works correctly — no phantom slot collision."""
+        self.subsection("refresh: delete + refresh + re-add same type")
+        c = Circuit()
+        c.simulate(Const.SIMULATE)
+
+        v = c.getcomponent(Const.VARIABLE_ID)
+        g_old = c.getcomponent(Const.NOT_ID)
+        c.connect(g_old, v, 0)
+
+        rank_old = g_old.code[1]  # rank in NOT list
+
+        # Delete then refresh
+        c.hide([g_old])
+        c.refresh()
+
+        verse_after_refresh = len(c.gate_verse)  # only v remains
+
+        # Re-add a new NOT gate
+        g_new = c.getcomponent(Const.NOT_ID)
+        c.connect(g_new, v, 0)
+
+        v = c.objlist[Const.VARIABLE_ID][0]  # re-fetch
+        c.toggle(v, Const.HIGH)
+        # g_new's rank in objlist[NOT_ID] is g_new.code[1] — the old deleted
+        # slot is still None at index 0, so don't hardcode index 0.
+        g_new = c.objlist[Const.NOT_ID][g_new.code[1]]
+        self.assert_test(g_new.output == Const.LOW,
+            "Freshly added NOT(v=HIGH)=LOW after delete+refresh+readd")
+
+        # gate_verse must have grown by exactly 1 (v + g_new)
+        self.assert_test(len(c.gate_verse) == verse_after_refresh + 1,
+            f"gate_verse grew by 1 after re-add "
+            f"(was {verse_after_refresh}, now {len(c.gate_verse)})")
+
 
 class ThoroughICTest:
     def __init__(self):
@@ -3136,12 +3697,11 @@ class ThoroughICTest:
         self.tests_run += 1
         if condition:
             self.passed += 1
-            print(f"  - {name:<55} [OK]")
             with open(self.log_file, 'a') as f: f.write(f"[PASS] {name}\n")
             return True
         else:
             self.failed += 1
-            print(f"  - {name:<55} [FAIL]")
+            print(f"    [FAIL] {name}")
             with open(self.log_file, 'a') as f: f.write(f"[FAIL] {name}\n")
             return False
 
@@ -3174,6 +3734,12 @@ class ThoroughICTest:
         # Limits
         self.test_input_limit_handling()
 
+        status = "PASS" if self.failed == 0 else "FAIL"
+        summary = f"  [{status}] Thorough IC: {self.passed}/{self.tests_run} passed"
+        if self.failed > 0:
+            summary += f" | {self.failed} FAILED"
+        print(summary)
+        sys.stdout.flush()
         self.log(f"\nTest Summary: {self.passed} Passed, {self.failed} Failed")
 
 
@@ -3545,12 +4111,11 @@ class IOTestSuite:
         self.tests_run += 1
         if condition:
             self.passed += 1
-            print(f"  - {name:<55} [OK]")
             with open(self.log_file, 'a') as f: f.write(f"[PASS] {name}\n")
             return True
         else:
             self.failed += 1
-            print(f"  - {name:<55} [FAIL]")
+            print(f"    [FAIL] {name}")
             with open(self.log_file, 'a') as f: f.write(f"[FAIL] {name}\n")
             return False
 
@@ -3575,6 +4140,12 @@ class IOTestSuite:
         self.test_paste_multiple_times()
         # self.test_paste_without_clipboard()
         self.test_large_io_circuit()
+        status = "PASS" if self.failed == 0 else "FAIL"
+        summary = f"  [{status}] IO Tests: {self.passed}/{self.tests_run} passed"
+        if self.failed > 0:
+            summary += f" | {self.failed} FAILED"
+        print(summary)
+        sys.stdout.flush()
         self.log(f"\nTest Summary: {self.passed} Passed, {self.failed} Failed")
 
     def test_write_read_json(self):
@@ -3905,11 +4476,10 @@ class EventManagerTestSuite:
         self.test_count += 1
         if condition:
             self.passed += 1
-            print(f"  - {test_name:<55} [OK]")
             return True
         else:
             self.failed += 1
-            print(f"  - {test_name:<55} [FAIL] {details}")
+            print(f"    [FAIL] {test_name} {details}")
             return False
 
     def get_circuit_size(self):
@@ -4181,6 +4751,12 @@ class EventManagerTestSuite:
         self.log(f"\n{'='*70}")
         self.log(f"  SUMMARY: {self.passed} PASS, {self.failed} FAIL")
         self.log(f"{'='*70}")
+        status = "PASS" if self.failed == 0 else "FAIL"
+        summary = f"  [{status}] Event Manager Stress: {self.passed}/{self.test_count} passed"
+        if self.failed > 0:
+            summary += f" | {self.failed} FAILED"
+        print(summary)
+        sys.stdout.flush()
 
 
 
@@ -4456,18 +5032,24 @@ if __name__ == '__main__':
     t0 = time.perf_counter_ns()
     
     class CustomTestResult(unittest.TextTestResult):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._failures_list = []
+
         def addSuccess(self, test):
             super().addSuccess(test)
-            print(f"  - {test._testMethodName:<55} [OK]")
-            
+            # suppress per-test OK output
+
         def addFailure(self, test, err):
             super().addFailure(test, err)
-            print(f"  - {test._testMethodName:<55} [FAIL]")
+            self._failures_list.append(f"    [FAIL] {test._testMethodName}")
+            print(f"    [FAIL] {test._testMethodName}")
 
         def addError(self, test, err):
             super().addError(test, err)
-            print(f"  - {test._testMethodName:<55} [ERROR]")
-            
+            self._failures_list.append(f"    [ERROR] {test._testMethodName}")
+            print(f"    [ERROR] {test._testMethodName}")
+
     class CustomTestRunner(unittest.TextTestRunner):
         resultclass = CustomTestResult
 
@@ -4479,6 +5061,9 @@ if __name__ == '__main__':
     total_passed += pass5
     total_failed += fail5
     total_time_ms += log_timing(t0, pass5, fail5, "EVENT FUNCTIONAL TESTS")
+    status5 = "PASS" if fail5 == 0 else "FAIL"
+    print(f"  [{status5}] Event Functional: {pass5}/{result.testsRun} passed" +
+          (f" | {fail5} FAILED" if fail5 > 0 else ""))
     
     print("\n" + "="*70)
     print(f"  MASTER SUMMARY: {total_passed} PASSED | {total_failed} FAILED")

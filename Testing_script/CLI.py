@@ -244,6 +244,22 @@ def ic_pin_change():
     circuit.ic_pin_change()
     set_status("Changed all variables/probes to IC I/O pins.")
 
+def refresh_circuit():
+    """Refresh: trim deleted slots then nuke the event manager history."""
+    if not hasattr(circuit, 'refresh'):
+        return set_status("Refresh is Reactor-only. Run without --engine.")
+    circuit.refresh()
+    base.undolist.clear()
+    base.redolist.clear()
+    set_status("Refresh complete. Undo/Redo history cleared.")
+
+def optimize_circuit():
+    """Optimize: reorder gate_infolist for cache locality (no history wipe)."""
+    if not hasattr(circuit, 'optimize'):
+        return set_status("Optimize is Reactor-only. Run without --engine.")
+    circuit.optimize()
+    set_status("Optimize complete (topological cache reorder).")
+
 # --- Simulation & Analysis Handlers ---
 def set_variable():
     variables = circuit.get_variables()
@@ -354,8 +370,6 @@ def load_circuit():
     if name:
         try:
             circuit.readfromjson(name)
-            base.undolist.clear()
-            base.redolist.clear()
             set_status("Loaded.")
         except FileNotFoundError: set_status("File not found.")
 
@@ -430,6 +444,8 @@ def submenu_components_more():
         '4': ("Reorder Component", reorder_component),
         '5': ("Rank Reset", rank_reset),
         '6': ("IC Pin Change", ic_pin_change),
+        '7': ("Refresh (trim deleted slots + clear history)", refresh_circuit),
+        '8': ("Optimize (cache reorder, keeps history)", optimize_circuit),
         'B': ("Back", None)
     })
 
