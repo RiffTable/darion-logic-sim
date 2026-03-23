@@ -182,6 +182,7 @@ class Gate:
             for _ in range(size - self.inputlimit):
                 self.sources.append(None)
             self.inputlimit = size
+            self.process()
             return True
         elif size < self.inputlimit:
             for i in range(size, self.inputlimit):
@@ -189,6 +190,7 @@ class Gate:
                     return False
             self.sources = self.sources[:size]
             self.inputlimit = size
+            self.process()
             return True
         return False
 

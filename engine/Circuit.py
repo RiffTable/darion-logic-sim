@@ -84,7 +84,12 @@ class Circuit:
             print(f'{i}. {gate}')
 
     def setlimits(self, gate: Gate, size: int) -> bool:
-        return gate.setlimits(size)
+        prev = gate.output
+        if gate.setlimits(size):
+            if prev != gate.output:
+                self.propagate(gate)
+            return True
+        return False
 
     def connect(self, target: Gate, source: Gate, index: int):
         """Connect source -> target at pin index."""

@@ -254,6 +254,7 @@ cdef class Gate:
             for _ in range(size - current):
                 self._sources.append(-1)
             info.inputlimit = size
+            self.process()
             return True
         elif size < current:
             for i in range(size, current):
@@ -261,6 +262,7 @@ cdef class Gate:
                     return False
             self._sources = self._sources[:size]
             info.inputlimit = size
+            self.process()
             return True
         return False
 

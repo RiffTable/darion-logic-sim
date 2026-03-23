@@ -101,7 +101,13 @@ cdef class Circuit:
             print(f'{i}. {gate}')
 
     cpdef bint setlimits(self, Gate gate, int size):
-        return gate.setlimits(size)
+        cdef CPP_Gate* info = &self.gate_infolist[gate.location]
+        cdef int prev = info.output
+        if gate.setlimits(size):
+            if prev != info.output:
+                self.propagate(gate.location)
+            return True
+        return False
 
     cpdef void connect(self, Gate target, int source, int index):
         cdef CPP_Gate* info = &self.gate_infolist[target.location]
