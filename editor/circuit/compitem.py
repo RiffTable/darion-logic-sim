@@ -97,8 +97,6 @@ class CompItem(QGraphicsItem):
 		#    => pinUpdate, proxyPin, betterHoverEnter, betterHoverLeave
 		#    => draw
 
-		self._last_rendered_value = None
-
 
 	@property
 	def cscene(self): return cast('CircuitScene', self.scene())

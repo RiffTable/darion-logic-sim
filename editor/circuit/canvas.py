@@ -45,34 +45,36 @@ class CircuitScene(QGraphicsScene):
 		self.ghostPin.setAcceptedMouseButtons(MouseBtn.NoButton)
 
 		self.addItem(self.ghostPin)
-		# adding timer system for auto refresh
-		screen=QGuiApplication.primaryScreen()
-		fps=screen.refreshRate()
-		fps=60 if fps==0 else fps
+
+		# Replacement to the simpler listener system
+		fps = QGuiApplication.primaryScreen().refreshRate()
+		fps = (60 if fps==0 else fps)
 		self.ui_update_timer = QTimer(self)
 		self.ui_update_timer.timeout.connect(self.poll_ui_state)
-		self.ui_update_timer.start(1000//fps) # ~60 FPS (16ms)
+		self.ui_update_timer.start(round(1000/fps))
 
 	def poll_ui_state(self):
-		# updates screen per frame
+		# Updates screen per frame
 		for comp in self.comps:
 			unit = comp._unit
 			if unit is None:
 				continue
 
-			if comp.LOGIC == Const.IC_ID:
-				# IC has multiple output gates — poll each output pin separately
-				for pin in comp._pinslist[CompEdge.OUTPUT]:
-					if pin.logical is not None:
-						current = pin.logical.output
-						if current != pin.state:
-							pin.logicalStateChanged(current)
-			else:
-				# Regular gate: single unit output drives unitStateChanged
+			if isinstance(comp, (GateItem, InputItem, OutputItem)):
+				# These components have single output and its calculation is optimized
 				current = unit.output
-				if current != comp._last_rendered_value:
-					comp._last_rendered_value = current
+				if comp.prevState != current:
+					comp.prevState = current
 					comp.unitStateChanged(current)
+			
+			else:
+				# These components can have multiple outputs and thus slower calculation
+				for pinlist in comp._pinslist.values():
+					for pin in pinlist:
+						if isinstance(pin, OutputPinItem) and pin.logical is not None:
+							current = pin.logical.output
+							if current != pin.state:
+								pin.logicalStateChanged(current)
 
 	def setGridHidden(self, hidden: bool):
 		self.grid_hidden = hidden

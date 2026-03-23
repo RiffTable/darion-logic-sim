@@ -33,6 +33,7 @@ class GateItem(CompItem):
 
 		# Properties
 		self.state: int = Const.LOW
+		self.prevState = -1
 		self.minInput = self.MIN_INPUT
 		self.maxInput = self.MAX_INPUT
 
@@ -140,6 +141,7 @@ class GateItem(CompItem):
 	
 	def setInputCount(self, size: int) -> bool:
 		# This is never called for NOT gates
+
 		n = len(self.inputPins)
 		if size < self.minInput \
 		or size > self.maxInput \
@@ -161,6 +163,7 @@ class GateItem(CompItem):
 		
 		logic.setlimits(self._unit, size)
 		self.updateShape()
+		self.prevState = -1    # Force update UI state
 		self.PropertyChanged()
 		return True
 

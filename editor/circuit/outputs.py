@@ -24,6 +24,7 @@ class OutputItem(CompItem):
 
 		# Properties
 		self.state: int = Const.LOW
+		self.prevState = -1
 		
 		# Pins Setup
 		if self._setupDefaultPins:

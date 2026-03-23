@@ -24,6 +24,7 @@ class InputItem(CompItem):
 
 		# Properties
 		self.state: int = kwargs.get("state", Const.LOW)
+		self.prevState = -1
 		
 		# Pins Setup
 		if self._setupDefaultPins:
