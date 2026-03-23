@@ -166,17 +166,18 @@ class Toggle(Command):
         self.circuit.toggle(self.gate, self.value)
 
 class SetLimits(Command):
-    __slots__ = ['gate', 'new_size', 'old_size']
-    def __init__(self, gate:Gate, new_size:int):
+    __slots__ = ['circuit', 'gate', 'new_size', 'old_size']
+    def __init__(self, circuit:Circuit, gate:Gate, new_size:int):
+        self.circuit = circuit
         self.gate = gate
         self.new_size = new_size
         self.old_size = gate.inputlimit
     def execute(self):
-        return self.gate.setlimits(self.new_size)
+        return self.circuit.setlimits(self.gate, self.new_size)
     def undo(self):
-        self.gate.setlimits(self.old_size)
+        self.circuit.setlimits(self.gate, self.old_size)
     def redo(self):
-        self.gate.setlimits(self.new_size)
+        self.circuit.setlimits(self.gate, self.new_size)
 
 class Rename(Command):
     __slots__ = ['gate', 'new_name', 'old_name']

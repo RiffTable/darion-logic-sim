@@ -159,7 +159,8 @@ cdef class Gate:
         cdef CPP_Gate* src_info = &gate_infolist[source]
         src_info.hitlist.emplace_back(self.location, index, src_info.output)
         self._sources[index] = source
-        self_info.book[src_info.output] += 1
+        if self.id<VARIABLE_ID:
+            self_info.book[src_info.output] += 1
         self.process()
 
     cdef void disconnect(self, int index):
@@ -170,7 +171,8 @@ cdef class Gate:
         cdef CPP_Gate* src_info = &self.location_ptr[0][src_loc]
         pop(src_info.hitlist, self.location, index)
         self._sources[index] = -1
-        self_info.book[src_info.output] -= 1
+        if self.id<VARIABLE_ID:
+            self_info.book[src_info.output] -= 1
         self_info.output = UNKNOWN
 
     cdef void reset(self):

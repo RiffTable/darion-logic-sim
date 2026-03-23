@@ -202,7 +202,7 @@ def change_input_limit():
         if isinstance(comp, (IC, Variable, Probe)) or not hasattr(comp, 'setlimits') or not hasattr(comp, 'inputlimit'):
             return set_status("Cannot change input limit for this component.")
         new_limit = input(f"Current limit {comp.inputlimit}. Enter new limit: ")
-        if new_limit and int(new_limit) >= 1 and execute_cmd(SetLimits(comp, int(new_limit))):
+        if new_limit and int(new_limit) >= 1 and execute_cmd(SetLimits(circuit, comp, int(new_limit))):
             set_status(f"Input limit changed to {new_limit}.")
         else: set_status("Failed to change limit.")
     except (ValueError, IndexError): set_status("Invalid selection.")
