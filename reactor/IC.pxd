@@ -1,6 +1,7 @@
 # distutils: language = c++
 from libcpp.vector cimport vector
 from Gates cimport Gate, Profile,CPP_Gate
+from libcpp.unordered_map cimport unordered_map
 
 cdef class IC:
     cdef public list inputs
@@ -20,11 +21,11 @@ cdef class IC:
     cpdef object getcomponent(self, int choice)
     cpdef void addgate(self, object source)
     cpdef void configure(self, list dictionary)
-    cpdef void load_components(self, list dictionary, dict pseudo)
+    cpdef void load_components(self, list dictionary, unordered_map[int,int]& pseudo)
     cpdef list full_data(self)
     cpdef list partial_data(self)
-    cpdef void clone(self, dict pseudo)
-    cpdef void implement(self, dict pseudo)
+    cpdef void clone(self, unordered_map[int,int]& pseudo)
+    cpdef void implement(self, unordered_map[int,int]& pseudo)
     cpdef void hide(self)
     cpdef void reveal(self)
     cpdef void reset(self)

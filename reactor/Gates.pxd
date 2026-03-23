@@ -1,6 +1,8 @@
 # distutils: language = c++
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, MODE
 from libc.stdint cimport uint16_t,uint8_t
+from libcpp.unordered_map cimport unordered_map
+
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
         cppclass iterator:
@@ -79,7 +81,7 @@ cdef class Gate:
     cpdef str getoutput(self)
     cpdef list full_data(self)
     cpdef list partial_data(self)
-    cdef void clone(self, list dictionary, dict pseudo)
+    cdef void clone(self, list dictionary, unordered_map[int,int]& pseudo)
     cpdef void load_to_cluster(self, list cluster)
 
 cdef class Variable(Gate):

@@ -10,7 +10,7 @@ from Const cimport *
 from libc.string cimport memmove
 from Store cimport decode
 from libc.stdint cimport uint16_t
-
+from libcpp.unordered_map cimport unordered_map
 
 cdef inline void pop(vector[Profile]& hitlist, int target, int pin_index):
     cdef Profile* profile = hitlist.data()
@@ -294,7 +294,7 @@ cdef class Gate:
             ]
         return dictionary
 
-    cdef void clone(self, list dictionary, dict pseudo):
+    cdef void clone(self, list dictionary, unordered_map[int,int]& pseudo):
         self.custom_name = dictionary[CUSTOM_NAME]
         cdef CPP_Gate* info = &self.location_ptr[0][self.location]
         if info.type == VARIABLE_ID:

@@ -11,6 +11,8 @@ from IC cimport IC
 from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from libc.stdint cimport uint16_t
+from libcpp.unordered_map cimport unordered_map
+
 cdef class Circuit:
     def __cinit__(self):
         self.counter = 0
@@ -215,7 +217,10 @@ cdef class Circuit:
         cdef Py_ssize_t i, j, k, n
         cdef list IN_MAP, OUT_MAP
         cdef list v_states, g_states
-         
+        cdef Gate var, gate,pin
+        cdef IC ic
+        cdef object item
+        
         # Filter gatelist
         if outputs is not None:
             gate_list = outputs
@@ -227,12 +232,13 @@ cdef class Circuit:
                 elif gate_type != IC_ID:
                     gate_list.append(item)
                 else:
-                    for pin in item.outputs:
+                    ic = <IC>item
+                    for pin in ic.outputs:
                         gate_list.append(pin)
 
         n = len(variables)
         cdef int rows_count = 1 << n
-        cdef Gate var, gate
+
         cdef CPP_Gate* var_info
         var_names = [str(v) for v in variables]
         gate_names = [str(v) for v in gate_list]
@@ -450,41 +456,39 @@ cdef class Circuit:
         self.gate_verse[:] = new_gate_verse
 
     cpdef void generate(self, list circuit):
-        cdef dict pseudo = {}
-        pseudo[-1] = None
+        cdef unordered_map[int,int] pseudo
+        pseudo[-1] = -1
         cdef object obj
         cdef Gate gate
         cdef IC ic
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
         cdef list info
+        cdef list ic_list=[]
         for info in circuit:  # load to pseudo
             if info[ID] == IC_ID:
                 ic = <IC>self.getcomponent(info[ID])
                 ic.custom_name = info[CUSTOM_NAME]
                 ic.map = info[MAP]
                 ic.load_components(info, pseudo)
-                pseudo[tuple(info[LOCATION])] = ic
+                ic_list.append(ic)
             else:
                 gate = <Gate>self.getcomponent(info[ID])
                 if gate.id == VARIABLE_ID:
                     gate_infolist[gate.location].output = UNKNOWN
-                pseudo[info[LOCATION]] = gate
+                pseudo[info[LOCATION]] = gate.location
         for info in circuit:  # connect components
-            if info[ID] == IC_ID:
-                ic = pseudo[tuple(info[LOCATION])]
-                ic.implement(pseudo)
-                self.counter += ic.counter
-            else:
-                gate = pseudo[info[LOCATION]]
+            if info[ID] != IC_ID:
+                gate = <Gate>PyList_GET_ITEM(self.gate_verse, pseudo[info[LOCATION]])
                 gate.clone(info, pseudo)
+        for ic in ic_list:
+            ic.implement(pseudo)
+            self.counter += ic.counter
 
     cpdef void readfromjson(self, str location):
         cdef list circuit
         with open(location, 'rb') as file:
             circuit = orjson.loads(file.read())
-        if isinstance(circuit, dict):
-            return
-        self.generate(circuit)
+            self.generate(circuit)
         if MODE != DESIGN:
             self.simulate(SIMULATE)
 
@@ -679,40 +683,39 @@ cdef class Circuit:
 
     cpdef list paste(self):
         cdef list circuit
-        cdef dict pseudo
+        cdef unordered_map[int,int] pseudo
         cdef list new_items=[]
         cdef tuple code
         cdef Gate g
         circuit = self.copydata
-        pseudo = {}
-        pseudo[-1] = None
+        pseudo[-1] = -1
         new_items = []
         cdef Gate gate
         cdef IC ic
         cdef list info,gate_info
+        cdef list ic_list=[]
         for info in circuit:  # load to pseudo
             if info[ID] == IC_ID:
                 ic = <IC>self.getcomponent(info[ID])
                 ic.custom_name = info[CUSTOM_NAME]
                 ic.map = info[MAP]
                 ic.load_components(info, pseudo)
-                pseudo[tuple(info[LOCATION])] = ic
+                ic_list.append(ic)
                 new_items.append(ic)
             else:
                 gate = <Gate>self.getcomponent(info[ID])
                 if gate.id == VARIABLE_ID:
                     gate.output = UNKNOWN
-                pseudo[info[LOCATION]] = gate
+                pseudo[info[LOCATION]] = gate.location
                 new_items.append(gate)
 
         for gate_info in circuit:  # connect components
-            if gate_info[ID] == IC_ID:
-                ic = pseudo[tuple(gate_info[LOCATION])]
-                ic.implement(pseudo)
-                self.counter += ic.counter
-            else:
-                gate = pseudo[gate_info[LOCATION]]
+            if gate_info[ID] != IC_ID:
+                gate = <Gate>PyList_GET_ITEM(self.gate_verse, pseudo[gate_info[LOCATION]])
                 gate.clone(gate_info, pseudo)
+        for ic in ic_list:
+            ic.implement(pseudo)
+            self.counter += ic.counter
 
         if MODE != DESIGN:
             self.simulate(SIMULATE)

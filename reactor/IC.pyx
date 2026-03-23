@@ -8,6 +8,8 @@ from Gates cimport Gate, Probe, Profile, CPP_Gate, hide, reveal, pop, vector,CPP
 from Store cimport get, decode
 from Const cimport *
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
+from libcpp.unordered_map cimport unordered_map
+
 cdef class IC:
     def __cinit__(self):
         self.id = IC_ID
@@ -62,8 +64,8 @@ cdef class IC:
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):
-        cdef dict pseudo = {}
-        pseudo[('X', 'X')] = None
+        cdef unordered_map[int,int] pseudo
+        pseudo[-1] = -1
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
         if len(dictionary) > TAG:
@@ -73,18 +75,17 @@ cdef class IC:
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
-    cpdef void load_components(self, list dictionary, dict pseudo):
-        cdef object gate
+    cpdef void load_components(self, list dictionary, unordered_map[int,int]& pseudo):
+        cdef Gate gate
         cdef list comp_code
         for comp_code in dictionary[MAP]:
             gate = self.getcomponent(comp_code[ID])
-            pseudo[comp_code[LOCATION]] = gate
+            pseudo[comp_code[LOCATION]] = gate.location
 
-    cpdef void clone(self, dict pseudo):
+    cpdef void clone(self, unordered_map[int,int]& pseudo):
         cdef Gate gate
-        cdef tuple code
         for i in self.map:
-            gate = pseudo[i[LOCATION]]
+            gate = <Gate>self.gate_verse[pseudo[i[LOCATION]]]
             gate.clone(i, pseudo)
 
     cpdef void load_to_cluster(self, list cluster):
@@ -117,11 +118,11 @@ cdef class IC:
         ]
         return dictionary
 
-    cpdef void implement(self, dict pseudo):
+    cpdef void implement(self, unordered_map[int,int]& pseudo):
         cdef Gate gate
         cdef tuple code
         for i in self.map:
-            gate = pseudo[i[LOCATION]]
+            gate = <Gate>PyList_GET_ITEM(self.gate_verse, pseudo[i[LOCATION]])
             gate.clone(i, pseudo)
 
     cpdef void hide(self):

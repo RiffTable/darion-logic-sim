@@ -3,7 +3,6 @@ from Gates cimport Gate, Variable, Profile, CPP_Gate, vector
 from libcpp.vector cimport vector
 from Const cimport LIMIT
 from IC cimport IC
-cdef class Circuit
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
