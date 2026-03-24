@@ -1,5 +1,6 @@
 from core.QtCore import *
 import editor.theme as theme
+from editor.circuit.catalog import LOOKUP, CATEGORIES
 
 class CategorySection(QWidget):
     def __init__(self, title, parent=None):
@@ -185,17 +186,10 @@ class ComponentSidebar(QWidget):
         self.menu.setSpacing(0)
         self.menu.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        categories = [
-            ("Gates", [("NOT",0), ("AND",1), ("NAND",2), ("OR",3), ("NOR",4), ("XOR",5), ("XNOR",6)]),
-            ("I/O", [("Input", 11), ("LED", 21)]),
-            ("Misc",[]),
-            ("IC",[])
-        ]
-
-        for title, items in categories:
+        for title, items in (CATEGORIES | {"IC": []}).items():
             section = CategorySection(title)
-            for name, cid in items:
-                btn = section.add_item(name, cid)
+            for cid in items:
+                btn = section.add_item(LOOKUP[cid].NAME, cid)
                 btn.clicked.connect(lambda _, c=cid: self.componentSpawnRequested.emit(c))
             self.menu.addWidget(section)
             self.sections.append(section)

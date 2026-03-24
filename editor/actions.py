@@ -5,7 +5,6 @@ from core.QtCore import *
 
 _action_list: dict[str, QAction] = {}
 _menu_list: dict[str, QMenu] = {}
-_settings = QSettings()
 
 
 
@@ -48,13 +47,13 @@ def addCheckable(parent: QWidget, key: str, text: str, isChecked: bool = False, 
 def addSettingsCheckable(parent: QWidget, key: str, text: str, defaultValue: bool, slot: Callable[[bool], None], shortcut = None) -> QAction:
     """Creates Checkable QAction also able to read and write from QSettings"""
     act = QAction(text, parent)
-    state = bool(_settings.value(f"settings/{key}", defaultValue, type=bool))
+    state = bool(QSettings().value(f"settings/{key}", defaultValue, type=bool))
 
     act.setCheckable(True)
     act.setChecked(state)
 
     def on_toggle(checked: bool):
-        _settings.setValue(f"settings/{key}", checked)
+        QSettings().setValue(f"settings/{key}", checked)
         slot(checked)
     
     act.toggled.connect(on_toggle)
@@ -72,7 +71,7 @@ def createSubMenu(parent: QWidget, key: str, text: str, default_key: str, slot: 
     group = QActionGroup(parent)
     group.setExclusive(True)
     
-    style = _settings.value(f"settings/{key}", default_key, type=str)
+    style = QSettings().value(f"settings/{key}", default_key, type=str)
     
     for opt_key, label in options.items():
         act = QAction(label, parent)
@@ -81,7 +80,7 @@ def createSubMenu(parent: QWidget, key: str, text: str, default_key: str, slot: 
         if opt_key == style: act.setChecked(True)
             
         def make_trigger(checked, k=opt_key):
-            _settings.setValue(f"settings/{key}", k)
+            QSettings().setValue(f"settings/{key}", k)
             slot(k)
             
         act.triggered.connect(make_trigger)

@@ -28,7 +28,7 @@ class CircuitScene(QGraphicsScene):
 		self._rmb_last_pos = QPointF()
 
 		# Clipboard
-		self.clipboard = { "comps": [], "wires": [], "iclist": [] }
+		self.clipboard = { "comps": [], "wires": []}
 
 		# Editor Stuffs
 		self._state = EditorState.NORMAL
@@ -121,6 +121,7 @@ class CircuitScene(QGraphicsScene):
 		comp_type = LOOKUP[data.pop("id")]
 		if comp_type.LOGIC == Const.IC_ID:
 			data["ic_data"] = self.iclist[int(data["ic_data_index"])]
+		
 		pos = QPointF(*data.pop("pos")) + QPoint(7, 5)*GRID.SIZE
 		
 		comp = comp_type(pos, **data)

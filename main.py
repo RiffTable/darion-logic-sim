@@ -59,7 +59,7 @@ class AppWindow(QMainWindow):
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
 		self.sidebar = ComponentSidebar(self)
-		self.sidebar.componentSpawnRequested.connect(self.spawn_component)
+		self.sidebar.componentSpawnRequested.connect(self.spawnComponent)
 		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
@@ -72,6 +72,43 @@ class AppWindow(QMainWindow):
 		theme.apply_palette(cast(QApplication, QApplication.instance()))
 		self.cscene.update()
 
+	def update_props_position(self):
+		panel_x = self.x() + self.width() - self.props_panel.width() - 15
+		panel_y = self.y() + 65
+		self.props_panel.move(panel_x, panel_y)
+	
+	###======= EVENTS =======###
+	def moveEvent(self, event):
+		super().moveEvent(event)
+		if self.props_panel.isVisible():
+			self.update_props_position()
+	
+	def resizeEvent(self, event):
+		super().resizeEvent(event)
+		QSettings().setValue("main_window/geometry", self.saveGeometry())
+		if self.props_panel.isVisible():
+			self.update_props_position()
+
+	def spawnComponent(self, comp_id: int):
+		view_center = self.view.viewport().rect().center()
+		pos = self.view.mapToScene(view_center)
+		self.cscene.addComp(*pos.toTuple(), comp_id)
+	
+	def spawnIC(self, ic_data_index: int):
+		center = self.view.viewport().rect().center()
+		pos = self.view.mapToScene(center)
+		self.cscene.addIC(*pos.toTuple(), ic_data_index)
+
+	def closeEvent(self, event):
+		# To make sure a runtime error isn't raised when closing the app
+		try:
+			self.cscene.selectionChanged.disconnect()
+		except RuntimeError: pass
+		super().closeEvent(event)
+
+
+
+	###======= SETTINGS =======###
 	def load_settings(self):
 		settings = QSettings()
 		self.setScrollInverted(bool(settings.value("settings/invert_scroll", False, type=bool)))
@@ -84,40 +121,11 @@ class AppWindow(QMainWindow):
 	def setPeekingDisabled(self, disabled: bool):
 		self.cscene.peeking_disabled = disabled
 
-	def update_props_position(self):
-		panel_x = self.x() + self.width() - self.props_panel.width() - 15
-		panel_y = self.y() + 65
-		self.props_panel.move(panel_x, panel_y)
-	
-	def moveEvent(self, event):
-		super().moveEvent(event)
-		if self.props_panel.isVisible():
-			self.update_props_position()
-	
-	def resizeEvent(self, event):
-		super().resizeEvent(event)
-		QSettings().setValue("main_window/geometry", self.saveGeometry())
-		if self.props_panel.isVisible():
-			self.update_props_position()
-
-	def spawn_component(self, comp_id: int):
-		view_center = self.view.viewport().rect().center()
-		scene_spawn_pos = self.view.mapToScene(view_center)
-		self.cscene.addComp(scene_spawn_pos.x(), scene_spawn_pos.y(), comp_id)
-
-	def closeEvent(self, event):
-		# To make sure a runtime error isn't raised when closing the app
-		try:
-			self.cscene.selectionChanged.disconnect()
-		except RuntimeError: pass
-		super().closeEvent(event)
-
-
 
 	###======= ACTIONS =======###
 	def setupQActions(self):
-		SK = StandardKey    # Default platform specific keybinds
 		QKS = QKeySequence
+		SK = QKeySequence.StandardKey    # Default platform specific keybinds
 		# https://doc.qt.io/qtforpython-6/PySide6/QtGui/QKeySequence.html
 
 
@@ -134,7 +142,6 @@ class AppWindow(QMainWindow):
 		
 		# Adding componenets
 		Actions.add(self, "load-ic", "Import IC", self.addICToProject, QKS("Ctrl+I"))
-		Actions.add(self, "refresh-ic-list", "Refresh IC", self.refreshIClist)
 		Actions.add(self, "project-to-ic", "Convert Project to IC", self.convertProjectToIC, QKS("Ctrl+Shift+I"))
 		# Actions.add(self, "selection-to-ic", "Convert Selection to IC", )
 		
@@ -300,7 +307,7 @@ class AppWindow(QMainWindow):
 		
 		if ok and item:
 			idx = items.index(item)
-			self.cscene.addIC(0, 0, idx)
+			self.spawnIC(idx)
 
 	
 	def refreshIClist(self):

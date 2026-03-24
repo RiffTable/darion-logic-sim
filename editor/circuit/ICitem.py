@@ -15,7 +15,7 @@ class ICitem(CompItem):
 	TAG = DESC = NAME = ""
 	LOGIC = Const.IC_ID
 
-	def __init__(self, pos: QPointF, ic_data_index: int, ic_data, **kwargs):
+	def __init__(self, pos: QPointF, ic_data_index: int|str, ic_data, **kwargs):
 		self.ic_data_index = int(ic_data_index)
 		self._unit = cast(IC, logic.load_ic(ic_data))
 		# self._unit = cast(IC, logic.load_ic(self.cscene.iclist[ic_data_index]))

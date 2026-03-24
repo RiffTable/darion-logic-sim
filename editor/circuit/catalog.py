@@ -50,6 +50,11 @@ LOOKUP: dict[int, type[CompItem]] = {
 	11: InputItem,
 	21: OutputItem
 }
+CATEGORIES: dict[str, list[int]] = {
+	"Gates": [0, 1, 2, 3, 4, 5, 6],
+	"I/O"  : [11, 21],
+	"Misc" : []
+}
 
 # Setting up ID for all components
 for i, comp in LOOKUP.items():

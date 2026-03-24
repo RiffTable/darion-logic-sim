@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import (
 	Qt, QObject, QEvent, QTimer, QKeyCombination,
-	QPoint, QPointF, QLineF, QRect, QRectF,QCoreApplication, QSettings, Signal
+	QPoint, QPointF, QLineF, QRect, QRectF, QCoreApplication, QStandardPaths, QSettings, Signal
 )
 from PySide6.QtGui import (
 	QGuiApplication, QInputDevice, QAction, QActionGroup, QKeySequence, QCursor,
@@ -28,4 +28,3 @@ GraphicsItemFlag = QGraphicsItem.GraphicsItemFlag
 Key = Qt.Key
 KeyMod = Qt.KeyboardModifier
 MouseBtn = Qt.MouseButton
-StandardKey = QKeySequence.StandardKey
