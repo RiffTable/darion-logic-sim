@@ -17,7 +17,7 @@ from PySide6.QtCore import (
 	QPoint, QPointF, QLineF, QRect, QRectF,QCoreApplication, QSettings, Signal
 )
 from PySide6.QtGui import (
-	QGuiApplication, QInputDevice, QAction, QKeySequence, QCursor,
+	QGuiApplication, QInputDevice, QAction, QActionGroup, QKeySequence, QCursor,
 	QPalette, QColor, QFont, QPainter, QPen, QBrush, QPainterPath, QTransform,
 	QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent,
 )

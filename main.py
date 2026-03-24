@@ -76,7 +76,7 @@ class AppWindow(QMainWindow):
 		settings = QSettings()
 		self.setScrollInverted(bool(settings.value("settings/invert_scroll", False, type=bool)))
 		self.setPeekingDisabled(bool(settings.value("settings/disable_peeking", False, type=bool)))
-		self.cscene.setGridHidden(bool(settings.value("settings/hide_grid", False, type=bool)))
+		self.cscene.setGridStyle(str(settings.value("settings/grid_style", "lines", type=str)))
 	
 	def setScrollInverted(self, inverted: bool):
 		self.view.scroll_inverted = inverted
@@ -152,7 +152,10 @@ class AppWindow(QMainWindow):
 
 		### Canvas functions
 		scene = self.cscene
-		Actions.addSettingsCheckable(view, "hide_grid", "Hide Grid", False, scene.setGridHidden)
+		Actions.createSubMenu(
+			view, "grid_style", "Grid Style", "lines", scene.setGridStyle,
+			{"hidden": "Hidden", "lines": "Grid Lines", "dots": "Dots"}
+		)
 
 		Actions.add(view, "select_none", "Select None", scene.selectNone, SK.Deselect) # Ctrl+A
 		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A

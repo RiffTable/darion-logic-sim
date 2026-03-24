@@ -1,18 +1,24 @@
-from typing import Callable, cast
+from typing import Callable
 from core.QtCore import *
 
 
 
 _action_list: dict[str, QAction] = {}
+_menu_list: dict[str, QMenu] = {}
+_settings = QSettings()
 
 
 
 def get(key: str) -> QAction:
     act = _action_list.get(key, None)
     if act is None:
-        KeyError("Requesting for a QAction before registering")
-        exit()
+        raise RuntimeError(f"Requesting for QAction `{key}` before registering")
     return act
+def getMenu(key: str) -> QMenu:
+    menu = _menu_list.get(key, None)
+    if menu is None:
+        raise RuntimeError(f"Requesting for QMenu `{key}` before registering")
+    return menu
 
 
 
@@ -39,17 +45,17 @@ def addCheckable(parent: QWidget, key: str, text: str, isChecked: bool = False, 
     _action_list[key] = act
     return act
 
-def addSettingsCheckable(parent: QWidget, key: str, text: str, defaultValue: bool = False, slot: Callable[[bool], None]|None = None, shortcut = None) -> QAction:
+def addSettingsCheckable(parent: QWidget, key: str, text: str, defaultValue: bool, slot: Callable[[bool], None], shortcut = None) -> QAction:
     """Creates Checkable QAction also able to read and write from QSettings"""
     act = QAction(text, parent)
-    state = bool(QSettings().value(f"settings/{key}", defaultValue, type=bool))
+    state = bool(_settings.value(f"settings/{key}", defaultValue, type=bool))
 
     act.setCheckable(True)
     act.setChecked(state)
 
     def on_toggle(checked: bool):
-        QSettings().setValue(f"settings/{key}", checked)
-        if slot: slot(checked)
+        _settings.setValue(f"settings/{key}", checked)
+        slot(checked)
     
     act.toggled.connect(on_toggle)
     if shortcut: act.setShortcut(shortcut)
@@ -57,3 +63,33 @@ def addSettingsCheckable(parent: QWidget, key: str, text: str, defaultValue: boo
     parent.addAction(act)
     _action_list[key] = act
     return act
+
+def createSubMenu(parent: QWidget, key: str, text: str, default_key: str, slot: Callable[[str], None], options: dict[str, str]) -> QMenu:
+    """`options` is dict: {`key`, `label`}:\\
+    Where `key` is the _action_list key and also the function input,\\
+    And `label` is what the user will see in the drop-down list"""
+    menu = QMenu(text, parent)
+    group = QActionGroup(parent)
+    group.setExclusive(True)
+    
+    style = _settings.value(f"settings/{key}", default_key, type=str)
+    
+    for opt_key, label in options.items():
+        act = QAction(label, parent)
+        act.setData(opt_key)
+        act.setCheckable(True)
+        if opt_key == style: act.setChecked(True)
+            
+        def make_trigger(checked, k=opt_key):
+            _settings.setValue(f"settings/{key}", k)
+            slot(k)
+            
+        act.triggered.connect(make_trigger)
+        
+        group.addAction(act)
+        menu.addAction(act)
+        _action_list[f"{key}_{opt_key}"] = act
+    
+    _menu_list[key] = menu
+
+    return menu

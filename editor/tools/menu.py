@@ -50,6 +50,9 @@ class ViewMenu(BaseMenu):
     def setup_menu(self):
         self.addAction(Actions.get("zoom_in"))
         self.addAction(Actions.get("zoom_out"))
+        self.addSeparator()
+        self.addMenu(Actions.getMenu("grid_style"))
+        self.addAction(Actions.get("dark_theme"))
 
 
 class ProjectMenu(BaseMenu):
@@ -70,5 +73,3 @@ class SettingsMenu(BaseMenu):
     def setup_menu(self):
         self.addAction(Actions.get("invert_scroll"))
         self.addAction(Actions.get("disable_peeking"))
-        self.addAction(Actions.get("hide_grid"))
-        self.addAction(Actions.get("dark_theme"))

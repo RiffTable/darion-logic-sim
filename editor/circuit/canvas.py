@@ -34,7 +34,7 @@ class CircuitScene(QGraphicsScene):
 		self.defaultFacing = Facing.EAST
 		self.defaultMirror = False
 		self.peeking_disabled = False
-		self.grid_hidden = False 
+		self.bg_style = 1
 
 		# Wiring logic
 		self.ghostWire: WireItem|None = None
@@ -75,10 +75,6 @@ class CircuitScene(QGraphicsScene):
 							current = pin.logical.output
 							if current != pin.state:
 								pin.logicalStateChanged(current)
-
-	def setGridHidden(self, hidden: bool):
-		self.grid_hidden = hidden
-		self.update() 
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
@@ -309,8 +305,16 @@ class CircuitScene(QGraphicsScene):
 
 		super().keyPressEvent(event)
 	
+	###======= BACKGROUND GRID =======###
+	def setGridStyle(self, style: str):
+		print(style)
+		if style == "lines":  self.bg_style = 1
+		elif style == "dots": self.bg_style = 2
+		else:                 self.bg_style = 0
+		self.update()
+
 	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
-		if self.grid_hidden:
+		if self.bg_style == 0:    # Grid Hidden
 			return
 		Color = theme.get_theme()
 		bg_color = Color.primary_bg
@@ -326,8 +330,7 @@ class CircuitScene(QGraphicsScene):
 		left = rect_left - (rect_left % GRID.SIZE)
 		top = rect_top - (rect_top % GRID.SIZE)
 
-		bg_mode = 0
-		if bg_mode == 0:
+		if self.bg_style == 1:    # Lines Background
 			smol_lines: list[QLineF] = []
 			beeg_lines: list[QLineF] = []
 			unit_size = GRID.SIZE
@@ -349,7 +352,7 @@ class CircuitScene(QGraphicsScene):
 			painter.setPen(QPen(grid_color, 2))
 			painter.drawLines(beeg_lines)
 		
-		else:
+		elif self.bg_style == 2:    # Dots Background
 			points = []
 			unit_size = 2*GRID.SIZE
 
