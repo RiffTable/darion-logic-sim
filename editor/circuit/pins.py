@@ -30,7 +30,6 @@ class PinItem(QGraphicsRectItem):
 			GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
 		self.setPen(Qt.PenStyle.NoPen)
-		self.setAcceptHoverEvents(True)
 		self.setZValue(1)
 
 		self.state: int = Const.UNKNOWN
@@ -48,8 +47,6 @@ class PinItem(QGraphicsRectItem):
 	@property
 	def parentComp(self): return cast('CompItem', self.parentItem())
 	
-	def highlight(self, isHovered: bool) -> None:
-		...    # ABSTRACT METHOD
 	def disconnect(self):
 		...    # ABSTRACT METHOD
 	
@@ -94,12 +91,10 @@ class PinItem(QGraphicsRectItem):
 		self.setSelected(False); event.accept()
 	def mouseMoveEvent(self, event): event.accept()
 
-	def hoverEnterEvent(self, event):
-		self.highlight(True);  self.parentComp._updateHoverStatus(True, self)
-		super().hoverEnterEvent(event)
-	def hoverLeaveEvent(self, event):
-		self.highlight(False); self.parentComp._updateHoverStatus(False, self)
-		super().hoverLeaveEvent(event)
+
+	def highlight(self, isHovered: bool, proxy: bool = False) -> None:
+		self.isHighlighted = isHovered
+		self.updateVisual()
 	
 	def paint(self, painter: QPainter, option, widget):
 		# The HITBOX of the pin is larger (half of SIZE) than the visible radius
@@ -149,17 +144,7 @@ class InputPinItem(PinItem):
 		return self
 
 	def disconnect(self):
-		if not self._wire: return
-
-		self._wire.cutSupply(self)
-	
-	def highlight(self, isHovered: bool) -> None:
-		self.isHighlighted = (
-			(isHovered or self.proxyHighlight)
-			and (not self._wire)
-			and self.cscene.checkState(EditorState.WIRING)
-		)
-		self.updateVisual()
+		if self._wire: self._wire.cutSupply(self)
 
 
 
@@ -184,13 +169,4 @@ class OutputPinItem(PinItem):
 			self.updateVisual()
 	
 	def disconnect(self):
-		if not self._wire: return
-
-		self.cscene.removeWire(self._wire)
-	
-	def highlight(self, isHovered: bool) -> None:
-		self.isHighlighted = (
-			(isHovered or self.proxyHighlight)
-			and self.cscene.checkState(EditorState.NORMAL)
-		)
-		self.updateVisual()
+		if self._wire: self.cscene.removeWire(self._wire)
