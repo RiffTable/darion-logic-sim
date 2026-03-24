@@ -18,6 +18,8 @@ cdef tuple namelist=(
 )
 
 cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
+    '''Get a gate of a given type and add it to the gate_infolist and gate_verse
+    for ICs, it does not add to gate_infolist or gate_verse, but instead just returns an IC object'''
     cdef Gate gate
     cdef uint16_t lim
     cdef IC ic
@@ -38,6 +40,9 @@ cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
 
 
 cdef tuple decode(object code):
+    '''Decode a gate code into a tuple of (gate_type, gate_rank, ic_code) or 
+    (gate_type, gate_location, ic_code) for ICs
+    this is used to reconstruct gates from serialised data'''
     if len(code) == 2:
         return tuple(code)
     return (code[0], code[1], decode(code[2]))

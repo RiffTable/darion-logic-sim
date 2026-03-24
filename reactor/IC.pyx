@@ -34,6 +34,7 @@ cdef class IC:
         return self.codename if self.custom_name == '' else self.custom_name
 
     cpdef object getcomponent(self, int choice):
+        '''Get a gate from the store and register it under the right pin group'''
         cdef object gt = get(choice, self.gate_infolist_ptr[0],self.gate_verse)
         if gt:
             self.counter += 1
@@ -51,6 +52,8 @@ cdef class IC:
         return gt
 
     cpdef void addgate(self, object source):
+        '''Add an already-existing gate into the IC's pin groups
+        this is for ic creation'''
         if source.id == INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
@@ -64,6 +67,8 @@ cdef class IC:
         source.code = (source.code[0], rank, self.code)
 
     cpdef void configure(self, list dictionary):
+        '''Load an IC from its serialised data and wire everything up. 
+        similar to generation of circuit but for ic'''
         cdef unordered_map[int,int] pseudo
         pseudo[-1] = -1
         self.custom_name = dictionary[CUSTOM_NAME]
@@ -72,10 +77,13 @@ cdef class IC:
             self.tag = dictionary[TAG]
         if len(dictionary) > DESCRIPTION:
             self.description = dictionary[DESCRIPTION]
-        self.load_components(dictionary, pseudo)
-        self.clone(pseudo)
+        self.load_components(dictionary, pseudo) # first phase, loading to hashmap pseudo
+        self.clone(pseudo) # second phase, wiring up
 
     cpdef void load_components(self, list dictionary, unordered_map[int,int]& pseudo):
+        '''Instantiate the IC's internal gates and map their old locations to new ones
+        actually the first phase of generation. 
+        creates configures location of gates current vs. old location in info'''
         cdef Gate gate
         cdef list comp_code
         for comp_code in dictionary[MAP]:
@@ -83,18 +91,24 @@ cdef class IC:
             pseudo[comp_code[LOCATION]] = gate.location
 
     cpdef void clone(self, unordered_map[int,int]& pseudo):
+        '''Wire up each internal gate using the location map built during load
+        actually the second phase of generation.
+        '''
         cdef Gate gate
         for i in self.map:
             gate = <Gate>self.gate_verse[pseudo[i[LOCATION]]]
             gate.clone(i, pseudo)
 
     cpdef void load_to_cluster(self, list cluster):
+        '''Mark all internal gates as scheduled and collect them into the cluster list
+        for copy paste'''
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
             cluster.append(i)
             i.location_ptr[0][i.location].scheduled = True
 
     cpdef list full_data(self):
+        '''Serialise the IC with full connection info, used for saving the parent circuit'''
         cdef Gate i
         cdef list dictionary = [
             self.custom_name,
@@ -107,6 +121,7 @@ cdef class IC:
         return dictionary
 
     cpdef list partial_data(self):
+        '''Serialise the IC with only the connections visible from outside the cluster, used for copy/paste and IC files'''
         cdef Gate i
         cdef list dictionary = [
             self.custom_name,
@@ -119,6 +134,7 @@ cdef class IC:
         return dictionary
 
     cpdef void implement(self, unordered_map[int,int]& pseudo):
+        '''Wire up the IC's gates into the parent circuit using the resolved location map'''
         cdef Gate gate
         cdef tuple code
         for i in self.map:
@@ -126,6 +142,7 @@ cdef class IC:
             gate.clone(i, pseudo)
 
     cpdef void hide(self):
+        '''Cut the IC out of the live graph — disconnects output targets and drops input registrations'''
         cdef Gate pin_out, pin_in, src
         cdef CPP_Gate* pin_out_info
         cdef CPP_Gate* src_info
@@ -150,6 +167,7 @@ cdef class IC:
                     pop(src_info.hitlist, pin_in.location, index)
 
     cpdef void reveal(self):
+        '''Plug the IC back into the live graph — re-registers inputs and reconnects output targets'''
         cdef Gate pin_in, pin_out, source
         cdef CPP_Gate* pin_in_info
         cdef CPP_Gate* pin_out_info
@@ -177,6 +195,7 @@ cdef class IC:
                 reveal(hitlist[i], pin_out, self.gate_verse)
 
     cpdef void reset(self):
+        '''Reset all internal gates back to unknown state'''
         cdef Gate g
         for i in self.inputs + self.internal + self.outputs:
             if i.id != IC_ID:
@@ -186,15 +205,17 @@ cdef class IC:
                 (<IC>i).reset()
 
     cpdef void showinputpins(self):
+        '''Print the IC's input pins with their index'''
         for i, gate in enumerate(self.inputs):
             print(f'{i}. {gate}')
 
     cpdef void showoutputpins(self):
+        '''Print the IC's output pins with their index'''
         for i, gate in enumerate(self.outputs):
             print(f'{i}. {gate}')
 
     cpdef void info(self):
-        """Show all IC components in an organized way."""
+        '''Print the IC's inputs, internals, and outputs with their connections'''
         cdef Gate pin
         cdef CPP_Gate* pin_info
         cdef Profile* p
