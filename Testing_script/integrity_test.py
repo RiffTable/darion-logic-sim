@@ -4456,7 +4456,7 @@ class EventManagerTestSuite:
         self.event_mgr.register(cmd)
         
     def setlimits(self, target, size):
-        cmd = SetLimits(target, size)
+        cmd = SetLimits(self.circuit, target, size)
         cmd.execute()
         self.event_mgr.register(cmd)
         
@@ -4827,7 +4827,7 @@ class TestTimeTravel(unittest.TestCase):
         self.em.redo()
         self.assertEqual(gate.custom_name, "MyCustomAND")
 
-        self.do(SetLimits(gate, 4))
+        self.do(SetLimits(self.circuit, gate, 4))
         self.assertEqual(gate.inputlimit, 4)
         self.em.undo()
         self.assertEqual(gate.inputlimit, 2)
