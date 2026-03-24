@@ -35,7 +35,7 @@ class PinItem(QGraphicsRectItem):
 		self.state: int = Const.UNKNOWN
 		self._wire: WireItem|None = None
 		self.isHighlighted = False
-		self.proxyHighlight = False
+		self.viaProxy = False
 		self.facing = facing
 		self.label = ""
 
@@ -94,6 +94,7 @@ class PinItem(QGraphicsRectItem):
 
 	def highlight(self, isHovered: bool, proxy: bool = False) -> None:
 		self.isHighlighted = isHovered
+		self.viaProxy = (isHovered and proxy)
 		self.updateVisual()
 	
 	def paint(self, painter: QPainter, option, widget):
@@ -109,7 +110,8 @@ class PinItem(QGraphicsRectItem):
 	def updateVisual(self):
 		Color = theme.get_theme()
 		if self.isHighlighted:
-			self.setBrush(QBrush(Color.pin_hover))
+			if self.viaProxy: self.setBrush(QBrush(Color.pin_hoverproxy))
+			else:             self.setBrush(QBrush(Color.pin_hover))
 		
 		elif self._wire:
 			self.setBrush(Qt.BrushStyle.NoBrush)

@@ -40,6 +40,7 @@ class CircuitScene(QGraphicsScene):
 		# Wiring logic
 		self.hoveredComp: CompItem|None = None
 		self.hoveredPin: PinItem|None = None
+		self.hoverViaProxy = False
 		self.ghostWire: WireItem|None = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 
@@ -224,6 +225,7 @@ class CircuitScene(QGraphicsScene):
 				g_wire.updateShape()
 			
 			parent = target.parentComp
+			# Update hovered pin and comps that state changed
 			self.updateHoverStatus(None, parent, True)
 			return True
 		
@@ -245,7 +247,7 @@ class CircuitScene(QGraphicsScene):
 			
 			# Update hovered pin and comps that state changed
 			# TODO: Make it generalized for all state changes
-			self.updateHoverStatus(self.hoveredPin, self.hoveredComp, True)
+			self.updateHoverStatus(self.hoveredPin, None, True)
 
 	def removeWire(self, wire: WireItem):
 		# Works for both ghost wires and regular wires
@@ -257,34 +259,37 @@ class CircuitScene(QGraphicsScene):
 		if not (wire is self.ghostWire): self.wires.remove(wire)
 		self.removeItem(wire)
 
-	###======= MOUSE/KEY EVENTS =======###
+	###======= NEW HOVER SYSTEM =======###
 	def updateHoverStatus(self, pin: PinItem|None, comp: CompItem|None = None, forced: bool = False):
 		"""
-		(PIN, COMP, ...):   Only updates if the PIN belongs to COMP \\
-		(NONE, COMP, ...):  Updates the comp's proxy pin \\
-		(PIN, NONE, ...) :  Updates the pin's parent \\
-		(NONE, NONE, ...) : Unhighlights the previous \\
+		Use `forced = True` to make sure already hovered pin/comp is dehovered then rehovered \\
+		`(PIN, COMP, ....)` : Kindly DON'T USE this \\
+		`(NONE, COMP, ...)` : Updates the comp's proxy pin \\
+		`(PIN, NONE, ....)` : Updates the pin's parent \\
+		`(NONE, NONE, ...)` : Unhighlights the previous \\
 		"""
 		
 		hcomp = self.hoveredComp
 		hpin = self.hoveredPin
-		if pin:
-			# Find the pin's component
-			if comp is None:
-				comp = pin.parentComp
+		proxying = bool(comp and (pin is None))
 
-			# Exit function if pin doesn't belong to component
-			elif (comp is not pin.parentComp): return
-		
 		# ---------- DEBUG ----------
 		# _pstat = "ACT" if pin else "---"
 		# _cstat = "ACT" if comp else "---"
 		# _hpstat = "ACT" if hpin else "---"
 		# _hcstat = "ACT" if hcomp else "---"
 		# if (pin and comp is None): _cstat = "INH"
-		# if (pin is None and comp): _pstat = "PXY"
+		# if proxying: _pstat = "PXY"
 		# print(f"pin: {_pstat}, comp: {_cstat}, hpin: {_hpstat}, hcomp: {_hcstat}")
+
+		# Exit function if pin doesn't belong to component
+		if pin and comp and (comp is not pin.parentComp): return
+
+		# Find the pin's component
+		if pin and comp is None:
+			comp = pin.parentComp
 		
+		### Check hovering for components
 		if (hcomp is not comp) or forced:
 			# Unhighlight previously highlighted pin
 			if hcomp:
@@ -298,11 +303,12 @@ class CircuitScene(QGraphicsScene):
 					comp.betterHoverEnter()
 				comp.hoverLeaveTimer.stop()
 
-				# Now that the peeking pin is out, focus on that
-				if pin is None:
-					pin = comp.proxyPin()
+		### Find proxy pin if needed, since pin is now peeking
+		if proxying:
+			pin = comp.proxyPin()    # pyright: ignore
 		
-		if (hpin is not pin) or forced:
+		### Check hovering for pins
+		if (hpin is not pin) or (self.hoverViaProxy != proxying) or forced:
 			# Unhighlight previously highlighted pin
 			if hpin:
 				hpin.highlight(False)
@@ -313,15 +319,13 @@ class CircuitScene(QGraphicsScene):
 				S = self.checkState(EditorState.WIRING)
 				I = isinstance(pin, InputPinItem)
 				highlightCondition = ((I == S) and not(pin.hasWire() and I))
-				# ---------- DEBUG ----------
-				# print("I: ", I)
-				# print("S: ", S)
-				# print("W: ", pin.hasWire())
-				# print("res: ", highlightCondition)
 
-				pin.highlight(highlightCondition)
+				pin.highlight(highlightCondition, proxying)
 				self.ghostPin.setPos(pin.scenePos())
+		
+		self.hoverViaProxy = proxying
 
+	###======= MOUSE/KEY EVENTS =======###
 	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
 		mousepos = event.scenePos()
 		if (mousepos - self._last_mouse_pos).manhattanLength() < 2:
@@ -330,19 +334,14 @@ class CircuitScene(QGraphicsScene):
 		items = self.items(mousepos)
 
 		# Find pin hovered by cursor
-		pin = None
-		comp = None
+		pin = comp = None
 		for item in items:
-			if isinstance(item, PinItem):
-				pin = item
-				comp = item.parentComp
-				break
-			if isinstance(item, CompItem):
-				pin = item.proxyPin()
-				comp = item
-				break
+			if isinstance(item, PinItem):  pin = item;  break
+			if isinstance(item, CompItem): comp = item; break
 
 		self.updateHoverStatus(pin, comp)
+
+		# Positioning the ghost pin
 		if self.ghostPin is None:
 			self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 		

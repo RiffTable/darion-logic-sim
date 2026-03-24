@@ -242,7 +242,7 @@ class AppWindow(QMainWindow):
 			with open(filename, 'w') as file:
 				json.dump(project, file)
 		except Exception as e:
-			print("Failed to save:", e)
+			print("Failed to save:", e)    # TODO: why is it print?
 	
 	def saveFileAs(self):
 		self.saveFile(True)
@@ -327,8 +327,6 @@ class AppWindow(QMainWindow):
 			)
 			self.cscene.clearCanvas()
 			self.refreshIClist()
-
-			logic.simulate(Const.SIMULATE)    # fuck
 
 
 
