@@ -21,6 +21,7 @@ class LightTheme:
     pin_high       = QColor("#1fa110")
     pin_low        = QColor("#c5591b")
     pin_hover      = QColor("#45676b")
+    pin_hoverproxy = QColor("#d3b476")
 
     LED_on         = QColor("#f1c40f")
     LED_off        = QColor("#d2d9e0")
@@ -50,6 +51,7 @@ class DarkTheme:
     pin_high       = QColor("#229513")
     pin_low        = QColor("#c5591b")
     pin_hover      = QColor("#6b8c9c")
+    pin_hoverproxy = QColor("#ededed")
 
     LED_on         = QColor("#f1c40f")
     LED_off        = QColor("#17222d")

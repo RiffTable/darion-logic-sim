@@ -174,7 +174,7 @@ class GateItem(CompItem):
 	# 3. Default/Proxy Connection
 
 	### Smart Hover + Proxy System
-	def peekOut(self):
+	def betterHoverEnter(self):
 		# "Peek Out": Peeks out the "Peeking Pin"
 		if self.cscene.peeking_disabled:
 			return
@@ -184,9 +184,6 @@ class GateItem(CompItem):
 			self.peekingPin = self.pushGatePin()
 			self.updateShape()
 	
-	def betterHoverEnter(self):
-		self.peekOut()
-	
 	def betterHoverLeave(self):
 		# "Peek Off": Removes the "Peeking Pin" if it has been created
 		if self.peekingPin and not self.peekingPin.hasWire():
@@ -194,15 +191,6 @@ class GateItem(CompItem):
 			self.updateShape()
 		
 		self.peekingPin = None
-	
-	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
-		super()._updateHoverStatus(hoverStatus, hoveredPin)
-
-		# Enable proxyHighlight if only the gate is being hovered, not its pins
-		proxy = self.proxyPin()
-		if proxy:
-			proxy.proxyHighlight = True if (self._hover_count == 1) else False
-			proxy.highlight(proxy is hoveredPin)
 
 	### Events
 	def _updateShape(self):

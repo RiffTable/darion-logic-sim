@@ -52,7 +52,6 @@ class CompItem(QGraphicsItem):
 			GraphicsItemFlag.ItemSendsGeometryChanges
 			# GraphicsItemFlag.ItemSendsScenePositionChanges
 		)
-		self.setAcceptHoverEvents(True)
 		theme.theme_changed.connect(self.update)
 
 		# Behavior
@@ -78,7 +77,6 @@ class CompItem(QGraphicsItem):
 					pinslist.append(newpin)
 
 		# Proxy & Hovering
-		self._hover_count = 0
 		self.hoverLeaveTimer = QTimer()
 		self.hoverLeaveTimer.setSingleShot(True)
 		self.hoverLeaveTimer.timeout.connect(self.betterHoverLeave)
@@ -230,27 +228,14 @@ class CompItem(QGraphicsItem):
 		...    # ABSTRACT METHOD
 
 
-	### Smart Hover System
+	### Smart Hover System (refactored :P)
+	# The system had been refactored so its not really smart anymore
+	# but it still kinda is ig
+	# betterHoverEnter/Leave is now controlled via the SCENE
 	def proxyPin(self) -> InputPinItem|None:
 		"""The getter function for the proxy pin. If the proxy pin is stored as an index, then dereference it here"""
 		return None    # ABSTRACT METHOD (defaults to None)
 	
-	def hoverEnterEvent(self, event): self._updateHoverStatus(True);  return super().hoverEnterEvent(event)
-	def hoverLeaveEvent(self, event): self._updateHoverStatus(False); return super().hoverLeaveEvent(event)
-	def _updateHoverStatus(self, hoverStatus: bool, hoveredPin: PinItem|None = None):
-		self._hover_count += (+1 if hoverStatus else -1)
-		# _hover_count = 0:    Not hovering component
-		# _hover_count = 1:    Hovering the component
-		# _hover_count = 2:    Hovering its pins
-		# print(self._hover_count)
-
-		if self._hover_count == 1 and hoverStatus:
-			if not self.hoverLeaveTimer.isActive():
-				self.betterHoverEnter()
-			self.hoverLeaveTimer.stop()
-		
-		elif self._hover_count == 0 and not hoverStatus:
-			self.hoverLeaveTimer.start()
 	def betterHoverEnter(self):
 		...    # ABSTRACT METHOD
 	def betterHoverLeave(self):

@@ -24,6 +24,7 @@ class CircuitScene(QGraphicsScene):
 		self.wires: list[WireItem] = []
 		self.iclist: list = []
 
+		self._last_mouse_pos = QPointF()
 		self._rmb_last_pos = QPointF()
 
 		# Clipboard
@@ -34,9 +35,12 @@ class CircuitScene(QGraphicsScene):
 		self.defaultFacing = Facing.EAST
 		self.defaultMirror = False
 		self.peeking_disabled = False
-		self.grid_hidden = False 
+		self.bg_style = 1
 
 		# Wiring logic
+		self.hoveredComp: CompItem|None = None
+		self.hoveredPin: PinItem|None = None
+		self.hoverViaProxy = False
 		self.ghostWire: WireItem|None = None
 		self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
 
@@ -76,10 +80,6 @@ class CircuitScene(QGraphicsScene):
 							if current != pin.state:
 								pin.logicalStateChanged(current)
 
-	def setGridHidden(self, hidden: bool):
-		self.grid_hidden = hidden
-		self.update() 
-
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
 		return self.getState() == st
@@ -91,7 +91,6 @@ class CircuitScene(QGraphicsScene):
 	
 	def setState(self, st: EditorState):
 		self._state = st
-		...
 
 
 	# Components Management
@@ -168,10 +167,10 @@ class CircuitScene(QGraphicsScene):
 	
 	
 	# Wires	Management
-	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool):
+	def finishWiring(self, target: QGraphicsItem|None, multiWireMode: bool) -> bool:
 		g_wire = self.ghostWire
+		if g_wire is None: return False
 
-		assert g_wire is not None
 		g_pin = self.ghostPin
 		source = g_wire.source
 
@@ -179,14 +178,19 @@ class CircuitScene(QGraphicsScene):
 		if isinstance(target, CompItem):
 			# Proxying: Wire is connected to the gate's *favorite* pin
 			target = target.proxyPin()
-			if target is None: return
+			if target is None: return False
 		
 		if isinstance(target, InputPinItem):
 			t_wire = target.getWire()
-			if t_wire:
-				# Swap Connections
+			# Add wire to canvas
+			if len(g_wire.supplies) == 1:
+				self.wires.append(g_wire)
+
+			if t_wire:  # Swap Connections
+
 				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
 				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
+
 
 				if target.logical: logic.disconnect(*target.logical)
 				g_wire.logicalConnect(source, target)
@@ -195,36 +199,37 @@ class CircuitScene(QGraphicsScene):
 				target.setWire(g_wire); t_wire.updateShape()
 				self.ghostWire = t_wire
 				
-				if len(g_wire.supplies) == 1: self.wires.append(g_wire)
-			else:
-				# Connecting wire to an empty pin
-				target = cast(InputPinItem, target)
-				if len(g_wire.supplies) == 1: self.wires.append(g_wire)
+			else:  # Connecting wire to an empty pin
 
+				# End WIRING phase if not multi-wiring
 				if not multiWireMode:
 					g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
 					self.setState(EditorState.NORMAL)
 					self.ghostWire = None
-				self.clearSelection()
-				g_wire.setSelected(True)    # Solo select the finished wire
 				
+				# Solo select the finished wire
+				self.clearSelection()
+				g_wire.setSelected(True)
+				
+				# Attach wire to pin
 				g_wire.supplies.append(target); target.setWire(g_wire)
-
 				if target.logical and source.logical:
 					unit, idx = target.logical
+
 					# print(f"{isinstance(unit, Gate)} and {idx >= unit.inputlimit}")
+					# Resize gate input if needed
 					if isinstance(unit, Gate) and idx >= unit.inputlimit:
 						unit.setlimits(idx+1)
 					logic.connect(unit, source.logical, idx)
 
 				g_wire.updateShape()
-				target.highlight(False)
-				if isinstance(target.parentComp, GateItem):
-					# This needs to be generalized. fuck
-					paren = target.parentComp
-					paren.peekOut()
-					p = paren.proxyPin()
-					if p: p.highlight(True)
+			
+			parent = target.parentComp
+			# Update hovered pin and comps that state changed
+			self.updateHoverStatus(None, parent, True)
+			return True
+		
+		return False
 	
 	def skipWiring(self):
 		if self.checkState(EditorState.WIRING):
@@ -239,6 +244,10 @@ class CircuitScene(QGraphicsScene):
 					gwire.supplies.remove(self.ghostPin)
 					self.ghostPin.setWire(None)
 					gwire.updateShape()
+			
+			# Update hovered pin and comps that state changed
+			# TODO: Make it generalized for all state changes
+			self.updateHoverStatus(self.hoveredPin, None, True)
 
 	def removeWire(self, wire: WireItem):
 		# Works for both ghost wires and regular wires
@@ -250,7 +259,98 @@ class CircuitScene(QGraphicsScene):
 		if not (wire is self.ghostWire): self.wires.remove(wire)
 		self.removeItem(wire)
 
+	###======= NEW HOVER SYSTEM =======###
+	def updateHoverStatus(self, pin: PinItem|None, comp: CompItem|None = None, forced: bool = False):
+		"""
+		Use `forced = True` to make sure already hovered pin/comp is dehovered then rehovered \\
+		`(PIN, COMP, ....)` : Kindly DON'T USE this \\
+		`(NONE, COMP, ...)` : Updates the comp's proxy pin \\
+		`(PIN, NONE, ....)` : Updates the pin's parent \\
+		`(NONE, NONE, ...)` : Unhighlights the previous \\
+		"""
+		
+		hcomp = self.hoveredComp
+		hpin = self.hoveredPin
+		proxying = bool(comp and (pin is None))
+
+		# ---------- DEBUG ----------
+		# _pstat = "ACT" if pin else "---"
+		# _cstat = "ACT" if comp else "---"
+		# _hpstat = "ACT" if hpin else "---"
+		# _hcstat = "ACT" if hcomp else "---"
+		# if (pin and comp is None): _cstat = "INH"
+		# if proxying: _pstat = "PXY"
+		# print(f"pin: {_pstat}, comp: {_cstat}, hpin: {_hpstat}, hcomp: {_hcstat}")
+
+		# Exit function if pin doesn't belong to component
+		if pin and comp and (comp is not pin.parentComp): return
+
+		# Find the pin's component
+		if pin and comp is None:
+			comp = pin.parentComp
+		
+		### Check hovering for components
+		if (hcomp is not comp) or forced:
+			# Unhighlight previously highlighted pin
+			if hcomp:
+				if forced: hcomp.betterHoverLeave()
+				else:      hcomp.hoverLeaveTimer.start()
+			self.hoveredComp = comp
+
+			# Highlight Comp
+			if comp:
+				if not comp.hoverLeaveTimer.isActive() or forced:
+					comp.betterHoverEnter()
+				comp.hoverLeaveTimer.stop()
+
+		### Find proxy pin if needed, since pin is now peeking
+		if proxying:
+			pin = comp.proxyPin()    # pyright: ignore
+		
+		### Check hovering for pins
+		if (hpin is not pin) or (self.hoverViaProxy != proxying) or forced:
+			# Unhighlight previously highlighted pin
+			if hpin:
+				hpin.highlight(False)
+			self.hoveredPin = pin
+
+			# Highlight Pin
+			if pin:
+				S = self.checkState(EditorState.WIRING)
+				I = isinstance(pin, InputPinItem)
+				highlightCondition = ((I == S) and not(pin.hasWire() and I))
+
+				pin.highlight(highlightCondition, proxying)
+				self.ghostPin.setPos(pin.scenePos())
+		
+		self.hoverViaProxy = proxying
+
 	###======= MOUSE/KEY EVENTS =======###
+	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
+		mousepos = event.scenePos()
+		if (mousepos - self._last_mouse_pos).manhattanLength() < 2:
+			return
+		
+		items = self.items(mousepos)
+
+		# Find pin hovered by cursor
+		pin = comp = None
+		for item in items:
+			if isinstance(item, PinItem):  pin = item;  break
+			if isinstance(item, CompItem): comp = item; break
+
+		self.updateHoverStatus(pin, comp)
+
+		# Positioning the ghost pin
+		if self.ghostPin is None:
+			self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
+		
+		if self.hoveredPin is None:
+			self.ghostPin.setPos(GRID.snapF(mousepos))
+		
+		self._last_mouse_pos = mousepos
+		return super().mouseMoveEvent(event)
+	
 	def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
 		item = self.itemAt(event.scenePos(), QTransform())
 
@@ -273,8 +373,9 @@ class CircuitScene(QGraphicsScene):
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		# This event only takes place after the CircuitView handles its!
 		# RMB drag has been handled
+		scenepos = event.scenePos()
 		btn = event.button()
-		target = self.itemAt(event.scenePos(), QTransform())
+		target = self.itemAt(scenepos, QTransform())
 
 		if self.checkState(EditorState.WIRING):
 			# Wiring: Finish?
@@ -291,13 +392,6 @@ class CircuitScene(QGraphicsScene):
 				return
 		
 		super().mouseReleaseEvent(event)
-
-	def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-		# if self.ghostPin is None:
-		# 	self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
-		
-		self.ghostPin.setPos(GRID.snapF(event.scenePos()))
-		return super().mouseMoveEvent(event)
 	
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
@@ -309,8 +403,15 @@ class CircuitScene(QGraphicsScene):
 
 		super().keyPressEvent(event)
 	
+	###======= BACKGROUND GRID =======###
+	def setGridStyle(self, style: str):
+		if style == "lines":  self.bg_style = 1
+		elif style == "dots": self.bg_style = 2
+		else:                 self.bg_style = 0
+		self.update()
+
 	def drawBackground(self, painter: QPainter, rect: QRectF | QRect, /) -> None:
-		if self.grid_hidden:
+		if self.bg_style == 0:    # Grid Hidden
 			return
 		Color = theme.get_theme()
 		bg_color = Color.primary_bg
@@ -326,8 +427,7 @@ class CircuitScene(QGraphicsScene):
 		left = rect_left - (rect_left % GRID.SIZE)
 		top = rect_top - (rect_top % GRID.SIZE)
 
-		bg_mode = 0
-		if bg_mode == 0:
+		if self.bg_style == 1:    # Lines Background
 			smol_lines: list[QLineF] = []
 			beeg_lines: list[QLineF] = []
 			unit_size = GRID.SIZE
@@ -349,7 +449,7 @@ class CircuitScene(QGraphicsScene):
 			painter.setPen(QPen(grid_color, 2))
 			painter.drawLines(beeg_lines)
 		
-		else:
+		elif self.bg_style == 2:    # Dots Background
 			points = []
 			unit_size = 2*GRID.SIZE
 
