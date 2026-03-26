@@ -75,18 +75,8 @@ class AppWindow(QMainWindow):
 		panel_y = self.y() + 65
 		self.props_panel.move(panel_x, panel_y)
 	
-	###======= EVENTS =======###
-	def moveEvent(self, event):
-		super().moveEvent(event)
-		if self.props_panel.isVisible():
-			self.update_props_position()
 	
-	def resizeEvent(self, event):
-		super().resizeEvent(event)
-		QSettings().setValue("main_window/geometry", self.saveGeometry())
-		if self.props_panel.isVisible():
-			self.update_props_position()
-
+	###======= IC MANAGEMENT =======###
 	def spawnComponent(self, comp_id: int):
 		view_center = self.view.viewport().rect().center()
 		pos = self.view.mapToScene(view_center)
@@ -99,6 +89,39 @@ class AppWindow(QMainWindow):
 		_, newCreated = self.cscene.addIC(*pos.toTuple(), ic_data)
 		if newCreated:
 			self.sidebar.refresh_IC_catagory.emit()
+	
+	def retrieve_IC_data(self):
+		ic_list: dict[str, tuple[int|None, str|None]] = {}
+		names: set[str] = set()
+		
+		for idx, stored_ic in enumerate(self.cscene.iclist):
+			name = stored_ic[Const.CUSTOM_NAME]
+			names.add(name)
+			ic_list[name] = (idx, None)
+
+		for file in Path("exports/IC").glob("*.json"):
+			filename = str(file.resolve())    # Absolute path
+			ic = logic.get_ic(filename)
+			if ic is None: continue
+
+			name = ic[Const.CUSTOM_NAME]
+			if name in names: continue    # Excludes IC listed in canvas.iclist
+			
+			ic_list[name] = (None, filename)
+		
+		return ic_list
+	
+	###======= EVENTS =======###
+	def moveEvent(self, event):
+		super().moveEvent(event)
+		if self.props_panel.isVisible():
+			self.update_props_position()
+	
+	def resizeEvent(self, event):
+		super().resizeEvent(event)
+		QSettings().setValue("main_window/geometry", self.saveGeometry())
+		if self.props_panel.isVisible():
+			self.update_props_position()
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app
@@ -281,17 +304,25 @@ class AppWindow(QMainWindow):
 				f"Failed to load project: {os.path.basename(filename)}\n{str(e)}"
 			)
 	
-
 	def addICToProject(self):
-		#! FUCK HELP
-		items = [ic[Const.CUSTOM_NAME] for ic in self.cscene.iclist]
-		item, ok = QInputDialog.getItem(
-			self, "Select IC", "Add an IC to project:", items, 0, False
+		"""Opens a dialog box"""
+		ic_data_list = self.retrieve_IC_data()
+
+		names = list(ic_data_list.keys())
+		ic_name, ok = QInputDialog.getItem(
+			self, "Select IC", "Add an IC to project:", names, 0, False
 		)
 		
-		if ok and item:
-			idx = items.index(item)
-			self.spawnIC(idx)
+		if not ok: return
+		idx, filename = ic_data_list[ic_name]
+
+		if filename:
+			ic_data = logic.get_ic(filename)
+		elif idx:
+			ic_data = self.cscene.iclist[idx]
+		
+		if ic_data:
+			self.spawnIC(ic_data)
 
 	
 	

@@ -116,8 +116,9 @@ class ComponentSidebar(QWidget):
     def __init__(self, theme_manager, parent, canvas: CircuitScene):
         super().__init__(parent)
         if parent:
-            self.spawnComponent = cast(Callable[[int], None], parent.spawnComponent)
-            self.spawnIC = cast(Callable[[Any], None], parent.spawnIC)
+            self.spawnComponent   = cast(Callable[[int], None], parent.spawnComponent)
+            self.spawnIC          = cast(Callable[[Any], None], parent.spawnIC)
+            self.retrieve_IC_data = cast(Callable[[], dict[str, tuple[int|None, str|None]]], parent.retrieve_IC_data)
         self.cscene = canvas
 
         self.theme_manager = theme_manager
@@ -209,27 +210,32 @@ class ComponentSidebar(QWidget):
             self.sections.append(section)
         
         ### IC Catagory
-        ic_list = self.retrieve_IC_files()
+        ic_data_list = self.retrieve_IC_data()
         self.ic_section = CategorySection("IC")
-        names: set[str] = set()
         self.ic_section.add_item("Refresh List").clicked.connect(self.refresh_IC_catagory)
 
-        # For ICs stored in canvas.iclist
+        # For ICs stored in (canvas.iclist) then (files)
+        # "ICs Used in the Project"
         # TODO: Add a separator or label here
-        for stored_ic in self.cscene.iclist:
-            name = stored_ic[Const.CUSTOM_NAME]
-            names.add(name)
-
+        firsthalf = True
+        for name, (idx, location) in ic_data_list.items():
+            if firsthalf and idx is None:
+                firsthalf = False
+                # "From Files"
+                # TODO: Add a separator or label here
+            
             btn = self.ic_section.add_item(name)
-            btn.clicked.connect(lambda _, d=stored_ic: self.spawnIC(d))
-        
-        # For ICs stored in files
-        # TODO: Add a separator or label here
-        for name, comp_id in ic_list:
-            if name in names: continue    # Excludes IC listed in canvas.iclist
+            if firsthalf:
+                assert idx is not None
 
-            btn = self.ic_section.add_item(name)
-            btn.clicked.connect(lambda _, loc=comp_id: self.import_IC(loc))
+                # Reading ICs stored in canvas.iclist
+                ic_data = self.cscene.iclist[idx]
+                btn.clicked.connect(lambda _, d=ic_data: self.spawnIC(d))
+            else:
+                assert location is not None
+
+                # Reading ICs stored in files
+                btn.clicked.connect(lambda _, loc=location: self.import_IC(loc))
         
         self.menu.addWidget(self.ic_section)
         self.sections.append(self.ic_section)
@@ -266,13 +272,3 @@ class ComponentSidebar(QWidget):
         ic = logic.get_ic(filename)
         if ic:
             self.spawnIC(ic)
-    
-    def retrieve_IC_files(self) -> list[tuple[str, str]]:
-        res: list[tuple[str, str]] = []
-        for file in Path("exports/IC").glob("*.json"):
-            filename = str(file.resolve())    # Absolute path
-            ic = logic.get_ic(filename)
-            if ic:
-                res.append((ic[Const.CUSTOM_NAME], filename))
-        
-        return res
