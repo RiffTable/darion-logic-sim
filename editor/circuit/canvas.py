@@ -22,6 +22,9 @@ class CircuitScene(QGraphicsScene):
 
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
+
+		# Stores ic_data by indexing: helpful for serializing IC by just
+		# passing the index instead of packaging the whole data
 		self.iclist: list = []
 
 		self._last_mouse_pos = QPointF()
@@ -132,7 +135,20 @@ class CircuitScene(QGraphicsScene):
 	
 	
 	# IC Management
-	def addIC(self, x: float, y:float, ic_data_index: int):
+	def addIC(self, x: float, y:float, ic_data) -> tuple[ICitem, bool]:
+		"""Adds ic_data to iclist if it hasn't been yet"""
+		name = ic_data[Const.CUSTOM_NAME]
+
+		for i, ic_entry in enumerate(self.iclist):
+			if ic_entry[Const.CUSTOM_NAME] == name:
+				ic_data_index = i
+				newCreated = False
+				break
+		else:
+			self.iclist.append(ic_data)
+			ic_data_index = len(self.iclist) - 1
+			newCreated = True
+		
 		comp = ICitem(
 			QPointF(x, y),
 			ic_data_index,
@@ -143,7 +159,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
-		return comp
+		return (comp, newCreated)
 	
 	def makeICfyable(self):
 		# logic.diagnose()
@@ -401,6 +417,7 @@ class CircuitScene(QGraphicsScene):
 		# # DEBUG
 		# if key == Key.Key_Space:
 		# 	logic.diagnose()
+		# 	print([ic[Const.CUSTOM_NAME] for ic in self.iclist])
 
 		super().keyPressEvent(event)
 	
@@ -468,8 +485,13 @@ class CircuitScene(QGraphicsScene):
 			self.removeWire(wire)
 		for comp in self.comps.copy():
 			self.removeComp(comp)
+		
+		self.wires  = []
+		self.comps  = []
+		self.iclist = []
 	
 	def serialize(self) -> dict:
+		"""Doesn't include the iclist"""
 		return {
 			"comps": [comp.getData() for comp in self.comps],
 			"wires": []

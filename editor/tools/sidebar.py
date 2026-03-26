@@ -1,6 +1,12 @@
+from pathlib import Path
+from typing import cast, Callable, Any
 from core.QtCore import *
+from core.LogicCore import *
 import editor.theme as theme
 from editor.circuit.catalog import LOOKUP, CATEGORIES
+from editor.circuit.canvas import CircuitScene
+
+
 
 class CategorySection(QWidget):
     def __init__(self, title, parent=None):
@@ -80,10 +86,10 @@ class CategorySection(QWidget):
                 background-color: {colors.button.name()}; 
             }}"""
 
-    def add_item(self, text, comp_id):
+    def add_item(self, text: str):
         colors = theme.get_theme()
         btn = QPushButton(text)
-        btn.setProperty("comp_id", comp_id)
+        # btn.setProperty("comp_id", comp_id)
         btn.setStyleSheet(self.get_button_style(colors))
         self.content_layout.addWidget(btn)
         self.buttons.append(btn)
@@ -106,10 +112,14 @@ class CategorySection(QWidget):
 
 
 class ComponentSidebar(QWidget):
-    componentSpawnRequested = Signal(int)
-
-    def __init__(self, theme_manager=None, parent=None):
+    refresh_IC_catagory = Signal()
+    def __init__(self, theme_manager, parent, canvas: CircuitScene):
         super().__init__(parent)
+        if parent:
+            self.spawnComponent = cast(Callable[[int], None], parent.spawnComponent)
+            self.spawnIC = cast(Callable[[Any], None], parent.spawnIC)
+        self.cscene = canvas
+
         self.theme_manager = theme_manager
         self.setFixedWidth(200)
         self.sections = []
@@ -118,6 +128,9 @@ class ComponentSidebar(QWidget):
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(150)
         self.search_timer.timeout.connect(self.apply_filter)
+        
+        # TODO: updateUI to (just IC needs to be refreshed)
+        # self.refresh_IC_catagory.connect(self.updateUI)
         
         self.setup_ui()
 
@@ -186,14 +199,42 @@ class ComponentSidebar(QWidget):
         self.menu.setSpacing(0)
         self.menu.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        for title, items in (CATEGORIES | {"IC": []}).items():
+        ### Catagories
+        for title, items in CATEGORIES.items():
             section = CategorySection(title)
-            for cid in items:
-                btn = section.add_item(LOOKUP[cid].NAME, cid)
-                btn.clicked.connect(lambda _, c=cid: self.componentSpawnRequested.emit(c))
+            for comp_id in items:
+                btn = section.add_item(LOOKUP[comp_id].NAME)
+                btn.clicked.connect(lambda _, c=comp_id: self.spawnComponent(c))
             self.menu.addWidget(section)
             self.sections.append(section)
+        
+        ### IC Catagory
+        ic_list = self.retrieve_IC_files()
+        self.ic_section = CategorySection("IC")
+        names: set[str] = set()
+        self.ic_section.add_item("Refresh List").clicked.connect(self.refresh_IC_catagory)
 
+        # For ICs stored in canvas.iclist
+        # TODO: Add a separator or label here
+        for stored_ic in self.cscene.iclist:
+            name = stored_ic[Const.CUSTOM_NAME]
+            names.add(name)
+
+            btn = self.ic_section.add_item(name)
+            btn.clicked.connect(lambda _, d=stored_ic: self.spawnIC(d))
+        
+        # For ICs stored in files
+        # TODO: Add a separator or label here
+        for name, comp_id in ic_list:
+            if name in names: continue    # Excludes IC listed in canvas.iclist
+
+            btn = self.ic_section.add_item(name)
+            btn.clicked.connect(lambda _, loc=comp_id: self.import_IC(loc))
+        
+        self.menu.addWidget(self.ic_section)
+        self.sections.append(self.ic_section)
+
+        ### Finishing
         self.scroll_area.setWidget(container)
         layout.addWidget(self.scroll_area)
 
@@ -219,3 +260,19 @@ class ComponentSidebar(QWidget):
     def clear_search(self):
         self.search.clear()
         self.apply_filter()
+    
+    # IC stuffs
+    def import_IC(self, filename: str):
+        ic = logic.get_ic(filename)
+        if ic:
+            self.spawnIC(ic)
+    
+    def retrieve_IC_files(self) -> list[tuple[str, str]]:
+        res: list[tuple[str, str]] = []
+        for file in Path("exports/IC").glob("*.json"):
+            filename = str(file.resolve())    # Absolute path
+            ic = logic.get_ic(filename)
+            if ic:
+                res.append((ic[Const.CUSTOM_NAME], filename))
+        
+        return res

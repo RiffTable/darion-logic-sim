@@ -58,15 +58,13 @@ class AppWindow(QMainWindow):
 
 
 		###======= SIDEBAR DRAG-N-DROP MENU =======###
-		self.sidebar = ComponentSidebar(self)
-		self.sidebar.componentSpawnRequested.connect(self.spawnComponent)
+		self.sidebar = ComponentSidebar(self, self, self.cscene)
 		self.load_settings()
 
 		layout_main.addWidget(self.sidebar)
 		layout_main.addWidget(self.view)
 
-		# Final Setup
-		self.refreshIClist()
+
 
 	def refresh_theme(self):
 		theme.apply_palette(cast(QApplication, QApplication.instance()))
@@ -94,10 +92,13 @@ class AppWindow(QMainWindow):
 		pos = self.view.mapToScene(view_center)
 		self.cscene.addComp(*pos.toTuple(), comp_id)
 	
-	def spawnIC(self, ic_data_index: int):
+	def spawnIC(self, ic_data):
 		center = self.view.viewport().rect().center()
 		pos = self.view.mapToScene(center)
-		self.cscene.addIC(*pos.toTuple(), ic_data_index)
+
+		_, newCreated = self.cscene.addIC(*pos.toTuple(), ic_data)
+		if newCreated:
+			self.sidebar.refresh_IC_catagory.emit()
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app
@@ -196,6 +197,7 @@ class AppWindow(QMainWindow):
 	def get_project_data(self) -> dict:
 		t = self.view.transform()
 		project = self.cscene.serialize() | {
+			"iclist": self.cscene.iclist,
 			"camera": (t.dx(), t.dy()),
 			"zoom":   t.m11(),
 		}
@@ -206,6 +208,7 @@ class AppWindow(QMainWindow):
 		m11 = project.pop("zoom", 1.0)
 
 		self.cscene.clearCanvas()
+		self.cscene.iclist = project.pop("iclist", [])
 		self.cscene.deserialize(project)
 
 		self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -280,26 +283,7 @@ class AppWindow(QMainWindow):
 	
 
 	def addICToProject(self):
-		# Always ask for file name
-		# filename, _ = QFileDialog.getOpenFileName(
-		# 	self,
-		# 	"Open IC File",
-		# 	"exports/IC",
-		# 	"JSON Files (*.json);;All Files (*)"
-		# )
-		# if not filename: return
-		# ic_data = logic.get_ic(filename)
-		# if ic_data:
-		# 	self.cscene.iclist.append(ic_data)
-		# 	self.cscene.addIC(0, 0, len(self.cscene.iclist)-1)
-		# else:
-		# 	QMessageBox.critical(
-		# 		self,
-		# 		"Load Error",
-		# 		f"Failed to load IC: {os.path.basename(filename)}"
-		# 	)
-		
-		# title, label, list_of_strings, current_index, editable_bool
+		#! FUCK HELP
 		items = [ic[Const.CUSTOM_NAME] for ic in self.cscene.iclist]
 		item, ok = QInputDialog.getItem(
 			self, "Select IC", "Add an IC to project:", items, 0, False
@@ -310,14 +294,6 @@ class AppWindow(QMainWindow):
 			self.spawnIC(idx)
 
 	
-	def refreshIClist(self):
-		for file in Path("exports/IC").glob("*.json"):
-			filename = str(file.resolve())    # Absolute path
-			ic = logic.get_ic(filename)
-			if not ic: continue
-			
-			if not any(icdata[Const.CUSTOM_NAME] == ic[Const.CUSTOM_NAME] for icdata in self.cscene.iclist):
-				self.cscene.iclist.append(ic)
 	
 	def convertProjectToIC(self):
 		res = ICSetupDialog.showForm(self)
@@ -333,7 +309,7 @@ class AppWindow(QMainWindow):
 				res["desc"]
 			)
 			self.cscene.clearCanvas()
-			self.refreshIClist()
+			self.sidebar.refresh_IC_catagory.emit()
 
 
 
