@@ -10,12 +10,12 @@ from Const cimport *
 from IC cimport IC
 from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
-from libc.stdint cimport uint16_t
+from libc.stdint cimport uint16_t,int8_t
 from libcpp.unordered_map cimport unordered_map
 
 cdef class Circuit:
     def __cinit__(self):
-        self.counter = 0 # the oscillation breaking system
+        self.hidden = 0 # the oscillation breaking system
         self.eval_count = 0 # just a metric for evaluating speed
         self.gate_infolist.reserve(500_000)# the cpp_gate list consisting of every single gate's info in c++
         self.gate_verse = [] # the gate list in python
@@ -37,7 +37,6 @@ cdef class Circuit:
         '''Get object from store, put it in objlist and update its code and codename'''
         gt = get(choice, self.gate_infolist, self.gate_verse) 
         if gt:
-            self.counter += 1
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
@@ -60,13 +59,13 @@ cdef class Circuit:
         cdef IC ic
         if obj.id == IC_ID:
             ic = <IC>obj
-            self.counter += ic.counter
             for gate in ic.outputs+ic.inputs+ic.internal:
                 gate_info[gate.location].type = -gate_info[gate.location].type -1
+                self.hidden+=1
         else:
             gate = <Gate>obj
             gate_info[gate.location].type = -gate_info[gate.location].type -1 
-        self.counter -= 1
+            self.hidden += 1
         self.objlist[obj.code[0]][obj.code[1]] = None
 
     cpdef void renewobj(self, object obj):
@@ -76,13 +75,14 @@ cdef class Circuit:
         cdef IC ic
         if obj.id == IC_ID:
             ic = <IC>obj
-            self.counter += ic.counter
+            
             for gate in ic.outputs+ic.inputs+ic.internal:
                 gate_info[gate.location].type = -gate_info[gate.location].type -1
+                self.hidden-=1
         else:
             gate = <Gate>obj
             gate_info[gate.location].type = -gate_info[gate.location].type -1 
-        self.counter += 1
+            self.hidden -= 1
         self.objlist[obj.code[0]][obj.code[1]] = obj
 
 
@@ -559,7 +559,6 @@ cdef class Circuit:
         '''third pass: implement all the ics'''
         for ic in ic_list:
             ic.implement(pseudo)
-            self.counter += ic.counter
 
     cpdef void readfromjson(self, str location):
         '''read the circuit from a json file'''
@@ -738,7 +737,6 @@ cdef class Circuit:
         '''load ic to circuit'''
         cdef IC myIC = self.getcomponent(IC_ID)
         myIC.configure(crct)
-        self.counter += myIC.counter
         return myIC
 
     cpdef IC getIC(self, location):
@@ -760,7 +758,7 @@ cdef class Circuit:
         self.gate_verse.clear()
         for i in range(TOTAL):
             self.objlist[i].clear()
-        self.counter = 0
+        self.hidden = 0
 
     cpdef void copy(self, list components):
         '''copy components to self.copydata'''
@@ -819,7 +817,6 @@ cdef class Circuit:
                 gate.clone(gate_info, pseudo)
         for ic in ic_list:
             ic.implement(pseudo)
-            self.counter += ic.counter
 
         if MODE != DESIGN:
             self.simulate(SIMULATE)
@@ -903,11 +900,10 @@ cdef class Circuit:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
         cdef Profile* end
-        cdef Py_ssize_t realsource, high, low, gate_type, limit
+        cdef Py_ssize_t realsource, high, low,limit,gate_type
         cdef Py_ssize_t new_output, profile_output, target_output
         cdef Py_ssize_t index = 0, end_point = 1, size = 0
-        cdef unsigned long long counter = 0
-        cdef unsigned long long eval = 0
+        cdef Py_ssize_t eval = 0
         cdef int* read_queue = self.queue[0]
         cdef int* write_queue = self.queue[1]
         cdef CPP_Gate* self_info
@@ -918,14 +914,13 @@ cdef class Circuit:
         if unlikely(gate_infolist[origin].output == ERROR):
             self.burn(index, end_point, read_queue, write_queue)
             return
-
+        cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
-            if unlikely(counter > self.counter):
+            if unlikely(wave_limit<0):
                 self.eval_count += eval
                 self.burn(index, end_point, read_queue, write_queue)
                 return
-
-            counter += 1
+            wave_limit -= 1
             for index in range(end_point):
                 self_info = &gate_infolist[read_queue[index]]
                 self_info.scheduled = False

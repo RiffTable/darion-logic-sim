@@ -7,7 +7,7 @@ cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
     cdef public list gate_verse
-    cdef public int counter
+    cdef public int hidden
     cdef public unsigned long long eval_count
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist

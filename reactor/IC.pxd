@@ -12,7 +12,6 @@ cdef class IC:
     cdef public tuple code
     cdef public list map
     cdef public int id
-    cdef public int counter
     cdef public str tag
     cdef public str description
     cdef vector[CPP_Gate]* gate_infolist_ptr

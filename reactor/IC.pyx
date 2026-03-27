@@ -13,7 +13,6 @@ from libcpp.unordered_map cimport unordered_map
 cdef class IC:
     def __cinit__(self):
         self.id = IC_ID
-        self.counter = 0
     def __init__(self, int id, str name):
         self.inputs = []
         self.internal = []
@@ -37,7 +36,6 @@ cdef class IC:
         '''Get a gate from the store and register it under the right pin group'''
         cdef object gt = get(choice, self.gate_infolist_ptr[0],self.gate_verse)
         if gt:
-            self.counter += 1
             if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
