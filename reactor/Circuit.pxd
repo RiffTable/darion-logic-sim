@@ -50,4 +50,4 @@ cdef class Circuit:
     cpdef void transfer_info(self, Gate gate, int id)
     cdef void turnoff(self, int gate) nogil
     cdef void propagate(self, int origin) nogil
-    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil
+    cdef void burn(self, Py_ssize_t size, int* read_queue, int* write_queue) nogil

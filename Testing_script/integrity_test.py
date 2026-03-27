@@ -69,7 +69,7 @@ from Control import Add, AddIC, Delete, Connect, Disconnect, Paste, Toggle, SetL
 
 Const.LIMIT = 100_000
 USE_OPTIMIZE = args.optimize
-
+USE_COUNTER=not use_reactor
 
 class AggressiveTestSuite:
     def __init__(self):
@@ -1493,7 +1493,8 @@ class AggressiveTestSuite:
         # Wire up and test
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         self.assert_test(out.output == Const.LOW, "IC inverts HIGH->LOW")
         
@@ -1526,8 +1527,9 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(outer_inp, v, 0)
-        c.counter+=outer_ic.counter
-        c.counter+=inner_ic.counter
+        if USE_COUNTER:
+            c.counter+=outer_ic.counter
+            c.counter+=inner_ic.counter
         c.toggle(v, Const.HIGH)
         self.assert_test(outer_out.output == Const.HIGH, "Nested IC preserves HIGH")
         
@@ -1548,7 +1550,8 @@ class AggressiveTestSuite:
             inp = ic.getcomponent(Const.INPUT_PIN_ID)
             out = ic.getcomponent(Const.OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
-            c.counter+=ic.counter
+            if USE_COUNTER:
+                c.counter+=ic.counter
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
             return ic, inp, out
@@ -1573,10 +1576,11 @@ class AggressiveTestSuite:
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
         create_inverter_ic = locals()['create_inverter_ic'] # Ensure scope
         # Wire them together: v -> ic1.inp -> ic2.inp -> ic3.inp -> ic4.inp
-        c.counter+=ic1.counter
-        c.counter+=ic2.counter
-        c.counter+=ic3.counter
-        c.counter+=ic4.counter
+        if USE_COUNTER:
+            c.counter+=ic1.counter
+            c.counter+=ic2.counter
+            c.counter+=ic3.counter
+            c.counter+=ic4.counter
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp1, v, 0)
         c.connect(inp2, inp1, 0)
@@ -1607,7 +1611,8 @@ class AggressiveTestSuite:
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
-            c.counter+=ic.counter
+            if USE_COUNTER:
+                c.counter+=ic.counter
             v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(inp, v, 0)
             variables.append(v)
@@ -1670,7 +1675,8 @@ class AggressiveTestSuite:
         c.connect(or1, and1, 0)
         c.connect(or1, and2, 1)
         c.connect(out_cout, or1, 0)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         self.assert_test(len(ic.internal) == 5, "IC has 5 internal gates")
         
         # Wire inputs
@@ -1708,7 +1714,8 @@ class AggressiveTestSuite:
         v = c1.getcomponent(Const.VARIABLE_ID)
         c1.connect(inp, v, 0)
         c1.toggle(v, Const.HIGH)
-        c1.counter+=ic.counter
+        if USE_COUNTER:
+            c1.counter+=ic.counter
         # Save
         temp_file = os.path.join(tempfile.gettempdir(), "test_ic.json")
         c1.writetojson(temp_file)
@@ -1740,7 +1747,8 @@ class AggressiveTestSuite:
         c.connect(inp, v, 0)
         
         c.toggle(v, Const.HIGH)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         for i in range(50):
             ic.hide()
             ic.reveal()
@@ -1763,7 +1771,8 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         self.assert_test(out.output == Const.LOW, "IC output LOW before reset")
         
@@ -1790,7 +1799,8 @@ class AggressiveTestSuite:
         # Copy and paste
         c.copy([ic])
         c.paste()
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         self.assert_test(len(c.get_components()) == initial_count + 1, "IC copied and pasted")
 
 
@@ -1816,7 +1826,8 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         # 100 inversions = identity (even number)
         self.assert_test(out.output == Const.HIGH, "100-gate IC chain works")
@@ -1837,7 +1848,8 @@ class AggressiveTestSuite:
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
-            c.counter+=ic.counter
+            if USE_COUNTER:
+                c.counter+=ic.counter
             
             c.connect(inp, prev_out, 0)
             prev_out = out
@@ -1872,7 +1884,8 @@ class AggressiveTestSuite:
         
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
-        c.counter+=ic.counter
+        if USE_COUNTER:
+            c.counter+=ic.counter
         c.toggle(v, Const.HIGH)
         
         # Even outputs = HIGH (direct), Odd outputs = LOW (inverted)
@@ -1898,7 +1911,8 @@ class AggressiveTestSuite:
             
             v = c.getcomponent(Const.VARIABLE_ID)
             c.connect(inp, v, 0)
-            c.counter+=ic.counter
+            if USE_COUNTER:
+                c.counter+=ic.counter
             ics.append(ic)
             variables.append(v)
             outputs.append(out)
@@ -3230,10 +3244,9 @@ class AggressiveTestSuite:
         c = Circuit()
         g = c.getcomponent(Const.OR_ID)
         size_before = c.infolist_size  # 1 slot
-        cnt_before  = c.counter        # 1
+        cnt_before  = len(c.gate_verse)      # 1
 
         c.delobj(g)
-
         # 1. Slot still present — size unchanged immediately after delobj
         self.assert_test(c.infolist_size == size_before,
             f"infolist_size unchanged by delobj ({c.infolist_size} == {size_before})")
@@ -3242,9 +3255,10 @@ class AggressiveTestSuite:
         self.assert_test(c.objlist[Const.OR_ID][g.code[1]] is None,
             "objlist slot set to None after delobj")
 
+        c.refresh()
         # 3. counter decremented
-        self.assert_test(c.counter == cnt_before - 1,
-            f"counter decremented: {cnt_before} -> {c.counter}")
+        self.assert_test(len(c.gate_verse) == cnt_before - 1,
+            f"counter decremented: {cnt_before} -> {len(c.gate_verse)}")
 
         # 4. Prove type is negative: refresh() calls optimize() which pushes
         #    negative-type slots to the tail, then pops them.
@@ -3260,14 +3274,16 @@ class AggressiveTestSuite:
         c = Circuit()
         g1 = c.getcomponent(Const.NOT_ID)
         g2 = c.getcomponent(Const.NOT_ID)
-        cnt_after_add = c.counter   # should be 2
+        cnt_after_add = len(c.gate_verse)   # should be 2
 
         c.delobj(g1)
-        self.assert_test(c.counter == cnt_after_add - 1,
-            f"counter: {cnt_after_add} -> {c.counter} (expected {cnt_after_add-1})")
+        c.refresh()
+        self.assert_test(len(c.gate_verse) == cnt_after_add - 1,
+            f"counter: {cnt_after_add} -> {len(c.gate_verse)} (expected {cnt_after_add-1})")
         c.delobj(g2)
-        self.assert_test(c.counter == cnt_after_add - 2,
-            f"counter: after 2nd delobj = {c.counter} (expected {cnt_after_add-2})")
+        c.refresh()
+        self.assert_test(len(c.gate_verse) == cnt_after_add - 2,
+            f"counter: after 2nd delobj = {len(c.gate_verse)} (expected {cnt_after_add-2})")
 
     def test_refresh_delete_middle_gate(self):
         """Delete a middle gate, refresh() must produce a gapless, topo-correct list

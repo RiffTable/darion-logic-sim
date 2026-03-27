@@ -858,7 +858,7 @@ cdef class Circuit:
                 self.propagate(profile.target)
             profile += 1
 
-    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, int* read_queue, int* write_queue) nogil:
+    cdef void burn(self, Py_ssize_t size, int* read_queue, int* write_queue) nogil:
         '''the circuit has crossed safety limits, mark oscillation as E/error'''
         cdef Profile* profile
         cdef Profile* end
@@ -869,6 +869,7 @@ cdef class Circuit:
         cdef CPP_Gate* target_info
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         size = 0
+        cdef Py_ssize_t index=0
         while index < end_point:
             while index < end_point:
                 info = &gate_infolist[read_queue[index]]
@@ -912,13 +913,13 @@ cdef class Circuit:
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         read_queue[0] = origin
         if unlikely(gate_infolist[origin].output == ERROR):
-            self.burn(index, end_point, read_queue, write_queue)
+            self.burn(end_point, read_queue, write_queue)
             return
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):
                 self.eval_count += eval
-                self.burn(index, end_point, read_queue, write_queue)
+                self.burn(end_point, read_queue, write_queue)
                 return
             wave_limit -= 1
             for index in range(end_point):
