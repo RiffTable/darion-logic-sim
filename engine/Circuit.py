@@ -6,7 +6,9 @@ from Const import *
 import Const
 from IC import IC
 from Store import get
-
+from threading import RLock,Thread
+from collections import deque
+from time import sleep
 # ─── Circuit ──────────────────────────────────────────────────────
 
 class Circuit:
@@ -14,7 +16,7 @@ class Circuit:
     __slots__ = [
         'objlist', 'copydata',
         'counter', 'queue',
-        'eval_count'
+        'eval_count','lock','time_queue','runner'
     ]
 
     def __init__(self):
@@ -24,7 +26,9 @@ class Circuit:
         self.counter: int = 0
         self.queue: list = [[None] * LIMIT, [None] * LIMIT]  # double buffer: fixed [2][LIMIT]
         self.eval_count = 0
-
+        self.time_queue: deque[Gate] = deque()
+        self.lock=RLock()
+        self.runner=None
 
 
     def __repr__(self):
@@ -84,66 +88,74 @@ class Circuit:
             print(f'{i}. {gate}')
 
     def setlimits(self, gate: Gate, size: int) -> bool:
-        prev = gate.output
-        if gate.setlimits(size):
-            if prev != gate.output:
-                self.propagate(gate)
-            return True
-        return False
+        with self.lock:
+            prev = gate.output
+            if gate.setlimits(size):
+                if prev != gate.output:
+                    self.propagate(gate)
+                return True
+            return False
 
     def connect(self, target: Gate, source: Gate, index: int):
         """Connect source -> target at pin index."""
-        prev = target.output
-        target.connect(source, index)
-        if prev != target.output:
-            self.propagate(target)
+
+        with self.lock:
+            prev = target.output
+            target.connect(source, index)
+            if prev != target.output:
+                self.propagate(target)
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
-        if value != target.output:
-            target.value = value
-            target.output = value if get_MODE() == SIMULATE else UNKNOWN
-            self.propagate(target)
+        with self.lock:
+            if value != target.output:
+                target.value = value
+                target.output = value if get_MODE() != DESIGN else UNKNOWN
+                self.propagate(target)
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""
-        prev = target.output
-        target.disconnect(index)
-        if prev != target.output:
-            self.propagate(target)
+
+        with self.lock:
+            prev = target.output
+            target.disconnect(index)
+            if prev != target.output:
+                self.propagate(target)
 
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
-        for gate in gatelist:
-            if gate.id == IC_ID:
-                gate.hide()
-            else:
-                gate.hide()
-            self.delobj(gate)
+        with self.lock:
+            for gate in gatelist:
+                if gate.id == IC_ID:
+                    gate.hide()
+                else:
+                    gate.hide()
+                self.delobj(gate)
 
-        for gate in gatelist:
-            if gate.id == IC_ID:
-                for pin in gate.outputs:
-                    self.turnoff(pin)
-            else:
-                self.turnoff(gate)
+            for gate in gatelist:
+                if gate.id == IC_ID:
+                    for pin in gate.outputs:
+                        self.turnoff(pin)
+                else:
+                    self.turnoff(gate)
 
 
     def reveal(self, gatelist: list):
         """Bring a hidden component back."""
-        for gate in reversed(gatelist):
-            if gate.id == IC_ID:
-                gate.reveal()
-            else:
-                gate.reveal()
-            self.renewobj(gate)
+        with self.lock:
+            for gate in reversed(gatelist):
+                if gate.id == IC_ID:
+                    gate.reveal()
+                else:
+                    gate.reveal()
+                self.renewobj(gate)
 
-        for gate in reversed(gatelist):
-            if gate.id == IC_ID:
-                for pin in gate.outputs:
-                    self.propagate(pin)
-            else:
-                self.propagate(gate)
+            for gate in reversed(gatelist):
+                if gate.id == IC_ID:
+                    for pin in gate.outputs:
+                        self.propagate(pin)
+                else:
+                    self.propagate(gate)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -225,7 +237,7 @@ class Circuit:
             g_states = tuple(gate.output for gate in gate_list)
             raw_rows[gray]=(v_states, g_states)
 
-        self.simulate(SIMULATE)
+        self.simulate(get_MODE())
         
         final_table_lines = [separator, header, separator]
         for v_states, g_states in raw_rows:
@@ -325,7 +337,7 @@ class Circuit:
                 gate.load_components(i, pseudo)
             pseudo[code] = gate
         if get_MODE()!=DESIGN:
-            self.simulate(SIMULATE)
+            self.simulate(get_MODE())
 
         for gate_dict in circuit:
             code = self.decode(gate_dict[CODE])
@@ -343,7 +355,7 @@ class Circuit:
             return
         self.generate(circuit)
         if get_MODE()!=DESIGN:
-            self.simulate(SIMULATE)
+            self.simulate(get_MODE())
 
     def transfer_info(self,gate:Gate, id:int):
         if id>=IC_ID or id<0:
@@ -481,9 +493,10 @@ class Circuit:
                 self.objlist[i].pop()
 
     def clearcircuit(self):
-        for i in range(TOTAL):
-            self.objlist[i].clear()
-        self.counter = 0
+        with self.lock:
+            for i in range(TOTAL):
+                self.objlist[i].clear()
+            self.counter = 0
 
     def copy(self, components: list):
         if not components:
@@ -523,33 +536,38 @@ class Circuit:
             elif gate:
                 gate.clone(gate_dict, pseudo)
         if get_MODE()!=DESIGN:
-            self.simulate(SIMULATE)
+            self.simulate(get_MODE())
         return new_items
 
     def simulate(self, Mode: int):
         """Run the simulation."""
-        set_MODE(Mode)
-        for variable in self.objlist[VARIABLE_ID]:
-            if variable is not None:
-                variable.output = variable.value
-                self.propagate(variable)
+        with self.lock:
+            if get_MODE()!=DESIGN and get_MODE()!=Mode:
+                self.reset()
+            set_MODE(Mode)
+            for variable in self.objlist[VARIABLE_ID]:
+                if variable is not None:
+                    variable.output = variable.value
+                    self.propagate(variable)
 
     def reset(self):
         """Reset to design mode."""
-        set_MODE(DESIGN)
-        for i in self.get_components():
-            if i.id != IC_ID:
-                i.reset()
-            else:
-                i.reset()
+        with self.lock:
+            set_MODE(DESIGN)
+            for i in self.get_components():
+                if i.id != IC_ID:
+                    i.reset()
+                else:
+                    i.reset()
 
     def turnoff(self, gate: Gate):
         """Set all targets to UNKNOWN and propagate."""
-        for profile in gate.hitlist:
-            target = profile.target
-            if target is not gate:
-                target.output = UNKNOWN
-                self.propagate(target)
+        with self.lock:
+            for profile in gate.hitlist:
+                target = profile.target
+                if target is not gate:
+                    target.output = UNKNOWN
+                    self.propagate(target)
 
     def burn(self, read_buf: list, read_end: int, write_buf: list):
         """Error propagation — flood-fill ERROR through the graph."""
@@ -571,9 +589,65 @@ class Circuit:
                         profile.output = ERROR
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
+    def timed_propagate(self):
+        while True:               
+            with self.lock:
+                sleep(0)                    
+                if self.time_queue:
+                    gate = self.time_queue.popleft()
+                    self.update_gate(gate)
+                else:
+                    break
+
+    def update_gate(self, gate: Gate):
+        gate.scheduled = False
+        new_output = gate.output
+        for profile in gate.hitlist:
+            self.eval_count += 1
+            profile_output = profile.output
+            if profile_output != new_output:
+                target = profile.target
+                gate_type = target.id
+                limit = target.inputlimit
+
+                if limit == 1:
+                    if gate_type == NOT_ID and new_output != UNKNOWN:
+                        target_output = new_output ^ 1
+                    else:
+                        target_output = new_output
+                else:
+                    book = target.book
+                    book[profile_output] -= 1
+                    book[new_output] += 1
+                    high = book[HIGH]
+                    low = book[LOW]
+                    realsource = high + low
+                    if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                        if gate_type <= NAND_ID:
+                            target_output = int(low == 0)
+                        elif gate_type <= NOR_ID:
+                            target_output = int(high > 0)
+                        else:
+                            target_output = high & 1
+                        target_output ^= (gate_type & 1)
+                    else:
+                        target_output = UNKNOWN
+
+                if target_output != target.output:
+                    target.output = target_output
+                    if not target.scheduled:
+                        target.scheduled = True
+                        self.time_queue.append(target)
+                profile.output = new_output
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
+        if get_MODE() == FLIPFLOP:
+            self.time_queue.append(origin)
+            if self.runner is None or not self.runner.is_alive():
+                self.runner=Thread(target=self.timed_propagate)
+                self.runner.start()
+            return
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_buf[0] = origin
