@@ -16,7 +16,7 @@ from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
 
 
-
+import PySide6.QtAsyncio as QtAsyncio
 
 class AppWindow(QMainWindow):
 	def __init__(self):
@@ -367,4 +367,4 @@ if __name__ == "__main__":
 	# Starts with an empty canvas
 	QTimer.singleShot(100, window.update_props_position)
 	app.aboutToQuit.connect(lambda: QSettings().setValue("main_window/geometry", window.saveGeometry()))
-	sys.exit(app.exec())
+	QtAsyncio.run(handle_sigint=True)
