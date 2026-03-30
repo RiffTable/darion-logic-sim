@@ -293,9 +293,11 @@ cdef class Circuit:
         cdef int rows_count = 1 << n
 
         cdef CPP_Gate* var_info
-        var_names = [str(v) for v in variables]
-        gate_names = [str(v) for v in gate_list]
-        all_names = var_names + gate_names
+        # repr() = plain name (no ANSI) for col_width math and file-safe output.
+        # str() = colored name, used only for the printed header cells.
+        var_reprs  = [repr(v) for v in variables]
+        gate_reprs = [repr(v) for v in gate_list]
+        all_reprs  = var_reprs + gate_reprs
         cdef vector[int] var_vector
         cdef vector[int] gate_vector
         for gate in variables:
@@ -303,8 +305,8 @@ cdef class Circuit:
         for gate in gate_list:
             gate_vector.push_back((<Gate>gate).location)
         cdef bytearray raw_rows = self.table(var_vector, gate_vector)
-        if len(all_names) > 0:
-            col_width = max([len(name) for name in all_names]) + 2
+        if len(all_reprs) > 0:
+            col_width = max([len(name) for name in all_reprs]) + 2
         else:
             col_width = 4
 
@@ -320,9 +322,16 @@ cdef class Circuit:
             "X".center(col_width)
         ]
 
-        header_parts = [name.center(col_width) for name in all_names]
-        header = " | ".join(header_parts)
-        separator = "─" * len(header)
+        # Header: colored names padded based on plain-name length.
+        var_colored  = [str(v) for v in variables]
+        gate_colored = [str(v) for v in gate_list]
+        all_colored  = var_colored + gate_colored
+        header_parts = [
+            colored.center(col_width + len(colored) - len(plain))
+            for colored, plain in zip(all_colored, all_reprs)
+        ]
+        header    = " | ".join(header_parts)
+        separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
 
         self.simulate(MODE)
 
@@ -368,27 +377,34 @@ cdef class Circuit:
 
             for comp in gates:
                 info = &self.gate_infolist[comp.location]
-                if isinstance(comp.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c != -1]
+                # repr() for source/target names keeps column widths intact.
+                if isinstance(comp._sources, list):
+                    ch = [f"[{i}]:{repr(<Gate>PyList_GET_ITEM(self.gate_verse, c))}" for i, c in enumerate(comp._sources) if c != -1]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
-                    ch_str = f"val:{comp.sources}"
+                    ch_str = f"val:{comp._sources}"
 
                 book = f"[{info.book[0]},{info.book[1]},{info.book[2]},{info.book[3]}]"
 
-                # Targets from info.hitlist
+                # Targets from info.hitlist — repr() only, no colors in auxiliary columns.
                 tgt = []
                 profile = info.hitlist.data()
                 end = profile + info.hitlist.size()
                 while profile < end:
-                    tgt.append(str(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target)))
+                    tgt.append(repr(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target)))
                     profile += 1
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
-                ch_str = ch_str[:26] + ".." if len(ch_str) > 28 else ch_str
+                ch_str  = ch_str[:26]  + ".." if len(ch_str)  > 28 else ch_str
                 tgt_str = tgt_str[:23] + ".." if len(tgt_str) > 25 else tgt_str
 
-                print(fmt.format(str(comp), ch_str, book, tgt_str, str(comp.getoutput())))
+                # Color only the component name; widen its column by the ANSI byte overhead.
+                name_plain   = repr(comp)
+                name_colored = str(comp)
+                extra = len(name_colored) - len(name_plain)
+                comp_col_w = columns[0][1] + extra
+                row_fmt = f"{{:<{comp_col_w}}}" + "".join(f"{{:<{w}}}" for _, w in columns[1:])
+                print(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
 
             print("-" * total_width)
 
@@ -404,14 +420,14 @@ cdef class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        ch = [f"{c}" for c in pin.sources if c != -1] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
-                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        ch = [repr(<Gate>PyList_GET_ITEM(self.gate_verse, c)) for c in pin._sources if c != -1] if isinstance(pin._sources, list) else [f"val:{pin._sources}"]
+                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c != -1] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
-                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        ch = [repr(<Gate>PyList_GET_ITEM(self.gate_verse, c)) for c in pin._sources if c != -1] if isinstance(pin._sources, list) else [f"val:{pin._sources}"]
+                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         print("\n" + "=" * 90)
 
@@ -437,6 +453,7 @@ cdef class Circuit:
     cpdef void optimize(self):
         '''Optimize the circuit using topological sort so prefetcher never has to look back. 
         Also pushes back hidden gates with mutated info type'''
+        self.copydata.clear()
         cdef int i=0,j=0,n
         cdef vector[int] queue,hash_map,in_degree,hidden
         cdef Profile* profile, *end
@@ -589,7 +606,7 @@ cdef class Circuit:
         cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
         cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
-            gate_infolist[gate.location].scheduled = True
+            gate_infolist[gate.location].mark = True
             queue.append(gate)
         cdef Py_ssize_t size = len(queue)
         cdef Py_ssize_t index = len(outputs)
@@ -605,16 +622,16 @@ cdef class Circuit:
                 while profile != end:
                     target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
                     target._sources[profile.index] = gate._sources[0]
-                    if not gate_infolist[target.location].scheduled:
-                        gate_infolist[target.location].scheduled = True
+                    if not gate_infolist[target.location].mark:
+                        gate_infolist[target.location].mark = True
                         queue.append(target)
                         size += 1
                     profile += 1
             else:
                 while profile != end:
                     target = <Gate>PyList_GET_ITEM(gate_verse, profile.target)
-                    if not gate_infolist[target.location].scheduled:
-                        gate_infolist[target.location].scheduled = True
+                    if not gate_infolist[target.location].mark:
+                        gate_infolist[target.location].mark = True
                         queue.append(target)
                         size += 1
                     profile += 1
@@ -725,7 +742,7 @@ cdef class Circuit:
         my_ic.tag = tag
         my_ic.description = description
         with open(location, 'wb') as file:
-            file.write(orjson.dumps(my_ic.partial_data()))
+            file.write(orjson.dumps(my_ic.full_data()))
         '''ic building process corrupts gates so i need to clear and rebuild'''
         self.clearcircuit()
 
@@ -769,6 +786,7 @@ cdef class Circuit:
         '''copy components to self.copydata'''
         cdef object item
         cdef list cluster
+        cdef int i
         if len(components) == 0:
             return
         self.copydata = []
@@ -783,8 +801,8 @@ cdef class Circuit:
             else:
                 self.copydata.append(<IC>item.partial_data())
         # unmark all gates in cluster as scheduled
-        for gate in cluster:
-            self.gate_infolist[gate.location].scheduled = False
+        for i in cluster:
+            self.gate_infolist[i].mark = False
 
     cpdef list paste(self):
         '''paste components from copydata to circuit.
@@ -846,6 +864,10 @@ cdef class Circuit:
         '''reset the circuit's items to unknown value'''
         cdef Gate g
         set_MODE(DESIGN)
+        self.eval_count=0
+        self.time_queue.clear()
+        if self.runner is not None and not self.runner.done():
+            self.runner.cancel()
         for i in self.get_components():
             if i.id != IC_ID:
                 g = <Gate>i

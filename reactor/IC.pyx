@@ -100,10 +100,11 @@ cdef class IC:
     cpdef void load_to_cluster(self, list cluster):
         '''Mark all internal gates as scheduled and collect them into the cluster list
         for copy paste'''
+        cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
-            cluster.append(i)
-            i.location_ptr[0][i.location].scheduled = True
+            cluster.append(i.location)
+            gate_infolist[i.location].mark = True
 
     cpdef list full_data(self):
         '''Serialise the IC with full connection info, used for saving the parent circuit'''

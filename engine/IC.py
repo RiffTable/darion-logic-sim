@@ -105,20 +105,6 @@ class IC:
             dictionary[MAP].append(i.full_data())
         return dictionary
 
-    def partial_data(self, cluster: list) -> list:
-        dictionary = [            
-            self.custom_name,
-            self.code,
-            [],
-            [],
-            self.tag,
-            self.description
-        ]
-        for i in self.inputs+self.outputs+self.internal:
-            dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.partial_data(cluster))
-        return dictionary
-
     def partial_data(self):
         dictionary=[
             self.custom_name,

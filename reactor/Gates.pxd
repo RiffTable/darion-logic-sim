@@ -2,7 +2,6 @@
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, MODE
 from libc.stdint cimport uint16_t,uint8_t,int8_t
 from libcpp.unordered_map cimport unordered_map
-
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
         cppclass iterator:
@@ -47,6 +46,7 @@ cdef extern from "Profile.h":
         uint8_t output
         uint8_t value
         uint8_t scheduled
+        uint8_t mark
         uint16_t inputlimit
         uint16_t book[4]
         vector[Profile] hitlist

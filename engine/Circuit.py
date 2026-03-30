@@ -176,11 +176,13 @@ class Circuit:
         n = len(variables)
         rows_count = 1 << n
 
-        var_names = [str(v) for v in variables]
-        gate_names = [str(v) for v in gate_list]
-        all_names = var_names + gate_names
+        # repr() gives the plain name (no ANSI codes) — used for width math and file output.
+        # str() gives the colored name — used only for the printed header cells.
+        var_reprs  = [repr(v) for v in variables]
+        gate_reprs = [repr(v) for v in gate_list]
+        all_reprs  = var_reprs + gate_reprs
 
-        col_width = max((len(name) for name in all_names), default=4) + 2
+        col_width = max((len(name) for name in all_reprs), default=4) + 2
 
         IN_MAP = [
             "0".center(col_width),
@@ -193,9 +195,16 @@ class Circuit:
             "X".center(col_width)
         ]
 
-        header_parts = [name.center(col_width) for name in all_names]
-        header = " | ".join(header_parts)
-        separator = "─" * len(header)
+        # Header: colored names padded to col_width based on plain-name length.
+        var_colored   = [str(v) for v in variables]
+        gate_colored  = [str(v) for v in gate_list]
+        all_colored   = var_colored + gate_colored
+        header_parts  = [
+            colored.center(col_width + len(colored) - len(plain))
+            for colored, plain in zip(all_colored, all_reprs)
+        ]
+        header    = " | ".join(header_parts)
+        separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
 
         raw_rows = [None]*rows_count
         gray = 0
@@ -262,21 +271,29 @@ class Circuit:
             print("-" * total_width)
 
             for comp in gates:
+                # Sources: repr() keeps column widths intact; no color needed for source names.
                 if isinstance(comp.sources, list):
-                    ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
+                    ch = [f"[{i}]:{repr(c)}" for i, c in enumerate(comp.sources) if c is not None]
                     ch_str = ", ".join(ch) if ch else "None"
                 else:
                     ch_str = f"val:{comp.sources}"
 
                 book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
 
-                tgt = [f"{p.target} " for p in comp.hitlist]
+                tgt = [f"{repr(p.target)} " for p in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
 
-                ch_str = ch_str[:26] + ".." if len(ch_str) > 28 else ch_str
+                ch_str  = ch_str[:26]  + ".." if len(ch_str)  > 28 else ch_str
                 tgt_str = tgt_str[:23] + ".." if len(tgt_str) > 25 else tgt_str
 
-                print(fmt.format(str(comp), ch_str, book, tgt_str, str(comp.getoutput())))
+                # The component cell is colored via str(); the ANSI overhead is compensated
+                # by widening only that cell so the fixed layout stays correct.
+                name_plain  = repr(comp)
+                name_colored = str(comp)
+                extra = len(name_colored) - len(name_plain)   # bytes added by ANSI codes
+                comp_col_w = columns[0][1] + extra
+                row_fmt = f"{{:<{comp_col_w}}}" + "".join(f"{{:<{w}}}" for _, w in columns[1:])
+                print(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
 
             print("-" * total_width)
 
@@ -292,16 +309,16 @@ class Circuit:
                 if ic.inputs:
                     print("  INPUT PINS:")
                     for pin in ic.inputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
-                        targets = [f"{p.target} " for p in pin.hitlist]
-                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
+                        ch = [repr(c) for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        targets = [repr(p.target) for p in pin.hitlist]
+                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
                     print("  OUTPUT PINS:")
                     for pin in ic.outputs:
-                        ch = [f"{c}" for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
-                        targets = [f"{p.target} " for p in pin.hitlist]
-                        print(f"    {repr(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
+                        ch = [repr(c) for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
+                        targets = [repr(p.target) for p in pin.hitlist]
+                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         print("\n" + "=" * 90)
 
@@ -361,6 +378,7 @@ class Circuit:
                 self.objlist[id].append(gate)
                 gate.process()
                 self.propagate(gate)
+
     def build_ic(self):
         my_ic=self.getcomponent(IC_ID)
         queue=[]
@@ -451,7 +469,7 @@ class Circuit:
         my_ic.tag = tag
         my_ic.description = description
         with open(location, 'wb') as file:
-            file.write(orjson.dumps(my_ic.partial_data()))        
+            file.write(orjson.dumps(my_ic.full_data()))        
         self.clearcircuit() 
 
     
@@ -484,10 +502,9 @@ class Circuit:
                 self.objlist[i].pop()
 
     def clearcircuit(self):
-        with self.lock:
-            for i in range(TOTAL):
-                self.objlist[i].clear()
-            self.counter = 0
+        for i in range(TOTAL):
+            self.objlist[i].clear()
+        self.counter = 0
 
     def copy(self, components: list):
         if not components:
@@ -543,11 +560,13 @@ class Circuit:
     def reset(self):
         """Reset to design mode."""
         set_MODE(DESIGN)
+        self.eval_count=0
+        self.time_queue.clear()
+        if self.runner is not None and not self.runner.done():
+            self.runner.cancel()
+        self.runner=None
         for i in self.get_components():
-            if i.id != IC_ID:
-                i.reset()
-            else:
-                i.reset()
+            i.reset()
 
     def turnoff(self, gate: Gate):
         """Set all targets to UNKNOWN and propagate."""

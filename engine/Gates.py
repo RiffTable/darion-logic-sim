@@ -75,7 +75,11 @@ class Gate:
         return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self) -> str:
-        return self.codename if self.custom_name == '' else self.custom_name
+        name = self.codename if self.custom_name == '' else self.custom_name
+        if self.output == LOW:     return f'\033[94m{name}\033[0m'
+        elif self.output == HIGH:  return f'\033[92m{name}\033[0m'
+        elif self.output == ERROR: return f'\033[91m{name}\033[0m'
+        else:                      return f'\033[97m{name}\033[0m'
 
     def register(self):
         pass
@@ -151,6 +155,7 @@ class Gate:
         self.output = UNKNOWN        
         for profile in self.hitlist:
             profile.output = UNKNOWN
+        self.scheduled = False
 
     def hide(self):
         """Soft-disconnect from all targets and sources."""

@@ -60,7 +60,16 @@ cdef class Gate:
         return self.codename if self.custom_name == '' else self.custom_name
 
     def __str__(self):
-        return self.codename if self.custom_name == '' else self.custom_name
+        cdef str name = self.codename if self.custom_name == '' else self.custom_name
+        cdef int output
+        if self.location == -1:
+            output = UNKNOWN
+        else:
+            output = self.location_ptr[0][self.location].output
+        if output == LOW: return f'\033[94m{name}\033[0m'
+        elif output == HIGH: return f'\033[92m{name}\033[0m'
+        elif output == ERROR: return f'\033[91m{name}\033[0m'
+        else: return f'\033[97m{name}\033[0m'
     def __int__(self):
         return self.location
 
@@ -203,6 +212,7 @@ cdef class Gate:
             book[3] += book[0] + book[1] + book[2]
             book[0] = book[1] = book[2] = 0
         info.output = UNKNOWN
+        info.scheduled = False
         cdef Profile* profile = info.hitlist.data()
         cdef Profile* end = profile + info.hitlist.size()
         while profile < end:
@@ -320,7 +330,7 @@ cdef class Gate:
             self.id,
             self.location,
             info.inputlimit,
-            info.value if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and gate_infolist[src_loc].scheduled else -1 for src_loc in self._sources],
+            info.value if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and gate_infolist[src_loc].mark else -1 for src_loc in self._sources],
             ]
         return dictionary
 
@@ -338,8 +348,8 @@ cdef class Gate:
 
     cpdef void load_to_cluster(self, list cluster):
         '''Mark this gate as scheduled and add it to the copy cluster'''
-        cluster.append(self)
-        self.location_ptr[0][self.location].scheduled = True
+        cluster.append(self.location)
+        self.location_ptr[0][self.location].mark = True
 
 cdef class Variable(Gate):
     pass

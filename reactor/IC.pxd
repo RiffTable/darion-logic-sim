@@ -2,8 +2,7 @@
 from libcpp.vector cimport vector
 from Gates cimport Gate, Profile,CPP_Gate
 from libcpp.unordered_map cimport unordered_map
-
-cdef class IC:
+cdef class IC:  
     cdef public list inputs
     cdef public list internal
     cdef public list outputs
