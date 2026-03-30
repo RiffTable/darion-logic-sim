@@ -50,6 +50,16 @@ class OutputItem(CompItem):
 		self.update()
 		self.PropertyChanged()
 	
+	def poll_update(self) -> bool:
+		if self._unit is None: return False
+		
+		current = self._unit.output
+		if self.prevState != current:
+			self.prevState = current
+			self.unitStateChanged(current)
+			return True
+		return False
+	
 	def proxyPin(self) -> InputPinItem | None:
 		return None if self.inputPin.hasWire() else self.inputPin
 

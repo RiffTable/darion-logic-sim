@@ -58,11 +58,23 @@ class InputItem(CompItem):
 		self.outputPin.logicalStateChanged(state)
 		self.PropertyChanged()
 	
+	def poll_update(self) -> bool:
+		if self._unit is None: return False
+		
+		current = self._unit.output
+		if self.prevState != current:
+			self.prevState = current
+			self.unitStateChanged(current)
+			return True
+		return False
+	
 	def setState(self, state: bool):
 		bookish = Const.HIGH if state else Const.LOW
 		self.state = bookish
 		logic.toggle(self._unit, bookish)
 		self.update()
+		if self.cscene:
+			self.cscene.wake_up()
 
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):

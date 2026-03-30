@@ -65,3 +65,16 @@ class ICitem(CompItem):
 		return super().getData() | {
 			"ic_data_index": self.ic_data_index
 		}
+
+	def poll_update(self) -> bool:
+		if self._unit is None: return False
+
+		changed = False
+		for pinlist in self._pinslist.values():
+			for pin in pinlist:
+				if isinstance(pin, OutputPinItem) and pin.logical is not None:
+					current = pin.logical.output
+					if current != pin.state:
+						pin.logicalStateChanged(current)
+						changed = True
+		return changed

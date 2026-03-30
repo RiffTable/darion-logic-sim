@@ -151,6 +151,9 @@ class CompItem(QGraphicsItem):
 	def unitStateChanged(self, state: int):
 		...    # ABSTRACT METHOD
 
+	def poll_update(self) -> bool:
+		...    # ABSTRACT METHOD
+
 
 	### Facing and Rotation
 	def edgeToFacing(self, edge: CompEdge) -> Facing:

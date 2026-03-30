@@ -53,6 +53,8 @@ class CircuitScene(QGraphicsScene):
 
 		self.addItem(self.ghostPin)
 
+		self.idle_frames = 0
+
 		# Replacement to the simpler listener system
 		fps = QGuiApplication.primaryScreen().refreshRate()
 		fps = (60 if fps==0 else fps)
@@ -60,28 +62,30 @@ class CircuitScene(QGraphicsScene):
 		self.ui_update_timer.timeout.connect(self.poll_ui_state)
 		self.ui_update_timer.start(round(1000/fps))
 
-	def poll_ui_state(self):
-		# Updates screen per frame
-		for comp in self.comps:
-			unit = comp._unit
-			if unit is None:
-				continue
+	def wake_up(self):
+		"""Wakes the UI polling loop if it went to sleep."""
+		self.idle_frames = 0
+		if not self.ui_update_timer.isActive():
+			fps = QGuiApplication.primaryScreen().refreshRate()
+			fps = (60 if fps == 0 else fps)
+			self.ui_update_timer.start(round(1000/fps))
 
-			if isinstance(comp, (GateItem, InputItem, OutputItem)):
-				# These components have single output and its calculation is optimized
-				current = unit.output
-				if comp.prevState != current:
-					comp.prevState = current
-					comp.unitStateChanged(current)
+	def poll_ui_state(self):
+		any_changes = False
+		
+		for comp in self.comps:
+			if comp.poll_update():
+				any_changes = True
+		
+		# The Auto-Sleep Watchdog
+		if any_changes:
+			self.idle_frames = 0
+		else:
+			self.idle_frames += 1
 			
-			else:
-				# These components can have multiple outputs and thus slower calculation
-				for pinlist in comp._pinslist.values():
-					for pin in pinlist:
-						if isinstance(pin, OutputPinItem) and pin.logical is not None:
-							current = pin.logical.output
-							if current != pin.state:
-								pin.logicalStateChanged(current)
+		# If the circuit is completely idle for ~0.5 seconds, go to sleep.
+		if self.idle_frames > 30 and self.ui_update_timer.isActive():
+			self.ui_update_timer.stop()
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
@@ -107,6 +111,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.wake_up()
 		return comp
 
 	def removeComp(self, comp: CompItem):
@@ -118,6 +123,7 @@ class CircuitScene(QGraphicsScene):
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
+		self.wake_up()
 	
 	def addCompFromData(self, _data: dict) -> CompItem:
 		data = _data.copy()
@@ -131,6 +137,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.wake_up()
 		return comp
 	
 	
@@ -159,6 +166,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.wake_up()
 		return (comp, newCreated)
 	
 	def makeICfyable(self):
@@ -244,6 +252,7 @@ class CircuitScene(QGraphicsScene):
 			parent = target.parentComp
 			# Update hovered pin and comps that state changed
 			self.updateHoverStatus(None, parent, True)
+			self.wake_up()
 			return True
 		
 		return False
