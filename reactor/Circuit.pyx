@@ -5,6 +5,8 @@
 # cython: cdivision=True
 # cython: nonecheck=False
 import orjson
+import asyncio
+from libcpp.deque cimport deque
 from Gates cimport Gate, Variable, Profile, vector, CPP_Gate
 from Const cimport *
 from IC cimport IC
@@ -12,13 +14,15 @@ from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from libc.stdint cimport uint16_t,int8_t
 from libcpp.unordered_map cimport unordered_map
-
+from libcpp.vector cimport vector
 cdef class Circuit:
     def __cinit__(self):
         self.hidden = 0 # the oscillation breaking system
         self.eval_count = 0 # just a metric for evaluating speed
         self.gate_infolist.reserve(500_000)# the cpp_gate list consisting of every single gate's info in c++
         self.gate_verse = [] # the gate list in python
+        self.runner = None        # asyncio.Task for FLIPFLOP drain loop
+        # time_queue is a C++ deque[int] — default-constructed, no explicit init needed
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
@@ -28,7 +32,8 @@ cdef class Circuit:
 
     def __repr__(self):
         return 'Circuit'
-
+    def __dealloc__(self):
+        pass  # asyncio task is cancelled automatically when the event loop closes
     @property
     def infolist_size(self):
         return self.gate_infolist.size()
@@ -133,7 +138,7 @@ cdef class Circuit:
         cdef CPP_Gate* info = &self.gate_infolist[target]
         if value != info.output:
             info.value = value
-            info.output = value if MODE == SIMULATE else UNKNOWN
+            info.output = value if MODE != DESIGN else UNKNOWN
             self.propagate(target)
 
     cpdef void disconnect(self, Gate target, int index):
@@ -163,9 +168,9 @@ cdef class Circuit:
             if gate.id == IC_ID:
                 ic = <IC>gate
                 for pin in ic.outputs:
-                    self.turnoff(pin)
+                    self.turnoff(pin.location)
             else:
-                self.turnoff(gate)
+                self.turnoff((<Gate>gate).location)
 
     cpdef void reveal(self, list gatelist):
         '''Reveal a list of gates'''
@@ -319,7 +324,7 @@ cdef class Circuit:
         header = " | ".join(header_parts)
         separator = "─" * len(header)
 
-        self.simulate(SIMULATE)
+        self.simulate(MODE)
 
         # --- STRING JOINING PHASE ---
         final_table_lines = [separator, header, separator]
@@ -569,7 +574,7 @@ cdef class Circuit:
             return
         self.generate(circuit)
         if MODE != DESIGN:
-            self.simulate(SIMULATE)
+            self.simulate(MODE)
 
     cpdef IC build_ic(self):
         '''build an ic from the current circuit'''
@@ -819,11 +824,13 @@ cdef class Circuit:
             ic.implement(pseudo)
 
         if MODE != DESIGN:
-            self.simulate(SIMULATE)
+            self.simulate(MODE)
         return new_items
 
     cpdef void simulate(self, int Mod):
         '''simulate the circuit'''
+        if MODE !=Mod and MODE != DESIGN:
+            self.reset()
         cdef Gate variable
         cdef CPP_Gate* info
         set_MODE(Mod)
@@ -897,8 +904,63 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
+    cdef void update_gate(self, int origin) nogil:
+        '''Process one gate for FLIPFLOP mode — called from the async drain loop on the main thread.'''
+        cdef Profile* profile
+        cdef Profile* end
+        cdef Py_ssize_t realsource, high, low, limit, gate_type
+        cdef Py_ssize_t new_output, profile_output, target_output
+        cdef CPP_Gate* self_info
+        cdef CPP_Gate* target_info
+        cdef uint16_t* book
+        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+        self_info = &gate_infolist[origin]
+        self_info.scheduled = False
+        new_output = self_info.output
+        profile = self_info.hitlist.data()
+        end = profile + self_info.hitlist.size()
+        while profile != end:
+            self.eval_count += 1
+            profile_output = profile.output
+            if profile_output != new_output:
+                target_info = &gate_infolist[profile.target]
+                gate_type = target_info.type
+                limit = target_info.inputlimit
+                if gate_type >= NOT_ID:
+                    if new_output >= ERROR:
+                        target_output = new_output
+                    else:
+                        target_output = new_output ^ (gate_type == NOT_ID)
+                else:
+                    book = target_info.book
+                    book[profile_output] -= 1
+                    book[new_output] += 1
+                    high = book[HIGH]
+                    low  = book[LOW]
+                    realsource = high + low
+                    if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                        if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                        elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                        else:                    target_output = (high & 1) ^ (gate_type & 1)
+                    else:
+                        target_output = UNKNOWN
+                if target_output != target_info.output:
+                    target_info.output = target_output
+                    if not target_info.scheduled:
+                        target_info.scheduled = True
+                        self.time_queue.push_back(profile.target)
+                profile.output = new_output
+            profile += 1
+
+
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
+        if MODE == FLIPFLOP:
+            with gil:
+                self.time_queue.push_back(origin)
+                if self.runner is None or self.runner.done():
+                    self.runner = asyncio.ensure_future(self.async_propagate())
+            return
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low,limit,gate_type
@@ -968,3 +1030,12 @@ cdef class Circuit:
             # buffer switching, read->write and write->read
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
+
+    async def async_propagate(self):
+        '''Async coroutine: drains time_queue one gate at a time, yielding between each so the
+        event loop stays responsive. Mirrors engine/Circuit.py timed_propagate().'''
+        while not self.time_queue.empty():
+            with nogil:
+                self.update_gate(self.time_queue.front())
+                self.time_queue.pop_front()
+            await asyncio.sleep(0.005)

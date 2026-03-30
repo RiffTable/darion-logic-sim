@@ -1,14 +1,18 @@
 # distutils: language = c++
 from Gates cimport Gate, Variable, Profile, CPP_Gate, vector
 from libcpp.vector cimport vector
+from libcpp.deque cimport deque
 from Const cimport LIMIT
 from IC cimport IC
+
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
     cdef public list gate_verse
     cdef public int hidden
     cdef public unsigned long long eval_count
+    cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
+    cdef deque[int] time_queue     # C++ deque of gate location ints for FLIPFLOP
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist
     cpdef object getcomponent(self, int choice)
@@ -48,6 +52,7 @@ cdef class Circuit:
     cpdef void copy(self, list components)
     cpdef list paste(self)
     cpdef void transfer_info(self, Gate gate, int id)
+    cdef void update_gate(self, int gate) nogil
     cdef void turnoff(self, int gate) nogil
     cdef void propagate(self, int origin) nogil
     cdef void burn(self, Py_ssize_t size, int* read_queue, int* write_queue) nogil

@@ -7,7 +7,8 @@ cpdef enum:
 
     DESIGN = 0
     SIMULATE = 1
-
+    FLIPFLOP = 2
+    
     LIMIT = 250_000
 
     DEAD_ID=255
