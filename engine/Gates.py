@@ -50,7 +50,7 @@ def reveal_profile(profile: Profile, source: Gate):
 class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
-        'output', 'scheduled', 'id', 'code', 'codename', 'custom_name',
+        'output', 'scheduled', 'mark', 'id', 'code', 'codename', 'custom_name',
         'value',
     ]
 
@@ -68,6 +68,7 @@ class Gate:
         self.output: int = UNKNOWN
         self.value=0
         self.scheduled: bool = False
+        self.mark: bool = False
         self.code: tuple = ()
         self.custom_name: str = ''
 
@@ -220,7 +221,7 @@ class Gate:
             self.custom_name,
             self.code,
             self.inputlimit,
-            self.value if self.id==VARIABLE_ID else [s.code if s and s.scheduled else ('X', 'X') for s in self.sources],
+            self.value if self.id==VARIABLE_ID else [s.code if s and s.mark else ('X', 'X') for s in self.sources],
         ]
 
     def decode(self, code: list) -> tuple:
@@ -240,7 +241,7 @@ class Gate:
 
     def load_to_cluster(self, cluster: list):
         cluster.append(self)
-        self.scheduled=True
+        self.mark=True
 
 class Variable(Gate):
     pass

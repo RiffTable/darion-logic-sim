@@ -129,7 +129,7 @@ class IC:
     def load_to_cluster(self, cluster: list):
         for i in self.inputs+self.outputs+self.internal:
             cluster.append(i)
-            i.scheduled=True   
+            i.mark=True   
 
     def implement(self, pseudo: dict):
         """Build connections from the map (paste path)."""

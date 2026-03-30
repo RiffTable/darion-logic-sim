@@ -387,7 +387,7 @@ class Circuit:
         outputs=[i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
         inputs=[i for i in self.objlist[INPUT_PIN_ID] if i is not None]
         for gate in outputs+inputs:
-            gate.scheduled=True
+            gate.mark=True
             queue.append(gate)
         size=len(queue)
         index=len(outputs)
@@ -403,8 +403,8 @@ class Circuit:
                     target.sources[profile.index] = gate.sources[0]
             for profile in gate.hitlist:
                 target = profile.target
-                if not target.scheduled:
-                    target.scheduled = True
+                if not target.mark:
+                    target.mark = True
                     queue.append(target)
                     size+=1
             index+=1
@@ -516,7 +516,7 @@ class Circuit:
         for i in components:
             self.copydata.append(i.partial_data())
         for i in cluster:
-            i.scheduled=False
+            i.mark=False
 
     def paste(self):
         circuit = self.copydata

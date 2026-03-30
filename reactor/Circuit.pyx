@@ -553,6 +553,7 @@ cdef class Circuit:
     cpdef void generate(self, list circuit):
         '''generate the circuit from the list of info'''
         cdef unordered_map[int,int] pseudo # store the location of each gate in the gate_verse vs. their location in the json/list of info
+        pseudo.reserve(PyList_GET_SIZE(circuit))
         pseudo[-1] = -1
         cdef object obj
         cdef Gate gate
@@ -813,6 +814,7 @@ cdef class Circuit:
         cdef tuple code
         cdef Gate g
         circuit = self.copydata
+        pseudo.reserve(PyList_GET_SIZE(circuit))
         pseudo[-1] = -1
         new_items = []
         cdef Gate gate

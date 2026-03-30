@@ -69,6 +69,7 @@ cdef class IC:
         similar to generation of circuit but for ic'''
         cdef unordered_map[int,int] pseudo
         pseudo[-1] = -1
+        pseudo.reserve(PyList_GET_SIZE(dictionary[MAP]))
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
         if len(dictionary) > TAG:

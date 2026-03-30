@@ -334,7 +334,7 @@ cdef class Gate:
             ]
         return dictionary
 
-    cdef void clone(self, list dictionary, unordered_map[int,int]& pseudo):
+    cdef void clone(self, list dictionary, vector[int]& pseudo):
         '''Restore gate state from serialised data, remapping source locations via pseudo'''
         self.custom_name = dictionary[CUSTOM_NAME]
         cdef CPP_Gate* info = &self.location_ptr[0][self.location]
