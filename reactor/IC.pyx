@@ -162,7 +162,7 @@ cdef class IC:
             for index, source_loc in enumerate(<list>pin_in._sources):
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    pop(src_info.hitlist, pin_in.location, index)
+                    pop(src_info.hitlist,gate_infolist, pin_in.location, index)
 
     cpdef void reveal(self):
         '''Plug the IC back into the live graph — re-registers inputs and reconnects output targets'''

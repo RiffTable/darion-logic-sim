@@ -1038,4 +1038,4 @@ cdef class Circuit:
             with nogil:
                 self.update_gate(self.time_queue.front())
                 self.time_queue.pop_front()
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(0.05)

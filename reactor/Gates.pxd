@@ -55,7 +55,7 @@ cdef extern from "Profile.h":
 
 cdef void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse)
 cdef void reveal(Profile& profile, Gate source, list gate_verse)
-cdef void pop(vector[Profile]& hitlist, int target, int pin_index)
+cdef void pop(vector[Profile]& hitlist, CPP_Gate* gate_infolist, int target, int pin_index)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---

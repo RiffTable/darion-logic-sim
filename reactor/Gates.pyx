@@ -12,12 +12,14 @@ from Store cimport decode
 from libc.stdint cimport uint16_t
 from libcpp.unordered_map cimport unordered_map
 
-cdef inline void pop(vector[Profile]& hitlist, int target, int pin_index):
+cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* gate_infolist, int target, int pin_index):
     '''Remove a specific entry from a hitlist by target gate and pin index'''
     cdef Profile* profile = hitlist.data()
     cdef Profile* end = profile + hitlist.size()
     while profile < end:
         if profile.target == target and profile.index == pin_index:
+            if gate_infolist[target].type < VARIABLE_ID:
+                gate_infolist[target].book[profile.output] -= 1
             profile[0] = (end-1)[0] # swap and pop
             hitlist.pop_back()
             break
@@ -154,7 +156,7 @@ cdef class Gate:
             if likely(realsource == limit) or unlikely(realsource and realsource + book[ERROR] + book[UNKNOWN] == limit):
                 if gate_type <= NAND_ID:   info.output = (low == 0) ^ (gate_type & 1)
                 elif gate_type <= NOR_ID:  info.output = (high > 0) ^ (gate_type & 1)
-                else:                       info.output = (high & 1) ^ (gate_type & 1)
+                else:                      info.output = (high & 1) ^ (gate_type & 1)
             else:
                 info.output = UNKNOWN
 
@@ -182,15 +184,14 @@ cdef class Gate:
 
     cdef void disconnect(self, int index):
         '''Remove whatever is wired into input slot at index and clear the output'''
-        cdef CPP_Gate* self_info = &self.location_ptr[0][self.location]
+        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* self_info = &gate_infolist[self.location]
         if self_info.type == VARIABLE_ID or self._sources[index] == -1:
             return
         cdef int src_loc = self._sources[index]
-        cdef CPP_Gate* src_info = &self.location_ptr[0][src_loc]
-        pop(src_info.hitlist, self.location, index)
+        cdef CPP_Gate* src_info = &gate_infolist[src_loc]
+        pop(src_info.hitlist, gate_infolist, self.location, index)
         self._sources[index] = -1
-        if self.id<VARIABLE_ID:
-            self_info.book[src_info.output] -= 1
         self_info.output = UNKNOWN
 
     cdef void reset(self):
@@ -233,7 +234,7 @@ cdef class Gate:
                 source_loc = sources[i]
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    pop(src_info.hitlist, self.location, i)
+                    pop(src_info.hitlist,gate_infolist, self.location, i)
 
         # 3. Zero out own state
         info.output = UNKNOWN

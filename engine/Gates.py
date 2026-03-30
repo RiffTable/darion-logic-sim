@@ -25,6 +25,8 @@ def pop(hitlist: list[Profile], target: Gate, pin_index: int):
     """Linear scan, swap-with-last, pop."""
     for i, p in enumerate(hitlist):
         if p.target is target and p.index == pin_index:
+            if target.id<VARIABLE_ID:
+                target.book[p.output]-=1
             hitlist[i] = hitlist[-1]
             hitlist.pop()
             return
@@ -138,7 +140,6 @@ class Gate:
         source: Gate = self.sources[index]
         pop(source.hitlist, self, index)
         self.sources[index] = None
-        self.book[source.output] -= 1
         self.output=UNKNOWN
 
     def reset(self):
