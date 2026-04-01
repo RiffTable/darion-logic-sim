@@ -25,6 +25,7 @@ from PySide6.QtGui import (
 # Just some Quality of Life
 GraphicsItemChange = QGraphicsItem.GraphicsItemChange
 GraphicsItemFlag = QGraphicsItem.GraphicsItemFlag
+StandardLocation = QStandardPaths.StandardLocation
 Key = Qt.Key
 KeyMod = Qt.KeyboardModifier
 MouseBtn = Qt.MouseButton

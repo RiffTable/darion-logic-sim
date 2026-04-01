@@ -449,13 +449,13 @@ class CircuitScene(QGraphicsScene):
 		rect_right =  int(rect.right())
 		rect_bottom =  int(rect.bottom())
 
-		left = rect_left - (rect_left % GRID.SIZE)
-		top = rect_top - (rect_top % GRID.SIZE)
 
 		if self.bg_style == 1:    # Lines Background
 			smol_lines: list[QLineF] = []
 			beeg_lines: list[QLineF] = []
 			unit_size = GRID.SIZE
+			left = rect_left - (rect_left % unit_size)
+			top = rect_top - (rect_top % unit_size)
 
 			# Vertical Lines
 			for x in range(left, rect_right, unit_size):
@@ -477,12 +477,14 @@ class CircuitScene(QGraphicsScene):
 		elif self.bg_style == 2:    # Dots Background
 			points = []
 			unit_size = 2*GRID.SIZE
+			left = rect_left - (rect_left % unit_size)
+			top = rect_top - (rect_top % unit_size)
 
 			for x in range(left, rect_right, unit_size):
 				for y in range(top, rect_bottom, unit_size):
 					points.append(QPointF(x, y))
 			
-			painter.setPen(QPen(grid_color.lighter(120), 3))
+			painter.setPen(QPen(grid_color.lighter(140), 3))
 			painter.drawPoints(points)
 
 

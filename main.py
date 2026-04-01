@@ -6,6 +6,7 @@ from typing import cast
 from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
+import PySide6.QtAsyncio as QtAsyncio
 
 import editor.theme as theme
 import editor.actions as Actions
@@ -16,7 +17,6 @@ from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
 
 
-import PySide6.QtAsyncio as QtAsyncio
 
 class AppWindow(QMainWindow):
 	def __init__(self):
@@ -99,7 +99,7 @@ class AppWindow(QMainWindow):
 			names.add(name)
 			ic_list[name] = (idx, None)
 
-		for file in Path("exports/IC").glob("*.json"):
+		for file in ICPath.glob("*.json"):
 			filename = str(file.resolve())    # Absolute path
 			ic = logic.get_ic(filename)
 			if ic is None: continue
@@ -253,6 +253,7 @@ class AppWindow(QMainWindow):
 		self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
 		self.view.viewScale = m11
 		self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+		logic.simulate(Const.SIMULATE)
 	
 	def saveFile(self, create_new_file: bool = False):
 		if self.current_file_path and not create_new_file:
@@ -263,7 +264,7 @@ class AppWindow(QMainWindow):
 			filename, _ = QFileDialog.getSaveFileName(
 				self,
 				"Save Project",
-				"exports/project",
+				str(projectsPath),
 				"JSON Files (*.json);;All Files (*)"
 			)
 			if not filename: return
@@ -285,7 +286,7 @@ class AppWindow(QMainWindow):
 		filename, _ = QFileDialog.getOpenFileName(
 			self,
 			"Open Project",
-			"exports/project",
+			str(projectsPath),
 			"JSON Files (*.json);;All Files (*)"
 		)
 		if not filename: return
@@ -332,28 +333,42 @@ class AppWindow(QMainWindow):
 			logic.reset()
 
 			self.cscene.makeICfyable()
-			filename = f"exports/IC/{res["name"]}.json"
+			filename = (ICPath / str(res["name"])).with_suffix(".json")
 			logic.save_as_ic(
-				filename,
+				str(filename),
 				res["name"],
 				res["tag"],
 				res["desc"]
 			)
 			self.cscene.clearCanvas()
+			logic.simulate(Const.SIMULATE)
 			self.sidebar.refresh_IC_catagory.emit()
 
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
+	app.setOrganizationName("Darion")
+	app.setApplicationName("Darion Logic Sim")
 
-	# App Theme
+
+	### Paths
+	docPath = QStandardPaths.writableLocation(StandardLocation.DocumentsLocation)
+	appPath = QStandardPaths.writableLocation(StandardLocation.AppDataLocation)
+
+	projectsPath = Path(docPath) / "Darion Logic Sim" / "Projects"
+	projectsPath.mkdir(parents=True, exist_ok=True)
+
+	ICPath = Path(appPath) / "IC"
+	ICPath.mkdir(parents=True, exist_ok=True)
+
+
+	### App Theme
 	app.setStyle("Fusion")
 	theme.apply_palette(app)
 
-	# App Window
-	QCoreApplication.setOrganizationName("Darion")
-	QCoreApplication.setApplicationName("Darion Logic Sim")
+
+	### App Window
 	window = AppWindow()
 	
 	settings = QSettings()
