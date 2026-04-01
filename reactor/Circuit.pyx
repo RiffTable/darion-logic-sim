@@ -168,9 +168,9 @@ cdef class Circuit:
             if gate.id == IC_ID:
                 ic = <IC>gate
                 for pin in ic.outputs:
-                    self.turnoff(pin.location)
+                    self.propagate(pin.location)
             else:
-                self.turnoff((<Gate>gate).location)
+                self.propagate((<Gate>gate).location)
 
     cpdef void reveal(self, list gatelist):
         '''Reveal a list of gates'''
@@ -877,57 +877,6 @@ cdef class Circuit:
             else:
                 (<IC>i).reset()
 
-    cdef inline void turnoff(self, int gate) nogil:
-        '''after a gate is hidden propagate unknown to it's targets'''
-        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        cdef Profile* profile = gate_infolist[gate].hitlist.data()
-        cdef Profile* end = profile + gate_infolist[gate].hitlist.size()
-        cdef int self_idx = gate
-        while profile != end:
-            if profile.target != self_idx:
-                gate_infolist[profile.target].output = UNKNOWN
-                self.propagate(profile.target)
-            profile += 1
-
-    cdef void burn(self, Py_ssize_t size, int* read_queue, int* write_queue) nogil:
-        '''the circuit has crossed safety limits, mark oscillation as E/error'''
-        cdef Profile* profile
-        cdef Profile* end
-        cdef unsigned long long eval = 0
-        cdef Py_ssize_t end_point = size
-        cdef int gidx, tidx
-        cdef CPP_Gate* info
-        cdef CPP_Gate* target_info
-        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
-        size = 0
-        cdef Py_ssize_t index=0
-        while index < end_point:
-            while index < end_point:
-                info = &gate_infolist[read_queue[index]]
-                info.scheduled = False
-                profile = info.hitlist.data()
-                end = profile + info.hitlist.size()
-                info.output = ERROR
-                while profile != end:
-                    eval += 1
-                    if profile.output != ERROR:
-                        target_info = &self.gate_infolist[profile.target]
-                        if target_info.inputlimit != 1:
-                            target_info.book[profile.output] -= 1
-                            target_info.book[ERROR] += 1
-                        if target_info.output != ERROR:
-                            write_queue[size] = profile.target
-                            size += 1
-                        target_info.output = ERROR
-                        profile.output = ERROR
-                    profile += 1
-                index += 1
-            index = 0
-            end_point = size
-            size = 0
-            read_queue, write_queue = write_queue, read_queue
-        self.eval_count += eval
-
     cdef void update_gate(self, int origin) nogil:
         '''Process one gate for FLIPFLOP mode — called from the async drain loop on the main thread.'''
         cdef Profile* profile
@@ -951,23 +900,28 @@ cdef class Circuit:
                 gate_type = target_info.type
                 limit = target_info.inputlimit
                 if gate_type >= NOT_ID:
-                    if new_output >= ERROR:
-                        target_output = new_output
-                    else:
+                    if new_output <= HIGH:
                         target_output = new_output ^ (gate_type == NOT_ID)
+                    else:
+                        target_output = new_output
                 else:
+                    # update target
                     book = target_info.book
                     book[profile_output] -= 1
                     book[new_output] += 1
-                    high = book[HIGH]
-                    low  = book[LOW]
-                    realsource = high + low
-                    if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
-                        if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                        elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                        else:                    target_output = (high & 1) ^ (gate_type & 1)
+                    
+                    if new_output <= HIGH:
+                        high = book[HIGH]
+                        low  = book[LOW]
+                        realsource = high + low
+                        if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                            if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                            elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                            else:                    target_output = (high & 1) ^ (gate_type & 1)
+                        else:
+                            target_output = UNKNOWN
                     else:
-                        target_output = UNKNOWN
+                        target_output = new_output
                 if target_output != target_info.output:
                     target_info.output = target_output
                     if not target_info.scheduled:
@@ -979,12 +933,6 @@ cdef class Circuit:
 
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
-        if MODE == FLIPFLOP:
-            with gil:
-                self.time_queue.push_back(origin)
-                if self.runner is None or self.runner.done():
-                    self.runner = asyncio.ensure_future(self.async_propagate())
-            return
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low,limit,gate_type
@@ -998,19 +946,28 @@ cdef class Circuit:
         cdef uint16_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         read_queue[0] = origin
-        if unlikely(gate_infolist[origin].output == ERROR):
-            self.burn(end_point, read_queue, write_queue)
-            return
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):
                 self.eval_count += eval
-                self.burn(end_point, read_queue, write_queue)
-                return
+                if MODE == FLIPFLOP:
+                    for i in range(end_point):
+                        self_info = &gate_infolist[read_queue[i]]
+                        self_info.mark=False
+                        self_info.scheduled=True
+                        self.time_queue.push_back(read_queue[i])
+                    with gil:
+                        if self.runner is None or self.runner.done():
+                            self.runner=asyncio.create_task(self.async_propagate())
+                    return
+                wave_limit=self.gate_infolist.size()-self.hidden+1
+                for index in range(end_point):
+                    self_info = &gate_infolist[read_queue[index]]
+                    self_info.output = ERROR
             wave_limit -= 1
             for index in range(end_point):
                 self_info = &gate_infolist[read_queue[index]]
-                self_info.scheduled = False
+                self_info.mark = False
                 new_output = self_info.output
                 profile = self_info.hitlist.data()
                 end = profile + self_info.hitlist.size()
@@ -1022,31 +979,34 @@ cdef class Circuit:
                         gate_type = target_info.type
                         limit = target_info.inputlimit
                         if gate_type >= NOT_ID:
-                            if new_output >= ERROR:
-                                target_output = new_output
-                            else:
+                            if new_output <= HIGH:
                                 target_output = new_output ^ (gate_type == NOT_ID)
+                            else:
+                                target_output = new_output
                         else:
                             # update target
                             book = target_info.book
                             book[profile_output] -= 1
                             book[new_output] += 1
-                            high = book[HIGH]
-                            low  = book[LOW]
-                            realsource = high + low
-                            if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
-                                if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                                elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                                else:                    target_output = (high & 1) ^ (gate_type & 1)
+                           
+                            if new_output <= HIGH:
+                                high = book[HIGH]
+                                low  = book[LOW]
+                                realsource = high + low
+                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
+                                else:
+                                    target_output = UNKNOWN
                             else:
-                                target_output = UNKNOWN
+                                target_output = new_output
                         if target_output != target_info.output:
                             target_info.output = target_output
-                            if not target_info.scheduled:
-                                target_info.scheduled = True
+                            if not target_info.mark:
+                                target_info.mark = True
                                 write_queue[size] = profile.target
                                 size += 1
-
                         profile.output = new_output
                     profile += 1
             # size is actually the growing size of write_queue
@@ -1062,4 +1022,4 @@ cdef class Circuit:
             with nogil:
                 self.update_gate(self.time_queue.front())
                 self.time_queue.pop_front()
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.01/(self.time_queue.size()+1))

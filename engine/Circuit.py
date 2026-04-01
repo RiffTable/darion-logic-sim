@@ -8,6 +8,7 @@ from IC import IC
 from Store import get
 from collections import deque
 import asyncio
+import time
 # ─── Circuit ──────────────────────────────────────────────────────
 
 class Circuit:
@@ -126,27 +127,26 @@ class Circuit:
         for gate in gatelist:
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    self.turnoff(pin)
+                    self.propagate(pin)
             else:
-                self.turnoff(gate)
+                self.propagate(gate)
 
 
     def reveal(self, gatelist: list):
         """Bring a hidden component back."""
-        with self.lock:
-            for gate in reversed(gatelist):
-                if gate.id == IC_ID:
-                    gate.reveal()
-                else:
-                    gate.reveal()
+        for gate in reversed(gatelist):
+            if gate.id == IC_ID:
+                gate.reveal()
+            else:
+                gate.reveal()
                 self.renewobj(gate)
 
-            for gate in reversed(gatelist):
-                if gate.id == IC_ID:
-                    for pin in gate.outputs:
-                        self.propagate(pin)
-                else:
-                    self.propagate(gate)
+        for gate in reversed(gatelist):
+            if gate.id == IC_ID:
+                for pin in gate.outputs:
+                    self.propagate(pin)
+            else:
+                self.propagate(gate)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -552,6 +552,11 @@ class Circuit:
         if get_MODE()!=DESIGN and get_MODE()!=Mode:
             self.reset()
         set_MODE(Mode)
+        self.eval_count=0
+        self.time_queue.clear()
+        if self.runner is not None and not self.runner.done():
+            self.runner.cancel()
+        self.runner=None
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
                 variable.output = variable.value
@@ -568,40 +573,11 @@ class Circuit:
         for i in self.get_components():
             i.reset()
 
-    def turnoff(self, gate: Gate):
-        """Set all targets to UNKNOWN and propagate."""
-        for profile in gate.hitlist:
-            target = profile.target
-            if target is not gate:
-                target.output = UNKNOWN
-                self.propagate(target)
-
-    def burn(self, read_buf: list, read_end: int, write_buf: list):
-        """Error propagation — flood-fill ERROR through the graph."""
-        write_end: int = 0
-        while read_end > 0:
-            for i in range(read_end):
-                gate = read_buf[i]
-                gate.scheduled = False
-                gate.output = ERROR
-                for profile in gate.hitlist:
-                    if profile.output != ERROR:
-                        target = profile.target
-                        if target.inputlimit != 1:
-                            target.book[profile.output] -= 1
-                            target.book[ERROR] += 1
-                        if target.output != ERROR:
-                            write_buf[write_end] = target
-                            write_end += 1
-                        profile.output = ERROR
-            read_buf, write_buf = write_buf, read_buf
-            read_end, write_end = write_end, 0
-
     async def timed_propagate(self):
         while self.time_queue:
             gate = self.time_queue.popleft()
             self.update_gate(gate)
-            await asyncio.sleep(0.05) 
+            await asyncio.sleep(0.01/(len(self.time_queue)+1)) 
                     
     def update_gate(self, gate: Gate):
         gate.scheduled = False
@@ -613,30 +589,23 @@ class Circuit:
                 target = profile.target
                 gate_type = target.id
                 limit = target.inputlimit
-
-                if limit == 1:
-                    if gate_type == NOT_ID and new_output != UNKNOWN:
-                        target_output = new_output ^ 1
-                    else:
-                        target_output = new_output
+                if gate_type>VARIABLE_ID:
+                    if new_output>HIGH:target_output = new_output
+                    else:target_output = new_output ^ (gate_type == NOT_ID)
                 else:
                     book = target.book
                     book[profile_output] -= 1
                     book[new_output] += 1
-                    high = book[HIGH]
-                    low = book[LOW]
-                    realsource = high + low
-                    if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
-                        if gate_type <= NAND_ID:
-                            target_output = int(low == 0)
-                        elif gate_type <= NOR_ID:
-                            target_output = int(high > 0)
-                        else:
-                            target_output = high & 1
-                        target_output ^= (gate_type & 1)
+                    if new_output>HIGH:target_output = new_output
                     else:
-                        target_output = UNKNOWN
-
+                        high = book[HIGH]
+                        low = book[LOW]
+                        realsource = high + low
+                        if realsource == limit or (realsource and realsource + book[UNKNOWN] == limit):
+                            if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
+                            elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
+                            else:target_output = (high & 1)^(gate_type & 1)
+                        else:target_output = UNKNOWN
                 if target_output != target.output:
                     target.output = target_output
                     if not target.scheduled:
@@ -646,30 +615,35 @@ class Circuit:
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if get_MODE() == FLIPFLOP:
-            self.time_queue.append(origin)
-            if self.runner is None or self.runner.done():
-                self.runner=asyncio.create_task(self.timed_propagate())
-            return
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_buf[0] = origin
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
-        if origin.output == ERROR:
-            self.burn(read_buf, read_end, write_buf)
-            return
-
+        x=self.eval_count
+        start=time.perf_counter_ns()
         while read_end > 0:
             if counter > self.counter:
-                self.burn(read_buf, read_end, write_buf)
-                return
+                if get_MODE() == FLIPFLOP:
+                    for i in range(read_end):
+                        gate = read_buf[i]
+                        gate.mark=False
+                        gate.scheduled=True
+                        self.time_queue.append(gate)
+                    if self.runner is None or self.runner.done():
+                        self.runner=asyncio.create_task(self.timed_propagate())
+                    return
+                else:
+                    counter=-1
+                    for i in range(read_end):
+                        gate = read_buf[i]
+                        gate.output = ERROR                
             counter += 1
 
             for i in range(read_end):
                 gate = read_buf[i]
-                gate.scheduled = False
+                gate.mark = False
                 new_output = gate.output
                 for profile in gate.hitlist:
                     self.eval_count += 1
@@ -678,34 +652,28 @@ class Circuit:
                         target = profile.target
                         gate_type = target.id
                         limit = target.inputlimit
-
-                        if limit == 1:
-                            if gate_type == NOT_ID and new_output != UNKNOWN:
-                                target_output = new_output ^ 1
-                            else:
-                                target_output = new_output
+                        if gate_type>VARIABLE_ID:
+                            if new_output>HIGH:target_output = new_output
+                            else:target_output = new_output ^ (gate_type == NOT_ID)
                         else:
                             book = target.book
                             book[profile_output] -= 1
                             book[new_output] += 1
-                            high = book[HIGH]
-                            low = book[LOW]
-                            realsource = high + low
-                            if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
-                                if gate_type <= NAND_ID:
-                                    target_output = int(low == 0)
-                                elif gate_type <= NOR_ID:
-                                    target_output = int(high > 0)
-                                else:
-                                    target_output = high & 1
-                                target_output ^= (gate_type & 1)
+                            if new_output>HIGH:target_output = new_output
                             else:
-                                target_output = UNKNOWN
+                                high = book[HIGH]
+                                low = book[LOW]
+                                realsource = high + low
+                                if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                    if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
+                                    elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
+                                    else:target_output = (high & 1)^(gate_type & 1)
+                                else:target_output = UNKNOWN
 
                         if target_output != target.output:
                             target.output = target_output
-                            if not target.scheduled:
-                                target.scheduled = True
+                            if not target.mark:
+                                target.mark = True
                                 write_buf[write_end] = target
                                 write_end += 1
 
@@ -713,4 +681,3 @@ class Circuit:
 
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
-

@@ -393,7 +393,7 @@ _OUT_COLOR  = {'T': '\033[92mT\033[0m', 'F': '\033[94mF\033[0m',
                'E': '\033[91mE\033[0m', 'X': '\033[97mX\033[0m'}
 
 
-def _render_canvas(remaining_time):
+def _render_canvas():
     """Build and print the full canvas frame with a live countdown."""
     components = circuit.get_components()
     mode_str   = _MODE_NAME.get(Const.get_MODE(), '?')
@@ -436,20 +436,13 @@ def _render_canvas(remaining_time):
             print(f'  {serial:<4} {name_colored:<{comp_w}} {out_str:<{out_w}} {src_str:<35}')
 
     print('─' * W)
-    print(f'  \033[90mAuto-returning in {remaining_time:>4.1f}s... (Press ENTER to exit early)\033[0m' + ' ' * 5)
     print('─' * W)
 
 
 async def canvas():
     """Live canvas: high-framerate, read-only timed loop with safe exit."""
-    try:
-        time_str = await aioconsole.ainput("\nHow many seconds do you want to view the canvas? (Default 10): ")
-        view_time = float(time_str) if time_str.strip() else 10.0
-    except ValueError:
-        view_time = 10.0
 
-    import time
-    start_time = time.time()
+
     
     # Do one full clear before we start rendering to ensure a clean slate
     clear_screen()
@@ -460,16 +453,9 @@ async def canvas():
     async def render_loop():
         try:
             while not stop_event.is_set():
-                elapsed = time.time() - start_time
-                remaining = max(0.0, view_time - elapsed)
-                
-                if remaining <= 0:
-                    break
-                    
-                _render_canvas(remaining)
-                
+                _render_canvas()
                 # Sleep ~30ms (about 30 FPS). Anything faster wastes CPU on text consoles
-                await asyncio.sleep(0.03)
+                await asyncio.sleep(0.3)
         except asyncio.CancelledError:
             pass
 

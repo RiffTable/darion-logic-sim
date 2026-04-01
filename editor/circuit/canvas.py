@@ -71,21 +71,19 @@ class CircuitScene(QGraphicsScene):
 			self.ui_update_timer.start(round(1000/fps))
 
 	def poll_ui_state(self):
-		any_changes = False
 		
 		for comp in self.comps:
-			if comp.poll_update():
-				any_changes = True
+			comp.poll_update()
 		
 		# The Auto-Sleep Watchdog
-		if any_changes:
-			self.idle_frames = 0
-		else:
-			self.idle_frames += 1
+		# if any_changes:
+		# 	self.idle_frames = 0
+		# else:
+		# 	self.idle_frames += 1
 			
-		# If the circuit is completely idle for ~0.5 seconds, go to sleep.
-		if self.idle_frames > 30 and self.ui_update_timer.isActive():
-			self.ui_update_timer.stop()
+		# # If the circuit is completely idle for ~0.5 seconds, go to sleep.
+		# if self.idle_frames > 150 and self.ui_update_timer.isActive():
+		# 	self.ui_update_timer.stop()
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
