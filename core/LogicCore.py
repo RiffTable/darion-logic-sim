@@ -1,7 +1,7 @@
 import sys
 import os
 from typing import TYPE_CHECKING
-sys.path.append(os.path.join(os.getcwd(), 'reactor'))
+sys.path.append(os.path.join(os.getcwd(), 'engine'))
 
 # This is because pyright is having trouble importing without absolute paths
 # but I can't bc that causes other *weird* issue

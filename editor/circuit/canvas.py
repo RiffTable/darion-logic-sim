@@ -76,7 +76,7 @@ class CircuitScene(QGraphicsScene):
 	def set_timings(self):
 		fps = QGuiApplication.primaryScreen().refreshRate()
 		fps = (1/(60 if fps==0 else fps))
-		ratio=0.0025
+		ratio=0.01
 		Const.set_timings(fps, ratio)
 
 	def wake_up(self):

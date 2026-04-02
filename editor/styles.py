@@ -1,5 +1,6 @@
 from PySide6.QtGui import QColor, QFont
 
+
 class LightTheme:
     text           = QColor("#1f2c39")
     hl_text_bg     = QColor("#3677e0")
@@ -12,19 +13,19 @@ class LightTheme:
     
     comp_active    = QColor("#2fc51b")
     comp_body      = QColor("#d2d9e0")
-
-    signal_high    = QColor("#229513")
-    signal_low     = QColor("#5f6468")
-    signal_error   = QColor("#dd2929")
-    signal_unknown = QColor("#609ac9")
-
-    pin_high       = QColor("#1fa110")
-    pin_low        = QColor("#c5591b")
-    pin_hover      = QColor("#45676b")
-    pin_hoverproxy = QColor("#d3b476")
-
-    LED_on         = QColor("#f1c40f")
-    LED_off        = QColor("#d2d9e0")
+    
+    signal_high    = QColor("#00FF87")   
+    signal_low     = QColor("#5f6468")   
+    signal_error   = QColor("#FF1E1E")   
+    signal_unknown = QColor("#00D4FF")   
+    
+    pin_high       = QColor("#00FF00")   
+    pin_low        = QColor("#FF6B00")   
+    pin_hover      = QColor("#45676b")   
+    pin_hoverproxy = QColor("#FFDD57")   
+    
+    LED_on         = QColor("#FFEE00")   
+    LED_off        = QColor("#d2d9e0")   # Original
     
     outline        = QColor("#6f7d8c")
     sidebar_toggle = QColor("#bac1ca")
@@ -39,17 +40,17 @@ class DarkTheme:
     tooltip_text   = QColor("#ff0000")
     tooltip_bg     = QColor("#ffffff")
     button         = QColor("#1e2a36")
-
+    
     comp_active    = QColor("#31ce1c")
     comp_body      = QColor("#17222d")
-
-    signal_high    = QColor("#229513")
+    
+    signal_high    = QColor("#00FF87")
     signal_low     = QColor("#5f6468")
-    signal_error   = QColor("#dd2929")
-    signal_unknown = QColor("#609ac9")
-
-    pin_high       = QColor("#229513")
-    pin_low        = QColor("#c5591b")
+    signal_error   = QColor("#FF1E1E")
+    signal_unknown = QColor("#00D4FF")
+    
+    pin_high       = QColor("#00FF00")
+    pin_low        = QColor("#FF6B00")
     pin_hover      = QColor("#6b8c9c")
     pin_hoverproxy = QColor("#ededed")
 
