@@ -14,6 +14,12 @@ class PropertiesPanel(QWidget):
         self.comp: CompItem|None = None
         self.labels: dict[Prop, QLabel] = {}
         self.widgets: dict[Prop, QWidget] = {}
+
+        self.closetimer = QTimer()
+        self.closetimer.setSingleShot(True)
+        self.closetimer.timeout.connect(self.closeTab)
+        self.closetimer.setInterval(30)
+
         self.buildUI()
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -113,61 +119,76 @@ class PropertiesPanel(QWidget):
         self.update()
 
     def selectionChanged(self, selectedItems: list[QGraphicsItem]):
+        """This function is called everytime the selectedItems list changes in the canvas/scene"""
         n = len(selectedItems)
 
         if n > 1 or n == 0:
-            self.comp = None
-            self.hide()
-        elif isinstance(selectedItems[0], CompItem):
+            # None or multiple items selected
             if self.comp:
+                self.closetimer.start()
+        
+        elif isinstance(selectedItems[0], CompItem):
+            # Single CompItem selected
+            da_comp = selectedItems[0]
+            self.closetimer.stop()
+
+            if self.comp:
+                if self.comp is da_comp:
+                    return
                 self.comp.removePropertyChangedListener(self.updateTab)
-            self.comp = selectedItems[0]
+            self.comp = da_comp
             self.comp.addPropertyChangedListener(self.updateTab)
             self.updateTab()
-
+    
+    
+    def closeTab(self):
+        self.comp = None
+        self.hide()
 
     def updateTab(self):
-        if self.comp:
-            compProps = self.comp.getProperties()
-
-            # Display name
-            tag = compProps[Prop.TAG]
-            self.title.setText(f"Properties: {tag}")
-
-            for prop in self.widgets.keys():
-                isVisible = (prop in compProps)
-                self.widgets[prop].setVisible(isVisible)
-                self.labels[prop].setVisible(isVisible)
-
-                if isVisible:
-                    match prop:
-                        case Prop.INPUTSIZE:
-                            cprop = cast(int, compProps[prop])
-                            widget = cast(QSpinBox, self.widgets[prop])
-                            widget.blockSignals(True)
-                            widget.setValue(cprop)
-                            widget.blockSignals(False)
-
-                        case Prop.FACING:
-                            cprop = cast(Facing, compProps[prop])
-                            widget = cast(QComboBox, self.widgets[prop])
-                            widget.blockSignals(True)
-                            widget.setCurrentIndex(cprop.value)
-                            widget.blockSignals(False)
-
-                        case Prop.STATE:
-                            cprop = compProps[prop]
-                            widget = cast(QLabel, self.widgets[prop])
-                            widget.setText("ON" if cprop else "OFF")
-
-                        case _:
-                            cprop = compProps[prop]
-                            widget = cast(QLabel, self.widgets[prop])
-                            widget.setText(str(cprop))
-
-            self.show()
-        else:
+        if self.comp is None:
             self.hide()
+            return
+            
+
+        # Setting and unhiding properties
+        compProps = self.comp.getProperties()
+        tag = compProps[Prop.TAG]
+        self.title.setText(f"Properties: {tag}")
+
+        for prop in self.widgets.keys():
+            isVisible = (prop in compProps)
+            self.widgets[prop].setVisible(isVisible)
+            self.labels[prop].setVisible(isVisible)
+
+            if not isVisible:
+                continue
+            match prop:
+                case Prop.INPUTSIZE:
+                    cprop = cast(int, compProps[prop])
+                    widget = cast(QSpinBox, self.widgets[prop])
+                    widget.blockSignals(True)
+                    widget.setValue(cprop)
+                    widget.blockSignals(False)
+
+                case Prop.FACING:
+                    cprop = cast(Facing, compProps[prop])
+                    widget = cast(QComboBox, self.widgets[prop])
+                    widget.blockSignals(True)
+                    widget.setCurrentIndex(cprop.value)
+                    widget.blockSignals(False)
+
+                case Prop.STATE:
+                    cprop = compProps[prop]
+                    widget = cast(QLabel, self.widgets[prop])
+                    widget.setText("ON" if cprop else "OFF")
+
+                case _:
+                    cprop = compProps[prop]
+                    widget = cast(QLabel, self.widgets[prop])
+                    widget.setText(str(cprop))
+
+        self.show()
 
 
     def changeProperty(self, prop: Prop, value):
