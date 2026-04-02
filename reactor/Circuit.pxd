@@ -49,6 +49,7 @@ cdef class Circuit:
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)
+    cpdef void custom_simulate(self, list varlist)
     cpdef void reset(self)
     cpdef void copy(self, list components)
     cpdef list paste(self)

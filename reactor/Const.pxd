@@ -11,6 +11,7 @@ cpdef enum:
     
     LIMIT = 250_000
 
+
     DEAD_ID=255
     AND_ID = 0
     NAND_ID = 1
@@ -55,4 +56,9 @@ cpdef void set_MODE(Py_ssize_t mode)
 cpdef Py_ssize_t get_MODE()
 
 cdef public bint DEBUG = False
+cdef public double VISUALIZE = 0.008
+cdef public double OSCILLATE = 0.008
+cpdef double get_oscillate()
+cpdef double get_visualize()
 cpdef void set_DEBUG()
+cpdef void set_timings(double fps, double ratio)

@@ -15,6 +15,7 @@ from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from libc.stdint cimport uint16_t,int8_t
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
+import time
 cdef class Circuit:
     def __cinit__(self):
         self.hidden = 0 # the oscillation breaking system
@@ -555,6 +556,7 @@ cdef class Circuit:
         cdef unordered_map[int,int] pseudo # store the location of each gate in the gate_verse vs. their location in the json/list of info
         pseudo.reserve(PyList_GET_SIZE(circuit))
         pseudo[-1] = -1
+        cdef list varlist=[]
         cdef object obj
         cdef Gate gate
         cdef IC ic
@@ -573,6 +575,7 @@ cdef class Circuit:
                 gate = <Gate>self.getcomponent(info[ID])
                 if gate.id == VARIABLE_ID:
                     gate_infolist[gate.location].output = UNKNOWN
+                    varlist.append(gate.location)
                 pseudo[info[LOCATION]] = gate.location
         '''second pass: connect all the gates'''
         for info in circuit:  # connect components
@@ -582,6 +585,8 @@ cdef class Circuit:
         '''third pass: implement all the ics'''
         for ic in ic_list:
             ic.implement(pseudo)
+        if MODE != DESIGN:
+            self.custom_simulate(varlist)
 
     cpdef void readfromjson(self, str location):
         '''read the circuit from a json file'''
@@ -591,8 +596,6 @@ cdef class Circuit:
         if len(circuit) == DESCRIPTION and isinstance(circuit[DESCRIPTION],str):
             return
         self.generate(circuit)
-        if MODE != DESIGN:
-            self.simulate(MODE)
 
     cpdef IC build_ic(self):
         '''build an ic from the current circuit'''
@@ -811,6 +814,7 @@ cdef class Circuit:
         cdef list circuit
         cdef unordered_map[int,int] pseudo
         cdef list new_items=[]
+        cdef list varlist=[]
         cdef tuple code
         cdef Gate g
         circuit = self.copydata
@@ -833,6 +837,7 @@ cdef class Circuit:
                 gate = <Gate>self.getcomponent(info[ID])
                 if gate.id == VARIABLE_ID:
                     gate.output = UNKNOWN
+                    varlist.append(gate.location)
                 pseudo[info[LOCATION]] = gate.location
                 new_items.append(gate)
 
@@ -844,7 +849,7 @@ cdef class Circuit:
             ic.implement(pseudo)
 
         if MODE != DESIGN:
-            self.simulate(MODE)
+            self.custom_simulate(varlist)
         return new_items
 
     cpdef void simulate(self, int Mod):
@@ -854,7 +859,6 @@ cdef class Circuit:
         cdef Gate variable
         cdef CPP_Gate* info
         set_MODE(Mod)
-        self.time_queue.clear()
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner=None
@@ -865,6 +869,16 @@ cdef class Circuit:
                 info = &self.gate_infolist[variable.location]
                 info.output = info.value
                 self.propagate(variable.location)
+
+    cpdef void custom_simulate(self, list varlist):
+        '''simulate the circuit'''
+        cdef CPP_Gate* info
+        for variable in varlist:
+            # set output of variable to its value
+            # run the propagation from variable
+            info = &self.gate_infolist[variable]
+            info.output = info.value
+            self.propagate(variable)
 
     cpdef void reset(self):
         '''reset the circuit's items to unknown value'''
@@ -1033,15 +1047,15 @@ cdef class Circuit:
     async def async_propagate(self):
         '''Async coroutine: drains time_queue in batches of 10, yielding between each batch
         so the event loop stays responsive. Mirrors engine/Circuit.py timed_propagate().'''
-        cdef int processed = 0
+
+        cdef double start
         while not self.time_queue.empty():
-            while not self.time_queue.empty() and processed < 10:
+            start=time.perf_counter()
+            while not self.time_queue.empty() and (time.perf_counter()-start)<OSCILLATE:
                 with nogil:
                     self.update_gate(self.time_queue.front())
                     self.time_queue.pop_front()
-                processed += 1
-            await asyncio.sleep(0.0016)
-            processed = 0
+            await asyncio.sleep(VISUALIZE)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────
     cpdef bint visual_queue_empty(self):

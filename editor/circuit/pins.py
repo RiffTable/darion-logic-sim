@@ -39,6 +39,12 @@ class PinItem(QGraphicsRectItem):
 		self.facing = facing
 		self.label = ""
 
+		# Color animation – prevents strobe on fast oscillators
+		self.current_color: QColor = QColor(0, 0, 0, 0)
+		self.color_anim = QVariantAnimation()
+		self.color_anim.setDuration(100)
+		self.color_anim.valueChanged.connect(self._on_color_change)
+
 		self.setPos(relpos)
 		theme.theme_changed.connect(self.updateVisual)
 	
@@ -107,23 +113,33 @@ class PinItem(QGraphicsRectItem):
 			-r, -r, 2*r, 2*r
 		))
 	
+	# Animation callback
+	def _on_color_change(self, color: QColor):
+		self.current_color = color
+		self.setBrush(QBrush(color))
+		self.update()
+
 	def updateVisual(self):
 		Color = theme.get_theme()
 		if self.isHighlighted:
-			if self.viaProxy: self.setBrush(QBrush(Color.pin_hoverproxy))
-			else:             self.setBrush(QBrush(Color.pin_hover))
+			if self.viaProxy: target_color = Color.pin_hoverproxy
+			else:             target_color = Color.pin_hover
 		
 		elif self._wire:
-			self.setBrush(Qt.BrushStyle.NoBrush)
+			target_color = QColor(0, 0, 0, 0)  # transparent
 		
 		else:
-			# Pin color matches wire color if no wires is attached.
-			# In case, you want to know the output without connecting wires :)
 			match self.state:
-				case Const.HIGH:  self.setBrush(QBrush(Color.pin_high))
-				case Const.LOW:   self.setBrush(QBrush(Color.pin_low))
-				case Const.ERROR: self.setBrush(QBrush(Color.signal_error))
-				case _:           self.setBrush(QBrush(Color.signal_unknown))
+				case Const.HIGH:  target_color = Color.pin_high
+				case Const.LOW:   target_color = Color.pin_low
+				case Const.ERROR: target_color = Color.signal_error
+				case _:           target_color = Color.signal_unknown
+
+		if self.color_anim.endValue() != target_color:
+			self.color_anim.stop()
+			self.color_anim.setStartValue(self.current_color)
+			self.color_anim.setEndValue(target_color)
+			self.color_anim.start()
 
 
 

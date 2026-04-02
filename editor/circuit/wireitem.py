@@ -33,6 +33,12 @@ class WireItem(QGraphicsPathItem):
 		self.source = beg
 		self.supplies: list[InputPinItem] = [end]
 
+		# Color animation – prevents strobe on fast oscillators
+		self.current_color: QColor = theme.get_theme().signal_unknown
+		self.color_anim = QVariantAnimation()
+		self.color_anim.setDuration(150)
+		self.color_anim.valueChanged.connect(self._on_color_change)
+
 		self.logicalConnect(beg, end)
 
 		self._updateShape()
@@ -86,15 +92,25 @@ class WireItem(QGraphicsPathItem):
 			if supply.logical: logic.disconnect(*supply.logical)
 			supply.setWire(None)
 	
+	# Animation callback
+	def _on_color_change(self, color: QColor):
+		self.current_color = color
+		self.setPen(QPen(color, 3))
+
 	# Events
 	def updateState(self):
 		Color = theme.get_theme()
 		match self.source.state:
-			case Const.HIGH:  self.setPen(QPen(Color.signal_high, 3))
-			case Const.LOW:   self.setPen(QPen(Color.signal_low, 3))
-			case Const.ERROR: self.setPen(QPen(Color.signal_error, 3))
-			case _:           self.setPen(QPen(Color.signal_unknown, 3))
-		# if self.isSelected(): color = QColor("#f39c12")
+			case Const.HIGH:  target_color = Color.signal_high
+			case Const.LOW:   target_color = Color.signal_low
+			case Const.ERROR: target_color = Color.signal_error
+			case _:           target_color = Color.signal_unknown
+
+		if self.color_anim.endValue() != target_color:
+			self.color_anim.stop()
+			self.color_anim.setStartValue(self.current_color)
+			self.color_anim.setEndValue(target_color)
+			self.color_anim.start()
 	
 	def updateShape(self):
 		if not self._dirty: self.prepareGeometryChange(); self.update(); self._dirty = True

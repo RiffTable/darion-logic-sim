@@ -5,6 +5,7 @@ from core.LogicCore import *
 from core.Enums import CompEdge, Facing, EditorState
 import core.grid as GRID
 import asyncio
+import time
 
 import editor.theme as theme
 from .catalog import (
@@ -64,9 +65,7 @@ class CircuitScene(QGraphicsScene):
 		# asyncio.create_task() requires a running loop; the loop only starts
 		# after QtAsyncio.run() is called (after AppWindow.__init__ returns).
 		# Replacement to the simpler listener system
-		self.fps = QGuiApplication.primaryScreen().refreshRate()
-		self.fps = (1/(60 if self.fps==0 else self.fps))
-		self.ui_update_task = None
+		self.set_timings()
 		QTimer.singleShot(0, self._start_async_updater)
 
 	def _start_async_updater(self):
@@ -74,33 +73,50 @@ class CircuitScene(QGraphicsScene):
 		its event loop, so create_task() is safe to call here."""
 		self.ui_update_task = asyncio.create_task(self.async_ui_updater())
 
+	def set_timings(self):
+		fps = QGuiApplication.primaryScreen().refreshRate()
+		fps = (1/(60 if fps==0 else fps))
+		ratio=0.0025
+		Const.set_timings(fps, ratio)
+
 	def wake_up(self):
-		"""No-op kept for call-site compatibility; async loop never sleeps permanently."""
-		pass
+		"""Signals the async loop to wake up immediately without waiting for the next polling cycle."""
+		if hasattr(self, '_ui_wakeup_event'):
+			self._ui_wakeup_event.set()
 
 	# ── Async UI consumer ─────────────────────────────────────────────
 	async def async_ui_updater(self):
 		"""Drain the engine's visual_queue and refresh only the dirty widgets."""
+		self._ui_wakeup_event = asyncio.Event()
+		visualize=Const.get_visualize()
+		oscillate=Const.get_oscillate()
+		print(visualize,oscillate)
 		while True:
 			if logic.visual_queue_empty():
-				await asyncio.sleep(self.fps)  # idle frames
+				self._ui_wakeup_event.clear()
+				# Idle state: Wait for wake_up() to be called, or fallback to a slower 50ms poll.
+				# This drastically reduces idle CPU usage while preventing permanent stalls
+				# if the backend engine pushes to the queue without triggering wake_up().
+				try:
+					await asyncio.wait_for(self._ui_wakeup_event.wait(), timeout=0.05)
+				except asyncio.TimeoutError:
+					pass
 				continue
-			animation_speed=0.5
-			# if this is set too high, engine will slow down during oscillation***, because oscillation is an async with delay
-			# the ui_update delay will affect that
-			limit = max(1,int(len(self.comps)*animation_speed))
-			processed = 0
-			while not logic.visual_queue_empty() and processed < limit:
+			
+			# Active state: Use a strict time budget (e.g., 10ms) instead of a fixed item limit.
+			# This ensures we don't exceed the ~16ms frame window, keeping Qt 60fps smooth.
+			time_budget = visualize
+			start_time = time.perf_counter()
+
+			while not logic.visual_queue_empty() and (time.perf_counter() - start_time) < time_budget:
 				gate_id = logic.pop_visual_queue()
 				if gate_id < len(self.comp_registry):
 					comp = self.comp_registry[gate_id]
 					if comp is not None:
 						comp.poll_update()
-				processed += 1
 
-			# Yield to Qt event loop so user can click/drag smoothly
-			await asyncio.sleep(self.fps) 
-			# setting the sleep values to 0 will give you the shitiest animation possible
+			# Yield to Qt event loop for the remainder of the frame
+			await asyncio.sleep(oscillate)
 
 	# ── Registry helpers ──────────────────────────────────────────────
 	def _ensure_registry_size(self, location: int):
@@ -564,11 +580,17 @@ class CircuitScene(QGraphicsScene):
 	def deserialize(self, data: dict, addToSelected: bool = False):
 		sources: dict[int, OutputPinItem] = {}
 		supplies: dict[int, list[InputPinItem]] = {}
-
+		varlist = []
 		# Creating Components from data
 		for comp_data in data.get("comps", []):
 			comp = self.addCompFromData(comp_data)
 			if addToSelected: comp.setSelected(True)
+			# unless you set inputs to unknown they will might cause complex bugs
+			# sometimes incomplete parts of circuit oscillate, it wouldn't if it were complete
+			# so build the circuit first then simulate from the inputpins.
+			if isinstance(comp, InputItem):
+				comp._unit.output = Const.UNKNOWN
+				varlist.append(comp._unit)
 
 			# Getting all pins reference to wire them later
 			for _edge, pin_data_list in comp_data["pinslist"].items():
@@ -584,7 +606,7 @@ class CircuitScene(QGraphicsScene):
 					else:
 						p = cast(OutputPinItem, comp._pinslist[edge][i])
 						sources[w] = p
-		
+
 		# Wiring
 		for id, outpin in sources.items():
 			if id not in supplies: continue
@@ -597,6 +619,10 @@ class CircuitScene(QGraphicsScene):
 			
 			self.wires.append(w)
 			self.addItem(w)
+
+		# Full circuit is now built — simulate from scratch
+		logic.custom_simulate(varlist)
+		self.wake_up()
 
 
 

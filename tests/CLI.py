@@ -455,7 +455,7 @@ async def canvas():
             while not stop_event.is_set():
                 _render_canvas()
                 # Sleep ~30ms (about 30 FPS). Anything faster wastes CPU on text consoles
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.03)
         except asyncio.CancelledError:
             pass
 

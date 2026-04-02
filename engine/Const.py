@@ -9,6 +9,8 @@ DESIGN = 0
 SIMULATE = 1
 FLIPFLOP = 2
 
+OSCILLATE = 0.008
+VISUALIZE = 0.008
 
 LIMIT = 500_000
 
@@ -50,3 +52,14 @@ def get_MODE():
 def set_DEBUG():
     global DEBUG
     DEBUG=True
+
+def set_timings(fps: float, ratio: float):
+    global VISUALIZE, OSCILLATE
+    VISUALIZE = fps * (1 - ratio)
+    OSCILLATE = fps * ratio
+
+def get_oscillate():
+    return OSCILLATE
+
+def get_visualize():
+    return VISUALIZE

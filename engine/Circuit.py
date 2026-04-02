@@ -101,6 +101,10 @@ class Circuit:
         target.connect(source, index)
         if prev != target.output:
             self.propagate(target)
+    
+    def set_timings(self, fps: float, ratio: float):
+        Const.VISUALIZE = fps * (1 - ratio)
+        Const.OSCILLATE = fps * ratio
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
@@ -334,6 +338,7 @@ class Circuit:
         return (code[0], code[1], self.decode(code[2]))
     def generate(self, circuit):
         pseudo = {}
+        varlist=[]
         pseudo[('X', 'X')] = None
         for i in circuit:
             code = self.decode(i[CODE])
@@ -344,10 +349,11 @@ class Circuit:
                 gate.tag = i[TAG]
                 gate.description = i[DESCRIPTION]
                 gate.load_components(i, pseudo)
+            if gate.id==VARIABLE_ID:
+                gate.output = UNKNOWN
+                varlist.append(gate)
             pseudo[code] = gate
-        if get_MODE()!=DESIGN:
-            self.simulate(get_MODE())
-
+        
         for gate_dict in circuit:
             code = self.decode(gate_dict[CODE])
             gate = pseudo[code]
@@ -356,6 +362,8 @@ class Circuit:
                 self.counter += gate.counter
             else:
                 gate.clone(gate_dict, pseudo)
+        if get_MODE()!=DESIGN:
+            self.custom_simulate(varlist)
 
     def readfromjson(self, location: str):
         with open(location, 'rb') as file:
@@ -363,8 +371,6 @@ class Circuit:
         if isinstance(circuit, dict):
             return
         self.generate(circuit)
-        if get_MODE()!=DESIGN:
-            self.simulate(get_MODE())
 
     def transfer_info(self,gate:Gate, id:int):
         if id>=IC_ID or id<0:
@@ -524,6 +530,7 @@ class Circuit:
         circuit = self.copydata
         pseudo = {}
         pseudo[('X', 'X')] = None
+        varlist=[]
         new_items = []
         for i in circuit:
             code = self.decode(i[CODE])
@@ -535,6 +542,9 @@ class Circuit:
                 gate.tag = i[TAG]
                 gate.description = i[DESCRIPTION]
                 gate.load_components(i, pseudo)
+            if gate.id==VARIABLE_ID:
+                gate.value = UNKNOWN
+                varlist.append(gate)
             pseudo[code] = gate
 
         for gate_dict in circuit:
@@ -546,7 +556,7 @@ class Circuit:
             elif gate:
                 gate.clone(gate_dict, pseudo)
         if get_MODE()!=DESIGN:
-            self.simulate(get_MODE())
+            self.custom_simulate(varlist)
         return new_items
 
     def simulate(self, Mode: int):
@@ -554,8 +564,8 @@ class Circuit:
         if get_MODE()!=DESIGN and get_MODE()!=Mode:
             self.reset()
         set_MODE(Mode)
+        self.visual_queue_clear()
         self.eval_count=0
-        self.time_queue.clear()
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner=None
@@ -564,6 +574,11 @@ class Circuit:
                 variable.output = variable.value
                 self.propagate(variable)
 
+    def custom_simulate(self,gates:list[Gate]):
+        for i in gates:
+            i.output = i.value
+            self.propagate(i)
+        
     def reset(self):
         """Reset to design mode."""
         set_MODE(DESIGN)
@@ -576,17 +591,14 @@ class Circuit:
             i.reset()
 
     async def async_propagate(self):
-        animation_speed=.5
-        time_budget=.016/2
+        time_budget=Const.OSCILLATE
+        delay=Const.VISUALIZE
         while self.time_queue:
             start=time.perf_counter()
-            processed = 0
-            buffer_size=len(self.time_queue)
             while self.time_queue and (time.perf_counter()-start)<time_budget:
                 gate = self.time_queue.popleft()
                 self.update_gate(gate)
-                processed += 1
-            await asyncio.sleep(0) 
+            await asyncio.sleep(delay) 
                     
     def update_gate(self, gate: Gate):
         if not gate.update:
@@ -708,11 +720,18 @@ class Circuit:
         """Return True when there are no pending dirty gate locations."""
         return len(self.visual_queue) == 0
 
+    def visual_queue_clear(self):
+        """Return True when there are no pending dirty gate locations."""
+        for gate in self.visual_queue:
+            gate.update=False
+        self.visual_queue.clear()
+        
     def pop_visual_queue(self) -> int:
         """Pop and return the next dirty gate location."""
         gate= self.visual_queue.popleft()
         gate.update=False
         return gate.location
+
     def visual_queue_size(self) -> int:
         """Return the size of the visual queue."""
         return len(self.visual_queue)
