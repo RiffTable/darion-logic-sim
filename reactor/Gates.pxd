@@ -47,6 +47,7 @@ cdef extern from "Profile.h":
         uint8_t value
         uint8_t scheduled
         uint8_t mark
+        uint8_t update
         uint16_t inputlimit
         uint16_t book[4]
         vector[Profile] hitlist

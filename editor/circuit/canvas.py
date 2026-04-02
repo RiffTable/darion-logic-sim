@@ -4,6 +4,7 @@ from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, Facing, EditorState
 import core.grid as GRID
+import asyncio
 
 import editor.theme as theme
 from .catalog import (
@@ -55,35 +56,85 @@ class CircuitScene(QGraphicsScene):
 
 		self.idle_frames = 0
 
+		# Flat registry: indexed by gate.location; grows on demand.
+		# Lets the async consumer do O(1) widget lookups instead of scanning all comps.
+		self.comp_registry: list[CompItem | None] = []
+
+		# Defer task creation until QtAsyncio has installed its event loop.
+		# asyncio.create_task() requires a running loop; the loop only starts
+		# after QtAsyncio.run() is called (after AppWindow.__init__ returns).
 		# Replacement to the simpler listener system
-		fps = QGuiApplication.primaryScreen().refreshRate()
-		fps = (60 if fps==0 else fps)
-		self.ui_update_timer = QTimer(self)
-		self.ui_update_timer.timeout.connect(self.poll_ui_state)
-		self.ui_update_timer.start(round(1000/fps))
+		self.fps = QGuiApplication.primaryScreen().refreshRate()
+		self.fps = (1/(60 if self.fps==0 else self.fps))
+		self.ui_update_task = None
+		QTimer.singleShot(0, self._start_async_updater)
+
+	def _start_async_updater(self):
+		"""Called on the first Qt event-loop tick, after QtAsyncio has installed
+		its event loop, so create_task() is safe to call here."""
+		self.ui_update_task = asyncio.create_task(self.async_ui_updater())
 
 	def wake_up(self):
-		"""Wakes the UI polling loop if it went to sleep."""
-		self.idle_frames = 0
-		if not self.ui_update_timer.isActive():
-			fps = QGuiApplication.primaryScreen().refreshRate()
-			fps = (60 if fps == 0 else fps)
-			self.ui_update_timer.start(round(1000/fps))
+		"""No-op kept for call-site compatibility; async loop never sleeps permanently."""
+		pass
 
-	def poll_ui_state(self):
-		
-		for comp in self.comps:
-			comp.poll_update()
-		
-		# The Auto-Sleep Watchdog
-		# if any_changes:
-		# 	self.idle_frames = 0
-		# else:
-		# 	self.idle_frames += 1
-			
-		# # If the circuit is completely idle for ~0.5 seconds, go to sleep.
-		# if self.idle_frames > 150 and self.ui_update_timer.isActive():
-		# 	self.ui_update_timer.stop()
+	# ── Async UI consumer ─────────────────────────────────────────────
+	async def async_ui_updater(self):
+		"""Drain the engine's visual_queue and refresh only the dirty widgets."""
+		while True:
+			if logic.visual_queue_empty():
+				await asyncio.sleep(self.fps)  # idle frames
+				continue
+			animation_speed=0.5
+			# if this is set too high, engine will slow down during oscillation***, because oscillation is an async with delay
+			# the ui_update delay will affect that
+			limit = max(1,int(len(self.comps)*animation_speed))
+			processed = 0
+			while not logic.visual_queue_empty() and processed < limit:
+				gate_id = logic.pop_visual_queue()
+				if gate_id < len(self.comp_registry):
+					comp = self.comp_registry[gate_id]
+					if comp is not None:
+						comp.poll_update()
+				processed += 1
+
+			# Yield to Qt event loop so user can click/drag smoothly
+			await asyncio.sleep(self.fps) 
+			# setting the sleep values to 0 will give you the shitiest animation possible
+
+	# ── Registry helpers ──────────────────────────────────────────────
+	def _ensure_registry_size(self, location: int):
+		"""Grow comp_registry so index `location` is valid."""
+		if location >= len(self.comp_registry):
+			self.comp_registry.extend([None] * (location - len(self.comp_registry) + 1))
+
+	def register_comp(self, comp: CompItem):
+		"""Map a visual CompItem into comp_registry via its gate's location(s)."""
+		if comp._unit is None:
+			return
+		if comp._unit.id == Const.IC_ID:
+			# For ICs, each boundary pin's location maps to the IC widget
+			for logic_pin in comp._unit.inputs + comp._unit.outputs:
+				self._ensure_registry_size(logic_pin.location)
+				self.comp_registry[logic_pin.location] = comp
+		else:
+			loc = comp._unit.location
+			self._ensure_registry_size(loc)
+			self.comp_registry[loc] = comp
+
+	def unregister_comp(self, comp: CompItem):
+		"""Remove a visual CompItem from comp_registry."""
+		if comp._unit is None:
+			return
+		if comp._unit.id == Const.IC_ID:
+			for logic_pin in comp._unit.inputs + comp._unit.outputs:
+				if logic_pin.location < len(self.comp_registry):
+					self.comp_registry[logic_pin.location] = None
+		else:
+			loc = comp._unit.location
+			if loc < len(self.comp_registry):
+				self.comp_registry[loc] = None
+
 
 	# Editor State Management
 	def checkState(self, st: EditorState) -> bool:
@@ -109,12 +160,14 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.register_comp(comp)  # NEW: map gate location -> widget
 		self.wake_up()
 		return comp
 
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
 		comp.cutConnections()
+		self.unregister_comp(comp)  # NEW: remove from registry before unit is cleared
 		if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
 			logic.hide([comp._unit])
 		comp._unit = None    # just in case
@@ -135,6 +188,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.register_comp(comp)  # NEW: map gate location -> widget
 		self.wake_up()
 		return comp
 	
@@ -164,6 +218,7 @@ class CircuitScene(QGraphicsScene):
 		
 		self.addItem(comp)
 		self.comps.append(comp)
+		self.register_comp(comp)  # NEW: map IC pin locations -> widget
 		self.wake_up()
 		return (comp, newCreated)
 	

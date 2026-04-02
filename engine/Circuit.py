@@ -5,7 +5,7 @@ from Gates import Gate, Variable, Profile, hide_profile, reveal_profile
 from Const import *
 import Const
 from IC import IC
-from Store import get
+from Store import get, reset_loc
 from collections import deque
 import asyncio
 import time
@@ -16,7 +16,8 @@ class Circuit:
     __slots__ = [
         'objlist', 'copydata',
         'counter', 'queue',
-        'eval_count','time_queue','runner'
+        'eval_count','time_queue','runner',
+        'visual_queue',
     ]
 
     def __init__(self):
@@ -28,6 +29,7 @@ class Circuit:
         self.eval_count = 0
         self.time_queue: deque[Gate] = deque()
         self.runner=None
+        self.visual_queue: deque[int] = deque()  # stores gate locations (ints) for dirty UI updates
 
 
     def __repr__(self):
@@ -41,7 +43,6 @@ class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            name = gt.__class__.__name__
             if Const.DEBUG:
                 if gt.id == VARIABLE_ID:
                     gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
@@ -505,6 +506,7 @@ class Circuit:
         for i in range(TOTAL):
             self.objlist[i].clear()
         self.counter = 0
+        reset_loc()   # reset shared location counter in Store
 
     def copy(self, components: list):
         if not components:
@@ -573,13 +575,18 @@ class Circuit:
         for i in self.get_components():
             i.reset()
 
-    async def timed_propagate(self):
+    async def async_propagate(self):
+        processed = 0
         while self.time_queue:
-            gate = self.time_queue.popleft()
-            self.update_gate(gate)
-            await asyncio.sleep(0.01/(len(self.time_queue)+1)) 
+            while self.time_queue and processed < 10:
+                gate = self.time_queue.popleft()
+                self.update_gate(gate)
+                processed += 1
+            await asyncio.sleep(0.016) 
+            processed = 0
                     
     def update_gate(self, gate: Gate):
+        self.visual_queue.append(gate.location)
         gate.scheduled = False
         new_output = gate.output
         for profile in gate.hitlist:
@@ -608,6 +615,7 @@ class Circuit:
                         else:target_output = UNKNOWN
                 if target_output != target.output:
                     target.output = target_output
+                    self.visual_queue.append(target.location)
                     if not target.scheduled:
                         target.scheduled = True
                         self.time_queue.append(target)
@@ -618,6 +626,7 @@ class Circuit:
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_buf[0] = origin
+        self.visual_queue.append(origin.location)
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
@@ -632,7 +641,7 @@ class Circuit:
                         gate.scheduled=True
                         self.time_queue.append(gate)
                     if self.runner is None or self.runner.done():
-                        self.runner=asyncio.create_task(self.timed_propagate())
+                        self.runner=asyncio.create_task(self.async_propagate())
                     return
                 else:
                     counter=-1
@@ -672,6 +681,7 @@ class Circuit:
 
                         if target_output != target.output:
                             target.output = target_output
+                            self.visual_queue.append(target.location)
                             if not target.mark:
                                 target.mark = True
                                 write_buf[write_end] = target
@@ -681,3 +691,15 @@ class Circuit:
 
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
+
+    # ── Visual-queue helpers (called from the UI layer) ──────────────
+    def visual_queue_empty(self) -> bool:
+        """Return True when there are no pending dirty gate locations."""
+        return len(self.visual_queue) == 0
+
+    def pop_visual_queue(self) -> int:
+        """Pop and return the next dirty gate location."""
+        return self.visual_queue.popleft()
+    def visual_queue_size(self) -> int:
+        """Return the size of the visual queue."""
+        return len(self.visual_queue)

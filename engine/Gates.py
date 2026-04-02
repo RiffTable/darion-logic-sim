@@ -51,7 +51,7 @@ class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
         'output', 'scheduled', 'mark', 'id', 'code', 'codename', 'custom_name',
-        'value',
+        'value', 'location','update'
     ]
 
     def __init__(self,id:int,name:str):
@@ -71,6 +71,7 @@ class Gate:
         self.mark: bool = False
         self.code: tuple = ()
         self.custom_name: str = ''
+        self.location: int = -1   # flat index assigned by Circuit at registration
 
     def __repr__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name

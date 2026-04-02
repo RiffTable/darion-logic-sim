@@ -332,7 +332,7 @@ cdef class Circuit:
         ]
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
-
+        self.visual_queue_clear()
         self.simulate(MODE)
 
         # --- STRING JOINING PHASE ---
@@ -854,6 +854,10 @@ cdef class Circuit:
         cdef Gate variable
         cdef CPP_Gate* info
         set_MODE(Mod)
+        self.time_queue.clear()
+        if self.runner is not None and not self.runner.done():
+            self.runner.cancel()
+        self.runner=None
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
                 # set output of variable to its value
@@ -888,6 +892,8 @@ cdef class Circuit:
         cdef uint16_t* book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
+        self.visual_queue.push_back(origin) 
+        self_info.update = True
         self_info.scheduled = False
         new_output = self_info.output
         profile = self_info.hitlist.data()
@@ -924,6 +930,9 @@ cdef class Circuit:
                         target_output = new_output
                 if target_output != target_info.output:
                     target_info.output = target_output
+                    if not target_info.update:
+                        self.visual_queue.push_back(profile.target)   # target changed — mark dirty
+                        target_info.update = True
                     if not target_info.scheduled:
                         target_info.scheduled = True
                         self.time_queue.push_back(profile.target)
@@ -945,7 +954,10 @@ cdef class Circuit:
         cdef CPP_Gate* target_info
         cdef uint16_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+        
         read_queue[0] = origin
+        gate_infolist[origin].update = True
+        self.visual_queue.push_back(origin)   # mark origin dirty immediately
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):
@@ -1003,6 +1015,9 @@ cdef class Circuit:
                                 target_output = new_output
                         if target_output != target_info.output:
                             target_info.output = target_output
+                            if not target_info.update:
+                                self.visual_queue.push_back(profile.target)   # target changed — mark dirty
+                                target_info.update = True
                             if not target_info.mark:
                                 target_info.mark = True
                                 write_queue[size] = profile.target
@@ -1016,10 +1031,40 @@ cdef class Circuit:
         self.eval_count += eval
 
     async def async_propagate(self):
-        '''Async coroutine: drains time_queue one gate at a time, yielding between each so the
-        event loop stays responsive. Mirrors engine/Circuit.py timed_propagate().'''
+        '''Async coroutine: drains time_queue in batches of 10, yielding between each batch
+        so the event loop stays responsive. Mirrors engine/Circuit.py timed_propagate().'''
+        cdef int processed = 0
         while not self.time_queue.empty():
-            with nogil:
-                self.update_gate(self.time_queue.front())
-                self.time_queue.pop_front()
-            await asyncio.sleep(0.01/(self.time_queue.size()+1))
+            while not self.time_queue.empty() and processed < 10:
+                with nogil:
+                    self.update_gate(self.time_queue.front())
+                    self.time_queue.pop_front()
+                processed += 1
+            await asyncio.sleep(0.0016)
+            processed = 0
+
+    # ── Visual-queue helpers (called from the UI layer) ──────────────────
+    cpdef bint visual_queue_empty(self):
+        '''Return True when there are no pending dirty gate locations.'''
+        return self.visual_queue.empty()
+
+    cpdef void visual_queue_clear(self):
+        '''Return True when there are no pending dirty gate locations.'''
+
+        cdef int loc 
+        while not self.visual_queue.empty():
+            loc = self.visual_queue.front()
+            self.gate_infolist[loc].update = False
+            self.visual_queue.pop_front()
+
+
+    cpdef int pop_visual_queue(self):
+        '''Pop and return the next dirty gate location.'''
+        cdef int loc = self.visual_queue.front()
+        self.gate_infolist[loc].update = False
+        self.visual_queue.pop_front()
+        return loc
+
+    cpdef int visual_queue_size(self):
+        '''Return the number of pending dirty gate locations.'''
+        return self.visual_queue.size()

@@ -13,6 +13,7 @@ cdef class Circuit:
     cdef public unsigned long long eval_count
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
     cdef deque[int] time_queue     # C++ deque of gate location ints for FLIPFLOP
+    cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist
     cpdef object getcomponent(self, int choice)
@@ -54,3 +55,7 @@ cdef class Circuit:
     cpdef void transfer_info(self, Gate gate, int id)
     cdef void update_gate(self, int gate) nogil
     cdef void propagate(self, int origin) nogil
+    cpdef bint visual_queue_empty(self)
+    cpdef void visual_queue_clear(self)
+    cpdef int pop_visual_queue(self)
+    cpdef int visual_queue_size(self)
