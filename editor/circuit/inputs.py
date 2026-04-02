@@ -73,8 +73,7 @@ class InputItem(CompItem):
 		self.state = bookish
 		logic.toggle(self._unit, bookish)
 		self.update()
-		if self.cscene:
-			self.cscene.wake_up()
+
 
 	
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):

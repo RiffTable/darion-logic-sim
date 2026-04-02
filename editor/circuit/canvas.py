@@ -79,11 +79,6 @@ class CircuitScene(QGraphicsScene):
 		ratio=0.01
 		Const.set_timings(fps, ratio)
 
-	def wake_up(self):
-		"""Signals the async loop to wake up immediately without waiting for the next polling cycle."""
-		if hasattr(self, '_ui_wakeup_event'):
-			self._ui_wakeup_event.set()
-
 	# ── Async UI consumer ─────────────────────────────────────────────
 	async def async_ui_updater(self):
 		"""Drain the engine's visual_queue and refresh only the dirty widgets."""
@@ -93,15 +88,7 @@ class CircuitScene(QGraphicsScene):
 		print(visualize,oscillate)
 		while True:
 			if logic.visual_queue_empty():
-				self._ui_wakeup_event.clear()
-				# Idle state: Wait for wake_up() to be called, or fallback to a slower 50ms poll.
-				# This drastically reduces idle CPU usage while preventing permanent stalls
-				# if the backend engine pushes to the queue without triggering wake_up().
-				try:
-					await asyncio.wait_for(self._ui_wakeup_event.wait(), timeout=0.05)
-				except asyncio.TimeoutError:
-					pass
-				continue
+				await asyncio.sleep(0.05)
 			
 			# Active state: Use a strict time budget (e.g., 10ms) instead of a fixed item limit.
 			# This ensures we don't exceed the ~16ms frame window, keeping Qt 60fps smooth.
@@ -177,7 +164,6 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		self.register_comp(comp)  # NEW: map gate location -> widget
-		self.wake_up()
 		return comp
 
 	def removeComp(self, comp: CompItem):
@@ -190,7 +176,6 @@ class CircuitScene(QGraphicsScene):
 
 		self.comps.remove(comp)
 		self.removeItem(comp)
-		self.wake_up()
 	
 	def addCompFromData(self, _data: dict) -> CompItem:
 		data = _data.copy()
@@ -205,7 +190,6 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		self.register_comp(comp)  # NEW: map gate location -> widget
-		self.wake_up()
 		return comp
 	
 	
@@ -235,7 +219,6 @@ class CircuitScene(QGraphicsScene):
 		self.addItem(comp)
 		self.comps.append(comp)
 		self.register_comp(comp)  # NEW: map IC pin locations -> widget
-		self.wake_up()
 		return (comp, newCreated)
 	
 	def makeICfyable(self):
@@ -321,7 +304,6 @@ class CircuitScene(QGraphicsScene):
 			parent = target.parentComp
 			# Update hovered pin and comps that state changed
 			self.updateHoverStatus(None, parent, True)
-			self.wake_up()
 			return True
 		
 		return False
@@ -622,7 +604,6 @@ class CircuitScene(QGraphicsScene):
 
 		# Full circuit is now built — simulate from scratch
 		logic.custom_simulate(varlist)
-		self.wake_up()
 
 
 
