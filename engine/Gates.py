@@ -72,6 +72,7 @@ class Gate:
         self.code: tuple = ()
         self.custom_name: str = ''
         self.location: int = -1   # flat index assigned by Circuit at registration
+        self.update: bool = False
 
     def __repr__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name

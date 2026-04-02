@@ -29,7 +29,7 @@ class Circuit:
         self.eval_count = 0
         self.time_queue: deque[Gate] = deque()
         self.runner=None
-        self.visual_queue: deque[int] = deque()  # stores gate locations (ints) for dirty UI updates
+        self.visual_queue: deque[Gate] = deque()  # stores gate locations (ints) for dirty UI updates
 
 
     def __repr__(self):
@@ -576,17 +576,22 @@ class Circuit:
             i.reset()
 
     async def async_propagate(self):
-        processed = 0
+        animation_speed=.5
+        time_budget=.016/2
         while self.time_queue:
-            while self.time_queue and processed < 10:
+            start=time.perf_counter()
+            processed = 0
+            buffer_size=len(self.time_queue)
+            while self.time_queue and (time.perf_counter()-start)<time_budget:
                 gate = self.time_queue.popleft()
                 self.update_gate(gate)
                 processed += 1
-            await asyncio.sleep(0.016) 
-            processed = 0
+            await asyncio.sleep(0) 
                     
     def update_gate(self, gate: Gate):
-        self.visual_queue.append(gate.location)
+        if not gate.update:
+            self.visual_queue.append(gate)
+            gate.update=True
         gate.scheduled = False
         new_output = gate.output
         for profile in gate.hitlist:
@@ -615,7 +620,9 @@ class Circuit:
                         else:target_output = UNKNOWN
                 if target_output != target.output:
                     target.output = target_output
-                    self.visual_queue.append(target.location)
+                    if not target.update:
+                        target.update = True
+                        self.visual_queue.append(target)
                     if not target.scheduled:
                         target.scheduled = True
                         self.time_queue.append(target)
@@ -626,7 +633,9 @@ class Circuit:
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_buf[0] = origin
-        self.visual_queue.append(origin.location)
+        if not origin.update:
+            origin.update=True
+            self.visual_queue.append(origin)
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
@@ -681,7 +690,9 @@ class Circuit:
 
                         if target_output != target.output:
                             target.output = target_output
-                            self.visual_queue.append(target.location)
+                            if not target.update:
+                                target.update = True
+                                self.visual_queue.append(target)
                             if not target.mark:
                                 target.mark = True
                                 write_buf[write_end] = target
@@ -699,7 +710,9 @@ class Circuit:
 
     def pop_visual_queue(self) -> int:
         """Pop and return the next dirty gate location."""
-        return self.visual_queue.popleft()
+        gate= self.visual_queue.popleft()
+        gate.update=False
+        return gate.location
     def visual_queue_size(self) -> int:
         """Return the size of the visual queue."""
         return len(self.visual_queue)
