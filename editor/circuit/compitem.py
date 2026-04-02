@@ -116,7 +116,6 @@ class CompItem(QGraphicsItem):
 
 	def getProperties(self) -> dict[Prop, Any]:
 		return {
-			Prop.POS       : self.pos().toTuple(),
 			Prop.TAG       : self.tag,
 			Prop.FACING    : self.facing,
 			Prop.MIRROR    : self.isMirrored,
@@ -127,7 +126,7 @@ class CompItem(QGraphicsItem):
 			self.tag = value
 			self.PropertyChanged(); return True
 		elif prop == Prop.FACING:
-			self.setFacing(value)
+			self.setFacing(Facing(value))
 			self.PropertyChanged(); return True
 		elif prop == Prop.MIRROR:
 			if self.isMirrored != value:

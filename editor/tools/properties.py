@@ -1,8 +1,8 @@
 from __future__ import annotations
 from functools import partial
-from typing import Any
+from typing import cast
 from core.QtCore import *
-from core.Enums import Prop
+from core.Enums import Prop, Facing
 
 import editor.theme as theme
 from editor.circuit.compitem import CompItem
@@ -13,7 +13,7 @@ class PropertiesPanel(QWidget):
         super().__init__(parent)
         self.comp: CompItem|None = None
         self.labels: dict[Prop, QLabel] = {}
-        self.widgets: dict[Prop, Any] = {}
+        self.widgets: dict[Prop, QWidget] = {}
         self.buildUI()
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -45,19 +45,33 @@ class PropertiesPanel(QWidget):
         # Properties
         # All compItems have "tag", "facing"
 
+        # Tag Property
         self.labels[Prop.TAG] = QLabel("Tag:")
         self.widgets[Prop.TAG] = QLabel("-")
 
+        # Facing Property
         self.labels[Prop.FACING] = QLabel("Facing:")
-        self.widgets[Prop.FACING] = QLabel("-")
+        facingCombo = QComboBox()
+        facing_map = {
+            Facing.EAST:  "East",
+            Facing.SOUTH: "South",
+            Facing.WEST:  "West",
+            Facing.NORTH: "North",
+        }
+        for i, label in facing_map.items():
+            facingCombo.addItem(label, i)
 
-        self.labels[Prop.STATE] = QLabel("State:")
-        self.widgets[Prop.STATE] = QLabel("-")
+        facingCombo.currentIndexChanged.connect(partial(self.changeProperty, Prop.FACING))
+        self.widgets[Prop.FACING] = facingCombo
 
+        # Input Size Property
         self.labels[Prop.INPUTSIZE] = QLabel("No of Inputs:")
-        self.widgets[Prop.INPUTSIZE] = QSpinBox()
-        self.widgets[Prop.INPUTSIZE].valueChanged.connect(partial(self.changeProperty, Prop.INPUTSIZE))
+        inputSpinbox = QSpinBox()
+        inputSpinbox.valueChanged.connect(partial(self.changeProperty, Prop.INPUTSIZE))
+        self.widgets[Prop.INPUTSIZE] = inputSpinbox
 
+
+        # Assembling Property Widgets
         for prop in self.widgets.keys():
             form.addRow(self.labels[prop], self.widgets[prop])
 
@@ -126,17 +140,30 @@ class PropertiesPanel(QWidget):
                 self.labels[prop].setVisible(isVisible)
 
                 if isVisible:
-                    if prop == Prop.INPUTSIZE:
-                        spinbox = self.widgets[prop]
-                        spinbox.blockSignals(True)
-                        spinbox.setValue(compProps[prop])
-                        spinbox.blockSignals(False)
-                    elif prop == Prop.FACING:
-                        self.widgets[prop].setText(compProps[prop].name.capitalize())
-                    elif prop == Prop.STATE:
-                        self.widgets[prop].setText("ON" if compProps[prop] else "OFF")
-                    else:
-                        self.widgets[prop].setText(str(compProps[prop]))
+                    match prop:
+                        case Prop.INPUTSIZE:
+                            cprop = cast(int, compProps[prop])
+                            widget = cast(QSpinBox, self.widgets[prop])
+                            widget.blockSignals(True)
+                            widget.setValue(cprop)
+                            widget.blockSignals(False)
+
+                        case Prop.FACING:
+                            cprop = cast(Facing, compProps[prop])
+                            widget = cast(QComboBox, self.widgets[prop])
+                            widget.blockSignals(True)
+                            widget.setCurrentIndex(cprop.value)
+                            widget.blockSignals(False)
+
+                        case Prop.STATE:
+                            cprop = compProps[prop]
+                            widget = cast(QLabel, self.widgets[prop])
+                            widget.setText("ON" if cprop else "OFF")
+
+                        case _:
+                            cprop = compProps[prop]
+                            widget = cast(QLabel, self.widgets[prop])
+                            widget.setText(str(cprop))
 
             self.show()
         else:
