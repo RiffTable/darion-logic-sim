@@ -88,7 +88,7 @@ class CircuitScene(QGraphicsScene):
 		print(visualize,oscillate)
 		while True:
 			if logic.visual_queue_empty():
-				await asyncio.sleep(0.05)
+				await asyncio.sleep(0.016)
 			
 			# Active state: Use a strict time budget (e.g., 10ms) instead of a fixed item limit.
 			# This ensures we don't exceed the ~16ms frame window, keeping Qt 60fps smooth.
@@ -116,10 +116,13 @@ class CircuitScene(QGraphicsScene):
 		if comp._unit is None:
 			return
 		if comp._unit.id == Const.IC_ID:
-			# For ICs, each boundary pin's location maps to the IC widget
-			for logic_pin in comp._unit.inputs + comp._unit.outputs:
+			# For ICs, each boundary pin's location maps to the IC's Pin widget
+			for i, logic_pin in enumerate(comp._unit.inputs):
 				self._ensure_registry_size(logic_pin.location)
-				self.comp_registry[logic_pin.location] = comp
+				self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.INPUT][i]
+			for i, logic_pin in enumerate(comp._unit.outputs):
+				self._ensure_registry_size(logic_pin.location)
+				self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.OUTPUT][i]
 		else:
 			loc = comp._unit.location
 			self._ensure_registry_size(loc)

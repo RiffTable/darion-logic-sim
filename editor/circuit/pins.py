@@ -167,6 +167,9 @@ class InputPinItem(PinItem):
 	def disconnect(self):
 		if self._wire: self._wire.cutSupply(self)
 
+	def poll_update(self) -> bool:
+		return False
+
 
 
 
@@ -191,3 +194,11 @@ class OutputPinItem(PinItem):
 	
 	def disconnect(self):
 		if self._wire: self.cscene.removeWire(self._wire)
+
+	def poll_update(self) -> bool:
+		if self.logical is None: return False
+		current = self.logical.output
+		if current != self.state:
+			self.logicalStateChanged(current)
+			return True
+		return False

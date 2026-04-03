@@ -18,4 +18,4 @@ else:
 	from IC import IC
 	
 logic = Circuit()
-logic.simulate(Const.SIMULATE)
+logic.simulate(Const.FLIPFLOP)
