@@ -2,7 +2,9 @@ from __future__ import annotations
 from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import CompEdge
+from core.Enums import Facing, CompEdge
+import editor.theme as theme
+from editor.styles import Font
 
 from .compitem import CompItem
 from .pins import InputPinItem, OutputPinItem
@@ -26,7 +28,7 @@ class ICitem(CompItem):
 		n = max(ninputs, noutputs)
 		h = 2*n if n > 2 else 6
 		
-		self.getRelSize = lambda: (6, h)
+		self.getRelSize = lambda: (7, h)
 		self.getRelPadding = lambda: (0, 0)
 
 		super().__init__(pos, **kwargs)
@@ -78,3 +80,72 @@ class ICitem(CompItem):
 						pin.logicalStateChanged(current)
 						changed = True
 		return changed
+	
+	def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget):
+		if self._dirty: self._updateShape(); self._dirty = False
+
+
+		Color = theme.get_theme()
+		if option.state & QStyle.StateFlag.State_Selected:    # type: ignore ; fuck off pyright
+			painter.setPen(QPen(Color.hl_text_bg, 2, Qt.PenStyle.DashLine))
+		else:
+			painter.setPen(QPen(Color.outline, 2))
+		painter.setBrush(Color.comp_body)
+		painter.drawRect(self._rect)
+
+
+		# Tag at the Center
+		AFlag = Qt.AlignmentFlag
+		painter.setPen(Color.text)
+		painter.setFont(Font.default)
+		painter.drawText(self._rect, AFlag.AlignCenter, self.tag)
+
+
+		# Labels
+		painter.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
+		for edge, pins in self._pinslist.items():
+			fa = self.edgeToFacing(edge)
+
+			# Position
+			match fa:
+				case Facing.EAST:
+					align = AFlag.AlignVCenter | AFlag.AlignRight
+					rect = QRect(-40, -20, 40, 40)
+					
+				case Facing.WEST:
+					align = AFlag.AlignVCenter | AFlag.AlignLeft
+					rect = QRect(0, -20, 40, 40)
+					
+				case Facing.NORTH:
+					align = AFlag.AlignHCenter | AFlag.AlignTop
+					rect = QRect(-20, 0, 40, 40)
+					
+				case Facing.SOUTH:
+					align = AFlag.AlignHCenter | AFlag.AlignBottom
+					rect = QRect(-20, -40, 40, 40)
+			
+			for pin in pins:
+				
+				# Logical
+				logical = pin.logical
+				if logical is None:
+					continue
+				logical = logical[0] if isinstance(logical, tuple) else logical
+				
+				# Text
+				font = painter.font()
+				text = logical.custom_name
+
+				if text.startswith("~"):
+					font.setOverline(True)
+					text = text[1:]
+				else:
+					font.setOverline(False)
+				painter.setFont(font)
+
+				# Positioning
+				center = pin.pos() + fa.toPointF(-8)
+				prect = rect.translated(center.toPoint())
+
+				painter.drawText(prect, align, text)
+				# print(f"Pin '{logical.custom_name}' aligned '{align}' when '{fa}' at '{center}'")

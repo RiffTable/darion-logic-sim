@@ -222,25 +222,36 @@ class CircuitScene(QGraphicsScene):
 		return (comp, newCreated)
 	
 	def makeICfyable(self):
-		# logic.diagnose()
-		comps = self.comps.copy()
-		for comp in comps:
-			if isinstance(comp, InputItem):
-				w = comp.outputPin.getWire()
-				targets = []
-				if w is not None and comp.outputPin.logical:
-					targets = [supply.logical for supply in w.supplies if supply.logical is not None]
-
-					self.removeComp(comp)
-
-					inpin = cast(Gate, logic.getcomponent(Const.INPUT_PIN_ID))
-					for g, i in targets:
-						logic.connect(g, inpin, i)
-				else:
-					self.removeComp(comp)
+		inputs: list[InputItem] = []
+		outputs: list[OutputItem] = []
+		for comp in self.comps:
+			if isinstance(comp, InputItem):    inputs.append(comp)
+			elif isinstance(comp, OutputItem): outputs.append(comp)
 		
+		# Ordering input pins
+		inputs.sort(key = lambda i: i.y())
+
+		for input in inputs:
+			w = input.outputPin.getWire()
+			targets = []
+			if w is not None and input.outputPin.logical:
+				targets = [supply.logical for supply in w.supplies if supply.logical is not None]
+
+				self.removeComp(input)
+
+				inpin = cast(Gate, logic.getcomponent(Const.INPUT_PIN_ID))
+				inpin.custom_name = input.tag
+				for g, i in targets:
+					logic.connect(g, inpin, i)
+			else:
+				self.removeComp(input)
+		
+		# Ordering output pins
 		# Output items are not converted since they are already of class Out
-		#! Don't forget to order the pins
+		outputs.sort(key = lambda i: i.y())
+		for i, output in enumerate(outputs):
+			logic.reorder(output._unit, i)
+		
 	
 	
 	# Wires	Management
