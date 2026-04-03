@@ -23,7 +23,7 @@ class InputItem(CompItem):
 		super().__init__(pos, **kwargs)
 
 		# Properties
-		self.state: int = kwargs.get("state", Const.LOW)
+		self.state = int(kwargs.get("state", Const.LOW))
 		self.prevState = -1
 		
 		# Pins Setup

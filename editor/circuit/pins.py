@@ -32,6 +32,7 @@ class PinItem(QGraphicsRectItem):
 		self.setPen(Qt.PenStyle.NoPen)
 		self.setZValue(1)
 
+		self.logical: tuple[Gate, int] | Gate| None = None
 		self.state: int = Const.UNKNOWN
 		self._wire: WireItem|None = None
 		self.isHighlighted = False
@@ -54,6 +55,8 @@ class PinItem(QGraphicsRectItem):
 	def parentComp(self): return cast('CompItem', self.parentItem())
 	
 	def disconnect(self):
+		...    # ABSTRACT METHOD
+	def setLogical(self, g: Gate, i: int = 0) -> Self:
 		...    # ABSTRACT METHOD
 	
 	
@@ -175,7 +178,7 @@ class OutputPinItem(PinItem):
 		self.logical: Gate | None = None
 		self.updateVisual()
 
-	def setLogical(self, output: Gate):
+	def setLogical(self, output: Gate) -> Self:
 		self.logical = output
 		return self
 	

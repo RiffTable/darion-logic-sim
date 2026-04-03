@@ -17,14 +17,20 @@ class Facing(IntEnum):
 		if isinstance(value, int): return cls(value % 4)
 		return super()._missing_(value)	
 	
-	def toTuple(self, scale: float = 1) -> tuple[int, int]:
-		return {
-			Facing.WEST : (-scale,  0),
-			Facing.EAST : (+scale,  0),
-			Facing.NORTH: ( 0, -scale),
-			Facing.SOUTH: ( 0, +scale)
-		}[self]
-
+	def toTuple(self, scale: float = 1) -> tuple[float, float]:
+		match self:
+			case Facing.WEST : return (-scale,  0)
+			case Facing.EAST : return (+scale,  0)
+			case Facing.NORTH: return ( 0, -scale)
+			case Facing.SOUTH: return ( 0, +scale)
+	
+	def toPointF(self, scale: float = 1) -> QPointF:
+		match self:
+			case Facing.WEST : return QPointF(-scale,  0)
+			case Facing.EAST : return QPointF(+scale,  0)
+			case Facing.NORTH: return QPointF( 0, -scale)
+			case Facing.SOUTH: return QPointF( 0, +scale)
+		
 	@staticmethod
 	def toFacing(point: QPoint|QPointF):
 		(x, y) = point.toTuple()

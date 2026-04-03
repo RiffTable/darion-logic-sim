@@ -27,9 +27,9 @@ class CompItem(QGraphicsItem):
 	
 	def __init__(self, pos: QPointF, **kwargs):
 		# Properties
-		self.tag = self.TAG
+		self.tag = str(kwargs.get("tag", self.TAG))
 		self.facing = Facing(kwargs.get("facing", Facing.EAST))
-		self.isMirrored = kwargs.get("mirror", False)
+		self.isMirrored = bool(kwargs.get("mirror", False))
 
 		# isMirrored is for flipping the TOP-BOTTOM edges instead of the
 		# INPUT-OUTPUT edges, as doing so will make the component
@@ -62,6 +62,7 @@ class CompItem(QGraphicsItem):
 
 		if self.LOGIC != Const.IC_ID:
 			self._unit = cast(Any, logic.getcomponent(self.LOGIC))
+			self._unit.custom_name = self.tag
 
 		self._setupDefaultPins = False if ("pinslist" in kwargs) else True
 		if not self._setupDefaultPins:
@@ -125,6 +126,7 @@ class CompItem(QGraphicsItem):
 		match prop:
 			case Prop.LABEL:
 				self.tag = str(value)
+				if self._unit: self._unit.custom_name = self.tag
 				self.update()
 				self.propertyChanged(); return True
 			
@@ -332,7 +334,9 @@ class CompItem(QGraphicsItem):
 		painter.setPen(Color.text)
 		painter.setFont(Font.default)
 		painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
-	
+
+
+
 
 
 	###======= ACTIONS =======###
