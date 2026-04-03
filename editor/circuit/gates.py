@@ -77,7 +77,7 @@ class GateItem(CompItem):
 	def setProperty(self, prop: Prop, value):
 		if prop == Prop.INPUTSIZE:
 			if self.setInputCount(value):
-				self.PropertyChanged()
+				self.propertyChanged()
 				return True
 			else:
 				return False
@@ -174,7 +174,7 @@ class GateItem(CompItem):
 		logic.setlimits(self._unit, size)
 		self.updateShape()
 		self.prevState = -1    # Force update UI state
-		self.PropertyChanged()
+		self.propertyChanged()
 		return True
 
 	# Input feedback

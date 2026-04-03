@@ -122,25 +122,30 @@ class CompItem(QGraphicsItem):
 		}
 	
 	def setProperty(self, prop: Prop, value) -> bool:
-		if prop == Prop.TAG:
-			self.tag = value
-			self.PropertyChanged(); return True
-		elif prop == Prop.FACING:
-			self.setFacing(Facing(value))
-			self.PropertyChanged(); return True
-		elif prop == Prop.MIRROR:
-			if self.isMirrored != value:
-				self.mirror()
-			self.PropertyChanged(); return True
-		else:
-			return False
+		match prop:
+			case Prop.LABEL:
+				self.tag = str(value)
+				self.update()
+				self.propertyChanged(); return True
+			
+			case Prop.FACING:
+				self.setFacing(Facing(value))
+				self.propertyChanged(); return True
+			
+			case Prop.MIRROR:
+				if self.isMirrored != bool(value):
+					self.mirror()
+				self.propertyChanged(); return True
+			
+			case _:
+				return False
 
 	def addPropertyChangedListener(self, listener):
 		self._prop_change_listener.append(listener)
 	def removePropertyChangedListener(self, listener):
 		self._prop_change_listener.remove(listener)
 	
-	def PropertyChanged(self):
+	def propertyChanged(self):
 		for listener in self._prop_change_listener:
 			listener()
 
@@ -362,7 +367,7 @@ class CompItem(QGraphicsItem):
 				)
 
 		self.updateShape()
-		self.PropertyChanged()
+		self.propertyChanged()
 
 	def mirror(self):
 		self.isMirrored = not self.isMirrored
@@ -383,7 +388,7 @@ class CompItem(QGraphicsItem):
 				pin.setPos(new_x, new_y)
 
 		self.updateShape()
-		self.PropertyChanged()
+		self.propertyChanged()
 	
 	def flip(self):
 		self.facing = Facing(self.facing+2)
@@ -406,7 +411,7 @@ class CompItem(QGraphicsItem):
 				pin.setPos(new_x, new_y)
 		
 		self.updateShape()
-		self.PropertyChanged()
+		self.propertyChanged()
 	
 	def rotateCW(self):
 		self.setFacing(Facing(self.facing + 1))

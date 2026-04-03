@@ -57,7 +57,8 @@ class EditorState(IntEnum):
 ###======= EDITOR STATES =======###
 class Prop(IntEnum):
 	# POS         = 0
-	TAG         = 1
+	LABEL       = 0    # Edittable TAG
+	TAG         = 1    # Unedittable TAG
 	FACING      = 2
 	MIRROR      = 3
 	STATE       = 4

@@ -46,9 +46,12 @@ class OutputItem(CompItem):
 
 	# Properties Data
 	def getProperties(self) -> dict:
-		return super().getProperties() | {
-			Prop.STATE     : self.state
+		dic = super().getProperties() | {
+			Prop.LABEL   : self.tag,
+			Prop.STATE   : self.state
 		}
+		dic.pop(Prop.TAG)
+		return dic
 
 
 	# Animation callback
@@ -58,7 +61,7 @@ class OutputItem(CompItem):
 
 	def unitStateChanged(self, state: int):
 		self.state = state
-		self.PropertyChanged()
+		self.propertyChanged()
 
 		Color = theme.get_theme()
 		match state:

@@ -49,14 +49,17 @@ class InputItem(CompItem):
 		}
 	
 	def getProperties(self) -> dict:
-		return super().getProperties() | {
+		dic = super().getProperties() | {
+			Prop.LABEL   : self.tag,
 			Prop.STATE   : self.state
 		}
+		dic.pop(Prop.TAG)
+		return dic
 
 	def unitStateChanged(self, state: int):
 		self.state = state
 		self.outputPin.logicalStateChanged(state)
-		self.PropertyChanged()
+		self.propertyChanged()
 	
 	def poll_update(self) -> bool:
 		if self._unit is None: return False

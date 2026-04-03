@@ -49,11 +49,19 @@ class PropertiesPanel(QWidget):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Properties
-        # All compItems have "tag", "facing"
+        # All compItems have "tag/label", "facing"
 
         # Tag Property
         self.labels[Prop.TAG] = QLabel("Tag:")
-        self.widgets[Prop.TAG] = QLabel("-")
+        tagUnEdit = QLineEdit("-")
+        tagUnEdit.setReadOnly(True)
+        self.widgets[Prop.TAG] = tagUnEdit
+
+        self.labels[Prop.LABEL] = QLabel("Tag:")
+        labelEdit = QLineEdit("-")
+        labelEdit.returnPressed.connect(lambda: self.changeProperty(Prop.LABEL, labelEdit.text()))
+        
+        self.widgets[Prop.LABEL] = labelEdit
 
         # Facing Property
         self.labels[Prop.FACING] = QLabel("Facing:")
@@ -153,7 +161,10 @@ class PropertiesPanel(QWidget):
 
         # Setting and unhiding properties
         compProps = self.comp.getProperties()
-        tag = compProps[Prop.TAG]
+        tag = compProps.get(Prop.TAG, None)
+        if tag is None:
+            tag = compProps.get(Prop.LABEL, None)
+        
         self.title.setText(f"Properties: {tag}")
 
         for prop in self.widgets.keys():
@@ -163,20 +174,22 @@ class PropertiesPanel(QWidget):
 
             if not isVisible:
                 continue
+            self.widgets[prop].blockSignals(True)
             match prop:
+                case Prop.LABEL:
+                    cprop = cast(str, compProps[prop])
+                    widget = cast(QLineEdit, self.widgets[prop])
+                    widget.setText(cprop)
+                
                 case Prop.INPUTSIZE:
                     cprop = cast(int, compProps[prop])
                     widget = cast(QSpinBox, self.widgets[prop])
-                    widget.blockSignals(True)
                     widget.setValue(cprop)
-                    widget.blockSignals(False)
 
                 case Prop.FACING:
                     cprop = cast(Facing, compProps[prop])
                     widget = cast(QComboBox, self.widgets[prop])
-                    widget.blockSignals(True)
                     widget.setCurrentIndex(cprop.value)
-                    widget.blockSignals(False)
 
                 case Prop.STATE:
                     cprop = compProps[prop]
@@ -187,6 +200,8 @@ class PropertiesPanel(QWidget):
                     cprop = compProps[prop]
                     widget = cast(QLabel, self.widgets[prop])
                     widget.setText(str(cprop))
+            
+            self.widgets[prop].blockSignals(False)
 
         self.show()
 
