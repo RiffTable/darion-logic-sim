@@ -209,6 +209,18 @@ class PropertiesPanel(QWidget):
     def changeProperty(self, prop: Prop, value):
         if not self.comp: return
         
+        if prop == Prop.INPUTSIZE:
+            from editor.circuit.commands import SetInputCountCommand
+            from editor.circuit.gates import GateItem
+            if isinstance(self.comp, GateItem):
+                old_count = len(self.comp.inputPins)
+                if old_count != value:
+                    cmd = SetInputCountCommand([(self.comp, old_count, value)])
+                    # If this triggers redo(), redo() will call setProperty indirectly via setInputCount
+                    self.comp.cscene.undo_stack.push(cmd)
+            return
+            
         # setProperty() automatically calls updateTab() using listener IF the property actually changed
+        print('ssss')
         if not self.comp.setProperty(prop, value):
             self.updateTab()

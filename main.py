@@ -15,6 +15,7 @@ from editor.tools.properties import PropertiesPanel
 from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, SettingsMenu
 from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
+from editor.circuit.commands import AddCompCommand
 
 
 
@@ -80,7 +81,8 @@ class AppWindow(QMainWindow):
 	def spawnComponent(self, comp_id: int):
 		view_center = self.view.viewport().rect().center()
 		pos = self.view.mapToScene(view_center)
-		self.cscene.addComp(*pos.toTuple(), comp_id)
+		cmd = AddCompCommand(self.cscene, pos.x(), pos.y(), comp_id)
+		self.cscene.undo_stack.push(cmd)
 	
 	def spawnIC(self, ic_data):
 		center = self.view.viewport().rect().center()

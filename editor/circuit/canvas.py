@@ -13,6 +13,7 @@ from .catalog import (
 	InputItem, OutputItem,
 	GateItem, ICitem
 )
+from .commands import AddCompCommand, DeleteCommand, ConnectCommand, PasteCommand, MoveCommand, SetInputCountCommand, SwapWireCommand
 
 
 
@@ -21,6 +22,7 @@ from .catalog import (
 class CircuitScene(QGraphicsScene):
 	def __init__(self):
 		super().__init__()
+		self.undo_stack = QUndoStack(self)
 
 		self.comps: list[CompItem] = []
 		self.wires: list[WireItem] = []
@@ -34,6 +36,7 @@ class CircuitScene(QGraphicsScene):
 
 		# Clipboard
 		self.clipboard = { "comps": [], "wires": []}
+		self._drag_start_positions = {}
 
 		# Editor Stuffs
 		self._state = EditorState.NORMAL
@@ -175,8 +178,6 @@ class CircuitScene(QGraphicsScene):
 		self.unregister_comp(comp)  # NEW: remove from registry before unit is cleared
 		if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
 			logic.hide([comp._unit])
-		comp._unit = None    # just in case
-
 		self.comps.remove(comp)
 		self.removeItem(comp)
 	
@@ -278,17 +279,8 @@ class CircuitScene(QGraphicsScene):
 				self.wires.append(g_wire)
 
 			if t_wire:  # Swap Connections
-
-				g_wire.supplies.remove(g_pin); g_wire.supplies.append(target)
-				t_wire.supplies.append(g_pin); t_wire.supplies.remove(target)
-
-
-				if target.logical: logic.disconnect(*target.logical)
-				g_wire.logicalConnect(source, target)
-				
-				g_pin.setWire(t_wire);  g_wire.updateShape()
-				target.setWire(g_wire); t_wire.updateShape()
-				self.ghostWire = t_wire
+				cmd = SwapWireCommand(self, g_wire, t_wire, target, g_pin)
+				self.undo_stack.push(cmd)
 				
 			else:  # Connecting wire to an empty pin
 
@@ -302,19 +294,10 @@ class CircuitScene(QGraphicsScene):
 				self.clearSelection()
 				g_wire.setSelected(True)
 				
-				# Attach wire to pin
-				g_wire.supplies.append(target); target.setWire(g_wire)
-				if target.logical and source.logical:
-					unit, idx = target.logical
+				# Attach wire to pin using undo command
+				cmd = ConnectCommand(self, source, target, g_wire, multiWireMode)
+				self.undo_stack.push(cmd)
 
-					# print(f"{isinstance(unit, Gate)} and {idx >= unit.inputlimit}")
-					# Resize gate input if needed
-					if isinstance(unit, Gate) and idx >= unit.inputlimit:
-						unit.setlimits(idx+1)
-					logic.connect(unit, source.logical, idx)
-
-				g_wire.updateShape()
-			
 			parent = target.parentComp
 			# Update hovered pin and comps that state changed
 			self.updateHoverStatus(None, parent, True)
@@ -459,7 +442,12 @@ class CircuitScene(QGraphicsScene):
 				self.ghostWire = w
 				self.ghostWire.addSupply(self.ghostPin)
 		
-		return super().mousePressEvent(event)
+		super().mousePressEvent(event)
+
+		if event.button() == MouseBtn.LeftButton and self.checkState(EditorState.NORMAL):
+			self._drag_start_positions = {
+				comp: comp.pos() for comp in self.selectedItems() if isinstance(comp, CompItem)
+			}
 
 	def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
 		# This event only takes place after the CircuitView handles its!
@@ -483,6 +471,22 @@ class CircuitScene(QGraphicsScene):
 				return
 		
 		super().mouseReleaseEvent(event)
+
+		if btn == MouseBtn.LeftButton and self._drag_start_positions:
+			moved_items = []
+			for comp, old_pos in self._drag_start_positions.items():
+				if comp.pos() != old_pos:
+					moved_items.append((comp, old_pos, comp.pos()))
+			
+			if moved_items:
+				cmd = MoveCommand(self, moved_items)
+				# Push without automatically executing redo() since they are already in the new pos
+				cmd.redo = lambda *args: None  # Disable redo temporarily
+				self.undo_stack.push(cmd)
+				# Restore redo on the class instance
+				del cmd.redo
+
+			self._drag_start_positions.clear()
 	
 	def keyPressEvent(self, event: QKeyEvent):
 		key = event.key()
@@ -573,13 +577,16 @@ class CircuitScene(QGraphicsScene):
 			"wires": []
 		}
 	
-	def deserialize(self, data: dict, addToSelected: bool = False):
+	def deserialize(self, data: dict, addToSelected: bool = False) -> tuple[list[CompItem], list[WireItem]]:
 		sources: dict[int, OutputPinItem] = {}
 		supplies: dict[int, list[InputPinItem]] = {}
 		varlist = []
+		new_comps = []
+		new_wires = []
 		# Creating Components from data
 		for comp_data in data.get("comps", []):
 			comp = self.addCompFromData(comp_data)
+			new_comps.append(comp)
 			if addToSelected: comp.setSelected(True)
 			# unless you set inputs to unknown they will might cause complex bugs
 			# sometimes incomplete parts of circuit oscillate, it wouldn't if it were complete
@@ -615,20 +622,27 @@ class CircuitScene(QGraphicsScene):
 			
 			self.wires.append(w)
 			self.addItem(w)
+			new_wires.append(w)
 
 		# Full circuit is now built — simulate from scratch
 		logic.custom_simulate(varlist)
+		return new_comps, new_wires
 
 
 
 	###======= ACTIONS =======###
 	def removeFromSelection(self):
+		comps_to_delete = []
+		wires_to_delete = []
 		for item in self.selectedItems():
 			if isinstance(item, WireItem):
-				if item in self.wires: self.removeWire(item)
-			
+				if item in self.wires: wires_to_delete.append(item)
 			elif isinstance(item, CompItem):
-				if item in self.comps: self.removeComp(item)
+				if item in self.comps: comps_to_delete.append(item)
+		
+		if comps_to_delete or wires_to_delete:
+			cmd = DeleteCommand(self, comps_to_delete, wires_to_delete)
+			self.undo_stack.push(cmd)
 	
 	def selectNone(self):
 		for item in self.selectedItems():
@@ -647,8 +661,10 @@ class CircuitScene(QGraphicsScene):
 			"wires": []
 		}
 	def pasteComps(self):
+		if not self.clipboard.get("comps"): return
 		self.clearSelection()
-		self.deserialize(self.clipboard, True)
+		cmd = PasteCommand(self, self.clipboard)
+		self.undo_stack.push(cmd)
 	def cutComps(self):
 		self.copyFromSelection()
 		self.removeFromSelection()
@@ -672,8 +688,24 @@ class CircuitScene(QGraphicsScene):
 	
 	# Gate Input
 	def increaseInputsForSelected(self):
+		changes = []
 		for item in self.selectedItems():
-			if isinstance(item, GateItem): item.setInputCount(len(item.inputPins) + 1)
+			if isinstance(item, GateItem):
+				current = len(item.inputPins)
+				if current < item.maxInput:
+					changes.append((item, current, current + 1))
+		if changes:
+			cmd = SetInputCountCommand(changes)
+			self.undo_stack.push(cmd)
+
 	def decreaseInputsForSelected(self):
+		changes = []
 		for item in self.selectedItems():
-			if isinstance(item, GateItem): item.setInputCount(len(item.inputPins) - 1)
+			if isinstance(item, GateItem):
+				current = len(item.inputPins)
+				if current > item.minInput and not item.inputPins[-1].hasWire():
+					print("Decreasing inputs for", item.name,item.minInput,current)
+					changes.append((item, current, current - 1))
+		if changes:
+			cmd = SetInputCountCommand(changes)
+			self.undo_stack.push(cmd)
