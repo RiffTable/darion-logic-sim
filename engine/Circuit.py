@@ -156,6 +156,43 @@ class Circuit:
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
   
+    def table(self, variables: list, gate_list: list) -> list:
+        """Generate a truth table for the circuit."""
+        n = len(variables)
+        rows_count = 1 << n
+        raw_rows = [None] * rows_count
+        gray = 0
+        prev_gray = 0
+
+        for i in range(rows_count):
+            # Gray Code Sequence
+            prev_gray = gray
+            gray = i ^ (i >> 1)
+            
+            if i != 0:
+                mask = prev_gray ^ gray
+                changed_bit = mask.bit_length() - 1
+                j = (n - 1) - changed_bit
+                
+                var = variables[j]
+                bit = 1 if (gray & mask) else 0
+                if bit != var.output:
+                    var.output = bit
+                    self.propagate(var)
+            else:
+                for j in range(n):
+                    var = variables[j]
+                    if var.output != 0:
+                        var.output = 0
+                        self.propagate(var)
+
+            # Fast tuple extraction
+            v_states = tuple(var.output for var in variables)
+            g_states = tuple(gate.output for gate in gate_list)
+            raw_rows[gray] = (v_states, g_states)
+
+        return raw_rows
+
     def truthTable(self, variables: list = None, outputs: list = None) -> str:
         """Gray Code optimized Truth Table with sorting and string caching."""
       
@@ -178,8 +215,7 @@ class Circuit:
                     for pin in item.outputs:
                         gate_list.append(pin)
 
-        n = len(variables)
-        rows_count = 1 << n
+        raw_rows = self.table(variables, gate_list)
 
         # repr() gives the plain name (no ANSI codes) — used for width math and file output.
         # str() gives the colored name — used only for the printed header cells.
@@ -210,37 +246,6 @@ class Circuit:
         ]
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
-
-        raw_rows = [None]*rows_count
-        gray = 0
-        prev_gray = 0
-
-        for i in range(rows_count):
-            # Gray Code Sequence
-            prev_gray = gray
-            gray = i ^ (i >> 1)
-            
-            if i != 0:
-                mask = prev_gray ^ gray
-                changed_bit = mask.bit_length() - 1
-                j = (n - 1) - changed_bit
-                
-                var = variables[j]
-                bit = 1 if (gray & mask) else 0
-                if bit != var.output:
-                    var.output = bit
-                    self.propagate(var)
-            else:
-                for j in range(n):
-                    var = variables[j]
-                    if var.output != 0:
-                        var.output = 0
-                        self.propagate(var)
-
-            # Fast tuple extraction
-            v_states = tuple(var.output for var in variables)
-            g_states = tuple(gate.output for gate in gate_list)
-            raw_rows[gray]=(v_states, g_states)
 
         self.simulate(get_MODE())
         

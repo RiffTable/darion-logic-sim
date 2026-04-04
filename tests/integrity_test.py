@@ -3763,7 +3763,7 @@ class ThoroughICTest:
         """Test an IC with absolutely no internal components."""
         c = self.setup_circuit()
         fp = os.path.join(tempfile.gettempdir(), "empty_ic.json")
-        c.save_as_ic(fp, "EmptyIC", "", "", None)
+        c.save_as_ic(fp, "EmptyIC", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -3813,7 +3813,7 @@ class ThoroughICTest:
         c.connect(not_g, inp, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "partial_ic.json")
-        c.save_as_ic(fp, "PartialIC", "", "", None)
+        c.save_as_ic(fp, "PartialIC", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -3823,7 +3823,7 @@ class ThoroughICTest:
         c2.toggle(v, HIGH)
         
         self.assert_true(ic.outputs[0].output == UNKNOWN, "Disconnected Output Pin ignores internal processing")
-        internal_not = next((g for g in ic.internal if g.id == NOT_ID), None)
+        internal_not = next((g for g in ic.internal if g.id == NOT_ID))
         if internal_not:
             self.assert_true(internal_not.output == LOW, "Internal logic works even if result not output")
         else:
@@ -3858,7 +3858,7 @@ class ThoroughICTest:
             c.connect(out, g, 0)
             
             fp = os.path.join(tempfile.gettempdir(), f"gate_ic_{g_type}.json")
-            c.save_as_ic(fp, f"GateIC_{g_type}", "", "", None)
+            c.save_as_ic(fp, f"GateIC_{g_type}", "", "")
             
             c2 = self.setup_circuit()
             ic = c2.getIC(fp)
@@ -3884,7 +3884,7 @@ class ThoroughICTest:
         out = c.getcomponent(OUTPUT_PIN_ID)
         c.connect(out, inp, 0)
         fp = os.path.join(tempfile.gettempdir(), "error_passthrough.json")
-        c.save_as_ic(fp, "Passthrough", "", "", None)
+        c.save_as_ic(fp, "Passthrough", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -3914,7 +3914,7 @@ class ThoroughICTest:
         c.connect(out, not_g, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "unknown_prop.json")
-        c.save_as_ic(fp, "UnknownTest", "", "", None)
+        c.save_as_ic(fp, "UnknownTest", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -3933,7 +3933,7 @@ class ThoroughICTest:
         out = c.getcomponent(OUTPUT_PIN_ID)
         c.connect(out, inp, 0)
         fp = os.path.join(tempfile.gettempdir(), "floating_test.json")
-        c.save_as_ic(fp, "FloatingTest", "", "", None)
+        c.save_as_ic(fp, "FloatingTest", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -3948,7 +3948,7 @@ class ThoroughICTest:
         p_out = c_base.getcomponent(OUTPUT_PIN_ID)
         c_base.connect(p_out, p_in, 0)
         fp = os.path.join(tempfile.gettempdir(), "nest_0.json")
-        c_base.save_as_ic(fp, "Level0", "", "", None)
+        c_base.save_as_ic(fp, "Level0", "", "")
         fps = [fp]
         
         for i in range(1, 10):
@@ -3960,7 +3960,7 @@ class ThoroughICTest:
             c_wrap.connect(w_out, inner_ic.outputs[0], 0)
             
             new_fp = os.path.join(tempfile.gettempdir(), f"nest_{i}.json")
-            c_wrap.save_as_ic(new_fp, f"Level{i}", "", "", None)
+            c_wrap.save_as_ic(new_fp, f"Level{i}", "", "")
             fps.append(new_fp)
             
         c_test = self.setup_circuit()
@@ -3987,7 +3987,7 @@ class ThoroughICTest:
         c.connect(n1, n3, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "oscillator.json")
-        c.save_as_ic(fp, "OscillatorIC", "", "", None)
+        c.save_as_ic(fp, "OscillatorIC", "", "")
         
         c2 = self.setup_circuit(SIMULATE)
         try:
@@ -4005,7 +4005,7 @@ class ThoroughICTest:
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
         fp = os.path.join(tempfile.gettempdir(), "delete_test.json")
-        c.save_as_ic(fp, "DeleteTestIC", "", "", None)
+        c.save_as_ic(fp, "DeleteTestIC", "", "")
 
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -4032,7 +4032,7 @@ class ThoroughICTest:
         c_in.connect(not_g, i_in, 0)
         c_in.connect(i_out, not_g, 0)
         fp_in = os.path.join(tempfile.gettempdir(), "inner.json")
-        c_in.save_as_ic(fp_in, "InnerChip", "", "", None)
+        c_in.save_as_ic(fp_in, "InnerChip", "", "")
         
         # 2. Outer
         c_out = self.setup_circuit()
@@ -4044,7 +4044,7 @@ class ThoroughICTest:
         c_out.connect(out, inner_ic.outputs[0], 0)
         
         fp_out = os.path.join(tempfile.gettempdir(), "complex_ic_test.json")
-        c_out.save_as_ic(fp_out, "SuperChip", "", "", None)
+        c_out.save_as_ic(fp_out, "SuperChip", "", "")
         
         # 3. Test
         c2 = self.setup_circuit()
@@ -4079,7 +4079,7 @@ class ThoroughICTest:
         c.connect(out_pin, and_g, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "limit_ic.json")
-        c.save_as_ic(fp, "LimitIC", "", "", None)
+        c.save_as_ic(fp, "LimitIC", "", "")
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
@@ -4197,7 +4197,7 @@ class IOTestSuite:
         c.connect(p_out, not_g, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "test_ic.json")
-        c.save_as_ic(fp, "InvertIC", "", "", None)
+        c.save_as_ic(fp, "InvertIC", "", "")
         
         self.assert_true(os.path.exists(fp), "save_as_ic created file")
         
@@ -4220,7 +4220,7 @@ class IOTestSuite:
         
         fp = os.path.join(tempfile.gettempdir(), "test_ic_var.json")
         try:
-            c.save_as_ic(fp, "VarIC", "", "", None)
+            c.save_as_ic(fp, "VarIC", "", "")
         except ValueError:
             pass
         finally:
@@ -4277,7 +4277,7 @@ class IOTestSuite:
         c = self.setup_circuit()
         g = c.getcomponent(NOT_ID)
         fp = os.path.join(tempfile.gettempdir(), "test_ic_only.json")
-        c.save_as_ic(fp, "MyIC", "", "", None)
+        c.save_as_ic(fp, "MyIC", "", "")
         
         c2 = self.setup_circuit()
         crashed = False
@@ -4333,7 +4333,7 @@ class IOTestSuite:
         c_sub.connect(sub_not, sub_in, 0)
         c_sub.connect(sub_out, sub_not, 0)
         fp_sub = os.path.join(tempfile.gettempdir(), "sub_ic.json")
-        c_sub.save_as_ic(fp_sub, "SubIC", "", "", None)
+        c_sub.save_as_ic(fp_sub, "SubIC", "", "")
         
         c = self.setup_circuit()
         sub_ic = c.getIC(fp_sub)
@@ -4344,7 +4344,7 @@ class IOTestSuite:
         c.connect(main_out, sub_ic.outputs[0], 0)
         
         fp = os.path.join(tempfile.gettempdir(), "complex_ic.json")
-        c.save_as_ic(fp, "ComplexIC", "", "", None)
+        c.save_as_ic(fp, "ComplexIC", "", "")
         
         c2 = self.setup_circuit()
         l_ic = c2.getIC(fp)
@@ -4402,7 +4402,7 @@ class IOTestSuite:
         c_sub.connect(not_g, pin1, 0)
         c_sub.connect(pin2, not_g, 0)
         fp_ic = os.path.join(tempfile.gettempdir(), "cp_ic.json")
-        c_sub.save_as_ic(fp_ic, "CpIC", "", "", None)
+        c_sub.save_as_ic(fp_ic, "CpIC", "", "")
         
         c = self.setup_circuit()
         ic = c.getIC(fp_ic)
