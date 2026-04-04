@@ -906,8 +906,9 @@ cdef class Circuit:
         cdef uint16_t* book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-        self.visual_queue.push_back(origin) 
-        self_info.update = True
+        if not self_info.update:
+            self.visual_queue.push_back(origin) 
+            self_info.update = True
         self_info.scheduled = False
         new_output = self_info.output
         profile = self_info.hitlist.data()
@@ -958,6 +959,7 @@ cdef class Circuit:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
         cdef Profile* end
+        cdef int gate_loc
         cdef Py_ssize_t realsource, high, low,limit,gate_type
         cdef Py_ssize_t new_output, profile_output, target_output
         cdef Py_ssize_t index = 0, end_point = 1, size = 0
@@ -970,8 +972,19 @@ cdef class Circuit:
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         
         read_queue[0] = origin
-        gate_infolist[origin].update = True
-        self.visual_queue.push_back(origin)   # mark origin dirty immediately
+        if not gate_infolist[origin].update:
+            gate_infolist[origin].update = True
+            self.visual_queue.push_back(origin)
+            
+        while not self.time_queue.empty():
+            gate_loc = self.time_queue.front()
+            self.time_queue.pop_front()
+            if not gate_infolist[gate_loc].mark:
+                gate_infolist[gate_loc].mark = True
+                read_queue[end_point] = gate_loc
+                end_point += 1
+            gate_infolist[gate_loc].scheduled = False
+
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):
@@ -1045,17 +1058,16 @@ cdef class Circuit:
         self.eval_count += eval
 
     async def async_propagate(self):
-        '''Async coroutine: drains time_queue in batches of 10, yielding between each batch
-        so the event loop stays responsive. Mirrors engine/Circuit.py timed_propagate().'''
-
-        cdef double start
+        cdef int size
+        
         while not self.time_queue.empty():
-            start=time.perf_counter()
-            while not self.time_queue.empty() and (time.perf_counter()-start)<OSCILLATE:
-                with nogil:
+            with nogil:
+                size = self.time_queue.size()
+                while size:
+                    size -= 1
                     self.update_gate(self.time_queue.front())
                     self.time_queue.pop_front()
-            await asyncio.sleep(VISUALIZE)
+            await asyncio.sleep(0.075)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────
     cpdef bint visual_queue_empty(self):
