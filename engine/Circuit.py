@@ -593,12 +593,15 @@ class Circuit:
     async def async_propagate(self):
         time_budget=Const.OSCILLATE
         delay=Const.VISUALIZE
+
         while self.time_queue:
-            start=time.perf_counter()
-            while self.time_queue and (time.perf_counter()-start)<time_budget:
+            size=len(self.time_queue)
+            while size:
+                size-=1
                 gate = self.time_queue.popleft()
                 self.update_gate(gate)
-            await asyncio.sleep(delay) 
+            await asyncio.sleep(0.075)    
+
                     
     def update_gate(self, gate: Gate):
         if not gate.update:
@@ -644,13 +647,22 @@ class Circuit:
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
+        read_end: int = 1
+        write_end: int = 0
+        counter: int = 0
         read_buf[0] = origin
         if not origin.update:
             origin.update=True
             self.visual_queue.append(origin)
-        read_end: int = 1
-        write_end: int = 0
-        counter: int = 0
+        if self.time_queue:
+            for gate in self.time_queue:
+                if not gate.mark:
+                    gate.mark=True
+                    read_buf[read_end]=gate
+                    read_end+=1
+                gate.scheduled=False
+        self.time_queue.clear()
+                
         x=self.eval_count
         start=time.perf_counter_ns()
         while read_end > 0:

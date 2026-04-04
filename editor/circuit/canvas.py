@@ -79,7 +79,7 @@ class CircuitScene(QGraphicsScene):
 	def set_timings(self):
 		fps = QGuiApplication.primaryScreen().refreshRate()
 		fps = (1/(60 if fps==0 else fps))
-		ratio=0.01
+		ratio=0.00001
 		Const.set_timings(fps, ratio)
 
 	# ── Async UI consumer ─────────────────────────────────────────────
@@ -95,10 +95,9 @@ class CircuitScene(QGraphicsScene):
 			
 			# Active state: Use a strict time budget (e.g., 10ms) instead of a fixed item limit.
 			# This ensures we don't exceed the ~16ms frame window, keeping Qt 60fps smooth.
-			time_budget = visualize
-			start_time = time.perf_counter()
-
-			while not logic.visual_queue_empty() and (time.perf_counter() - start_time) < time_budget:
+			size=logic.visual_queue_size()
+			while size:
+				size-=1
 				gate_id = logic.pop_visual_queue()
 				if gate_id < len(self.comp_registry):
 					comp = self.comp_registry[gate_id]
@@ -106,7 +105,7 @@ class CircuitScene(QGraphicsScene):
 						comp.poll_update()
 
 			# Yield to Qt event loop for the remainder of the frame
-			await asyncio.sleep(oscillate)
+			await asyncio.sleep(0)
 
 	# ── Registry helpers ──────────────────────────────────────────────
 	def _ensure_registry_size(self, location: int):

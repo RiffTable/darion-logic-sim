@@ -29,7 +29,7 @@ class OutputItem(CompItem):
 		# Color animation – prevents strobe on fast oscillators
 		self.current_color: QColor = theme.get_theme().LED_off
 		self.color_anim = QVariantAnimation()
-		self.color_anim.setDuration(120)  # 120ms: fast enough to feel responsive
+		self.color_anim.setDuration(100)  # 120ms: fast enough to feel responsive
 		self.color_anim.valueChanged.connect(self._on_color_change)
 		
 		# Pins Setup
