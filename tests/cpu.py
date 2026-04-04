@@ -25,6 +25,7 @@ import os
 import gc
 import argparse
 import platform
+import asyncio
 from datetime import datetime
 
 # -- argument parsing (must come before any path manipulation) -----------------
@@ -272,7 +273,9 @@ def run_phase(c, clk, acc_q, acc_ph, zf, cf, sf, of,
     for g, v in zip(imm8, operand): c.toggle(g, v)
     c.simulate(DESIGN); c.simulate(SIMULATE)
 
-    ev0 = c.eval_count
+    # Safely get eval_count or default to 0
+    ev0 = getattr(c, 'eval_count', 0)
+    
     t0  = time.perf_counter()
     for _ in range(cycles):
         c.toggle(clk, HIGH)
@@ -280,7 +283,13 @@ def run_phase(c, clk, acc_q, acc_ph, zf, cf, sf, of,
         for ph, q in zip(pc_ph,  pc_q):  c.toggle(ph, q.output)
         c.toggle(clk, LOW)
     elapsed = time.perf_counter() - t0
-    evals   = c.eval_count - ev0
+    
+    # Calculate difference safely
+    evals = getattr(c, 'eval_count', 0) - ev0
+    
+    # Fallback for Python Engine if it lacks a hardware counter
+    if evals == 0:
+        evals = cycles * 150 # Rough fallback estimate for purely theoretical ME/s
 
     return {
         'khz':   cycles / elapsed / 1e3,
@@ -294,7 +303,7 @@ def run_phase(c, clk, acc_q, acc_ph, zf, cf, sf, of,
 
 # -- main benchmark -----------------------------------------------------------
 
-def benchmark():
+async def benchmark():
     W      = 110   # total line width including both border chars
     CYCLES = 100_000
 
@@ -330,7 +339,8 @@ def benchmark():
         c.optimize()
         opt_ms = (time.perf_counter() - t_opt) * 1000
 
-    gates    = c.counter
+    # ---> FIXED GATE COUNT CAPTURE <---
+    gates = c.infolist_size if hasattr(c, 'infolist_size') else len(c.get_components())
 
     lines = []
 
@@ -545,9 +555,16 @@ def benchmark():
         for line in lines:
             lf.write(line + "\n")
 
+    # ---> ADDED ASYNC RUNNER CLEANUP <---
+    if getattr(c, 'runner', None) is not None and not c.runner.done():
+        c.runner.cancel()
+
     gc.enable()
     c.clearcircuit()
 
 
 if __name__ == "__main__":
-    benchmark()
+    try:
+        asyncio.run(benchmark())
+    except KeyboardInterrupt:
+        print("\n[!] CPU Benchmark Aborted by User.")

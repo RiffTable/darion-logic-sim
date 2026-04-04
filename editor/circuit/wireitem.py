@@ -36,7 +36,7 @@ class WireItem(QGraphicsPathItem):
 		# Color animation – prevents strobe on fast oscillators
 		self.current_color: QColor = theme.get_theme().signal_unknown
 		self.color_anim = QVariantAnimation()
-		self.color_anim.setDuration(150)
+		self.color_anim.setDuration(100)
 		self.color_anim.valueChanged.connect(self._on_color_change)
 
 		self.logicalConnect(beg, end)

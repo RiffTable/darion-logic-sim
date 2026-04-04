@@ -50,7 +50,6 @@ def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-Const.set_DEBUG()
 circuit = Circuit()
 base = Event()
 STATUS_MESSAGE = ""
@@ -307,9 +306,6 @@ async def show_output():
     except (ValueError, IndexError): set_status("Invalid selection.")
 
 async def show_truth_table():
-    if Const.get_MODE() != Const.SIMULATE:
-        return set_status("Switch to Simulation Mode (Option 5) before generating a Truth Table!")
-    
     circuit.listVar()
     var_str = (await aioconsole.ainput("Enter Variable Serials from above (space-separated, in desired order, blank for all): ")).strip()
     
@@ -378,17 +374,13 @@ def start_simulation():
     circuit.simulate(Const.SIMULATE)
     set_status("Simulation Started.")
 
-def start_flipflop():
-    circuit.simulate(Const.FLIPFLOP)
-    set_status("FlipFlop (timed) Mode Started.")
-
 def reset_simulation():
     circuit.reset()
     set_status("Reset complete.")
 
 
 # ─────────────────────────────────────────────────────────────── Canvas ──────
-_MODE_NAME = {Const.DESIGN: 'DESIGN', Const.SIMULATE: 'SIMULATE', Const.FLIPFLOP: 'FLIPFLOP'}
+_MODE_NAME = {Const.DESIGN: 'DESIGN', Const.SIMULATE: 'SIMULATE'}
 _OUT_COLOR  = {'T': '\033[92mT\033[0m', 'F': '\033[94mF\033[0m',
                'E': '\033[91mE\033[0m', 'X': '\033[97mX\033[0m'}
 
@@ -441,8 +433,6 @@ def _render_canvas():
 
 async def canvas():
     """Live canvas: high-framerate, read-only timed loop with safe exit."""
-
-
     
     # Do one full clear before we start rendering to ensure a clean slate
     clear_screen()
@@ -580,9 +570,8 @@ async def submenu_simulation():
         '3': ("Show Truth Table", show_truth_table),
         '4': ("Diagnose", diagnose),
         '5': ("Start Simulation (Combinational)", start_simulation),
-        '6': ("Start FlipFlop (Timed/Sequential)", start_flipflop),
-        '7': ("Reset Simulation", reset_simulation),
-        '8': ("Canvas (Live Circuit View)", canvas),
+        '6': ("Reset Simulation", reset_simulation),
+        '7': ("Canvas (Live Circuit View)", canvas),
         'B': ("Back", None)
     })
 

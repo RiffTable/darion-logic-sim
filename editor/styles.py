@@ -46,7 +46,7 @@ class DarkTheme:
     
     signal_high    = QColor("#00FF87")
     signal_low     = QColor("#5f6468")
-    signal_error   = QColor("#FF1E1E")
+    signal_error   = QColor("#00D4FF")
     signal_unknown = QColor("#00D4FF")
     
     pin_high       = QColor("#00FF00")

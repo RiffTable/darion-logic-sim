@@ -156,6 +156,43 @@ class Circuit:
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
   
+    def table(self, variables: list, gate_list: list) -> list:
+        """Generate a truth table for the circuit."""
+        n = len(variables)
+        rows_count = 1 << n
+        raw_rows = [None] * rows_count
+        gray = 0
+        prev_gray = 0
+
+        for i in range(rows_count):
+            # Gray Code Sequence
+            prev_gray = gray
+            gray = i ^ (i >> 1)
+            
+            if i != 0:
+                mask = prev_gray ^ gray
+                changed_bit = mask.bit_length() - 1
+                j = (n - 1) - changed_bit
+                
+                var = variables[j]
+                bit = 1 if (gray & mask) else 0
+                if bit != var.output:
+                    var.output = bit
+                    self.propagate(var)
+            else:
+                for j in range(n):
+                    var = variables[j]
+                    if var.output != 0:
+                        var.output = 0
+                        self.propagate(var)
+
+            # Fast tuple extraction
+            v_states = tuple(var.output for var in variables)
+            g_states = tuple(gate.output for gate in gate_list)
+            raw_rows[gray] = (v_states, g_states)
+
+        return raw_rows
+
     def truthTable(self, variables: list = None, outputs: list = None) -> str:
         """Gray Code optimized Truth Table with sorting and string caching."""
       
@@ -178,8 +215,7 @@ class Circuit:
                     for pin in item.outputs:
                         gate_list.append(pin)
 
-        n = len(variables)
-        rows_count = 1 << n
+        raw_rows = self.table(variables, gate_list)
 
         # repr() gives the plain name (no ANSI codes) — used for width math and file output.
         # str() gives the colored name — used only for the printed header cells.
@@ -210,39 +246,9 @@ class Circuit:
         ]
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
-
-        raw_rows = [None]*rows_count
-        gray = 0
-        prev_gray = 0
-
-        for i in range(rows_count):
-            # Gray Code Sequence
-            prev_gray = gray
-            gray = i ^ (i >> 1)
-            
-            if i != 0:
-                mask = prev_gray ^ gray
-                changed_bit = mask.bit_length() - 1
-                j = (n - 1) - changed_bit
-                
-                var = variables[j]
-                bit = 1 if (gray & mask) else 0
-                if bit != var.output:
-                    var.output = bit
-                    self.propagate(var)
-            else:
-                for j in range(n):
-                    var = variables[j]
-                    if var.output != 0:
-                        var.output = 0
-                        self.propagate(var)
-
-            # Fast tuple extraction
-            v_states = tuple(var.output for var in variables)
-            g_states = tuple(gate.output for gate in gate_list)
-            raw_rows[gray]=(v_states, g_states)
-
-        self.simulate(get_MODE())
+        mode=get_MODE()
+        self.reset()
+        self.simulate(mode)
         
         final_table_lines = [separator, header, separator]
         for v_states, g_states in raw_rows:
@@ -283,7 +289,7 @@ class Circuit:
                 else:
                     ch_str = f"val:{comp.sources}"
 
-                book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
+                book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]}]"
 
                 tgt = [f"{repr(p.target)} " for p in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
@@ -561,8 +567,6 @@ class Circuit:
 
     def simulate(self, Mode: int):
         """Run the simulation."""
-        if get_MODE()!=DESIGN and get_MODE()!=Mode:
-            self.reset()
         set_MODE(Mode)
         self.visual_queue_clear()
         self.eval_count=0
@@ -590,15 +594,15 @@ class Circuit:
         for i in self.get_components():
             i.reset()
 
-    async def async_propagate(self):
-        time_budget=Const.OSCILLATE
-        delay=Const.VISUALIZE
+    async def oscillate(self):
         while self.time_queue:
-            start=time.perf_counter()
-            while self.time_queue and (time.perf_counter()-start)<time_budget:
+            size=len(self.time_queue)
+            while size:
+                size-=1
                 gate = self.time_queue.popleft()
                 self.update_gate(gate)
-            await asyncio.sleep(delay) 
+            await asyncio.sleep(0.075)    
+
                     
     def update_gate(self, gate: Gate):
         if not gate.update:
@@ -644,31 +648,26 @@ class Circuit:
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
-        read_buf[0] = origin
-        if not origin.update:
-            origin.update=True
-            self.visual_queue.append(origin)
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
+        read_buf[0] = origin
+        if not origin.update:
+            origin.update=True
+            self.visual_queue.append(origin)             
         x=self.eval_count
         start=time.perf_counter_ns()
         while read_end > 0:
             if counter > self.counter:
-                if get_MODE() == FLIPFLOP:
-                    for i in range(read_end):
-                        gate = read_buf[i]
-                        gate.mark=False
-                        gate.scheduled=True
-                        self.time_queue.append(gate)
-                    if self.runner is None or self.runner.done():
-                        self.runner=asyncio.create_task(self.async_propagate())
-                    return
-                else:
-                    counter=-1
-                    for i in range(read_end):
-                        gate = read_buf[i]
-                        gate.output = ERROR                
+                for i in range(read_end):
+                    gate = read_buf[i]
+                    gate.mark=False
+                    gate.scheduled=True
+                    self.time_queue.append(gate)
+                if self.runner is None or self.runner.done():
+                    self.runner=asyncio.create_task(self.oscillate())
+                return
+         
             counter += 1
 
             for i in range(read_end):
@@ -694,7 +693,7 @@ class Circuit:
                                 high = book[HIGH]
                                 low = book[LOW]
                                 realsource = high + low
-                                if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                if realsource == limit or (realsource and realsource + book[UNKNOWN] == limit):
                                     if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
                                     elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
                                     else:target_output = (high & 1)^(gate_type & 1)

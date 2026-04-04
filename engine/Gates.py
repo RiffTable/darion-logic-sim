@@ -64,7 +64,7 @@ class Gate:
         else:
             self.inputlimit=2
             self.sources: list[Gate | None] = [None, None]
-        self.book: list[int] = [0, 0, 0, 0]  # [LOW, HIGH, ERROR, UNKNOWN]
+        self.book: list[int] = [0, 0, 0]  # [LOW, HIGH, UNKNOWN]
         self.output: int = UNKNOWN
         self.value=0
         self.scheduled: bool = False
@@ -81,7 +81,6 @@ class Gate:
         name = self.codename if self.custom_name == '' else self.custom_name
         if self.output == LOW:     return f'\033[94m{name}\033[0m'
         elif self.output == HIGH:  return f'\033[92m{name}\033[0m'
-        elif self.output == ERROR: return f'\033[91m{name}\033[0m'
         else:                      return f'\033[97m{name}\033[0m'
 
     def register(self):
@@ -103,8 +102,8 @@ class Gate:
                     source=self.sources[0]
                     if source is None:
                         self.output=UNKNOWN
-                    elif source.output>=ERROR:
-                        self.output=source.output
+                    elif source.output==UNKNOWN:
+                        self.output=UNKNOWN
                     else:
                         self.output=source.output^(id==NOT_ID)
             else:
@@ -112,7 +111,7 @@ class Gate:
                 high = book[HIGH]
                 low = book[LOW]
                 realsource = high + low
-                if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                if realsource == limit or (realsource and realsource + book[UNKNOWN]  == limit):
                     if id <= NAND_ID:
                         self.output = int(low == 0)
                     elif id <= NOR_ID:
@@ -135,10 +134,7 @@ class Gate:
         source.hitlist.append(Profile(self, index, source.output))
         self.sources[index] = source
         self.book[source.output] += 1
-        if source.output == ERROR:
-            self.output = ERROR
-        else:
-            self.process()
+        self.process()
 
     def disconnect(self, index: int):
         """Disconnect pin at index."""
@@ -153,8 +149,8 @@ class Gate:
         """Reset to UNKNOWN state."""
         if self.id<VARIABLE_ID:
             book = self.book
-            book[UNKNOWN] += book[LOW] + book[HIGH] + book[ERROR]
-            book[LOW] = book[HIGH] = book[ERROR] = 0
+            book[UNKNOWN] += book[LOW] + book[HIGH] 
+            book[LOW] = book[HIGH] = 0
         self.output = UNKNOWN        
         for profile in self.hitlist:
             profile.output = UNKNOWN
@@ -170,7 +166,7 @@ class Gate:
                     pop(source.hitlist, self, i)
         self.output = UNKNOWN
         if self.id<VARIABLE_ID:
-            self.book[:]=[0,0,0,0]
+            self.book[:]=[0,0,0]
 
     def reveal(self):
         """Reconnect to sources and targets."""
@@ -204,8 +200,6 @@ class Gate:
         return False
 
     def getoutput(self) -> str:
-        if self.output == ERROR:
-            return '1/0'
         if self.output == UNKNOWN:
             return 'X'
         return 'T' if self.output == HIGH else 'F'

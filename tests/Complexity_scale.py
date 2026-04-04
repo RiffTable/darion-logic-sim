@@ -12,6 +12,7 @@ import sys
 import os
 import random
 import argparse
+import asyncio
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
@@ -742,7 +743,7 @@ LEVEL_DESCRIPTIONS = {
 # MAIN PROFILER
 # =====================================================================
 
-def run_profiler():
+async def run_profiler():
     print("="*82)
     print(" DARION LOGIC SIM: TOPOLOGY SCALING PROFILER (V6.0) ")
     print("="*82)
@@ -834,6 +835,10 @@ def run_profiler():
             m_evals_per_sec = (best_evals / best_time) / 1_000_000 if best_time > 0 else 0
             results.append(m_evals_per_sec)
 
+            # ---> ADD THIS ASYNC CLEANUP BLOCK <---
+            if getattr(circuit, 'runner', None) is not None and not circuit.runner.done():
+                circuit.runner.cancel()
+
             circuit.clearcircuit()
             del circuit
             gc.collect()
@@ -882,7 +887,10 @@ if __name__ == "__main__":
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)
         try:
-            run_profiler()
+            # ---> RUN INSIDE EVENT LOOP <---
+            asyncio.run(run_profiler())
+        except KeyboardInterrupt:
+            print("\n[!] Profiling Aborted by User.")
         finally:
             sys.stdout = _orig
     print(f"\nLog saved to: {_LOG}")
