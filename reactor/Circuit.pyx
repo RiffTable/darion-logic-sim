@@ -711,7 +711,7 @@ cdef class Circuit:
         else:
             gate.code = (gate.code[0], index)
 
-    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description, list components):
+    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description):
         '''save the circuit as an ic
         if components is not empty, it means the user wants to convert selected items to ic
         '''
@@ -719,17 +719,17 @@ cdef class Circuit:
         cdef CPP_Gate* info
         cdef IC my_ic
         cdef Gate gate
-        if components:
-            '''sandboxing for converting selected items to ic
-            create a circuit
-            load everything 
-            and convert to ic
-            '''
-            crct = Circuit()
-            crct.copy(components)
-            crct.paste()
-            crct.save_as_ic(location, ic_name, tag, description, None)
-            return
+        # if components:
+        #     '''sandboxing for converting selected items to ic
+        #     create a circuit
+        #     load everything 
+        #     and convert to ic
+        #     '''
+        #     crct = Circuit()
+        #     crct.copy(components)
+        #     crct.paste()
+        #     crct.save_as_ic(location, ic_name, tag, description, None)
+        #     return
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
             self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
@@ -976,15 +976,6 @@ cdef class Circuit:
             gate_infolist[origin].update = True
             self.visual_queue.push_back(origin)
             
-        while not self.time_queue.empty():
-            gate_loc = self.time_queue.front()
-            self.time_queue.pop_front()
-            if not gate_infolist[gate_loc].mark:
-                gate_infolist[gate_loc].mark = True
-                read_queue[end_point] = gate_loc
-                end_point += 1
-            gate_infolist[gate_loc].scheduled = False
-
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):

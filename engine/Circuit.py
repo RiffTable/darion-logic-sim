@@ -653,16 +653,7 @@ class Circuit:
         read_buf[0] = origin
         if not origin.update:
             origin.update=True
-            self.visual_queue.append(origin)
-        if self.time_queue:
-            for gate in self.time_queue:
-                if not gate.mark:
-                    gate.mark=True
-                    read_buf[read_end]=gate
-                    read_end+=1
-                gate.scheduled=False
-        self.time_queue.clear()
-                
+            self.visual_queue.append(origin)             
         x=self.eval_count
         start=time.perf_counter_ns()
         while read_end > 0:

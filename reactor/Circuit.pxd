@@ -33,7 +33,7 @@ cdef class Circuit:
     cpdef IC getIC(self, location)
     cpdef object get_ic(self, str location)
     cpdef IC load_ic(self, list crct)
-    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description, list components)
+    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description)
     cpdef void readfromjson(self, str location)
     cpdef void writetojson(self, str location)
     cpdef void refresh(self)
