@@ -307,8 +307,8 @@ async def show_output():
     except (ValueError, IndexError): set_status("Invalid selection.")
 
 async def show_truth_table():
-    if Const.get_MODE() != Const.SIMULATE:
-        return set_status("Switch to Simulation Mode (Option 5) before generating a Truth Table!")
+    # if Const.get_MODE() != Const.SIMULATE:
+    #     return set_status("Switch to Simulation Mode (Option 5) before generating a Truth Table!")
     
     circuit.listVar()
     var_str = (await aioconsole.ainput("Enter Variable Serials from above (space-separated, in desired order, blank for all): ")).strip()
