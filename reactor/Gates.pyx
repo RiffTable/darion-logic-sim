@@ -68,7 +68,6 @@ cdef class Gate:
             output = self.location_ptr[0][self.location].output
         if output == LOW: return f'\033[94m{name}\033[0m'
         elif output == HIGH: return f'\033[92m{name}\033[0m'
-        elif output == ERROR: return f'\033[91m{name}\033[0m'
         else: return f'\033[97m{name}\033[0m'
     def __int__(self):
         return self.location
@@ -89,7 +88,7 @@ cdef class Gate:
 
     @property
     def book(self):
-        '''Input tally: counts of LOW, HIGH, ERROR, and UNKNOWN sources'''
+        '''Input tally: counts of LOW, HIGH, UNKNOWN sources'''
         return self.location_ptr[0][self.location].book
 
     @property
@@ -153,8 +152,8 @@ cdef class Gate:
                     info.output = UNKNOWN
                 else:
                     src_info = &gate_infolist[source_loc]
-                    if src_info.output >= ERROR:
-                        info.output = src_info.output
+                    if src_info.output == UNKNOWN:
+                        info.output = UNKNOWN
                     else:
                         info.output = src_info.output ^ (gate_type == NOT_ID)
         else:
@@ -162,7 +161,7 @@ cdef class Gate:
             high = book[HIGH]
             low  = book[LOW]
             realsource = high + low
-            if likely(realsource == limit) or unlikely(realsource and realsource + book[ERROR] + book[UNKNOWN] == limit):
+            if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
                 if gate_type <= NAND_ID:   info.output = (low == 0) ^ (gate_type & 1)
                 elif gate_type <= NOR_ID:  info.output = (high > 0) ^ (gate_type & 1)
                 else:                      info.output = (high & 1) ^ (gate_type & 1)
@@ -209,8 +208,8 @@ cdef class Gate:
         cdef uint16_t* book
         if info.type < VARIABLE_ID:
             book = info.book
-            book[3] += book[0] + book[1] + book[2]
-            book[0] = book[1] = book[2] = 0
+            book[2] += book[0] + book[1]
+            book[0] = book[1] =  0
         info.output = UNKNOWN
         info.scheduled = False
         cdef Profile* profile = info.hitlist.data()
@@ -250,7 +249,7 @@ cdef class Gate:
         info.output = UNKNOWN
         if info.type < VARIABLE_ID:
             book = info.book
-            book[0] = book[1] = book[2] = book[3] = 0
+            book[0] = book[1] = book[2] = 0
 
     cdef void reveal(self):
         '''Re-attach this gate to the live graph and recompute its output'''
@@ -306,7 +305,6 @@ cdef class Gate:
         cdef int output=self.location_ptr[0][self.location].output
         if output == HIGH: return 'T'
         elif output == LOW: return 'F'
-        elif output == ERROR: return 'E'
         else: return 'X'
         
     cpdef list full_data(self):

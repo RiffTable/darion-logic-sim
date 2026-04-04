@@ -46,11 +46,10 @@ cdef class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            if DEBUG:
-                if gt.id == VARIABLE_ID:
-                    gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
-                else:
-                    gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
+            if gt.id == VARIABLE_ID:
+                gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
+            else:
+                gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
             if gt.id == VARIABLE_ID:
                 self.gate_infolist[(<Gate>gt).location].output = UNKNOWN if MODE==DESIGN else LOW
         return gt
@@ -319,7 +318,6 @@ cdef class Circuit:
         OUT_MAP = [
             "F".center(col_width),
             "T".center(col_width),
-            "E".center(col_width),
             "X".center(col_width)
         ]
 
@@ -334,7 +332,8 @@ cdef class Circuit:
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
         self.visual_queue_clear()
-        self.simulate(MODE)
+        self.reset()
+        self.simulate(SIMULATE)
 
         # --- STRING JOINING PHASE ---
         final_table_lines = [separator, header, separator]
@@ -366,7 +365,7 @@ cdef class Circuit:
             columns = [
                 ("Component", 14),
                 ("Sources", 28),
-                ("Book[L,H,E,U]", 15),
+                ("Book[L,H,U]", 15),
                 ("Targets", 25),
                 ("Out", 6)
             ]
@@ -385,7 +384,7 @@ cdef class Circuit:
                 else:
                     ch_str = f"val:{comp._sources}"
 
-                book = f"[{info.book[0]},{info.book[1]},{info.book[2]},{info.book[3]}]"
+                book = f"[{info.book[0]},{info.book[1]},{info.book[2]}]"
 
                 # Targets from info.hitlist — repr() only, no colors in auxiliary columns.
                 tgt = []
@@ -854,8 +853,6 @@ cdef class Circuit:
 
     cpdef void simulate(self, int Mod):
         '''simulate the circuit'''
-        if MODE !=Mod and MODE != DESIGN:
-            self.reset()
         cdef Gate variable
         cdef CPP_Gate* info
         set_MODE(Mod)
@@ -896,7 +893,7 @@ cdef class Circuit:
                 (<IC>i).reset()
 
     cdef void update_gate(self, int origin) nogil:
-        '''Process one gate for FLIPFLOP mode — called from the async drain loop on the main thread.'''
+        '''Process one gate called from the async drain loop on the main thread.'''
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low, limit, gate_type
@@ -921,28 +918,28 @@ cdef class Circuit:
                 gate_type = target_info.type
                 limit = target_info.inputlimit
                 if gate_type >= NOT_ID:
-                    if new_output <= HIGH:
+                    if new_output != UNKNOWN:
                         target_output = new_output ^ (gate_type == NOT_ID)
                     else:
-                        target_output = new_output
+                        target_output = UNKNOWN
                 else:
                     # update target
                     book = target_info.book
                     book[profile_output] -= 1
                     book[new_output] += 1
                     
-                    if new_output <= HIGH:
+                    if new_output != UNKNOWN:
                         high = book[HIGH]
                         low  = book[LOW]
                         realsource = high + low
-                        if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                        if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
                             if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
                             elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
                             else:                    target_output = (high & 1) ^ (gate_type & 1)
                         else:
                             target_output = UNKNOWN
                     else:
-                        target_output = new_output
+                        target_output = UNKNOWN
                 if target_output != target_info.output:
                     target_info.output = target_output
                     if not target_info.update:
@@ -980,20 +977,15 @@ cdef class Circuit:
         while end_point > 0:
             if unlikely(wave_limit<0):
                 self.eval_count += eval
-                if MODE == FLIPFLOP:
-                    for i in range(end_point):
-                        self_info = &gate_infolist[read_queue[i]]
-                        self_info.mark=False
-                        self_info.scheduled=True
-                        self.time_queue.push_back(read_queue[i])
-                    with gil:
-                        if self.runner is None or self.runner.done():
-                            self.runner=asyncio.create_task(self.async_propagate())
+                for i in range(end_point):
+                    self_info = &gate_infolist[read_queue[i]]
+                    self_info.mark=False
+                    self_info.scheduled=True
+                    self.time_queue.push_back(read_queue[i])
+                with gil:
+                    if self.runner is None or self.runner.done():
+                        self.runner=asyncio.create_task(self.oscillate())
                     return
-                wave_limit=self.gate_infolist.size()-self.hidden+1
-                for index in range(end_point):
-                    self_info = &gate_infolist[read_queue[index]]
-                    self_info.output = ERROR
             wave_limit -= 1
             for index in range(end_point):
                 self_info = &gate_infolist[read_queue[index]]
@@ -1009,28 +1001,28 @@ cdef class Circuit:
                         gate_type = target_info.type
                         limit = target_info.inputlimit
                         if gate_type >= NOT_ID:
-                            if new_output <= HIGH:
+                            if new_output != UNKNOWN:
                                 target_output = new_output ^ (gate_type == NOT_ID)
                             else:
-                                target_output = new_output
+                                target_output = UNKNOWN
                         else:
                             # update target
                             book = target_info.book
                             book[profile_output] -= 1
                             book[new_output] += 1
                            
-                            if new_output <= HIGH:
+                            if new_output != UNKNOWN:
                                 high = book[HIGH]
                                 low  = book[LOW]
                                 realsource = high + low
-                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
                                     if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
                                     elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
                                     else:                    target_output = (high & 1) ^ (gate_type & 1)
                                 else:
                                     target_output = UNKNOWN
                             else:
-                                target_output = new_output
+                                target_output = UNKNOWN
                         if target_output != target_info.output:
                             target_info.output = target_output
                             if not target_info.update:
@@ -1048,7 +1040,7 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    async def async_propagate(self):
+    async def oscillate(self):
         cdef int size
         
         while not self.time_queue.empty():

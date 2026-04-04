@@ -2,7 +2,7 @@
 DARION LOGIC SIM - ADVANCED HARDWARE CACHE PROFILER
 Dynamically detects hardware boundaries using latency derivatives.
 """
-
+import asyncio
 import time
 import gc
 import sys
@@ -136,7 +136,7 @@ def get_ram_mb():
         return process.memory_info().rss / (1024 * 1024)
     return 0.0
 
-def profile_cache():
+async def profile_cache():
     cpu_name, l2_cache, l3_cache = get_cpu_info()
     
     print("======================================================================")
@@ -259,6 +259,10 @@ def profile_cache():
 
         print(f"{size:>12,} | {current_ram:>7.1f} MB | {ns_per_eval:>7.2f} ns | {evals_per_sec/1_000_000:>6.2f} M/s | {degradation_pct:>9.1f}% | {cliff_indicator}{visual_bar} {tag}")
 
+        # ---> ADD THIS CLEANUP BLOCK <---
+        if getattr(c, 'runner', None) is not None and not c.runner.done():
+            c.runner.cancel()
+            
         c.clearcircuit()
         del c
         del start_node
@@ -315,7 +319,10 @@ if __name__ == "__main__":
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)
         try:
-            profile_cache()
+            # ---> RUN INSIDE EVENT LOOP <---
+            asyncio.run(profile_cache())
+        except KeyboardInterrupt:
+            print("\n[!] Cache Profiling Aborted by User.")
         finally:
             sys.stdout = _orig
     print(f"\nLog saved to: {_LOG}")

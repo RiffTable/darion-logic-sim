@@ -228,13 +228,14 @@ class AggressiveTestSuite:
         msg = f"\r  - {self._subsection_title}: {self.section_passed} {status} ({duration:.0f}ms)"
         print(f"{msg:<80}", flush=True)
 
-    def progress(self, current, total, interval=10000):
+    async def progress(self, current, total, interval=10000):
         """Show progress during long operations"""
         if current > 0 and current % interval == 0:
             pct = 100 * current / total
             self._print_status(force=True, suffix=f"[{pct:.0f}%]")
+            await asyncio.sleep(0)
 
-    def run_all(self):
+    async def run_all(self):
         print(f"System: {platform.system()} | Python {platform.python_version()}")
         print(f"Log file: {LOG_FILE}")
         print(f"{'-'*70}")
@@ -246,108 +247,108 @@ class AggressiveTestSuite:
 
         # ==================== PART 1: HEAVY UNIT TESTS ====================
         self.section("UNIT TESTS")
-        self.test_gate_Construction_heavy()
-        self.test_gate_logic_exhaustive()
-        self.test_profile_stress()
-        self.test_book_tracking_stress()
-        self.test_connection_stress()
-        self.test_delete_stress()  # New test
-        self.test_disconnection_stress()
-        self.test_variable_rapid_toggle()
-        self.test_probe_chain_stress()
-        self.test_io_pins_stress()
-        self.test_setlimits_stress()
+        await self.test_gate_Construction_heavy()
+        await self.test_gate_logic_exhaustive()
+        await self.test_profile_stress()
+        await self.test_book_tracking_stress()
+        await self.test_connection_stress()
+        await self.test_delete_stress()  # New test
+        await self.test_disconnection_stress()
+        await self.test_variable_rapid_toggle()
+        await self.test_probe_chain_stress()
+        await self.test_io_pins_stress()
+        await self.test_setlimits_stress()
         
         # ==================== PART 1.5: COMPREHENSIVE COVERAGE ====================
         self.section("COMPREHENSIVE COVERAGE")
-        self.test_every_gate_simulate()
+        await self.test_every_gate_simulate()
 
-        self.test_every_gate_multi_input()
-        self.test_all_gate_methods()
-        self.test_all_circuit_methods()
-        self.test_mixed_gate_circuit()
-        self.test_transfer_info()
+        await self.test_every_gate_multi_input()
+        await self.test_all_gate_methods()
+        await self.test_all_circuit_methods()
+        await self.test_mixed_gate_circuit()
+        await self.test_transfer_info()
         
         # ==================== PART 2: CIRCUIT STRESS ====================
         self.section("CIRCUIT STRESS")
-        self.test_circuit_management_stress()
-        self.test_propagation_deep_chain()
-        self.test_propagation_wide_fanout()
+        await self.test_circuit_management_stress()
+        await self.test_propagation_deep_chain()
+        await self.test_propagation_wide_fanout()
 
-        self.test_hide_reveal_stress()
-        self.test_reset_stress()
+        await self.test_hide_reveal_stress()
+        await self.test_reset_stress()
         
         # ==================== PART 3: EVENT MANAGER STRESS ====================
         self.section("EVENT MANAGER")
-        self.test_undo_redo_stress()
-        self.test_rapid_undo_redo()
+        await self.test_undo_redo_stress()
+        await self.test_rapid_undo_redo()
         
         # ==================== PART 4: IC STRESS (COMPREHENSIVE) ====================
         self.section("IC TESTS")
-        self.test_ic_basic_functionality()
-        self.test_ic_nested()
-        self.test_ic_deeply_nested()
-        self.test_ic_many_pins()
-        self.test_ic_complex_internal()
-        self.test_ic_save_load()
-        self.test_ic_hide_reveal()
-        self.test_ic_reset()
-        self.test_ic_copy_paste()
-        self.test_ic_massive_internal()
-        self.test_ic_cascade()
-        self.test_ic_multi_output()
-        self.test_ic_stress_bulk()
-        self.test_ic_pin_change_and_reorder()
+        await self.test_ic_basic_functionality()
+        await self.test_ic_nested()
+        await self.test_ic_deeply_nested()
+        await self.test_ic_many_pins()
+        await self.test_ic_complex_internal()
+        await self.test_ic_save_load()
+        await self.test_ic_hide_reveal()
+        await self.test_ic_reset()
+        await self.test_ic_copy_paste()
+        await self.test_ic_massive_internal()
+        await self.test_ic_cascade()
+        await self.test_ic_multi_output()
+        await self.test_ic_stress_bulk()
+        await self.test_ic_pin_change_and_reorder()
         
         # ==================== PART 5: SERIALIZATION STRESS ====================
         self.section("SERIALIZATION")
-        self.test_save_load_large_circuit()
-        self.test_copy_paste_stress()
-        self.test_copy_paste_complex()  # New test
+        await self.test_save_load_large_circuit()
+        await self.test_copy_paste_stress()
+        await self.test_copy_paste_complex()  # New test
         
         # ==================== PART 6: TRUTH TABLE STRESS ====================
         self.section("TRUTH TABLE")
-        self.test_truth_table_4_inputs()
-        self.test_truth_table_6_inputs()
-        self.test_truth_table_8_inputs()
-        self.test_truth_table_10_inputs()
-        self.test_truth_table_complex()
-        self.test_truth_table_partial()
+        await self.test_truth_table_4_inputs()
+        await self.test_truth_table_6_inputs()
+        await self.test_truth_table_8_inputs()
+        await self.test_truth_table_10_inputs()
+        await self.test_truth_table_complex()
+        await self.test_truth_table_partial()
         
         # ==================== PART 7.5: REFRESH / OPTIMIZE (Reactor only) ====================
         if use_reactor:
             self.section("REFRESH / OPTIMIZE")
-            self.test_optimize_topological_order()
-            self.test_optimize_location_remap()
-            self.test_refresh_trims_trailing_deleted()
-            self.test_delobj_marks_negative_type()
-            self.test_delobj_counter_decrements()
-            self.test_refresh_delete_middle_gate()
-            self.test_refresh_delete_all_gates()
-            self.test_optimize_functional_correctness()
-            self.test_optimize_cache_ordering()
-            self.test_optimize_with_cycles()
-            self.test_refresh_after_ic_deletion()
-            self.test_optimize_reconnect_after()
-            self.test_refresh_idempotent()
-            self.test_optimize_large_circuit()
-            self.test_optimize_gate_verse_sync()
-            self.test_refresh_delete_readd()
+            await self.test_optimize_topological_order()
+            await self.test_optimize_location_remap()
+            await self.test_refresh_trims_trailing_deleted()
+            await self.test_delobj_marks_negative_type()
+            await self.test_delobj_counter_decrements()
+            await self.test_refresh_delete_middle_gate()
+            await self.test_refresh_delete_all_gates()
+            await self.test_optimize_functional_correctness()
+            await self.test_optimize_cache_ordering()
+            await self.test_optimize_with_cycles()
+            await self.test_refresh_after_ic_deletion()
+            await self.test_optimize_reconnect_after()
+            await self.test_refresh_idempotent()
+            await self.test_optimize_large_circuit()
+            await self.test_optimize_gate_verse_sync()
+            await self.test_refresh_delete_readd()
         else:
             print("\n[REFRESH / OPTIMIZE] Skipped (Reactor-only, use --reactor)")
 
         # ==================== PART 8: REAL-WORLD STRESS ====================
         self.section("REAL-WORLD STRESS")
-        self.test_ripple_adder_correctness(bits=16)
-        self.test_sr_latch_metastability(count=1000)
-        self.test_mux_tree(select_bits=10)
-        self.test_ring_oscillator(length=50)
-        self.test_decoder_encoder(bits=8)
-        self.test_cascade_adder_pipeline(stages=4, bits=8)
-        self.test_xor_parity_generator(bits=1024)
-        self.test_glitch_propagation(depth=500)
-        self.test_hot_swap_under_load(count=200)
-        self.test_reconvergent_fanout(depth=10)
+        await self.test_ripple_adder_correctness(bits=16)
+        await self.test_sr_latch_metastability(count=1000)
+        await self.test_mux_tree(select_bits=10)
+        await self.test_ring_oscillator(length=50)
+        await self.test_decoder_encoder(bits=8)
+        await self.test_cascade_adder_pipeline(stages=4, bits=8)
+        await self.test_xor_parity_generator(bits=1024)
+        await self.test_glitch_propagation(depth=500)
+        await self.test_hot_swap_under_load(count=200)
+        await self.test_reconvergent_fanout(depth=10)
 
         # Finalize last section
         self.section("_END_")  # Trigger saving of last section metrics
@@ -401,7 +402,7 @@ class AggressiveTestSuite:
     # PART 1: HEAVY UNIT TESTS
     # =========================================================================
 
-    def test_gate_Construction_heavy(self):
+    async def test_gate_Construction_heavy(self):
         self.subsection("Gate Construction (1000 each)")
         gate_types = [
             (Const.NOT_ID, 'NOT'),
@@ -420,7 +421,7 @@ class AggressiveTestSuite:
             all_unknown = all(g.output == Const.UNKNOWN for g in gates)
             self.assert_test(len(gates) == count and all_unknown, f"{gate_name} x{count}")
 
-    def test_gate_logic_exhaustive(self):
+    async def test_gate_logic_exhaustive(self):
         self.subsection("Gate Logic (Full Truth Tables)")
         
         truth_tables = {
@@ -467,7 +468,7 @@ class AggressiveTestSuite:
                 break
         self.assert_test(all_correct, "NOT gate 100 toggles")
 
-    def test_profile_stress(self):
+    async def test_profile_stress(self):
         self.subsection("Profile Operations (1000 connections)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -492,7 +493,7 @@ class AggressiveTestSuite:
         all_high = all(g.output == Const.HIGH for g in gates)
         self.assert_test(all_high, "All 1000 gates received signal")
 
-    def test_book_tracking_stress(self):
+    async def test_book_tracking_stress(self):
         self.subsection("Book Tracking (100-input gate)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -518,7 +519,7 @@ class AggressiveTestSuite:
             c.toggle(variables[i], Const.HIGH)
         self.assert_test(g.output == Const.HIGH, "AND(100 HIGH) = HIGH")
 
-    def test_connection_stress(self):
+    async def test_connection_stress(self):
         self.subsection("Connection Stress (500 cycles)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -532,7 +533,7 @@ class AggressiveTestSuite:
             c.disconnect(g, 0)
             self.assert_test(g.sources[0] is None, f"Cycle {i}: Disconnected")
 
-    def test_disconnection_stress(self):
+    async def test_disconnection_stress(self):
         self.subsection("Disconnection (50-source gate)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -551,7 +552,7 @@ class AggressiveTestSuite:
         all_none = all(g.sources[i] is None for i in range(50))
         self.assert_test(all_none, "All 50 sources cleared")
 
-    def test_variable_rapid_toggle(self):
+    async def test_variable_rapid_toggle(self):
         self.subsection("Variable Rapid Toggle (10000)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -568,7 +569,7 @@ class AggressiveTestSuite:
         duration_ms = (end - start) / 1_000_000
         self.assert_test(v.output == Const.HIGH, f"Final state correct ({duration_ms:.1f}ms)")
 
-    def test_probe_chain_stress(self):
+    async def test_probe_chain_stress(self):
         self.subsection("Probe Chain (100 probes)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -582,7 +583,7 @@ class AggressiveTestSuite:
         all_high = all(p.output == Const.HIGH for p in probes)
         self.assert_test(all_high, "All 100 probes HIGH")
 
-    def test_io_pins_stress(self):
+    async def test_io_pins_stress(self):
         self.subsection("IO Pins (50 chains)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -599,7 +600,7 @@ class AggressiveTestSuite:
         
         self.assert_test(True, "50 IO pin chains created")
 
-    def test_setlimits_stress(self):
+    async def test_setlimits_stress(self):
         self.subsection("setlimits (Expand/Contract)")
         c = Circuit()
         g = c.getcomponent(Const.AND_ID)
@@ -616,7 +617,7 @@ class AggressiveTestSuite:
     # PART 1.5: COMPREHENSIVE COVERAGE
     # =========================================================================
 
-    def test_every_gate_simulate(self):
+    async def test_every_gate_simulate(self):
         """Test every gate type in SIMULATE mode with full truth table verification."""
         self.subsection("Every Gate (SIMULATE mode)")
 
@@ -736,7 +737,7 @@ class AggressiveTestSuite:
 
 
 
-    def test_every_gate_multi_input(self):
+    async def test_every_gate_multi_input(self):
         """Test every gate type with more than 2 inputs (expanded via setlimits)."""
         self.subsection("Every Gate (Multi-Input)")
 
@@ -839,7 +840,7 @@ class AggressiveTestSuite:
         result = c.setlimits(v, 4)
         self.assert_test(result == False, "Variable setlimits(4) returns False")
 
-    def test_all_gate_methods(self):
+    async def test_all_gate_methods(self):
         """Touch every accessible method/property on every gate type."""
         self.subsection("All Gate Methods")
 
@@ -971,7 +972,7 @@ class AggressiveTestSuite:
         out.rename("my_out")
         self.assert_test(out.custom_name == "my_out", "Out.rename() works")
 
-    def test_transfer_info(self):
+    async def test_transfer_info(self):
         """Test the transfer_info function."""
         self.subsection("Transfer Info Logic")
         c = Circuit()
@@ -990,7 +991,7 @@ class AggressiveTestSuite:
         self.assert_test(g in c.objlist[Const.OR_ID], "Gate added to new ID's object list")
         self.assert_test(c.objlist[old_code[0]][old_code[1]] is None, "Gate removed from old ID's list")
 
-    def test_all_circuit_methods(self):
+    async def test_all_circuit_methods(self):
         """Touch every accessible Circuit method."""
         self.subsection("All Circuit Methods")
 
@@ -1108,7 +1109,7 @@ class AggressiveTestSuite:
         c6.clearcircuit()
         self.assert_test(len(c6.get_components()) == 0, "clearcircuit empties canvas")
 
-    def test_mixed_gate_circuit(self):
+    async def test_mixed_gate_circuit(self):
         """Build a circuit using every gate type simultaneously and verify propagation."""
         self.subsection("Mixed Gate Circuit")
 
@@ -1252,7 +1253,7 @@ class AggressiveTestSuite:
     # PART 2: CIRCUIT STRESS TESTS
     # =========================================================================
 
-    def test_circuit_management_stress(self):
+    async def test_circuit_management_stress(self):
         self.subsection("Circuit Management (500 gates)")
         c = Circuit()
         
@@ -1267,7 +1268,7 @@ class AggressiveTestSuite:
             c.reveal([g])
         self.assert_test(len(c.get_components()) == 500, "500 after revealing")
 
-    def test_propagation_deep_chain(self):
+    async def test_propagation_deep_chain(self):
         self.subsection("Propagation (1000-deep chain)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1291,7 +1292,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(prev.output == Const.LOW, f"1000-deep chain LOW->LOW")
 
-    def test_propagation_wide_fanout(self):
+    async def test_propagation_wide_fanout(self):
         self.subsection("Propagation (5000 fanout)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1321,7 +1322,7 @@ class AggressiveTestSuite:
         all_high = all(g.output == Const.HIGH for g in gates)
         self.assert_test(all_high, f"5000 targets updated ({duration:.2f}ms)")
 
-    def test_delete_stress(self):
+    async def test_delete_stress(self):
         self.subsection("Delete Stress (Delete 500 gates)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1352,7 +1353,7 @@ class AggressiveTestSuite:
         remaining_ok = all(g.output == Const.HIGH for g in gates[250:])
         self.assert_test(remaining_ok, "Remaining 250 gates still functional")
 
-    def test_copy_paste_complex(self):
+    async def test_copy_paste_complex(self):
         self.subsection("Copy/Paste Complex Structure")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1392,7 +1393,7 @@ class AggressiveTestSuite:
         external_lost = (q_copy.sources[0] == None) and (qb_copy.sources[0] == None)
         self.assert_test(external_lost, "External connections dropped (as expected)")
 
-    def test_hide_reveal_stress(self):
+    async def test_hide_reveal_stress(self):
         self.subsection("Hide/Reveal (100 cycles)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1411,7 +1412,7 @@ class AggressiveTestSuite:
         
         self.assert_test(True, "100 hide/reveal cycles")
 
-    def test_reset_stress(self):
+    async def test_reset_stress(self):
         self.subsection("Reset")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1429,7 +1430,7 @@ class AggressiveTestSuite:
     # PART 3: EVENT MANAGER STRESS
     # =========================================================================
 
-    def test_undo_redo_stress(self):
+    async def test_undo_redo_stress(self):
         self.subsection("Undo/Redo (200 ops)")
         e = Event()
         c = Circuit()
@@ -1452,7 +1453,7 @@ class AggressiveTestSuite:
             e.redo()
             self.assert_test(len(c.get_components()) == i+1, f"Redo {i}")
 
-    def test_rapid_undo_redo(self):
+    async def test_rapid_undo_redo(self):
         self.subsection("Rapid Undo/Redo (500 cycles)")
         e = Event()
         c = Circuit()
@@ -1473,7 +1474,7 @@ class AggressiveTestSuite:
     # PART 4: IC STRESS
     # =========================================================================
 
-    def test_ic_basic_functionality(self):
+    async def test_ic_basic_functionality(self):
         self.subsection("IC Basic Functionality")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1501,7 +1502,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(out.output == Const.HIGH, "IC inverts LOW->HIGH")
 
-    def test_ic_nested(self):
+    async def test_ic_nested(self):
         self.subsection("Nested ICs (2 levels)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1536,7 +1537,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(outer_out.output == Const.LOW, "Nested IC preserves LOW")
 
-    def test_ic_deeply_nested(self):
+    async def test_ic_deeply_nested(self):
         self.subsection("Deeply Nested ICs (4 levels)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1596,7 +1597,7 @@ class AggressiveTestSuite:
         # Effectively a single inverter wrapped in wires
         self.assert_test(out1.output == Const.LOW, "4-level nested IC (inverter behavior)")
 
-    def test_ic_many_pins(self):
+    async def test_ic_many_pins(self):
         self.subsection("IC with 32 pins")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1637,7 +1638,7 @@ class AggressiveTestSuite:
         alternating = all(outputs[i].output == (Const.LOW if i % 2 else Const.HIGH) for i in range(32))
         self.assert_test(alternating, "32-pin IC alternating pattern")
 
-    def test_ic_complex_internal(self):
+    async def test_ic_complex_internal(self):
         self.subsection("IC with Complex Internal Logic (Full Adder)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1697,7 +1698,7 @@ class AggressiveTestSuite:
         self.assert_test(out_sum.output == Const.HIGH, "Full Adder IC: Sum(1,0,0)=1")
         self.assert_test(out_cout.output == Const.LOW, "Full Adder IC: Cout(1,0,0)=0")
 
-    def test_ic_save_load(self):
+    async def test_ic_save_load(self):
         self.subsection("IC Save/Load to JSON")
         c1 = Circuit()
         c1.simulate(Const.SIMULATE)
@@ -1731,7 +1732,7 @@ class AggressiveTestSuite:
         os.remove(temp_file)
         self.assert_test(True, "IC save/load complete")
 
-    def test_ic_hide_reveal(self):
+    async def test_ic_hide_reveal(self):
         self.subsection("IC Hide/Reveal (50 cycles)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1757,7 +1758,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(out.output == Const.HIGH, "IC works after 50 hide/reveal cycles")
 
-    def test_ic_reset(self):
+    async def test_ic_reset(self):
         self.subsection("IC Reset")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1782,7 +1783,7 @@ class AggressiveTestSuite:
         c.reset()
         self.assert_test(Const.get_MODE() == Const.DESIGN, "Circuit reset to DESIGN mode")
 
-    def test_ic_copy_paste(self):
+    async def test_ic_copy_paste(self):
         self.subsection("IC Copy/Paste")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1804,7 +1805,7 @@ class AggressiveTestSuite:
         self.assert_test(len(c.get_components()) == initial_count + 1, "IC copied and pasted")
 
 
-    def test_ic_massive_internal(self):
+    async def test_ic_massive_internal(self):
         self.subsection("IC with 100 Internal Gates")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1832,7 +1833,7 @@ class AggressiveTestSuite:
         # 100 inversions = identity (even number)
         self.assert_test(out.output == Const.HIGH, "100-gate IC chain works")
 
-    def test_ic_cascade(self):
+    async def test_ic_cascade(self):
         self.subsection("IC Cascade (10 ICs in series)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1861,7 +1862,7 @@ class AggressiveTestSuite:
         c.toggle(v, Const.LOW)
         self.assert_test(prev_out.output == Const.LOW, "Cascade propagates LOW")
 
-    def test_ic_multi_output(self):
+    async def test_ic_multi_output(self):
         self.subsection("IC with 8 Outputs from 1 Input")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1892,7 +1893,7 @@ class AggressiveTestSuite:
         correct = all(outputs[i].output == (Const.HIGH if i % 2 == 0 else Const.LOW) for i in range(8))
         self.assert_test(correct, "8-output IC: alternating pattern")
 
-    def test_ic_stress_bulk(self):
+    async def test_ic_stress_bulk(self):
         self.subsection("Bulk IC Stress (50 ICs, 100 toggles each)")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1929,7 +1930,7 @@ class AggressiveTestSuite:
         
         self.assert_test(True, f"50 ICs x 100 toggle cycles: {duration:.2f}ms")
 
-    def test_ic_pin_change_and_reorder(self):
+    async def test_ic_pin_change_and_reorder(self):
         self.subsection("IC Pin Change & Reorder")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -1965,7 +1966,7 @@ class AggressiveTestSuite:
     # PART 5: SERIALIZATION STRESS
     # =========================================================================
 
-    def test_save_load_large_circuit(self):
+    async def test_save_load_large_circuit(self):
         self.subsection("Save/Load 1000 gates")
         c1 = Circuit()
         c1.simulate(Const.SIMULATE)
@@ -1985,7 +1986,7 @@ class AggressiveTestSuite:
         self.assert_test(len(c2.get_components()) == 1000, "1000 components loaded")
         os.remove(temp_file)
 
-    def test_copy_paste_stress(self):
+    async def test_copy_paste_stress(self):
         self.subsection("Copy/Paste 50 gates")
         c = Circuit()
         c.simulate(Const.SIMULATE)
@@ -2001,7 +2002,7 @@ class AggressiveTestSuite:
     # PART 6: TRUTH TABLE STRESS
     # =========================================================================
 
-    def test_truth_table_4_inputs(self):
+    async def test_truth_table_4_inputs(self):
         """4-input truth table (16 rows)"""
         c = Circuit()
         vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(4)]
@@ -2022,7 +2023,7 @@ class AggressiveTestSuite:
             c.toggle(v, 1)
         self.assert_test(g.output == Const.HIGH, "AND(1,1,1,1)=1")
 
-    def test_truth_table_6_inputs(self):
+    async def test_truth_table_6_inputs(self):
         """6-input truth table (64 rows)"""
         c = Circuit()
         vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(6)]
@@ -2038,7 +2039,7 @@ class AggressiveTestSuite:
         
         self.assert_test(table is not None, f"6-input (64 rows): {duration:.2f} ms")
 
-    def test_truth_table_8_inputs(self):
+    async def test_truth_table_8_inputs(self):
         """8-input truth table (256 rows)"""
         c = Circuit()
         vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(8)]
@@ -2054,7 +2055,7 @@ class AggressiveTestSuite:
         
         self.assert_test(table is not None, f"8-input (256 rows): {duration:.2f} ms")
 
-    def test_truth_table_10_inputs(self):
+    async def test_truth_table_10_inputs(self):
         """10-input truth table (1024 rows)"""
         c = Circuit()
         vars = [c.getcomponent(Const.VARIABLE_ID) for _ in range(10)]
@@ -2070,7 +2071,7 @@ class AggressiveTestSuite:
         
         self.assert_test(table is not None, f"10-input (1024 rows): {duration:.2f} ms")
 
-    def test_truth_table_complex(self):
+    async def test_truth_table_complex(self):
         """Full adder circuit (3 inputs, 2 outputs)"""
         c = Circuit()
         
@@ -2116,7 +2117,7 @@ class AggressiveTestSuite:
         table = c.truthTable(None,None)
         self.assert_test(table is not None, "Full adder truth table")
 
-    def test_truth_table_partial(self):
+    async def test_truth_table_partial(self):
         """Partial truth table specifying variables and outputs"""
         c = Circuit()
         
@@ -2145,7 +2146,7 @@ class AggressiveTestSuite:
     # PART 7: SPEED BENCHMARKS
     # =========================================================================
 
-    def test_marathon(self, count):
+    async def test_marathon(self, count):
         self.subsection(f"Marathon ({count:,} NOT gates)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2171,7 +2172,7 @@ class AggressiveTestSuite:
         expected = 'T' if (count % 2 == 0) else 'F'
         self.assert_test(prev.getoutput() == expected, f"{duration:.2f}ms | {latency:.1f}ns/gate")
 
-    def test_avalanche(self, layers):
+    async def test_avalanche(self, layers):
         total = (2**layers)-1
         self.subsection(f"Avalanche ({layers} layers, {total:,} gates)")
         self.circuit.clearcircuit()
@@ -2205,7 +2206,7 @@ class AggressiveTestSuite:
         
         self.assert_test(True, f"{duration:.2f}ms | {rate/1_000_000:.2f}M/sec")
 
-    def test_gridlock(self, size):
+    async def test_gridlock(self, size):
         total = size*size
         self.subsection(f"Gridlock ({size}x{size} = {total:,} gates)")
         self.circuit.clearcircuit()
@@ -2255,7 +2256,7 @@ class AggressiveTestSuite:
         passed = (grid[size-1][size-1].getoutput() == 'T')
         self.assert_test(passed, f"{duration:.2f}ms")
 
-    def test_echo_chamber(self, count):
+    async def test_echo_chamber(self, count):
         self.subsection(f"Echo Chamber ({count:,} SR latches)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2288,7 +2289,7 @@ class AggressiveTestSuite:
         passed = all(l.getoutput() == 'T' for l in latches)
         self.assert_test(passed, f"{duration:.2f}ms")
 
-    def test_black_hole(self, inputs):
+    async def test_black_hole(self, inputs):
         self.subsection(f"Black Hole ({inputs:,} inputs)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2317,7 +2318,7 @@ class AggressiveTestSuite:
         
         self.assert_test(black_hole.getoutput() == 'T', f"{duration:.4f}ms")
 
-    def test_paradox_burn(self):
+    async def test_paradox_burn(self):
         self.subsection("Paradox (XOR loop)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2329,7 +2330,6 @@ class AggressiveTestSuite:
         c.connect(xor_gate, source, 0)
         c.connect(xor_gate, xor_gate, 1)
         
-        # NOTE: Skipping warmup for paradox test as it triggers error state/potential crash
         try:
             gc.disable()
             start = time.perf_counter_ns()
@@ -2338,17 +2338,25 @@ class AggressiveTestSuite:
             gc.enable()
             
             self.perf_metrics['paradox'] = {'time': duration, 'gates': 1}
-            self.assert_test(xor_gate.output == Const.ERROR, f"ERROR state ({duration:.4f}ms)")
-        except RecursionError:
-            gc.enable()
-            self.assert_test(True, "Caught RecursionError")
+            
+            # Check for the new background breaker OR the old error state (Python engine)
+            breaker_engaged = getattr(c, 'runner', None) is not None and not c.runner.done()
+            is_error = xor_gate.output == Const.ERROR
+            
+            self.assert_test(breaker_engaged or is_error, f"Oscillation safely handled ({duration:.4f}ms)")
+            
+            # Instantly kill the oscillation so it doesn't bleed into test_mega_chain!
+            if breaker_engaged:
+                c.runner.cancel()
+                
         except Exception as e:
             gc.enable()
             self.assert_test(False, f"CRASHED: {e}")
 
 
 
-    def test_mega_chain(self):
+
+    async def test_mega_chain(self):
         self.subsection("Mega Chain (1M NOT gates)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2362,7 +2370,7 @@ class AggressiveTestSuite:
             c.connect(g, prev, 0)
             prev = g
             if i > 0 and i % 100000 == 0:
-                self.progress(i, count)
+                await self.progress(i, count)
 
         c.simulate(Const.SIMULATE)
         c.toggle(inp, 0)
@@ -2381,7 +2389,7 @@ class AggressiveTestSuite:
         expected = 'T' if (count % 2 == 0) else 'F'
         self.assert_test(prev.getoutput() == expected, f"{duration:.2f}ms | {latency:.1f}ns/gate")
 
-    def test_extreme_fanout(self):
+    async def test_extreme_fanout(self):
         self.subsection("Extreme Fanout (50K targets)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2401,7 +2409,7 @@ class AggressiveTestSuite:
             c.connect(g, const_high, 1)
             gates.append(g)
             if i > 0 and i % 10000 == 0:
-                self.progress(i, count)
+                await self.progress(i, count)
         
         c.toggle(v, 0)
 
@@ -2418,7 +2426,7 @@ class AggressiveTestSuite:
         
         self.assert_test(all_high, f"{duration:.2f}ms | {count} gates updated")
 
-    def test_extreme_fanin(self, count):
+    async def test_extreme_fanin(self, count):
         self.subsection(f"Extreme Fan-in ({count:,} inputs)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2433,7 +2441,7 @@ class AggressiveTestSuite:
             c.connect(g, v, i)
             vars_list.append(v)
             if i > 0 and i % 10000 == 0:
-                self.progress(i, count)
+                await self.progress(i, count)
         
         # Set all HIGH
         for v in vars_list:
@@ -2450,7 +2458,7 @@ class AggressiveTestSuite:
         self.perf_metrics['extreme_fanin'] = {'time': duration, 'gates': count}
         self.assert_test(g.output == Const.LOW, f"{duration:.2f}ms")
 
-    def test_extreme_fanin_fanout(self, count):
+    async def test_extreme_fanin_fanout(self, count):
         self.subsection(f"Extreme Fan-in+Fan-out ({count:,} in/out)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2469,7 +2477,7 @@ class AggressiveTestSuite:
             c.connect(central, v, i)
             inputs.append(v)
             if i > 0 and i % 10000 == 0:
-                self.progress(i, count)
+                await self.progress(i, count)
                 
         targets = []
         for i in range(count):
@@ -2479,7 +2487,7 @@ class AggressiveTestSuite:
             c.connect(g, const_high, 1)
             targets.append(g)
             if i > 0 and i % 10000 == 0:
-                self.progress(i, count)
+                await self.progress(i, count)
         
         for v in inputs:
             c.toggle(v, 1)
@@ -2495,7 +2503,7 @@ class AggressiveTestSuite:
         all_passed = all(g.output == Const.LOW for g in targets)
         self.perf_metrics['extreme_fanin_fanout'] = {'time': duration, 'gates': count + count + 1}
         self.assert_test(all_passed, f"{duration:.2f}ms")
-    def test_cpu_datapath(self, bit_width=8192):
+    async def test_cpu_datapath(self, bit_width=8192):
         self.subsection(f"CPU Datapath ({bit_width}-bit ALU + Registers)")
         self.circuit.clearcircuit()
         c = self.circuit
@@ -2563,7 +2571,7 @@ class AggressiveTestSuite:
             latches.append(q)
             
             if i > 0 and i % 1000 == 0:
-                self.progress(i, bit_width)
+                await self.progress(i, bit_width)
 
         # --- BENCHMARK PHASE 1: The Ripple Cascade ---
         # Set A = 1111...1111 (All High)
@@ -2609,7 +2617,7 @@ class AggressiveTestSuite:
     # PART 8: REAL-WORLD STRESS TESTS
     # =========================================================================
 
-    def test_ripple_adder_correctness(self, bits=16):
+    async def test_ripple_adder_correctness(self, bits=16):
         """Build a real N-bit ripple carry adder and verify arithmetic results."""
         self.subsection(f"Ripple Adder Correctness ({bits}-bit)")
         c = Circuit()
@@ -2691,7 +2699,7 @@ class AggressiveTestSuite:
             self.perf_metrics['ripple_adder'] = {'time': 0, 'gates': total_gates}
             self.assert_test(True, f"{len(test_cases)} additions verified ({total_gates} gates)")
 
-    def test_sr_latch_metastability(self, count=1000):
+    async def test_sr_latch_metastability(self, count=1000):
         """Build SR latches and test Set, Reset, Hold, and Forbidden states."""
         self.subsection(f"SR Latch Metastability ({count})")
         c = Circuit()
@@ -2732,7 +2740,7 @@ class AggressiveTestSuite:
 
         self.perf_metrics['sr_latch'] = {'time': 0, 'gates': count * 2}
 
-    def test_mux_tree(self, select_bits=10):
+    async def test_mux_tree(self, select_bits=10):
         """Build a 2^N:1 multiplexer tree from AND/OR/NOT gates, verify selection."""
         num_inputs = 1 << select_bits
         self.subsection(f"Mux Tree ({num_inputs}:1, {select_bits} select)")
@@ -2797,15 +2805,14 @@ class AggressiveTestSuite:
         self.assert_test(result == Const.HIGH, f"Mux select 7: data[7]=HIGH -> HIGH ({total_gates} gates)")
         self.perf_metrics['mux_tree'] = {'time': duration, 'gates': total_gates}
 
-    def test_ring_oscillator(self, length=50):
-        """NOT chain with XOR feedback: guaranteed unstable, should trigger ERROR."""
+    async def test_ring_oscillator(self, length=50):
+        """NOT chain with XOR feedback: guaranteed unstable, should trigger breaker."""
         self.subsection(f"Ring Oscillator ({length} inverters)")
-        c = Circuit()
+        self.circuit.clearcircuit()
+        c = self.circuit
         c.simulate(Const.SIMULATE)
 
         source = c.getcomponent(Const.VARIABLE_ID)
-
-        # Build: source -> XOR -> NOT x length -> feedback to XOR
         xor_g = c.getcomponent(Const.XOR_ID)
         c.connect(xor_g, source, 0)
 
@@ -2817,7 +2824,6 @@ class AggressiveTestSuite:
             chain.append(n)
             prev = n
 
-        # Feedback: last NOT output -> XOR input 1 (creates oscillation regardless of parity)
         c.connect(xor_g, prev, 1)
 
         try:
@@ -2827,17 +2833,21 @@ class AggressiveTestSuite:
             duration = (time.perf_counter_ns() - start) / 1_000_000
             gc.enable()
 
+            breaker_engaged = getattr(c, 'runner', None) is not None and not c.runner.done()
             has_error = any(g.output == Const.ERROR for g in chain)
+            
             self.perf_metrics['ring_osc'] = {'time': duration, 'gates': length + 1}
-            self.assert_test(has_error, f"ERROR detected in ring ({duration:.2f}ms)")
-        except RecursionError:
-            gc.enable()
-            self.assert_test(True, "RecursionError caught (expected)")
+            self.assert_test(breaker_engaged or has_error, f"Oscillator handled safely ({duration:.2f}ms)")
+            
+            if breaker_engaged:
+                c.runner.cancel()
+                
         except Exception as e:
             gc.enable()
             self.assert_test(False, f"CRASHED: {e}")
 
-    def test_decoder_encoder(self, bits=8):
+
+    async def test_decoder_encoder(self, bits=8):
         """Build N-to-2^N decoder then 2^N-to-N encoder, verify round-trip."""
         num_outputs = 1 << bits
         self.subsection(f"Decoder/Encoder ({bits}-bit -> {num_outputs} lines)")
@@ -2889,7 +2899,7 @@ class AggressiveTestSuite:
 
         self.perf_metrics['decoder_encoder'] = {'time': 0, 'gates': total_gates}
 
-    def test_cascade_adder_pipeline(self, stages=4, bits=8):
+    async def test_cascade_adder_pipeline(self, stages=4, bits=8):
         """Chain multiple adders: result of stage N feeds into stage N+1."""
         total_bits = bits
         self.subsection(f"Cascade Adder Pipeline ({stages}x {bits}-bit)")
@@ -2951,7 +2961,7 @@ class AggressiveTestSuite:
         self.assert_test(result == expected, f"Pipeline result: {result} (expected {expected}, {total_gates} gates)")
         self.perf_metrics['cascade_pipeline'] = {'time': 0, 'gates': total_gates}
 
-    def test_xor_parity_generator(self, bits=1024):
+    async def test_xor_parity_generator(self, bits=1024):
         """Build a wide XOR tree to compute parity of N inputs, verify correctness."""
         self.subsection(f"XOR Parity Generator ({bits} inputs)")
         c = Circuit()
@@ -3001,7 +3011,7 @@ class AggressiveTestSuite:
 
         self.perf_metrics['xor_parity'] = {'time': duration, 'gates': total_gates}
 
-    def test_glitch_propagation(self, depth=500):
+    async def test_glitch_propagation(self, depth=500):
         """Deep NOT chain with probes at intervals: verify consistent glitch-free output."""
         self.subsection(f"Glitch Propagation ({depth}-deep)")
         c = Circuit()
@@ -3044,7 +3054,7 @@ class AggressiveTestSuite:
         self.assert_test(True, f"No glitches across {len(probes)} probes ({duration:.2f}ms)")
         self.perf_metrics['glitch_prop'] = {'time': duration, 'gates': total_gates}
 
-    def test_hot_swap_under_load(self, count=200):
+    async def test_hot_swap_under_load(self, count=200):
         """Hide and reveal gates while simulation is active, verify propagation survives."""
         self.subsection(f"Hot Swap Under Load ({count} cycles)")
         c = Circuit()
@@ -3095,7 +3105,7 @@ class AggressiveTestSuite:
         self.assert_test(all_ok, f"Hot swap survived {count} cycles ({duration:.2f}ms)")
         self.perf_metrics['hot_swap'] = {'time': duration, 'gates': 12}
 
-    def test_reconvergent_fanout(self, depth=10):
+    async def test_reconvergent_fanout(self, depth=10):
         """A single input fans out to two paths, reconverges at an XOR gate.
         With identical paths, XOR should always be 0. Tests book tracking correctness."""
         self.subsection(f"Reconvergent Fanout (depth={depth})")
@@ -3166,7 +3176,7 @@ class AggressiveTestSuite:
     #   delobj()   — sets gate_infolist[gate.location].type = -(previous+1),
     #                sets objlist[code] = None, decrements c.counter.
 
-    def test_optimize_topological_order(self):
+    async def test_optimize_topological_order(self):
         """After optimize(), every gate appears BEFORE all its targets in gate_infolist."""
         self.subsection("optimize: topological order guaranteed")
         c = Circuit()
@@ -3196,7 +3206,7 @@ class AggressiveTestSuite:
             f"Topo order: v@{v.location} < not0@{not0.location} "
             f"< not1@{not1.location} < not2@{not2.location}")
 
-    def test_optimize_location_remap(self):
+    async def test_optimize_location_remap(self):
         """After optimize(), gate.location matches its actual slot in gate_infolist."""
         self.subsection("optimize: location remap is consistent")
         c = Circuit()
@@ -3213,7 +3223,7 @@ class AggressiveTestSuite:
         )
         self.assert_test(all_ok, "All gate.location indices consistent with gate_verse")
 
-    def test_refresh_trims_trailing_deleted(self):
+    async def test_refresh_trims_trailing_deleted(self):
         """refresh() removes trailing deleted (type<0) entries from gate_infolist."""
         self.subsection("refresh: trims trailing deleted slots")
         c = Circuit()
@@ -3236,7 +3246,7 @@ class AggressiveTestSuite:
         self.assert_test(size_after == size_before - 1,
             f"infolist shrunk from {size_before} to {size_after} (expected {size_before-1})")
 
-    def test_delobj_marks_negative_type(self):
+    async def test_delobj_marks_negative_type(self):
         """delobj() must flip type to negative, leaving the slot in gate_infolist.
         gate_infolist is not publicly accessible, so we verify the negative-type
         invariant through observable side-effects only."""
@@ -3268,7 +3278,7 @@ class AggressiveTestSuite:
             f"refresh() trimmed the deleted slot: {size_before} -> {c.infolist_size} "
             f"(proves type was negative)")
 
-    def test_delobj_counter_decrements(self):
+    async def test_delobj_counter_decrements(self):
         """delobj() decrements c.counter by 1 for regular gates."""
         self.subsection("delobj: counter decrements correctly")
         c = Circuit()
@@ -3285,7 +3295,7 @@ class AggressiveTestSuite:
         self.assert_test(len(c.gate_verse) == cnt_after_add - 2,
             f"counter: after 2nd delobj = {len(c.gate_verse)} (expected {cnt_after_add-2})")
 
-    def test_refresh_delete_middle_gate(self):
+    async def test_refresh_delete_middle_gate(self):
         """Delete a middle gate, refresh() must produce a gapless, topo-correct list
         and the remaining gates still simulate correctly."""
         self.subsection("refresh: delete middle gate, circuit still works")
@@ -3319,7 +3329,7 @@ class AggressiveTestSuite:
             self.assert_test(c.gate_verse[g.location] is g,
                 f"gate_verse[{g.location}] is the expected gate object")
 
-    def test_refresh_delete_all_gates(self):
+    async def test_refresh_delete_all_gates(self):
         """Deleting every gate then calling refresh() must yield an empty infolist."""
         self.subsection("refresh: delete all gates yields empty infolist")
         c = Circuit()
@@ -3335,7 +3345,7 @@ class AggressiveTestSuite:
         self.assert_test(c.infolist_size == 0,
             f"infolist_size == 0 after delete-all + refresh (got {c.infolist_size})")
 
-    def test_optimize_functional_correctness(self):
+    async def test_optimize_functional_correctness(self):
         """optimize() must not alter simulation results — full truth-table check."""
         self.subsection("optimize: functional correctness (full adder)")
         # Build a 4-bit adder, verify 20 random sums, optimize, verify again
@@ -3408,7 +3418,7 @@ class AggressiveTestSuite:
                 post_ok = False; break
         self.assert_test(post_ok, "Adder correct AFTER optimize")
 
-    def test_optimize_cache_ordering(self):
+    async def test_optimize_cache_ordering(self):
         """optimize() must improve propagation speed by sorting gates topologically.
         We time a NOT chain BEFORE and AFTER optimize; the result must be identical,
         and the post-optimize time should not regress (we merely assert correctness
@@ -3461,7 +3471,7 @@ class AggressiveTestSuite:
         self.assert_test(ratio <= 2.0,
             f"post/pre ratio {ratio:.2f} <= 2.0 (pre={pre_ms:.3f}ms post={post_ms:.3f}ms)")
 
-    def test_optimize_with_cycles(self):
+    async def test_optimize_with_cycles(self):
         """optimize() must handle feedback loops (SR latch) without crashing.
         Cycle nodes should end up queued after the DAG portion — no infinite loop."""
         self.subsection("optimize: cyclic circuit (SR latch) safe")
@@ -3498,7 +3508,7 @@ class AggressiveTestSuite:
         self.assert_test(q.output == Const.LOW,  "After optimize: latch reset Q=LOW")
         self.assert_test(qb.output == Const.HIGH, "After optimize: latch reset Qb=HIGH")
 
-    def test_refresh_after_ic_deletion(self):
+    async def test_refresh_after_ic_deletion(self):
         """Deleting (hiding) an IC via delobj must mark ALL its internal gates
         as deleted in gate_infolist; refresh() must then remove them all."""
         self.subsection("refresh: IC deletion removes all internal slots")
@@ -3529,7 +3539,7 @@ class AggressiveTestSuite:
             f"Only variable survives IC deletion+refresh "
             f"(gate_verse len={len(c.gate_verse)}, expected 1)")
 
-    def test_optimize_reconnect_after(self):
+    async def test_optimize_reconnect_after(self):
         """Connections made AFTER optimize() must work correctly — i.e. the new
         gate's location is valid and propagation reaches it."""
         self.subsection("optimize: connect new gate after optimize works")
@@ -3554,7 +3564,7 @@ class AggressiveTestSuite:
         self.assert_test(g2.output == Const.HIGH,
             "g2 (NOT g1=LOW) = HIGH after optimize+reconnect")
 
-    def test_refresh_idempotent(self):
+    async def test_refresh_idempotent(self):
         """Calling refresh() twice (or optimize() twice) must be idempotent —
         same size, same gate order, same simulation results."""
         self.subsection("refresh: idempotent (double call)")
@@ -3587,7 +3597,7 @@ class AggressiveTestSuite:
         g = c.objlist[Const.NOT_ID][0]
         self.assert_test(g.output == Const.HIGH, "Toggle works after double refresh")
 
-    def test_optimize_large_circuit(self):
+    async def test_optimize_large_circuit(self):
         """optimize() on a 5000-gate NOT chain: no crash, gate_verse consistent,
         simulation result correct."""
         self.subsection("optimize: large circuit (5000 NOT)")
@@ -3628,7 +3638,7 @@ class AggressiveTestSuite:
         self.assert_test(last.getoutput() == expected,
             f"{n}-NOT chain output correct after optimize")
 
-    def test_optimize_gate_verse_sync(self):
+    async def test_optimize_gate_verse_sync(self):
         """gate_verse[i].location must equal i for every entry after optimize()."""
         self.subsection("optimize: gate_verse[i].location == i for all i")
         c = Circuit()
@@ -3656,7 +3666,7 @@ class AggressiveTestSuite:
         self.assert_test(sync_ok,
             "gate_verse[i].location == i for all entries after optimize")
 
-    def test_refresh_delete_readd(self):
+    async def test_refresh_delete_readd(self):
         """After refresh() removes a deleted gate, adding a fresh gate of the same
         type works correctly — no phantom slot collision."""
         self.subsection("refresh: delete + refresh + re-add same type")
@@ -3726,29 +3736,29 @@ class ThoroughICTest:
         c.simulate(mode)
         return c
 
-    def run(self):
+    async def run(self):
         self.log("Starting Thorough IC Tests with strict create->save->load workflow...")
         
         # Edge Cases
-        self.test_empty_ic()
-        self.test_partial_connections()
-        self.test_all_gate_types_in_ic()
+        await self.test_empty_ic()
+        await self.test_partial_connections()
+        await self.test_all_gate_types_in_ic()
         
         # Signal Propagation
-        self.test_error_propagation()
-        self.test_unknown_propagation()
-        self.test_floating_inputs()
+        await self.test_error_propagation()
+        await self.test_unknown_propagation()
+        await self.test_floating_inputs()
         
         # Structure & Logic
-        self.test_deep_nesting()
-        self.test_feedback_loop_internal()
+        await self.test_deep_nesting()
+        await self.test_feedback_loop_internal()
         
         # Lifecycle
-        self.test_deletion_cleanup()
-        self.test_save_load_complex()
+        await self.test_deletion_cleanup()
+        await self.test_save_load_complex()
         
         # Limits
-        self.test_input_limit_handling()
+        await self.test_input_limit_handling()
 
         status = "PASS" if self.failed == 0 else "FAIL"
         summary = f"  [{status}] Thorough IC: {self.passed}/{self.tests_run} passed"
@@ -3759,7 +3769,7 @@ class ThoroughICTest:
         self.log(f"\nTest Summary: {self.passed} Passed, {self.failed} Failed")
 
 
-    def test_empty_ic(self):
+    async def test_empty_ic(self):
         """Test an IC with absolutely no internal components."""
         c = self.setup_circuit()
         fp = os.path.join(tempfile.gettempdir(), "empty_ic.json")
@@ -3781,7 +3791,7 @@ class ThoroughICTest:
         self.assert_true(safe, "Empty IC safe to process/propagate")
         if os.path.exists(fp): os.remove(fp)
 
-    # def test_unconnected_pins(self):
+    # async def test_unconnected_pins(self):
     #     """Test IC pins that lead nowhere or come from nowhere."""
     #     c = self.setup_circuit()
     #     # Create pins but no internal connection
@@ -3802,7 +3812,7 @@ class ThoroughICTest:
     #     self.assert_true(ic.outputs[0].output == UNKNOWN, "Unconnected output pin remains UNKNOWN")
     #     if os.path.exists(fp): os.remove(fp)
 
-    def test_partial_connections(self):
+    async def test_partial_connections(self):
         """Test broken internal chains."""
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
@@ -3831,7 +3841,7 @@ class ThoroughICTest:
             
         if os.path.exists(fp): os.remove(fp)
 
-    def test_all_gate_types_in_ic(self):
+    async def test_all_gate_types_in_ic(self):
         """Verify every gate type functions correctly inside an IC."""
         gates = {
             AND_ID: (1, 1, HIGH),
@@ -3877,7 +3887,7 @@ class ThoroughICTest:
         all_passed = all(results.values())
         self.assert_true(all_passed, f"All gate types work via proper IC methodology")
 
-    def test_error_propagation(self):
+    async def test_error_propagation(self):
         """Test that ERROR state passes into and out of IC."""
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
@@ -3889,22 +3899,20 @@ class ThoroughICTest:
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
         
-        # Build logic to generate ERROR
-        xor_g = c2.getcomponent(XOR_ID)
+        # Because paradox loops no longer generate an ERROR state, we inject it manually
         v_trigger = c2.getcomponent(VARIABLE_ID)
-        c2.connect(xor_g, v_trigger, 0)
-        c2.connect(xor_g, xor_g, 1) # Paradox Loop
+        v_trigger.output = ERROR
+        v_trigger.value = ERROR
         
-        c2.connect(ic.inputs[0], xor_g, 0)
-        
+        c2.connect(ic.inputs[0], v_trigger, 0)
         c2.simulate(SIMULATE)
-        c2.toggle(v_trigger, HIGH)
         
         self.assert_true(ic.inputs[0].output == ERROR, "Input Pin accepts ERROR")
         self.assert_true(ic.outputs[0].output == ERROR, "Output Pin propagates ERROR")
         if os.path.exists(fp): os.remove(fp)
 
-    def test_unknown_propagation(self):
+
+    async def test_unknown_propagation(self):
         """Test UNKNOWN state propagation."""
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
@@ -3926,7 +3934,7 @@ class ThoroughICTest:
         self.assert_true(ic.outputs[0].output == UNKNOWN, "IC propagates UNKNOWN correctly")
         if os.path.exists(fp): os.remove(fp)
 
-    def test_floating_inputs(self):
+    async def test_floating_inputs(self):
         """Test IC input pin not connected to any external source defaults appropriately."""
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
@@ -3941,7 +3949,7 @@ class ThoroughICTest:
         self.assert_true(ic.outputs[0].output == UNKNOWN, "Floating input defaults to UNKNOWN")
         if os.path.exists(fp): os.remove(fp)
 
-    def test_deep_nesting(self):
+    async def test_deep_nesting(self):
         """Test 10 levels of nesting through strict save & load IC creation."""
         c_base = self.setup_circuit()
         p_in = c_base.getcomponent(INPUT_PIN_ID)
@@ -3976,7 +3984,7 @@ class ThoroughICTest:
             if os.path.exists(fp_temp):
                 os.remove(fp_temp)
 
-    def test_feedback_loop_internal(self):
+    async def test_feedback_loop_internal(self):
         """Test an internal feedback loop (Oscillator)."""
         c = self.setup_circuit()
         n1 = c.getcomponent(NOT_ID)
@@ -3998,9 +4006,15 @@ class ThoroughICTest:
             safe = False
             
         self.assert_true(safe, "Internal feedback loop doesn't crash engine")
+        
+        # Kill the runner spawned by the internal loop so it doesn't pollute later tests
+        if getattr(c2, 'runner', None) is not None and not c2.runner.done():
+            c2.runner.cancel()
+            
         if os.path.exists(fp): os.remove(fp)
 
-    def test_deletion_cleanup(self):
+
+    async def test_deletion_cleanup(self):
         """Test strict cleanup when deleting IC."""
         c = self.setup_circuit()
         inp = c.getcomponent(INPUT_PIN_ID)
@@ -4021,7 +4035,7 @@ class ThoroughICTest:
         self.assert_true(len(v.hitlist) == 1, "Renewing IC restores connections")
         if os.path.exists(fp): os.remove(fp)
 
-    def test_save_load_complex(self):
+    async def test_save_load_complex(self):
         """Test saving/loading an IC with nested components."""
         # 1. Inner
         # Inner: In -> NOT -> Out (needs at least one gate so flatten produces internals)
@@ -4061,7 +4075,7 @@ class ThoroughICTest:
         if os.path.exists(fp_in): os.remove(fp_in)
         if os.path.exists(fp_out): os.remove(fp_out)
 
-    def test_input_limit_handling(self):
+    async def test_input_limit_handling(self):
         """Test that IC gates resize inputs correctly and don't default to 1."""
         c = self.setup_circuit()
         
@@ -4140,22 +4154,22 @@ class IOTestSuite:
         c.simulate(mode)
         return c
 
-    def run(self):
+    async def run(self):
         self.log(f"Starting IO Tests...")
-        self.test_write_read_json()
-        self.test_save_get_ic()
-        self.test_save_ic_with_var()
-        self.test_ic_save_load_complex()
-        self.test_invalid_json_handling()
-        self.test_load_circuit_as_ic()
-        self.test_load_ic_as_circuit()
-        self.test_copy_empty()
-        self.test_copy_paste_basic()
-        self.test_copy_paste_connected()
-        self.test_copy_paste_ic()
-        self.test_paste_multiple_times()
-        # self.test_paste_without_clipboard()
-        self.test_large_io_circuit()
+        await self.test_write_read_json()
+        await self.test_save_get_ic()
+        await self.test_save_ic_with_var()
+        await self.test_ic_save_load_complex()
+        await self.test_invalid_json_handling()
+        await self.test_load_circuit_as_ic()
+        await self.test_load_ic_as_circuit()
+        await self.test_copy_empty()
+        await self.test_copy_paste_basic()
+        await self.test_copy_paste_connected()
+        await self.test_copy_paste_ic()
+        await self.test_paste_multiple_times()
+        # await self.test_paste_without_clipboard()
+        await self.test_large_io_circuit()
         status = "PASS" if self.failed == 0 else "FAIL"
         summary = f"  [{status}] IO Tests: {self.passed}/{self.tests_run} passed"
         if self.failed > 0:
@@ -4164,7 +4178,7 @@ class IOTestSuite:
         sys.stdout.flush()
         self.log(f"\nTest Summary: {self.passed} Passed, {self.failed} Failed")
 
-    def test_write_read_json(self):
+    async def test_write_read_json(self):
         c = self.setup_circuit()
         v1 = c.getcomponent(VARIABLE_ID)
         v2 = c.getcomponent(VARIABLE_ID)
@@ -4187,7 +4201,7 @@ class IOTestSuite:
         
         os.remove(fp)
 
-    def test_save_get_ic(self):
+    async def test_save_get_ic(self):
         c = self.setup_circuit()
         p_in = c.getcomponent(INPUT_PIN_ID)
         p_out = c.getcomponent(OUTPUT_PIN_ID)
@@ -4212,7 +4226,7 @@ class IOTestSuite:
         
         os.remove(fp)
 
-    def test_save_ic_with_var(self):
+    async def test_save_ic_with_var(self):
         c = self.setup_circuit()
         v = c.getcomponent(VARIABLE_ID)
         not_g = c.getcomponent(NOT_ID)
@@ -4230,7 +4244,7 @@ class IOTestSuite:
         self.assert_true(True, "save_as_ic accepted saving circuit with variables")
         self.assert_true(True, "Variables transformed into pins in circuit")
 
-    def test_invalid_json_handling(self):
+    async def test_invalid_json_handling(self):
         fp = os.path.join(tempfile.gettempdir(), "invalid.json")
         with open(fp, "w") as f:
             f.write("{invalid_json: true, broken")
@@ -4253,7 +4267,7 @@ class IOTestSuite:
         self.assert_true(crashed2, "getIC raises exception on invalid json")
         os.remove(fp)
 
-    def test_load_circuit_as_ic(self):
+    async def test_load_circuit_as_ic(self):
         # Create a simple circuit
         c = self.setup_circuit()
         g = c.getcomponent(NOT_ID)
@@ -4272,7 +4286,7 @@ class IOTestSuite:
         self.assert_true(crashed or res is None, "getIC handles/rejects normal circuit JSON appropriately")
         os.remove(fp)
 
-    def test_load_ic_as_circuit(self):
+    async def test_load_ic_as_circuit(self):
         # Create an IC
         c = self.setup_circuit()
         g = c.getcomponent(NOT_ID)
@@ -4290,14 +4304,14 @@ class IOTestSuite:
         self.assert_true(crashed or len(c2.get_components()) == 0, "readfromjson handles/rejects IC JSON appropriately")
         os.remove(fp)
 
-    def test_copy_empty(self):
+    async def test_copy_empty(self):
         c = self.setup_circuit()
         c.copy([])
         # It should just return, clipboard.json might not be created or might be overwritten empty,
         # but won't crash
         self.assert_true(True, "copy([]) does not crash")
 
-    def test_paste_without_clipboard(self):
+    async def test_paste_without_clipboard(self):
         c = self.setup_circuit()
         # Ensure clipboard.json doesn't exist
         if os.path.exists("clipboard.json"):
@@ -4311,7 +4325,7 @@ class IOTestSuite:
             
         self.assert_true(crashed, "paste raises FileNotFoundError if clipboard.json missing")
 
-    def test_large_io_circuit(self):
+    async def test_large_io_circuit(self):
         c = self.setup_circuit()
         # Build 1000 gates
         for i in range(1000):
@@ -4325,7 +4339,7 @@ class IOTestSuite:
         self.assert_true(len(c2.get_components()) == 1000, "readfromjson handles large circuits (1000 gates)")
         os.remove(fp)
 
-    def test_ic_save_load_complex(self):
+    async def test_ic_save_load_complex(self):
         c_sub = self.setup_circuit()
         sub_in = c_sub.getcomponent(INPUT_PIN_ID)
         sub_out = c_sub.getcomponent(OUTPUT_PIN_ID)
@@ -4357,7 +4371,7 @@ class IOTestSuite:
         os.remove(fp)
         if os.path.exists(fp_sub): os.remove(fp_sub)
 
-    def test_copy_paste_basic(self):
+    async def test_copy_paste_basic(self):
         c = self.setup_circuit()
         nand_g = c.getcomponent(NAND_ID)
         not_g = c.getcomponent(NOT_ID)
@@ -4370,7 +4384,7 @@ class IOTestSuite:
         self.assert_true(pasted[0] is not nand_g, "Pasted items are new instances")
         self.assert_true(len(c.get_components()) == 4, "Total canvas contains original + pasted")
 
-    def test_copy_paste_connected(self):
+    async def test_copy_paste_connected(self):
         c = self.setup_circuit()
         v1 = c.getcomponent(VARIABLE_ID)
         nand_g = c.getcomponent(NAND_ID)
@@ -4394,7 +4408,7 @@ class IOTestSuite:
                     is_connected = True
         self.assert_true(is_connected, "Connections are preserved after pasting")
 
-    def test_copy_paste_ic(self):
+    async def test_copy_paste_ic(self):
         c_sub = self.setup_circuit()
         pin1 = c_sub.getcomponent(INPUT_PIN_ID)
         pin2 = c_sub.getcomponent(OUTPUT_PIN_ID)
@@ -4418,7 +4432,7 @@ class IOTestSuite:
         self.assert_true(p_ic is not ic, "Pasted IC is new instance")
         if os.path.exists(fp_ic): os.remove(fp_ic)
 
-    def test_paste_multiple_times(self):
+    async def test_paste_multiple_times(self):
         c = self.setup_circuit()
         v1 = c.getcomponent(VARIABLE_ID)
         c.copy([v1])
@@ -4507,7 +4521,7 @@ class EventManagerTestSuite:
         self.log(f"  {title}")
         self.log(f"{'='*60}")
 
-    def test_single_add_delete(self):
+    async def test_single_add_delete(self):
         self.section("Single Add/Delete Undo/Redo")
         start_size = self.get_circuit_size()
         
@@ -4535,7 +4549,7 @@ class EventManagerTestSuite:
         self.event_mgr.redo()
         self.assert_test(self.get_circuit_size() == start_size, "Redo Delete Gate")
 
-    def test_mass_create_delete(self):
+    async def test_mass_create_delete(self):
         self.section("Mass Create / Delete / Undo / Redo Stress")
         start_size = self.get_circuit_size()
         
@@ -4585,7 +4599,7 @@ class EventManagerTestSuite:
         
         Const.LIMIT = original_limit
 
-    def test_connect_disconnect_bottleneck(self):
+    async def test_connect_disconnect_bottleneck(self):
         self.section("Connect / Disconnect Network Undo/Redo Stress")
         # Ensure we start fresh
         self.event_mgr.undolist.clear()
@@ -4633,7 +4647,7 @@ class EventManagerTestSuite:
         end_t = time.perf_counter()
         self.assert_test(len(v.hitlist) == 1_000, f"Undo 1,000 disconnections in {end_t - start_t:.4f}s")
 
-    def test_property_mutations(self):
+    async def test_property_mutations(self):
         self.section("Property Mutations (Toggle/SetLimits)")
         self.circuit.clearcircuit()
         
@@ -4666,7 +4680,7 @@ class EventManagerTestSuite:
         self.assert_test(len(g.sources) == 50, "Redo limit to 50")
         self.assert_test(g.sources[10] is None, "Ensure redo properly constructs internal states")
 
-    def test_copy_paste_undo_redo(self):
+    async def test_copy_paste_undo_redo(self):
         self.section("Copy/Paste Undo/Redo Integration")
         self.circuit.clearcircuit()
         self.event_mgr.undolist.clear()
@@ -4696,7 +4710,7 @@ class EventManagerTestSuite:
         
         self.assert_test(len(self.circuit.get_components()) == 200, f"Redo paste in {end_t - start_t:.4f}s")
 
-    def test_mega_chaos(self):
+    async def test_mega_chaos(self):
         self.section("Chaos Test - Random Operations, then Full Undo")
         self.circuit.clearcircuit()
         self.event_mgr.undolist.clear()
@@ -4746,18 +4760,18 @@ class EventManagerTestSuite:
         self.assert_test(len(self.circuit.get_components()) == 0, f"Chaos fully undone to empty canvas in {end_t - start_t:.4f}s")
         
 
-    def run_all(self):
+    async def run_all(self):
         self.log(f"\n{'='*70}")
         self.log(f"  DARION LOGIC SIM - EVENT MANAGER EXTREME TEST SUITE")
         self.log(f"{'='*70}")
         
         try:
-            self.test_single_add_delete()
-            self.test_mass_create_delete()
-            self.test_connect_disconnect_bottleneck()
-            self.test_property_mutations()
-            self.test_copy_paste_undo_redo()
-            self.test_mega_chaos()
+            await self.test_single_add_delete()
+            await self.test_mass_create_delete()
+            await self.test_connect_disconnect_bottleneck()
+            await self.test_property_mutations()
+            await self.test_copy_paste_undo_redo()
+            await self.test_mega_chaos()
         except Exception as e:
             self.log(f"\n[FATAL ERROR] {e}")
             import traceback
@@ -4782,7 +4796,7 @@ class TestTimeTravel(unittest.TestCase):
         self.circuit = Circuit()
         self.em = Event()
         # Ensure simulation mode is active for testing logic states
-        self.circuit.simulate(SIMULATE)
+        self.circuit.simulate(Const.SIMULATE)
 
     def do(self, command):
         """Helper to execute and register a command if successful."""
@@ -4804,7 +4818,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_redo_stack_invalidation(self):
         """Performing a new action after an undo must clear the redo stack."""
-        cmd1 = self.do(Add(self.circuit, AND_ID))
+        cmd1 = self.do(Add(self.circuit, Const.AND_ID))
         gate = cmd1.gate
         
         self.em.undo()
@@ -4812,13 +4826,13 @@ class TestTimeTravel(unittest.TestCase):
         self.assertEqual(len(self.em.redolist), 1)
 
         # Do a new action (should vaporize the redo timeline)
-        self.do(Add(self.circuit, OR_ID))
+        self.do(Add(self.circuit, Const.OR_ID))
         self.assertEqual(len(self.em.redolist), 0)
 
     def test_deque_maxlen_enforcement(self):
         """Ensure the event manager never exceeds the memory limit of 250 items."""
         for _ in range(300):
-            self.do(Add(self.circuit, NOT_ID))
+            self.do(Add(self.circuit, Const.NOT_ID))
         
         self.assertEqual(len(self.em.undolist), 250)
         self.assertEqual(len(self.circuit.get_components()), 300)
@@ -4829,20 +4843,11 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_rename_and_limits(self):
         """Test metadata mutation reversibility."""
-        add_cmd = self.do(Add(self.circuit, AND_ID))
+        add_cmd = self.do(Add(self.circuit, Const.AND_ID))
         gate = add_cmd.gate
 
         self.do(Rename(gate, "MyCustomAND"))
-        # self.assertEqual(gate.custom_name, "MyCustomAND")
         
-        # self.em.undo()
-        # # Rename.undo() restores old_name which was gate.custom_name at construction time.
-        # # A freshly-added gate has custom_name == '' (empty string).
-        # self.assertEqual(gate.custom_name, "")
-        
-        # self.em.redo()
-        # self.assertEqual(gate.custom_name, "MyCustomAND")
-
         self.do(SetLimits(self.circuit, gate, 4))
         self.assertEqual(gate.inputlimit, 4)
         self.em.undo()
@@ -4850,8 +4855,8 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_connect_disconnect_time_travel(self):
         """Test physical topology changes."""
-        var_cmd = self.do(Add(self.circuit, VARIABLE_ID))
-        not_cmd = self.do(Add(self.circuit, NOT_ID))
+        var_cmd = self.do(Add(self.circuit, Const.VARIABLE_ID))
+        not_cmd = self.do(Add(self.circuit, Const.NOT_ID))
         
         var_gate = var_cmd.gate
         not_gate = not_cmd.gate
@@ -4885,8 +4890,8 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_deletion_and_restoration(self):
         """Test bulk deletion of components."""
-        g1 = self.do(Add(self.circuit, AND_ID)).gate
-        g2 = self.do(Add(self.circuit, OR_ID)).gate
+        g1 = self.do(Add(self.circuit, Const.AND_ID)).gate
+        g2 = self.do(Add(self.circuit, Const.OR_ID)).gate
         
         self.do(Delete(self.circuit, [g1, g2]))
         self.assertNotIn(g1, self.circuit.get_components())
@@ -4908,14 +4913,14 @@ class TestTimeTravel(unittest.TestCase):
         rather than restoring a magical historical snapshot.
         """
         # 1. Build components
-        s_var = self.do(Add(self.circuit, VARIABLE_ID)).gate
-        r_var = self.do(Add(self.circuit, VARIABLE_ID)).gate
-        nor_q = self.do(Add(self.circuit, NOR_ID)).gate
-        nor_not_q = self.do(Add(self.circuit, NOR_ID)).gate
+        s_var = self.do(Add(self.circuit, Const.VARIABLE_ID)).gate
+        r_var = self.do(Add(self.circuit, Const.VARIABLE_ID)).gate
+        nor_q = self.do(Add(self.circuit, Const.NOR_ID)).gate
+        nor_not_q = self.do(Add(self.circuit, Const.NOR_ID)).gate
 
         # Set variables to 0 (LOW)
-        self.do(Toggle(self.circuit, s_var, LOW))
-        self.do(Toggle(self.circuit, r_var, LOW))
+        self.do(Toggle(self.circuit, s_var, Const.LOW))
+        self.do(Toggle(self.circuit, r_var, Const.LOW))
 
         # 2. Wire the Latch
         self.do(Connect(self.circuit, nor_q, r_var, 0))
@@ -4926,167 +4931,201 @@ class TestTimeTravel(unittest.TestCase):
         self.do(Connect(self.circuit, nor_not_q, nor_q, 1))
 
         # Initial state upon connection
-        self.assertEqual(nor_q.output, HIGH)
-        self.assertEqual(nor_not_q.output, LOW)
+        self.assertEqual(nor_q.output, Const.HIGH)
+        self.assertEqual(nor_not_q.output, Const.LOW)
         
         # 3. RESET the Latch (S=0, R=1)
-        self.do(Toggle(self.circuit, r_var, HIGH))
-        self.assertEqual(nor_q.output, LOW)
-        self.assertEqual(nor_not_q.output, HIGH)
+        self.do(Toggle(self.circuit, r_var, Const.HIGH))
+        self.assertEqual(nor_q.output, Const.LOW)
+        self.assertEqual(nor_not_q.output, Const.HIGH)
 
         # --- TIME TRAVEL INITIATION ---
 
         # Undo the RESET (This issues the inverse command: Toggle R to LOW)
         self.em.undo()
-        self.assertEqual(r_var.value, LOW)
+        self.assertEqual(r_var.value, Const.LOW)
         
         # Since S=0 and R=0, the latch enters MEMORY MODE.
         # It holds its CURRENT state (Q=0), it does NOT magically revert to 
         # the historical state (Q=1). This proves the engine simulates real physics!
-        self.assertEqual(nor_q.output, LOW) 
-        self.assertEqual(nor_not_q.output, HIGH)
+        self.assertEqual(nor_q.output, Const.LOW) 
+        self.assertEqual(nor_not_q.output, Const.HIGH)
 
         # Redo the RESET
         self.em.redo()
-        self.assertEqual(r_var.value, HIGH)
-        self.assertEqual(nor_q.output, LOW)
-        self.assertEqual(nor_not_q.output, HIGH)
+        self.assertEqual(r_var.value, Const.HIGH)
+        self.assertEqual(nor_q.output, Const.LOW)
+        self.assertEqual(nor_not_q.output, Const.HIGH)
 
     def test_latch_total_annihilation_undo(self):
         """Test deleting an active, charged latch and undoing the deletion."""
-        s_var = self.do(Add(self.circuit, VARIABLE_ID)).gate
-        r_var = self.do(Add(self.circuit, VARIABLE_ID)).gate
-        nor_q = self.do(Add(self.circuit, NOR_ID)).gate
-        nor_not_q = self.do(Add(self.circuit, NOR_ID)).gate
+        s_var = self.do(Add(self.circuit, Const.VARIABLE_ID)).gate
+        r_var = self.do(Add(self.circuit, Const.VARIABLE_ID)).gate
+        nor_q = self.do(Add(self.circuit, Const.NOR_ID)).gate
+        nor_not_q = self.do(Add(self.circuit, Const.NOR_ID)).gate
 
         self.do(Connect(self.circuit, nor_q, r_var, 0))
         self.do(Connect(self.circuit, nor_not_q, s_var, 0))
         self.do(Connect(self.circuit, nor_q, nor_not_q, 1))
         self.do(Connect(self.circuit, nor_not_q, nor_q, 1))
 
-        self.do(Toggle(self.circuit, r_var, HIGH)) # Force RESET
-        self.assertEqual(nor_not_q.output, HIGH)
+        self.do(Toggle(self.circuit, r_var, Const.HIGH)) # Force RESET
+        self.assertEqual(nor_not_q.output, Const.HIGH)
 
         # Nuke the entire circuit
         self.do(Delete(self.circuit, [s_var, r_var, nor_q, nor_not_q]))
         self.assertEqual(len(self.circuit.get_components()), 0)
         
         # Book counts should be cleared on hide
-        self.assertEqual(nor_q.book[HIGH], 0)
+        self.assertEqual(nor_q.book[Const.HIGH], 0)
 
         # Restore the circuit
         self.em.undo()
         self.assertEqual(len(self.circuit.get_components()), 4)
         
         # The electrical state should fully propagate and restore!
-        self.assertEqual(nor_not_q.output, HIGH)
+        self.assertEqual(nor_not_q.output, Const.HIGH)
 
 
 
 
 if __name__ == '__main__':
+    import time
+    import sys
+    import os
+    import asyncio
+    import unittest
+
     print("\n" + "="*70)
     print("  DARION LOGIC SIM - MASTER INTEGRITY TEST SUITE")
     print("="*70)
-    
-    total_failed = 0
-    total_passed = 0
-    total_time_ms = 0
-    
-    import time
     
     def log_timing(start_t, passed, failed, step_name):
         dur = (time.perf_counter_ns() - start_t) / 1_000_000
         print(f"\n> {step_name} completed in {dur:.2f}ms | Passed: {passed} | Failed: {failed}")
         return dur
 
-    print("\n[1/5] RUNNING CORE & STRESS TESTS")
-    t0 = time.perf_counter_ns()
-    t1 = AggressiveTestSuite()
-    t1.log_file.close()
-    t1.log_file = open("master_test_results.txt", 'w', encoding='utf-8')
-    t1.run_all()
-    total_passed += t1.passed
-    total_failed += t1.failed
-    total_time_ms += log_timing(t0, t1.passed, t1.failed, "CORE & STRESS TESTS")
+    async def run_master_suite():
+        total_failed = 0
+        total_passed = 0
+        total_time_ms = 0
 
-    print("\n" + "-"*70)
-    print("[2/5] RUNNING IC TESTS")
-    print("-"*70)
-    t0 = time.perf_counter_ns()
-    t2 = ThoroughICTest()
-    t2.run()
-    total_passed += t2.passed
-    total_failed += t2.failed
-    total_time_ms += log_timing(t0, t2.passed, t2.failed, "IC TESTS")
+        # ---------------------------------------------------------
+        print("\n[1/5] RUNNING CORE & STRESS TESTS")
+        t0 = time.perf_counter_ns()
+        t1 = AggressiveTestSuite()
+        t1.log_file.close()
+        t1.log_file = open("master_test_results.txt", 'w', encoding='utf-8')
+        await t1.run_all()
+        total_passed += t1.passed
+        total_failed += t1.failed
+        total_time_ms += log_timing(t0, t1.passed, t1.failed, "CORE & STRESS TESTS")
+        
+        # Cleanup any background drain tasks before starting the next suite
+        if hasattr(t1, 'circuit') and t1.circuit.runner and not t1.circuit.runner.done():
+            t1.circuit.runner.cancel()
 
-    print("\n" + "-"*70)
-    print("[3/5] RUNNING IO TESTS")
-    print("-"*70)
-    t0 = time.perf_counter_ns()
-    t3 = IOTestSuite()
-    t3.run()
-    total_passed += t3.passed
-    total_failed += t3.failed
-    total_time_ms += log_timing(t0, t3.passed, t3.failed, "IO TESTS")
+        # ---------------------------------------------------------
+        print("\n" + "-"*70)
+        print("[2/5] RUNNING IC TESTS")
+        print("-"*70)
+        t0 = time.perf_counter_ns()
+        t2 = ThoroughICTest()
+        await t2.run()
+        total_passed += t2.passed
+        total_failed += t2.failed
+        total_time_ms += log_timing(t0, t2.passed, t2.failed, "IC TESTS")
+        
+        if hasattr(t2, 'circuit') and t2.circuit.runner and not t2.circuit.runner.done():
+            t2.circuit.runner.cancel()
 
-    print("\n" + "-"*70)
-    print("[4/5] RUNNING EVENT MANAGER STRESS TESTS")
-    print("-"*70)
-    t0 = time.perf_counter_ns()
-    t4 = EventManagerTestSuite()
-    t4.run_all()
-    pass4 = getattr(t4, 'passed', 0)
-    fail4 = t4.failed
-    total_passed += pass4
-    total_failed += fail4
-    total_time_ms += log_timing(t0, pass4, fail4, "EVENT MANAGER STRESS TESTS")
+        # ---------------------------------------------------------
+        print("\n" + "-"*70)
+        print("[3/5] RUNNING IO TESTS")
+        print("-"*70)
+        t0 = time.perf_counter_ns()
+        t3 = IOTestSuite()
+        await t3.run()
+        total_passed += t3.passed
+        total_failed += t3.failed
+        total_time_ms += log_timing(t0, t3.passed, t3.failed, "IO TESTS")
+        
+        if hasattr(t3, 'circuit') and t3.circuit.runner and not t3.circuit.runner.done():
+            t3.circuit.runner.cancel()
 
-    print("\n" + "-"*70)
-    print("[5/5] RUNNING EVENT FUNCTIONAL TESTS")
-    print("-"*70)
-    t0 = time.perf_counter_ns()
-    
-    class CustomTestResult(unittest.TextTestResult):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._failures_list = []
+        # ---------------------------------------------------------
+        print("\n" + "-"*70)
+        print("[4/5] RUNNING EVENT MANAGER STRESS TESTS")
+        print("-"*70)
+        t0 = time.perf_counter_ns()
+        t4 = EventManagerTestSuite()
+        await t4.run_all()
+        pass4 = getattr(t4, 'passed', 0)
+        fail4 = t4.failed
+        total_passed += pass4
+        total_failed += fail4
+        total_time_ms += log_timing(t0, pass4, fail4, "EVENT MANAGER STRESS TESTS")
+        
+        if hasattr(t4, 'circuit') and t4.circuit.runner and not t4.circuit.runner.done():
+            t4.circuit.runner.cancel()
 
-        def addSuccess(self, test):
-            super().addSuccess(test)
-            # suppress per-test OK output
+        # ---------------------------------------------------------
+        print("\n" + "-"*70)
+        print("[5/5] RUNNING EVENT FUNCTIONAL TESTS")
+        print("-"*70)
+        t0 = time.perf_counter_ns()
+        
+        class CustomTestResult(unittest.TextTestResult):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._failures_list = []
 
-        def addFailure(self, test, err):
-            super().addFailure(test, err)
-            self._failures_list.append(f"    [FAIL] {test._testMethodName}")
-            print(f"    [FAIL] {test._testMethodName}")
+            def addSuccess(self, test):
+                super().addSuccess(test)
+                # suppress per-test OK output
 
-        def addError(self, test, err):
-            super().addError(test, err)
-            self._failures_list.append(f"    [ERROR] {test._testMethodName}")
-            print(f"    [ERROR] {test._testMethodName}")
+            def addFailure(self, test, err):
+                super().addFailure(test, err)
+                self._failures_list.append(f"    [FAIL] {test._testMethodName}")
+                print(f"    [FAIL] {test._testMethodName}")
 
-    class CustomTestRunner(unittest.TextTestRunner):
-        resultclass = CustomTestResult
+            def addError(self, test, err):
+                super().addError(test, err)
+                self._failures_list.append(f"    [ERROR] {test._testMethodName}")
+                print(f"    [ERROR] {test._testMethodName}")
 
-    suite = unittest.TestLoader().loadTestsFromTestCase(TestTimeTravel)
-    import os
-    result = CustomTestRunner(stream=open(os.devnull, 'w'), verbosity=0).run(suite)
-    pass5 = result.testsRun - len(result.failures) - len(result.errors)
-    fail5 = len(result.failures) + len(result.errors)
-    total_passed += pass5
-    total_failed += fail5
-    total_time_ms += log_timing(t0, pass5, fail5, "EVENT FUNCTIONAL TESTS")
-    status5 = "PASS" if fail5 == 0 else "FAIL"
-    print(f"  [{status5}] Event Functional: {pass5}/{result.testsRun} passed" +
-          (f" | {fail5} FAILED" if fail5 > 0 else ""))
-    
-    print("\n" + "="*70)
-    print(f"  MASTER SUMMARY: {total_passed} PASSED | {total_failed} FAILED")
-    print(f"  TOTAL TIME:     {total_time_ms:.2f} ms")
-    print("="*70)
-    
-    if total_failed > 0:
+        class CustomTestRunner(unittest.TextTestRunner):
+            resultclass = CustomTestResult
+
+        suite = unittest.TestLoader().loadTestsFromTestCase(TestTimeTravel)
+        
+        result = CustomTestRunner(stream=open(os.devnull, 'w'), verbosity=0).run(suite)
+        pass5 = result.testsRun - len(result.failures) - len(result.errors)
+        fail5 = len(result.failures) + len(result.errors)
+        total_passed += pass5
+        total_failed += fail5
+        total_time_ms += log_timing(t0, pass5, fail5, "EVENT FUNCTIONAL TESTS")
+        status5 = "PASS" if fail5 == 0 else "FAIL"
+        print(f"  [{status5}] Event Functional: {pass5}/{result.testsRun} passed" +
+              (f" | {fail5} FAILED" if fail5 > 0 else ""))
+        
+        # ---------------------------------------------------------
+        print("\n" + "="*70)
+        print(f"  MASTER SUMMARY: {total_passed} PASSED | {total_failed} FAILED")
+        print(f"  TOTAL TIME:     {total_time_ms:.2f} ms")
+        print("="*70)
+        
+        return total_failed
+
+    # Execution Entry Point
+    try:
+        # Start the event loop and run the master suite
+        final_fail_count = asyncio.run(run_master_suite())
+        
+        if final_fail_count > 0:
+            sys.exit(1)
+        else:
+            sys.exit(0)
+    except KeyboardInterrupt:
+        print("\n[!] Master Integrity Test Suite Aborted by User.")
         sys.exit(1)
-    else:
-        sys.exit(0)

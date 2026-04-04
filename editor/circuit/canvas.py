@@ -68,7 +68,6 @@ class CircuitScene(QGraphicsScene):
 		# asyncio.create_task() requires a running loop; the loop only starts
 		# after QtAsyncio.run() is called (after AppWindow.__init__ returns).
 		# Replacement to the simpler listener system
-		self.set_timings()
 		QTimer.singleShot(0, self._start_async_updater)
 
 	def _start_async_updater(self):
@@ -76,19 +75,12 @@ class CircuitScene(QGraphicsScene):
 		its event loop, so create_task() is safe to call here."""
 		self.ui_update_task = asyncio.create_task(self.async_ui_updater())
 
-	def set_timings(self):
-		fps = QGuiApplication.primaryScreen().refreshRate()
-		fps = (1/(60 if fps==0 else fps))
-		ratio=0.00001
-		Const.set_timings(fps, ratio)
 
 	# ── Async UI consumer ─────────────────────────────────────────────
 	async def async_ui_updater(self):
 		"""Drain the engine's visual_queue and refresh only the dirty widgets."""
 		self._ui_wakeup_event = asyncio.Event()
-		visualize=Const.get_visualize()
-		oscillate=Const.get_oscillate()
-		print(visualize,oscillate)
+
 		while True:
 			if logic.visual_queue_empty():
 				await asyncio.sleep(0.016)

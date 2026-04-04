@@ -246,8 +246,9 @@ class Circuit:
         ]
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
-
-        self.simulate(get_MODE())
+        mode=get_MODE()
+        self.reset()
+        self.simulate(mode)
         
         final_table_lines = [separator, header, separator]
         for v_states, g_states in raw_rows:
@@ -288,7 +289,7 @@ class Circuit:
                 else:
                     ch_str = f"val:{comp.sources}"
 
-                book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]},{comp.book[3]}]"
+                book = f"[{comp.book[0]},{comp.book[1]},{comp.book[2]}]"
 
                 tgt = [f"{repr(p.target)} " for p in comp.hitlist]
                 tgt_str = ", ".join(tgt) if tgt else "None"
@@ -566,8 +567,6 @@ class Circuit:
 
     def simulate(self, Mode: int):
         """Run the simulation."""
-        if get_MODE()!=DESIGN and get_MODE()!=Mode:
-            self.reset()
         set_MODE(Mode)
         self.visual_queue_clear()
         self.eval_count=0
@@ -595,10 +594,7 @@ class Circuit:
         for i in self.get_components():
             i.reset()
 
-    async def async_propagate(self):
-        time_budget=Const.OSCILLATE
-        delay=Const.VISUALIZE
-
+    async def oscillate(self):
         while self.time_queue:
             size=len(self.time_queue)
             while size:
@@ -663,20 +659,15 @@ class Circuit:
         start=time.perf_counter_ns()
         while read_end > 0:
             if counter > self.counter:
-                if get_MODE() == FLIPFLOP:
-                    for i in range(read_end):
-                        gate = read_buf[i]
-                        gate.mark=False
-                        gate.scheduled=True
-                        self.time_queue.append(gate)
-                    if self.runner is None or self.runner.done():
-                        self.runner=asyncio.create_task(self.async_propagate())
-                    return
-                else:
-                    counter=-1
-                    for i in range(read_end):
-                        gate = read_buf[i]
-                        gate.output = ERROR                
+                for i in range(read_end):
+                    gate = read_buf[i]
+                    gate.mark=False
+                    gate.scheduled=True
+                    self.time_queue.append(gate)
+                if self.runner is None or self.runner.done():
+                    self.runner=asyncio.create_task(self.oscillate())
+                return
+         
             counter += 1
 
             for i in range(read_end):
@@ -702,7 +693,7 @@ class Circuit:
                                 high = book[HIGH]
                                 low = book[LOW]
                                 realsource = high + low
-                                if realsource == limit or (realsource and realsource + book[UNKNOWN] + book[ERROR] == limit):
+                                if realsource == limit or (realsource and realsource + book[UNKNOWN] == limit):
                                     if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
                                     elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
                                     else:target_output = (high & 1)^(gate_type & 1)
