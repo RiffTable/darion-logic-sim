@@ -1,45 +1,109 @@
 # Darion Logic Sim
 
-A Python-based Digital Logic Simulator with a PySide6 GUI editor and a dual-backend simulation engine.
+Darion Logic Sim is a Python-based digital logic simulator featuring a PySide6 visual editor and a dual-backend simulation architecture built with Cython. It is designed to be highly interactive, visually stunning, and parallel to real-life simulation, allowing the user to practice Logic Design skills with ease of use. 
 
-## Features
+## Dual-Backend Architecture
 
-- **Dual-Backend Architecture:** Choose between a pure **Python Engine** or a high-performance **Cython/C++ Reactor** for simulation.
-- **Event-Driven Propagation:** Only propagates signals when an input actually changes — no polling.
-- **O(1) Gate Evaluation:** Gates handle any number of inputs in constant time using the "Book" algorithm.
-- **Oscillation Protection:** A dynamic wave limiter that detects infinite oscillations intelligently and burns them to `ERROR`.
-- **Recursive Integrated Circuits (ICs):** Circuits can be saved as ICs and nested arbitrarily deep (e.g., a CPU built from ALUs built from Adders built from XOR/AND gates).
-- **Stack-Based Undo/Redo:** Every action is recorded as a reversible transaction.
-- **Save/Load:** Circuits and ICs are serialized to JSON.
+The simulator ships with two interchangeable backends sharing the exact same API, demonstrating a practical transition from Object-Oriented Programming (OOP) to Data-Oriented Design (DOD).
 
-## Build
+* **Engine (Pure Python & OOP):** Built with standard Python objects, this backend is highly flexible and made for simplicity and debugability. It prioritizes exact chronological realism, precise hardware delay modeling, and visual observation over raw throughput.
+* **Reactor (Cython/C++ & DOD):** Python's object overhead scatters data across memory, which bottlenecks massive circuits. The Reactor shifts to a strict Data-Oriented Design. By dropping the Global Interpreter Lock (`nogil`) and packing gate states into contiguous C-structs (`std::vector`), it strips Python entirely out of the propagation hot-loop. While Cython makes debugging more complex, it allows the CPU cache to process logic at native C speeds, scaling the performance to extreme lengths. 
 
-Create and activate a Python virtual environment:
+### The DOD Bridge: Memory as Identity
+In the Reactor, the circuit's state is split into two layers:
+* `gate_infolist`: A C++ vector of packed structs containing purely numeric physics data (outputs, hitlists, limits) where the `nogil` execution occurs.
+* `gate_verse`: A Python list holding the high-level UI wrappers (names, custom data).
+
+The bridge is the `location` attribute. Rather than just an ID, `location` is the exact memory index of the gate within the C++ array. This guarantees $O(1)$ memory lookups for the physics engine and allows the UI to instantly map a physical change to its graphical widget without searching.
+
+---
+
+## Core Simulation Mechanics
+
+### 1. Evaluation ($O(1)$ Logic & Short-Circuiting)
+To achieve consistent evaluation times regardless of a gate's fan-in (number of inputs), the engine avoids traditional input-polling.
+* **The Book Algorithm (`id < VARIABLE_ID`):** Complex gates (AND, OR, XOR) maintain a 3-element book tracking the count of their active incoming signals: `[LOW, HIGH, UNKNOWN]`. Sources push changes to targets. The target updates its tally and uses its `id` (gate type) attribute to perform a fast bitwise arithmetic check, determining its new output instantly.  
+* **Short-Circuiting (`id >= NOT_ID`):** Components with 1:1 input-output mappings (NOT gates, Input Pins, Output Pins) bypass the Book algorithm entirely, utilizing a direct logic flow to save CPU cycles.
+* **Forward Evaluation:** Gates are evaluated directly from their source to target. This makes the queue strictly based on gates that have changed their output and need to propagate. 
+
+### 2. Propagation & Time Management
+Propagation utilizes dual buffers (`read_queue` and `write_queue`) to simulate synchronous hardware delta-cycles, ensuring parallel logic paths evaluate simultaneously.
+* **State Flags (`mark` & `scheduled`):** The `mark` flag ensures a gate is added to the active wave buffer only once per cycle, even if multiple inputs trigger it. The `scheduled` flag prevents duplicate entries in the broader time manager.
+* **Realism vs. Throughput:** * The **Engine** uses a priority queue (`heapq`) to model physical gate delays, input-limit penalties, and transient hardware glitches (race conditions).
+  * The **Reactor** uses a fast FIFO queue (`std::deque`), discarding physical delay modeling in favor of strict causal correctness and maximum throughput.
+* **Oscillation Protection:** A dynamic counter monitors the propagation depth. If an infinite loop or rapid oscillation is detected, the engine intentionally throttles the raw execution, passing the state to the slower time managers. This yields execution back to the UI, allowing users to watch the oscillation without freezing the application.
+
+### 3. Optimization & Defragmentation (Reactor)
+The Cython backend features an `optimize()` function that runs Kahn’s algorithm for topological sorting. It physically reorders the C++ memory array so signals always flow forward, guaranteeing the CPU prefetcher never has to "look back" in memory. Simultaneously, it pushes deleted (tombstoned) gates to the end of the array, acting as a zero-cost memory defragmenter.
+
+---
+
+## UI Synchronization: The Visual Queue
+
+The physics backend crunches logic millions of times faster than the 60 FPS PySide6 frontend can render.
+* When a gate changes state, its `update` flag is set to true, and its `location` is pushed to a lightweight `visual_queue`. The flag ensures it is only queued once per frame.
+* An asynchronous UI task operates on a strict time budget (e.g., ~16ms). It drains the visual queue, looks up the corresponding widget via the `location` index, and repaints only the specific wires and gates that changed.
+* This completely decouples the UI from the physics engine, maintaining fluid rendering while the backend handles massive calculations.
+
+---
+
+## Integrated Circuits (ICs) & Serialization
+
+### Hierarchical ICs & Netlist Flattening
+Users can select clusters of components and package them into reusable Integrated Circuits.
+* **Infinite Nesting (UI/Storage):** IC definitions can be nested hierarchically to any depth (e.g., a CPU built from ALUs, built from Adders).
+* **Zero-Cost Execution:** The execution is explicitly not recursive. During simulation prep, the Reactor’s `build_ic()` flattens the hierarchy, dissolving all IC boundaries. A deeply nested chip is physically unpacked into a single, flat 1D array of primitive gates. This guarantees that deep UI hierarchies incur zero function-call overhead during the physics simulation.
+
+### Save/Load & State Management
+* **Two-Phase Deserialization:** Deserialization runs in two passes. Phase 1 instantiates all components and builds a fast hash map (`pseudo`) linking old JSON file IDs to new memory locations. Phase 2 wires the components together using the map, ensuring flawless topology reconstruction.
+* **Sandboxed Exports:** When copying components or saving custom ICs, the engine detects and gracefully marks the components and uses ‘Partial Data’ to recreate the component or the entire cluster.
+* **Time Travel (Undo/Redo):** Built on the Command Pattern, every user action is encapsulated as a reversible transaction (storing only the minimum required delta). These are managed by dual `deque` history stacks capped at 250 steps, allowing memory-efficient, instant time travel.
+* **Gray Code Truth Tables:** Truth tables iterate through states using a Gray Code sequence (`i ^ (i >> 1)`), ensuring only one variable toggles per row. This avoids the chaotic logic cascades of standard binary counting, significantly accelerating table generation.
+
+---
+
+## Installation & Build Instructions
+
+**1. Create and activate a Python virtual environment:**
 
 ```bash
+# Linux / macOS
 python -m venv env
-source env/bin/activate    # Linux / macOS
-env\Scripts\activate.bat   # Windows
+source env/bin/activate
+
+# Windows
+python -m venv env
+env\Scripts\activate.bat
 ```
 
-Install dependencies:
+**2. Install dependencies:**
 
 ```bash
-pip install pyside6 setuptools cython psutil
+pip install pyside6 setuptools cython psutil orjson
 ```
 
-Build the Cython reactor (optional — only needed if you want the high-performance backend):
+**3. Build the Cython Reactor (Optional):**
+*Note: The pure Python engine runs out of the box. The high-performance Reactor requires C++ compilation via Cython.*
 
 ```bash
-bash scripts/build.sh    # Linux / macOS
-scripts\build.bat        # Windows
+# Linux / macOS
+bash scripts/build.sh
+
+# Windows
+scripts\build.bat
 ```
 
-> **Note:** The pure Python engine (`engine/`) works without building. The reactor (`reactor/`) requires Cython compilation.
+---
 
 ## Usage
 
-### CLI
+**Start the Visual Editor:**
+
+```bash
+python main.py
+```
+
+**Command Line Interface (CLI):**
 
 ```bash
 python interface/CLI.py              # Interactive backend selection
@@ -47,68 +111,9 @@ python interface/CLI.py --engine     # Force Python engine
 python interface/CLI.py --reactor    # Force Cython reactor
 ```
 
-### GUI
-
-```bash
-python main.py
-```
-
-### Speed Tests
+**Benchmarking:**
 
 ```bash
 python interface/speed_test.py --engine     # Benchmark the Python engine
 python interface/speed_test.py --reactor    # Benchmark the Cython reactor
 ```
-
-## Architecture
-
-### Dual Backends
-
-The simulator has two interchangeable backends that share the same API:
-
-| | **Engine** (`engine/`) | **Reactor** (`reactor/`) |
-|---|---|---|
-| Language | Pure Python | Cython / C++ |
-| Build Step | None | `scripts/build.sh` |
-| Use Case | Development, portability | Production, benchmarking |
-| Data Structures | Python `list` | C++ `vector<void*>` |
-| Gate Evaluation | Python method calls | Inline C-level evaluation |
-
-Both backends implement the same core modules: `Circuit`, `Gates`, `IC`, `Const`, and `Store`.
-
-### The "Book" Algorithm (O(1) Logic)
-
-Instead of iterating through every input pin to evaluate a gate, each gate maintains a 4-element "book": `[Count_Low, Count_High, Count_Error, Count_Unknown]`.
-
-- When an input changes (e.g., Low → High), the book updates in O(1): `Book[Low]--`, `Book[High]++`.
-- **Decision logic is a single comparison:**
-  - AND: `low == 0` → HIGH
-  - OR: `high > 0` → HIGH
-  - XOR: `high & 1` → HIGH
-  - Inverted gates (NAND, NOR, XNOR) flip the result with `output ^= (gate_type & 1)`.
-- **Result:** A 100,000-input AND gate evaluates as fast as a 2-input gate.
-
-### Event-Driven Propagation
-
-The propagation loop uses a **single flat queue** with index-based traversal (not `deque.popleft()`). Each gate carries a `scheduled` flag to prevent duplicate enqueuing.
-
-1. **Wavefront BFS:** When a gate's output changes, it scans its `hitlist` (list of `Profile` structs: `{target, pin_index, last_known_output}`). If a target's book changes its output, the target is appended to the queue.
-2. **Wave Limiter:** A counter tracks propagation waves. If the counter exceeds the circuit's component count, it assumes an infinite oscillation, clears the queue, and flood-fills `ERROR` from the offending gate via the `burn()` function.
-3. **Not gate & Buffer shortcircuit:** These type of gates bypass book management and follow a simpler logic flow
-
-### Recursive IC Architecture
-
-Integrated Circuits use the **Composite Design Pattern**:
-
-- An `IC` is treated identically to a `Gate` by the engine.
-- Every IC encapsulates its own internal components, input pins, and output pins.
-- `IC` has a map which is the blueprint used during copy-paste and also used to build the `IC` from scratch 
-- ICs can be nested inside other ICs to arbitrary depth (e.g., a 4-bit Adder built from Full Adders, built from Half Adders, built from XOR/AND gates).
-
-### Time Travel (Undo/Redo)
-
-The project implements the **Command Pattern** for history management:
-
-- Every user action (Create, Delete, Wire, Toggle) is encapsulated as a "Transaction" tuple.
-- Transactions are pushed onto an Undo Stack.
-- Reversing an action pops the transaction and executes its mathematical inverse (e.g., the inverse of "Delete Gate A" is "Restore Gate A at Index X").
