@@ -7,14 +7,14 @@ sys.path.append(os.path.join(os.getcwd(), 'engine'))
 # but I can't bc that causes other *weird* issue
 # This solution is beyond checky and will probably break >:3
 if TYPE_CHECKING:
-	from engine import Const
-	from engine.Circuit import Circuit
-	from engine.Gates import Gate
-	from engine.IC import IC
+    from engine import Const
+    from engine.Circuit import Circuit
+    from engine.Gates import Gate
+    from engine.IC import IC
 else:
-	import Const
-	from Circuit import Circuit
-	from Gates import Gate
-	from IC import IC
-	
+    import Const
+    from Circuit import Circuit
+    from Gates import Gate
+    from IC import IC
+    
 logic = Circuit()

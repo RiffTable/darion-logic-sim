@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .compitem import CompItem
 from .gates import (GateItem,
-	NOTGate, ANDGate, NANDGate, ORGate, NORGate, XORGate, XNORGate
+    NOTGate, ANDGate, NANDGate, ORGate, NORGate, XORGate, XNORGate
 )
 from .ICitem import ICitem
 from .inputs import InputItem
@@ -39,23 +39,23 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 # }
 
 LOOKUP: dict[int, type[CompItem]] = {
-	0:  NOTGate,
-	1:  ANDGate,
-	2:  NANDGate,
-	3:  ORGate,
-	4:  NORGate,
-	5:  XORGate,
-	6:  XNORGate,
-	10: ICitem,
-	11: InputItem,
-	21: OutputItem
+    0:  NOTGate,
+    1:  ANDGate,
+    2:  NANDGate,
+    3:  ORGate,
+    4:  NORGate,
+    5:  XORGate,
+    6:  XNORGate,
+    10: ICitem,
+    11: InputItem,
+    21: OutputItem
 }
 CATEGORIES: dict[str, list[int]] = {
-	"Gates": [0, 1, 2, 3, 4, 5, 6],
-	"I/O"  : [11, 21],
-	"Misc" : []
+    "Gates": [0, 1, 2, 3, 4, 5, 6],
+    "I/O"  : [11, 21],
+    "Misc" : []
 }
 
 # Setting up ID for all components
 for i, comp in LOOKUP.items():
-	comp.ID = i
+    comp.ID = i

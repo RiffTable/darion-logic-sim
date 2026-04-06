@@ -13,227 +13,227 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 
 ### Gate Item
 class GateItem(CompItem):
-	MIN_INPUT = 2
-	MAX_INPUT = 69
+    MIN_INPUT = 2
+    MAX_INPUT = 69
 
-	def getRelSize(self):
-		n = len(self._pinslist[CompEdge.INPUT])
-		if   n < 5:  w = 6
-		elif n < 10: w = 8
-		else:        w = 10
+    def getRelSize(self):
+        n = len(self._pinslist[CompEdge.INPUT])
+        if   n < 5:  w = 6
+        elif n < 10: w = 8
+        else:        w = 10
 
-		h = 2*(n-1) if n > 3 else 4
-		return (w, h)
-	
-	def getRelPadding(self): return (0, 9)
-
-
-	def __init__(self, pos: QPointF, **kwargs):
-		super().__init__(pos, **kwargs)
-
-		# Properties
-		self.state: int = Const.LOW
-		self.prevState = -1
-		self.minInput = self.MIN_INPUT
-		self.maxInput = self.MAX_INPUT
-
-		# Pins Setup
-		if self._setupDefaultPins:
-			if self.minInput <= 2:
-				for i in range(self.minInput):
-					self.addInputPin(CompEdge.INPUT, 2*i+1)
-			else:
-				for i in range(self.minInput):
-					self.addInputPin(CompEdge.INPUT, 2*i)
-			
-			_, h = self.getRelSize()
-			self.addOutputPin(CompEdge.OUTPUT, h//2)
-			self.updateShape()
-		
-		
-		# Pins Casting
-		self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
-		self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
-		
-		# Setting Pin Logicals
-		for i, p in enumerate(self.inputPins):
-			p.setLogical(self._unit, i)
-		self.outputPin.setLogical(self._unit)
-
-		logic.setlimits(self._unit, len(self.inputPins))
-
-		# Final Setup
-		self.proxyIndex = self.findFirstEmptyPin()
-		self.peekingPin: PinItem|None = None
-		self.stashedPins: list[InputPinItem] = []
-	
-
-	### Properties Data
-	def getProperties(self) -> dict:
-		return super().getProperties() | {
-			Prop.STATE     : self.state,
-			Prop.INPUTSIZE : len(self.inputPins),
-		}
-	
-	def setProperty(self, prop: Prop, value):
-		if prop == Prop.INPUTSIZE:
-			if self.setInputCount(value):
-				self.propertyChanged()
-				return True
-			else:
-				return False
-		else:
-			return super().setProperty(prop, value)
-	
-
-	def unitStateChanged(self, state: int):
-		self.state = state
-		self.outputPin.logicalStateChanged(state)
-
-	def poll_update(self) -> bool:
-		if self._unit is None: return False
-		
-		current = self._unit.output
-		if self.prevState != current:
-			self.prevState = current
-			self.unitStateChanged(current)
-			return True
-		return False
+        h = 2*(n-1) if n > 3 else 4
+        return (w, h)
+    
+    def getRelPadding(self): return (0, 9)
 
 
-	### Proxying
-	def proxyPin(self):
-		if self.proxyIndex < len(self.inputPins):
-			return self.inputPins[self.proxyIndex]
-		else: return None
-	
-	def findFirstEmptyPin(self):
-		for i, p in enumerate(self.inputPins):
-			if not p.hasWire():
-				return i
-		return len(self.inputPins)
+    def __init__(self, pos: QPointF, **kwargs):
+        super().__init__(pos, **kwargs)
+
+        # Properties
+        self.state: int = Const.LOW
+        self.prevState = -1
+        self.minInput = self.MIN_INPUT
+        self.maxInput = self.MAX_INPUT
+
+        # Pins Setup
+        if self._setupDefaultPins:
+            if self.minInput <= 2:
+                for i in range(self.minInput):
+                    self.addInputPin(CompEdge.INPUT, 2*i+1)
+            else:
+                for i in range(self.minInput):
+                    self.addInputPin(CompEdge.INPUT, 2*i)
+            
+            _, h = self.getRelSize()
+            self.addOutputPin(CompEdge.OUTPUT, h//2)
+            self.updateShape()
+        
+        
+        # Pins Casting
+        self.inputPins = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
+        self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+        
+        # Setting Pin Logicals
+        for i, p in enumerate(self.inputPins):
+            p.setLogical(self._unit, i)
+        self.outputPin.setLogical(self._unit)
+
+        logic.setlimits(self._unit, len(self.inputPins))
+
+        # Final Setup
+        self.proxyIndex = self.findFirstEmptyPin()
+        self.peekingPin: PinItem|None = None
+        self.stashedPins: list[InputPinItem] = []
+    
+
+    ### Properties Data
+    def getProperties(self) -> dict:
+        return super().getProperties() | {
+            Prop.STATE     : self.state,
+            Prop.INPUTSIZE : len(self.inputPins),
+        }
+    
+    def setProperty(self, prop: Prop, value):
+        if prop == Prop.INPUTSIZE:
+            if self.setInputCount(value):
+                self.propertyChanged()
+                return True
+            else:
+                return False
+        else:
+            return super().setProperty(prop, value)
+    
+
+    def unitStateChanged(self, state: int):
+        self.state = state
+        self.outputPin.logicalStateChanged(state)
+
+    def poll_update(self) -> bool:
+        if self._unit is None: return False
+        
+        current = self._unit.output
+        if self.prevState != current:
+            self.prevState = current
+            self.unitStateChanged(current)
+            return True
+        return False
 
 
-	### Pin Configuration
-	def pushGatePin(self):
-		"""Call `updateShape()` afterwards if needed"""
-		n = len(self.inputPins)
-		# if n >= self.maxInput: return
+    ### Proxying
+    def proxyPin(self):
+        if self.proxyIndex < len(self.inputPins):
+            return self.inputPins[self.proxyIndex]
+        else: return None
+    
+    def findFirstEmptyPin(self):
+        for i, p in enumerate(self.inputPins):
+            if not p.hasWire():
+                return i
+        return len(self.inputPins)
 
-		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
-		if n == 2:
-			self.setPinPos(self.inputPins[0], gen(0))
-			self.setPinPos(self.inputPins[1], gen(2))
-		
-		if self.stashedPins:
-			pin = self.stashedPins.pop()
-			pin.facing = fa
-			pin.setPos(gen(2*n))
-			
-			self.inputPins.append(pin)
-			pin.setParentItem(self)
-			# self.cscene.addItem(pin)    # "item has already been added to this scene"
-		else:
-			pin = self.addInputPin(CompEdge.INPUT, 2*n)
-		
-		return pin.setLogical(self._unit, n)
-	
-	def popGatePin(self):
-		"""Call `updateShape()` afterwards if needed"""
-		n = len(self.inputPins)
-		# if n <= self.minInput: return
+    ### Pin Configuration
+    def pushGatePin(self):
+        """Call `updateShape()` afterwards if needed"""
+        n = len(self.inputPins)
+        # if n >= self.maxInput: return
 
-		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
+        fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
-		if n == 3:
-			self.setPinPos(self.inputPins[0], gen(1))
-			self.setPinPos(self.inputPins[1], gen(3))
-		
-		self.stashedPins.append(self.inputPins[n-1])
-		self.removePin(CompEdge.INPUT, n-1)
+        if n == 2:
+            self.setPinPos(self.inputPins[0], gen(0))
+            self.setPinPos(self.inputPins[1], gen(2))
+        
+        if self.stashedPins:
+            pin = self.stashedPins.pop()
+            pin.facing = fa
+            pin.setPos(gen(2*n))
+            
+            self.inputPins.append(pin)
+            pin.setParentItem(self)
+            # self.cscene.addItem(pin)    # "item has already been added to this scene"
+        else:
+            pin = self.addInputPin(CompEdge.INPUT, 2*n)
+        
+        return pin.setLogical(self._unit, n)
+    
+    def popGatePin(self):
+        """Call `updateShape()` afterwards if needed"""
+        n = len(self.inputPins)
+        # if n <= self.minInput: return
 
-	
-	def pinUpdate(self, pin: PinItem, activePinCountChange: int):
-		if (activePinCountChange == +1) and pin is self.proxyPin():
-			self.proxyIndex = self.findFirstEmptyPin()
-		
-		if (activePinCountChange == -1) and pin in self.inputPins:
-			index = self.inputPins.index(cast(InputPinItem, pin))
-			self.proxyIndex = min(self.proxyIndex, index)
-	
-	def setInputCount(self, size: int) -> bool:
-		# This is never called for NOT gates
+        _, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
-		n = len(self.inputPins)
-		if size < self.minInput \
-		or size > self.maxInput \
-		or size == n:
-			return False
-		
-		if size > n:
-			for i in range(n, size):
-				self.pushGatePin()
-		else:
-			left = n - size
+        if n == 3:
+            self.setPinPos(self.inputPins[0], gen(1))
+            self.setPinPos(self.inputPins[1], gen(3))
+        
+        self.stashedPins.append(self.inputPins[n-1])
+        self.removePin(CompEdge.INPUT, n-1)
 
-			for i in range(n-1, -1, -1):
-				pin = self.inputPins[i]
-				if left == 0 or pin.hasWire(): break
+    
+    def pinUpdate(self, pin: PinItem, activePinCountChange: int):
+        if (activePinCountChange == +1) and pin is self.proxyPin():
+            self.proxyIndex = self.findFirstEmptyPin()
+        
+        if (activePinCountChange == -1) and pin in self.inputPins:
+            index = self.inputPins.index(cast(InputPinItem, pin))
+            self.proxyIndex = min(self.proxyIndex, index)
+    
+    def setInputCount(self, size: int) -> bool:
+        # This is never called for NOT gates
 
-				self.popGatePin()
-				left -= 1
-		
-		logic.setlimits(self._unit, size)
-		self.updateShape()
-		self.prevState = -1    # Force update UI state
-		self.propertyChanged()
-		return True
+        n = len(self.inputPins)
+        if size < self.minInput \
+        or size > self.maxInput \
+        or size == n:
+            return False
+        
+        if size > n:
+            for i in range(n, size):
+                self.pushGatePin()
+        else:
+            left = n - size
 
-	# Input feedback
-	# All events regarding "pin peeking":
-	# 1. Peek Out (betterHoverEnter)
-	# 2. Peek Off (betterHoverLeave)
-	# 3. Default/Proxy Connection
+            for i in range(n-1, -1, -1):
+                pin = self.inputPins[i]
+                if left == 0 or pin.hasWire(): break
 
-	### Smart Hover + Proxy System
-	def betterHoverEnter(self):
-		# "Peek Out": Peeks out the "Peeking Pin"
-		if self.cscene.peeking_disabled:
-			return
-		if self.proxyIndex == len(self.inputPins) \
-		and len(self.inputPins) < self.maxInput \
-		and self.cscene.checkState(EditorState.WIRING):
-			self.peekingPin = self.pushGatePin()
-			self.updateShape()
-	
-	def betterHoverLeave(self):
-		# "Peek Off": Removes the "Peeking Pin" if it has been created
-		if self.peekingPin and not self.peekingPin.hasWire():
-			self.popGatePin()
-			self.updateShape()
-		
-		self.peekingPin = None
+                self.popGatePin()
+                left -= 1
+        
+        logic.setlimits(self._unit, size)
+        self.updateShape()
+        self.prevState = -1    # Force update UI state
+        self.propertyChanged()
+        return True
 
-	### Events
-	def _updateShape(self):
-		_, h = self.getRelSize()
-			
-		opin = self.outputPin
-		fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
-		opin.facing = fa
-		self.setPinPos(opin, gen(h//2))
-		super()._updateShape()
+    # Input feedback
+    # All events regarding "pin peeking":
+    # 1. Peek Out (betterHoverEnter)
+    # 2. Peek Off (betterHoverLeave)
+    # 3. Default/Proxy Connection
+
+    ### Smart Hover + Proxy System
+    def betterHoverEnter(self):
+        # "Peek Out": Peeks out the "Peeking Pin"
+        if self.cscene.peeking_disabled:
+            return
+        if self.proxyIndex == len(self.inputPins) \
+        and len(self.inputPins) < self.maxInput \
+        and self.cscene.checkState(EditorState.WIRING):
+            self.peekingPin = self.pushGatePin()
+            self.updateShape()
+    
+    def betterHoverLeave(self):
+        # "Peek Off": Removes the "Peeking Pin" if it has been created
+        if self.peekingPin and not self.peekingPin.hasWire():
+            self.popGatePin()
+            self.updateShape()
+        
+        self.peekingPin = None
+
+    ### Events
+    def _updateShape(self):
+        _, h = self.getRelSize()
+            
+        opin = self.outputPin
+        fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
+        opin.facing = fa
+        self.setPinPos(opin, gen(h//2))
+        super()._updateShape()
 
 
 
 class NOTGate  (GateItem):
-	TAG = "NOT"
-	LOGIC = Const.NOT_ID
-	NAME = DESC = "NOT Gate"
-	MIN_INPUT = MAX_INPUT = 1
-	def getRelSize(self): return (4, 2)
-	def getRelPadding(self): return (0, 4)
+    TAG = "NOT"
+    LOGIC = Const.NOT_ID
+    NAME = DESC = "NOT Gate"
+    MIN_INPUT = MAX_INPUT = 1
+    def getRelSize(self): return (4, 2)
+    def getRelPadding(self): return (0, 4)
 class ANDGate  (GateItem): TAG="AND";  LOGIC=Const.AND_ID;  NAME=DESC="AND Gate"
 class NANDGate (GateItem): TAG="NAND"; LOGIC=Const.NAND_ID; NAME=DESC="NAND Gate"
 class ORGate   (GateItem): TAG="OR";   LOGIC=Const.OR_ID;   NAME=DESC="OR Gate"
