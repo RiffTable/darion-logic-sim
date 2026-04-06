@@ -65,6 +65,7 @@ class GateItem(CompItem):
 		# Final Setup
 		self.proxyIndex = self.findFirstEmptyPin()
 		self.peekingPin: PinItem|None = None
+		self.stashedPins: list[InputPinItem] = []
 	
 
 	### Properties Data
@@ -119,13 +120,24 @@ class GateItem(CompItem):
 		n = len(self.inputPins)
 		# if n >= self.maxInput: return
 
-		_, gen = self.getPinPosGenerator(CompEdge.INPUT)
+		fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
 
 		if n == 2:
 			self.setPinPos(self.inputPins[0], gen(0))
 			self.setPinPos(self.inputPins[1], gen(2))
 		
-		return self.addInputPin(CompEdge.INPUT, 2*n).setLogical(self._unit, n)
+		if self.stashedPins:
+			pin = self.stashedPins.pop()
+			pin.facing = fa
+			pin.setPos(gen(2*n))
+			
+			self.inputPins.append(pin)
+			pin.setParentItem(self)
+			# self.cscene.addItem(pin)    # "item has already been added to this scene"
+		else:
+			pin = self.addInputPin(CompEdge.INPUT, 2*n)
+		
+		return pin.setLogical(self._unit, n)
 	
 	def popGatePin(self):
 		"""Call `updateShape()` afterwards if needed"""
@@ -138,6 +150,7 @@ class GateItem(CompItem):
 			self.setPinPos(self.inputPins[0], gen(1))
 			self.setPinPos(self.inputPins[1], gen(3))
 		
+		self.stashedPins.append(self.inputPins[n-1])
 		self.removePin(CompEdge.INPUT, n-1)
 
 	

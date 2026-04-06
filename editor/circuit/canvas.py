@@ -44,8 +44,9 @@ class CircuitScene(QGraphicsScene):
 		self.defaultMirror = False
 		self.peeking_disabled = False
 		self.bg_style = 1
+		self.simulationMode = Const.SIMULATE
 
-		# Wiring logic
+		# Hover and Wiring logic
 		self.hoveredComp: CompItem|None = None
 		self.hoveredPin: PinItem|None = None
 		self.hoverViaProxy = False
@@ -138,6 +139,11 @@ class CircuitScene(QGraphicsScene):
 
 
 	# Editor State Management
+	def setSimulationMode(self, mode: str):
+		if mode == "simulate": self.simulationMode = Const.SIMULATE
+		else:                  self.simulationMode = Const.DESIGN
+		logic.simulate(self.simulationMode)
+	
 	def checkState(self, st: EditorState) -> bool:
 		return self.getState() == st
 	
@@ -151,6 +157,8 @@ class CircuitScene(QGraphicsScene):
 
 
 	# Components Management
+	# TODO: def selectionRect():
+
 	def addComp(self, x: float, y:float, comp_id: int):
 		comp_type = LOOKUP[comp_id]
 		comp = comp_type(

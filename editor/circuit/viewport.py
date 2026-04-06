@@ -143,6 +143,14 @@ class CircuitView(QGraphicsView):
 
 
 	###======= ACTIONS =======###
+	def centerView(self):
+		m11 = 1.0
+		dx, dy = 0, 0
+		self.setDragMode(QGraphicsView.DragMode.NoDrag)
+		self.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
+		self.viewScale = m11
+		self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+	
 	def panCanvas(self, delta: QPoint):
 		self.setDragMode(QGraphicsView.DragMode.NoDrag)
 		self.translate(
@@ -177,9 +185,3 @@ class CircuitView(QGraphicsView):
 		self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 1.25)
 	def zoomOutFromMouse(self):
 		self.applyZoom(self.viewport().mapFromGlobal(QCursor.pos()), 0.8)
-	
-	def undo(self):
-		self.cscene.undo_stack.undo()
-
-	def redo(self):
-		self.cscene.undo_stack.redo()

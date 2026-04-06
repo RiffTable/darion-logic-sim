@@ -138,6 +138,7 @@ class AppWindow(QMainWindow):
 		self.setScrollInverted(bool(settings.value("settings/invert_scroll", False, type=bool)))
 		self.setPeekingDisabled(bool(settings.value("settings/disable_peeking", False, type=bool)))
 		self.cscene.setGridStyle(str(settings.value("settings/grid_style", "lines", type=str)))
+		self.cscene.setSimulationMode(str(settings.value("settings/simulation_mode", "simulate", type=str)))
 	
 	def setScrollInverted(self, inverted: bool):
 		self.view.scroll_inverted = inverted
@@ -176,9 +177,7 @@ class AppWindow(QMainWindow):
 			.setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
 		Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
 			.setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
-		Actions.add(view, "undo", "Undo", view.undo, SK.Undo)   # Ctrl+Z
-		Actions.add(view, "redo", "Redo", view.redo) \
-			.setShortcuts([QKS("Ctrl+Shift+Z"), QKS("Ctrl+Y")])
+		Actions.add(view, "center_view", "Center View", view.centerView, QKS("Home"))
 		
 
 		### Canvas functions
@@ -187,15 +186,22 @@ class AppWindow(QMainWindow):
 			view, "grid_style", "Grid Style", "lines", scene.setGridStyle,
 			{"hidden": "Hidden", "lines": "Grid Lines", "dots": "Dots"}
 		)
+		Actions.createSubMenu(
+			view, "simulation_mode", "Simulation Mode", "simulate", scene.setSimulationMode,
+			{"simulate": "Auto Simulate", "design": "Pause Simulation"}
+		)
 
 		Actions.add(view, "select_none", "Select None", scene.selectNone, SK.Deselect) # Ctrl+A
 		Actions.add(view, "select_all", "Select All", scene.selectAllComps, SK.SelectAll) # Ctrl+A
 		Actions.add(view, "copy"      , "Copy",       scene.copyFromSelection, SK.Copy)   # Ctrl+C
 		Actions.add(view, "paste"     , "Paste",      scene.pasteComps,     SK.Paste)     # Ctrl+V
 		Actions.add(view, "cut"       , "Cut",        scene.cutComps,       SK.Cut)       # Ctrl+X
-
 		Actions.add(view, "delete", "Delete", scene.removeFromSelection)\
 			.setShortcuts([QKS("Del"), QKS("Backspace"), QKS("X")])
+
+		Actions.add(view, "undo", "Undo", scene.undo_stack.undo, SK.Undo)   # Ctrl+Z
+		Actions.add(view, "redo", "Redo", scene.undo_stack.redo) \
+			.setShortcuts([QKS("Ctrl+Shift+Z"), QKS("Ctrl+Y")])
 		
 		# Orientation
 		Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
@@ -245,15 +251,9 @@ class AppWindow(QMainWindow):
 		self.current_file_path = None
 
 		self.cscene.clearCanvas()
+		self.view.centerView()
 
-		# Default values
-		m11 = 1.0
-		dx, dy = 0, 0
-		self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
-		self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
-		self.view.viewScale = m11
-		self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-		logic.simulate(Const.SIMULATE)
+		logic.simulate(self.cscene.simulationMode)
 	
 	def saveFile(self, create_new_file: bool = False):
 		if self.current_file_path and not create_new_file:
@@ -340,8 +340,8 @@ class AppWindow(QMainWindow):
 				res["tag"],
 				res["desc"]
 			)
+			logic.simulate(self.cscene.simulationMode)
 			self.cscene.clearCanvas()
-			logic.simulate(Const.SIMULATE)
 			self.sidebar.refresh_IC_catagory.emit()
 
 
