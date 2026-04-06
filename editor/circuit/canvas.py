@@ -166,7 +166,7 @@ class CircuitScene(QGraphicsScene):
 
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
-		
+
 		comp.cutConnections()
 		self.unregister_comp(comp)  # NEW: remove from registry before unit is cleared
 		
@@ -468,18 +468,15 @@ class CircuitScene(QGraphicsScene):
 		super().mouseReleaseEvent(event)
 
 		if btn == MouseBtn.LeftButton and self._drag_start_positions:
-			moved_items = []
+			moved_items: list[tuple[CompItem, QPointF, QPointF]] = []
+
 			for comp, old_pos in self._drag_start_positions.items():
 				if comp.pos() != old_pos:
 					moved_items.append((comp, old_pos, comp.pos()))
 			
 			if moved_items:
 				cmd = MoveCommand(self, moved_items)
-				# Push without automatically executing redo() since they are already in the new pos
-				cmd.redo = lambda *args: None  # Disable redo temporarily
 				self.undo_stack.push(cmd)
-				# Restore redo on the class instance
-				del cmd.redo
 
 			self._drag_start_positions.clear()
 	
@@ -687,24 +684,27 @@ class CircuitScene(QGraphicsScene):
 	
 	# Gate Input
 	def increaseInputsForSelected(self):
-		changes = []
+		changes: list[tuple[GateItem, int, int]] = []
+
 		for item in self.selectedItems():
 			if isinstance(item, GateItem):
-				current = len(item.inputPins)
-				if current < item.maxInput:
-					changes.append((item, current, current + 1))
+				n = len(item.inputPins)
+				if item.setInputCount(n + 1):
+					changes.append((item, n, n + 1))
+		
 		if changes:
 			cmd = SetInputCountCommand(changes)
 			self.undo_stack.push(cmd)
 
 	def decreaseInputsForSelected(self):
-		changes = []
+		changes: list[tuple[GateItem, int, int]] = []
+
 		for item in self.selectedItems():
 			if isinstance(item, GateItem):
-				current = len(item.inputPins)
-				if current > item.minInput and not item.inputPins[-1].hasWire():
-					print("Decreasing inputs for", item.name,item.minInput,current)
-					changes.append((item, current, current - 1))
+				n = len(item.inputPins)
+				if item.setInputCount(n - 1):
+					changes.append((item, n, n - 1))
+		
 		if changes:
 			cmd = SetInputCountCommand(changes)
 			self.undo_stack.push(cmd)

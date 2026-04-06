@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING, cast
 from core.QtCore import *
 from core.LogicCore import *
-from core.Enums import EditorState
-from .catalog import CompItem, WireItem, InputPinItem, OutputPinItem
+from core.Enums import EditorState, Prop
+from .catalog import CompItem, WireItem, InputPinItem, OutputPinItem, GateItem
 
 if TYPE_CHECKING:
     from .canvas import CircuitScene
@@ -99,6 +99,7 @@ class DeleteCommand(QUndoCommand):
 
 
 
+#TODO: clean-up
 class ConnectCommand(QUndoCommand):
     def __init__(self, scene: "CircuitScene", source_pin, target_pin, ghost_wire, multi_wire_mode=False):
         super().__init__()
@@ -151,6 +152,7 @@ class ConnectCommand(QUndoCommand):
             self.added_to_scene = False
 
 
+#TODO: clean-up
 class PasteCommand(QUndoCommand):
     def __init__(self, scene: "CircuitScene", data):
         super().__init__()
@@ -164,26 +166,27 @@ class PasteCommand(QUndoCommand):
         if self.first_time:
             self.first_time = False
             self.comps, self.wires = self.scene.deserialize(self.data, addToSelected=True)
-        else:
-            # Restore components
-            for comp in self.comps:
-                self.scene.addItem(comp)
-                self.scene.comps.append(comp)
-                self.scene.register_comp(comp)
-                if comp._unit:
-                    logic.reveal([comp._unit])
-            
-            # Restore wires
-            for wire in self.wires:
-                self.scene.addItem(wire)
-                self.scene.wires.append(wire)
-                wire.source.setWire(wire)
-                for supply in wire.supplies:
-                    supply.setWire(wire)
-                    if wire.source.logical and supply.logical:
-                        unit, idx = supply.logical
-                        logic.connect(unit, wire.source.logical, idx)
-                wire.updateShape()
+            return
+        
+        # Restore components
+        for comp in self.comps:
+            self.scene.addItem(comp)
+            self.scene.comps.append(comp)
+            self.scene.register_comp(comp)
+            if comp._unit:
+                logic.reveal([comp._unit])
+        
+        # Restore wires
+        for wire in self.wires:
+            self.scene.addItem(wire)
+            self.scene.wires.append(wire)
+            wire.source.setWire(wire)
+            for supply in wire.supplies:
+                supply.setWire(wire)
+                if wire.source.logical and supply.logical:
+                    unit, idx = supply.logical
+                    logic.connect(unit, wire.source.logical, idx)
+            wire.updateShape()
 
     def undo(self):
         # Like DeleteCommand.redo()
@@ -194,12 +197,19 @@ class PasteCommand(QUndoCommand):
 
 
 class MoveCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", moved_items):
+    def __init__(self, scene: "CircuitScene", moved_items: list[tuple[CompItem, QPointF, QPointF]], execute_redo: bool = False):
         super().__init__()
         self.scene = scene
-        self.moved_items = moved_items  # list of (comp, old_pos, new_pos)
+        self.moved_items = moved_items   # list of (comp, old_pos, new_pos)
+
+        # If the items are already moved, redo() should not be called after pushing to undo stack
+        self.first_time = not execute_redo
 
     def redo(self):
+        if self.first_time:
+            self.first_time = False
+            return
+        
         for comp, old_pos, new_pos in self.moved_items:
             comp.setPos(new_pos)
 
@@ -209,11 +219,16 @@ class MoveCommand(QUndoCommand):
 
 
 class SetInputCountCommand(QUndoCommand):
-    def __init__(self, changes):
+    def __init__(self, changes: list[tuple[GateItem, int, int]]):
         super().__init__()
         self.changes = changes  # list of (item, old_size, new_size)
+        self.first_time = False
 
     def redo(self):
+        if self.first_time:
+            self.first_time = False
+            return
+        
         for item, old_size, new_size in self.changes:
             item.setInputCount(new_size)
 
@@ -222,6 +237,7 @@ class SetInputCountCommand(QUndoCommand):
             item.setInputCount(old_size)
 
 
+#TODO: clean-up
 class SwapWireCommand(QUndoCommand):
     def __init__(self, scene: "CircuitScene", g_wire, t_wire, target, g_pin):
         super().__init__()
@@ -291,3 +307,24 @@ class SwapWireCommand(QUndoCommand):
                 self.scene.wires.remove(self.g_wire)
             self.scene.removeItem(self.g_wire)
             self.added_to_scene = False
+
+
+class PropertyChangeCommand(QUndoCommand):
+    def __init__(self, item: CompItem, prop: Prop, old_value, new_value, execute_redo: bool = False):
+        super().__init__()
+        self.item = item
+        self.prop = prop
+        self.old_value = old_value
+        self.new_value = new_value
+
+        self.first_time = not execute_redo
+
+    def redo(self):
+        if self.first_time:
+            self.first_time = False
+            return
+        
+        self.item.setProperty(self.prop, self.new_value)
+
+    def undo(self):
+        self.item.setProperty(self.prop, self.old_value)

@@ -5,7 +5,8 @@ from core.QtCore import *
 from core.Enums import Prop, Facing
 
 import editor.theme as theme
-from editor.circuit.compitem import CompItem
+from editor.circuit.catalog import CompItem, GateItem
+from editor.circuit.commands import PropertyChangeCommand
 
 
 class PropertiesPanel(QWidget):
@@ -209,17 +210,9 @@ class PropertiesPanel(QWidget):
     def changeProperty(self, prop: Prop, value):
         if not self.comp: return
         
-        if prop == Prop.INPUTSIZE:
-            from editor.circuit.commands import SetInputCountCommand
-            from editor.circuit.gates import GateItem
-            if isinstance(self.comp, GateItem):
-                old_count = len(self.comp.inputPins)
-                if old_count != value:
-                    cmd = SetInputCountCommand([(self.comp, old_count, value)])
-                    # If this triggers redo(), redo() will call setProperty indirectly via setInputCount
-                    self.comp.cscene.undo_stack.push(cmd)
-            return
-            
+        cmd = PropertyChangeCommand(self.comp, prop, self.comp.getProperties()[prop], value)
+        self.comp.cscene.undo_stack.push(cmd)
+        
         # setProperty() automatically calls updateTab() using listener IF the property actually changed
         if not self.comp.setProperty(prop, value):
             self.updateTab()
