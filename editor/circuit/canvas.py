@@ -114,6 +114,7 @@ class CircuitScene(QGraphicsScene):
 			for i, logic_pin in enumerate(comp._unit.inputs):
 				self._ensure_registry_size(logic_pin.location)
 				self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.INPUT][i]
+			
 			for i, logic_pin in enumerate(comp._unit.outputs):
 				self._ensure_registry_size(logic_pin.location)
 				self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.OUTPUT][i]
@@ -165,10 +166,13 @@ class CircuitScene(QGraphicsScene):
 
 	def removeComp(self, comp: CompItem):
 		if comp not in self.comps: return
+		
 		comp.cutConnections()
 		self.unregister_comp(comp)  # NEW: remove from registry before unit is cleared
+		
 		if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
 			logic.hide([comp._unit])
+		
 		self.comps.remove(comp)
 		self.removeItem(comp)
 	
@@ -485,6 +489,7 @@ class CircuitScene(QGraphicsScene):
 
 		# # DEBUG
 		# if key == Key.Key_Space:
+			# logic.truthTable()
 		# 	logic.diagnose()
 		# 	print([ic[Const.CUSTOM_NAME] for ic in self.iclist])
 
@@ -626,6 +631,9 @@ class CircuitScene(QGraphicsScene):
 		comps_to_delete = []
 		wires_to_delete = []
 		for item in self.selectedItems():
+			if item.scene() is None:
+				continue
+
 			if isinstance(item, WireItem):
 				if item in self.wires: wires_to_delete.append(item)
 			elif isinstance(item, CompItem):

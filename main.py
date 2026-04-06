@@ -81,7 +81,7 @@ class AppWindow(QMainWindow):
 	def spawnComponent(self, comp_id: int):
 		view_center = self.view.viewport().rect().center()
 		pos = self.view.mapToScene(view_center)
-		cmd = AddCompCommand(self.cscene, pos.x(), pos.y(), comp_id)
+		cmd = AddCompCommand(self.cscene, pos, comp_id)
 		self.cscene.undo_stack.push(cmd)
 	
 	def spawnIC(self, ic_data):
@@ -116,14 +116,12 @@ class AppWindow(QMainWindow):
 	###======= EVENTS =======###
 	def moveEvent(self, event):
 		super().moveEvent(event)
-		if self.props_panel.isVisible():
-			self.update_props_position()
+		self.update_props_position()
 	
 	def resizeEvent(self, event):
 		super().resizeEvent(event)
 		QSettings().setValue("main_window/geometry", self.saveGeometry())
-		if self.props_panel.isVisible():
-			self.update_props_position()
+		self.update_props_position()
 
 	def closeEvent(self, event):
 		# To make sure a runtime error isn't raised when closing the app

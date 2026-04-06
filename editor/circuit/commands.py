@@ -1,25 +1,30 @@
-from core.QtCore import QUndoCommand
-from editor.circuit.compitem import CompItem
-from editor.circuit.wireitem import WireItem
-from core.LogicCore import logic
+from typing import TYPE_CHECKING, cast
+from core.QtCore import *
+from core.LogicCore import *
 from core.Enums import EditorState
+from .catalog import CompItem, WireItem, InputPinItem, OutputPinItem
+
+if TYPE_CHECKING:
+    from .canvas import CircuitScene
+
+
+# Note to self: redo() is called when a QUndoCommand is constructed
+
 
 class AddCompCommand(QUndoCommand):
     """Command to add a new component"""
-    def __init__(self, scene, x, y, comp_id):
+    def __init__(self, scene: "CircuitScene", pos: QPointF, comp_id: int):
         super().__init__()
         self.scene = scene
-        self.x = x
-        self.y = y
+        self.x ,self.y = pos.toTuple()
         self.comp_id = comp_id
-        self.comp = None  # Will hold the visual CompItem
+        self.comp = None
 
     def redo(self):
         if self.comp is None:
-            # First time: create it normally. addComp also calls register_comp and logic.
+            # Create the CompItem and store it in memory
             self.comp = self.scene.addComp(self.x, self.y, self.comp_id)
         else:
-            # Redo: restore the existing visual item and logic
             self.scene.addItem(self.comp)
             self.scene.comps.append(self.comp)
             self.scene.register_comp(self.comp)
@@ -27,7 +32,9 @@ class AddCompCommand(QUndoCommand):
                 logic.reveal([self.comp._unit])
 
     def undo(self):
-        # Hide from scene and logic, but keep the Python object exactly as is
+        if self.comp is None:
+            return    # This is for pyright
+        
         self.scene.removeItem(self.comp)
         self.scene.comps.remove(self.comp)
         self.scene.unregister_comp(self.comp)
@@ -36,62 +43,64 @@ class AddCompCommand(QUndoCommand):
 
 
 class DeleteCommand(QUndoCommand):
-    def __init__(self, scene, items_to_delete, explicit_wires=None):
+    def __init__(self, scene: "CircuitScene", comp_list: list[CompItem], wire_list: list[WireItem] = []):
         super().__init__()
         self.scene = scene
-        self.items_to_delete = items_to_delete
+        self.comp_list = comp_list
+        self.connections: dict[OutputPinItem, list[InputPinItem]] = {}
         
         # Capture all the wires connected to these comps
-        self.wires_to_delete = self._get_attached_wires()
-        if explicit_wires:
-            for w in explicit_wires:
-                if w not in self.wires_to_delete:
-                    self.wires_to_delete.append(w)
-
-    def _get_attached_wires(self):
-        wires = set()
-        for comp in self.items_to_delete:
+        for comp in self.comp_list:
             for pinlist in comp._pinslist.values():
                 for pin in pinlist:
-                    if pin.hasWire():
-                        wires.add(pin.getWire())
-        return list(wires)
+                    wire = pin.getWire()
+                    if wire is None:
+                        continue
+
+                    if isinstance(pin, InputPinItem):
+                        self.connections.setdefault(wire.source, []).append(pin)
+                    else:
+                        pin = cast(OutputPinItem, pin)
+                        self.connections[pin] = wire.supplies.copy()
+
+        for w in wire_list:
+            self.connections[w.source] = w.supplies.copy()
 
     def redo(self):
         # Perform actual deletion (hide from scene & logic)
-        for wire in self.wires_to_delete:
-            self.scene.removeWire(wire)
-        for comp in self.items_to_delete:
+        for supplies in self.connections.values():
+            for supply in supplies:
+                supply.disconnect()
+        
+        for comp in self.comp_list:
             self.scene.removeComp(comp)
 
     def undo(self):
         # Restore components
-        for comp in self.items_to_delete:
+        for comp in self.comp_list:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
             self.scene.register_comp(comp)
             if comp._unit:
                 logic.reveal([comp._unit])
-                
-        for wire in self.wires_to_delete:
-            self.scene.addItem(wire)
-            self.scene.wires.append(wire)
-            # Reattach UI
-            wire.source.setWire(wire)
-            for supply in wire.supplies:
-                supply.setWire(wire)
-                # Reattach Logic
-                if wire.source.logical and supply.logical:
-                    unit, idx = supply.logical
-                    logic.connect(unit, wire.source.logical, idx)
-            wire.updateShape()
-
         
-        # Restore wires
+        # Restore connections
+        for source, _supplies in self.connections.items():
+            supplies = _supplies.copy()
+            w = source.getWire()
+            if w is None:
+                w = WireItem(source, supplies.pop(0))
+                self.scene.addItem(w)
+                self.scene.wires.append(w)
+            
+            for supply in supplies:
+                w.addSupply(supply)
+                w.logicalConnect(source, supply)
+
 
 
 class ConnectCommand(QUndoCommand):
-    def __init__(self, scene, source_pin, target_pin, ghost_wire, multi_wire_mode=False):
+    def __init__(self, scene: "CircuitScene", source_pin, target_pin, ghost_wire, multi_wire_mode=False):
         super().__init__()
         self.scene = scene
         self.source_pin = source_pin
@@ -143,7 +152,7 @@ class ConnectCommand(QUndoCommand):
 
 
 class PasteCommand(QUndoCommand):
-    def __init__(self, scene, data):
+    def __init__(self, scene: "CircuitScene", data):
         super().__init__()
         self.scene = scene
         self.data = data
@@ -185,7 +194,7 @@ class PasteCommand(QUndoCommand):
 
 
 class MoveCommand(QUndoCommand):
-    def __init__(self, scene, moved_items):
+    def __init__(self, scene: "CircuitScene", moved_items):
         super().__init__()
         self.scene = scene
         self.moved_items = moved_items  # list of (comp, old_pos, new_pos)
@@ -214,7 +223,7 @@ class SetInputCountCommand(QUndoCommand):
 
 
 class SwapWireCommand(QUndoCommand):
-    def __init__(self, scene, g_wire, t_wire, target, g_pin):
+    def __init__(self, scene: "CircuitScene", g_wire, t_wire, target, g_pin):
         super().__init__()
         self.scene = scene
         self.g_wire = g_wire
