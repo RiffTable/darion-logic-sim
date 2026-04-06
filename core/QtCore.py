@@ -23,6 +23,8 @@ from PySide6.QtGui import (
     QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent, QUndoCommand, QUndoStack
 )
 
+import PySide6.QtAsyncio as QtAsyncio
+
 # Just some Quality of Life
 GraphicsItemChange = QGraphicsItem.GraphicsItemChange
 GraphicsItemFlag = QGraphicsItem.GraphicsItemFlag

@@ -63,3 +63,13 @@ class DarkTheme:
 
 class Font:
     default        = QFont("Segoe UI", 12, QFont.Weight.Bold)
+
+
+# List of "magic numbers"
+class Val:
+    # Animation Speed (in milliseconds)
+    AnimSpeedLED = 100
+    AnimSpeedPin = 100
+    AnimSpeedWire = 100
+
+    AlertUnsaved = True

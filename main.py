@@ -2,14 +2,15 @@ import sys
 import json
 from pathlib import Path
 from typing import cast
+from functools import partial
 
 from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
-import PySide6.QtAsyncio as QtAsyncio
 
 import editor.theme as theme
 import editor.actions as Actions
+from editor.styles import Val
 from editor.circuit.viewport import CircuitView
 from editor.tools.properties import PropertiesPanel
 from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, SettingsMenu
@@ -35,7 +36,11 @@ class AppWindow(QMainWindow):
         ###======= CIRCUIT =======###
         self.view = CircuitView()
         self.cscene = self.view.cscene
+
         self.current_file_path: str|None = None
+        self.is_project_modified: bool = False
+        self.cscene.undo_stack.cleanChanged.connect(self.undoStackChanged)
+        self.update_window_title()
 
         self.setupQActions()
 
@@ -66,6 +71,20 @@ class AppWindow(QMainWindow):
         layout_main.addWidget(self.view)
 
 
+
+    def undoStackChanged(self, isClean: bool):
+        self.is_project_modified = not isClean
+        self.update_window_title()
+    
+    def update_window_title(self):
+        if self.current_file_path is None:
+            project_name = "Untitled"
+        else:
+            project_name = Path(self.current_file_path).stem
+        asterisk = "*" if self.is_project_modified else ""
+        
+        # Format: "MyProject* - Logic Designer"
+        self.setWindowTitle(f"{project_name}{asterisk} - Darion Logic Sim")
 
     def refresh_theme(self):
         theme.apply_palette(cast(QApplication, QApplication.instance()))
@@ -125,10 +144,33 @@ class AppWindow(QMainWindow):
 
     def closeEvent(self, event):
         # To make sure a runtime error isn't raised when closing the app
-        try:
-            self.cscene.selectionChanged.disconnect()
-        except RuntimeError: pass
-        super().closeEvent(event)
+        if self.cscene:
+            self.cscene.blockSignals(True)
+        
+        if self.is_project_modified and Val.AlertUnsaved:
+            Btn = QMessageBox.StandardButton
+            res = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to save before exiting?",
+                Btn.Save | Btn.Discard | Btn.Cancel
+            )
+            
+            if res == Btn.Save:
+                if self.saveFile():
+                    event.accept()    # Exits
+                else:
+                    self.cscene.blockSignals(False)
+                    event.ignore()    # Save failed. Don't quit
+            
+            elif res == Btn.Cancel:
+                self.cscene.blockSignals(False)
+                event.ignore()    # Cancelled exitting
+            
+            else:
+                event.accept()    # Exits
+        else:
+            event.accept()    # Exits
 
 
 
@@ -155,11 +197,11 @@ class AppWindow(QMainWindow):
 
 
         ### Project functions
-        Actions.add(self, "new",     "New",     self.newFile,    SK.New)    # Ctrl+N
-        Actions.add(self, "save",    "Save",    self.saveFile,   SK.Save)   # Ctrl+S
-        Actions.add(self, "open",    "Open",    self.loadFile,   SK.Open)   # Ctrl+O
-        Actions.add(self, "save_as", "Save As", self.saveFileAs, SK.SaveAs) # Ctrl+Shift+S
-        Actions.add(self, "exit",    "Exit",    self.close,      SK.Quit)
+        Actions.add(self, "new",  "New",  self.newFile,  SK.New)    # Ctrl+N
+        Actions.add(self, "save", "Save", self.saveFile, SK.Save)   # Ctrl+S
+        Actions.add(self, "save_as", "Save As", partial(self.saveFile, True), SK.SaveAs) # Ctrl+Shift+S
+        Actions.add(self, "open", "Open", self.loadFile, SK.Open)   # Ctrl+O
+        Actions.add(self, "exit", "Exit", self.close,    SK.Quit)
 
         Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, self.setScrollInverted)
         Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, self.setPeekingDisabled)
@@ -255,38 +297,49 @@ class AppWindow(QMainWindow):
 
         logic.simulate(self.cscene.simulationMode)
     
-    def saveFile(self, create_new_file: bool = False):
-        if self.current_file_path and not create_new_file:
+    def saveFile(self, save_as: bool = False) -> bool:
+        if self.current_file_path and not save_as:
             # Don't ask if the project has a save file
             filename = self.current_file_path
         else:
             # Ask for file name
+            start_dir = str(self.current_file_path) if self.current_file_path else str(projectsPath)
             filename, _ = QFileDialog.getSaveFileName(
                 self,
                 "Save Project",
-                str(projectsPath),
+                start_dir,
                 "JSON Files (*.json);;All Files (*)"
             )
-            if not filename: return
-            self.current_file_path = filename
+            if not filename:
+                return False
 
         # Saving to file
-        project = self.get_project_data()
         try:
+            project = self.get_project_data()
             with open(filename, 'w') as file:
                 json.dump(project, file)
+
+                # File saved successfully
+                self.current_file_path = filename
+                self.cscene.undo_stack.setClean()
+                self.update_window_title()
+                return True
+        
         except Exception as e:
-            print("Failed to save:", e)    # TODO: why is it print?
-    
-    def saveFileAs(self):
-        self.saveFile(True)
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Could not save file to:\n{filename}\n\nError: {str(e)}"
+            )
+            return False
     
     def loadFile(self):
         # Always ask for file name
+        start_dir = str(self.current_file_path) if self.current_file_path else str(projectsPath)
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Open Project",
-            str(projectsPath),
+            start_dir,
             "JSON Files (*.json);;All Files (*)"
         )
         if not filename: return

@@ -5,6 +5,7 @@ from core.LogicCore import *
 from core.Enums import Facing, EditorState
 import core.grid as GRID
 
+from editor.styles import Val
 import editor.theme as theme
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ class PinItem(QGraphicsRectItem):
         # Color animation – prevents strobe on fast oscillators
         self.current_color: QColor = QColor(0, 0, 0, 0)
         self.color_anim = QVariantAnimation()
-        self.color_anim.setDuration(100)
+        self.color_anim.setDuration(Val.AnimSpeedPin)
         self.color_anim.valueChanged.connect(self._on_color_change)
 
         self.setPos(relpos)

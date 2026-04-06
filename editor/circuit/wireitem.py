@@ -3,6 +3,7 @@ from typing import cast, TYPE_CHECKING
 from core.QtCore import *
 from core.LogicCore import *
 
+from editor.styles import Val
 import editor.theme as theme
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class WireItem(QGraphicsPathItem):
         # Color animation – prevents strobe on fast oscillators
         self.current_color: QColor = theme.get_theme().signal_unknown
         self.color_anim = QVariantAnimation()
-        self.color_anim.setDuration(100)
+        self.color_anim.setDuration(Val.AnimSpeedWire)
         self.color_anim.valueChanged.connect(self._on_color_change)
 
         self.logicalConnect(beg, end)

@@ -3,6 +3,7 @@ from typing import cast
 from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import CompEdge, Prop
+from editor.styles import Val
 from editor import theme
 
 from .compitem import CompItem
@@ -29,7 +30,7 @@ class OutputItem(CompItem):
         # Color animation – prevents strobe on fast oscillators
         self.current_color: QColor = theme.get_theme().LED_off
         self.color_anim = QVariantAnimation()
-        self.color_anim.setDuration(100)  # 120ms: fast enough to feel responsive
+        self.color_anim.setDuration(Val.AnimSpeedLED)
         self.color_anim.valueChanged.connect(self._on_color_change)
         
         # Pins Setup
