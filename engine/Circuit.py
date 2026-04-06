@@ -9,7 +9,20 @@ from Store import get, reset_loc
 from collections import deque
 import asyncio
 import time
+import heapq
+
+Global_delay=[2,0,3,1,4,5,0,0,0,0,0]
 # ─── Circuit ──────────────────────────────────────────────────────
+class Task:
+    __slots__=['gate','time','location']
+    def __init__(self,gate:Gate,time:int,location:int):
+        self.gate=gate
+        self.time=time
+        self.location=location
+    def __lt__(self,other):
+        if self.time==other.time:
+            return self.location<other.location
+        return self.time<other.time
 
 class Circuit:
     """The main circuit board."""
@@ -17,7 +30,7 @@ class Circuit:
         'objlist', 'copydata',
         'counter', 'queue',
         'eval_count','time_queue','runner',
-        'visual_queue',
+        'visual_queue','Global_Clock','oscillation_queue'
     ]
 
     def __init__(self):
@@ -27,10 +40,12 @@ class Circuit:
         self.counter: int = 0
         self.queue: list = [[None] * LIMIT, [None] * LIMIT]  # double buffer: fixed [2][LIMIT]
         self.eval_count = 0
-        self.time_queue: deque[Gate] = deque()
+        self.time_queue: list[Task] = []
+        self.oscillation_queue:deque[Gate]=deque()
+        heapq.heapify(self.time_queue)
         self.runner=None
         self.visual_queue: deque[Gate] = deque()  # stores gate locations (ints) for dirty UI updates
-
+        self.Global_Clock=0
 
     def __repr__(self):
         return 'Circuit'
@@ -149,9 +164,11 @@ class Circuit:
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
                 for pin in gate.outputs:
-                    self.propagate(pin)
+                    if pin.output!=UNKNOWN:
+                        self.propagate(pin)
             else:
-                self.propagate(gate)
+                if gate.output!=UNKNOWN:
+                    self.propagate(gate)
 
     def output(self, gate: Gate):
         print(f'{gate} output is {gate.getoutput()}')
@@ -594,20 +611,21 @@ class Circuit:
         for i in self.get_components():
             i.reset()
 
-    async def oscillate(self):
+    async def task_manager(self):
         while self.time_queue:
-            size=len(self.time_queue)
-            while size:
-                size-=1
-                gate = self.time_queue.popleft()
-                self.update_gate(gate)
-            await asyncio.sleep(0.075)    
+            n=len(self.time_queue)
+            for _ in range(n):
+                task = heapq.heappop(self.time_queue)
+                self.complete_task(task)
+            await asyncio.sleep(0.05)
 
-                    
-    def update_gate(self, gate: Gate):
+    def complete_task(self, task: Task):
+        if task.time > self.Global_Clock:
+            self.Global_Clock = task.time
+        gate = task.gate
         if not gate.update:
             self.visual_queue.append(gate)
-            gate.update=True
+            gate.update = True
         gate.scheduled = False
         new_output = gate.output
         for profile in gate.hitlist:
@@ -617,35 +635,60 @@ class Circuit:
                 target = profile.target
                 gate_type = target.id
                 limit = target.inputlimit
-                if gate_type>VARIABLE_ID:
-                    if new_output>HIGH:target_output = new_output
-                    else:target_output = new_output ^ (gate_type == NOT_ID)
+
+                if gate_type > VARIABLE_ID:
+                    target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
                 else:
                     book = target.book
                     book[profile_output] -= 1
                     book[new_output] += 1
-                    if new_output>HIGH:target_output = new_output
+                    if new_output > HIGH: target_output = new_output
                     else:
                         high = book[HIGH]
                         low = book[LOW]
                         realsource = high + low
                         if realsource == limit or (realsource and realsource + book[UNKNOWN] == limit):
-                            if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
-                            elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
-                            else:target_output = (high & 1)^(gate_type & 1)
-                        else:target_output = UNKNOWN
+                            if gate_type <= NAND_ID: target_output = int(low == 0) ^ (gate_type & 1)
+                            elif gate_type <= NOR_ID: target_output = int(high > 0) ^ (gate_type & 1)
+                            else: target_output = (high & 1) ^ (gate_type & 1)
+                        else: target_output = UNKNOWN
+
                 if target_output != target.output:
                     target.output = target_output
                     if not target.update:
                         target.update = True
                         self.visual_queue.append(target)
                     if not target.scheduled:
+                        heapq.heappush(
+                            self.time_queue,
+                            Task(target, self.Global_Clock + Global_delay[target.id] + target.inputlimit, target.location)
+                        )
                         target.scheduled = True
-                        self.time_queue.append(target)
                 profile.output = new_output
+        # this is completely experimental don't write anything named CLKx for now, 
+        # unless you want to use it as a auto-toggle
+        # tests passed but needs much more polishing and improvements
+        # just a work around, will be changed in the future
+        if gate.custom_name == 'CLKx':
+            gate.value ^= 1
+            gate.output = gate.value
+            delay = 100 # this is different for different circuitss
+            heapq.heappush(
+                self.time_queue,
+                Task(gate, self.Global_Clock + delay + gate.inputlimit, gate.location)
+            )
+            gate.scheduled = True
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
+        if Const.MODE==FLIPFLOP:
+            if not origin.scheduled:
+                heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+Global_delay[origin.id]+origin.inputlimit,origin.location))
+                origin.scheduled=True
+            if self.runner is None or self.runner.done():
+                self.runner=asyncio.create_task(self.task_manager())
+            return
+
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_end: int = 1
@@ -655,19 +698,17 @@ class Circuit:
         if not origin.update:
             origin.update=True
             self.visual_queue.append(origin)             
-        x=self.eval_count
-        start=time.perf_counter_ns()
         while read_end > 0:
             if counter > self.counter:
                 for i in range(read_end):
                     gate = read_buf[i]
                     gate.mark=False
-                    gate.scheduled=True
-                    self.time_queue.append(gate)
+                    if not gate.scheduled:
+                        heapq.heappush(self.time_queue,Task(gate,self.Global_Clock+Global_delay[gate.id]+gate.inputlimit,gate.location))
+                        gate.scheduled=True
                 if self.runner is None or self.runner.done():
-                    self.runner=asyncio.create_task(self.oscillate())
+                    self.runner=asyncio.create_task(self.task_manager())
                 return
-         
             counter += 1
 
             for i in range(read_end):
@@ -708,9 +749,7 @@ class Circuit:
                                 target.mark = True
                                 write_buf[write_end] = target
                                 write_end += 1
-
                         profile.output = new_output
-
             read_buf, write_buf = write_buf, read_buf
             read_end, write_end = write_end, 0
 
