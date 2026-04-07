@@ -67,7 +67,6 @@ class OutputItem(CompItem):
         Color = theme.get_theme()
         match state:
             case Const.HIGH:  target_color = Color.LED_on
-            case Const.ERROR: target_color = Color.LED_on.darker(150)
             case _:           target_color = Color.LED_off
 
         if self.color_anim.endValue() != target_color:

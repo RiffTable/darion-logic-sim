@@ -136,7 +136,6 @@ class PinItem(QGraphicsRectItem):
             match self.state:
                 case Const.HIGH:  target_color = Color.pin_high
                 case Const.LOW:   target_color = Color.pin_low
-                case Const.ERROR: target_color = Color.signal_error
                 case _:           target_color = Color.signal_unknown
 
         if self.color_anim.endValue() != target_color:

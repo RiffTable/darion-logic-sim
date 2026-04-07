@@ -106,7 +106,6 @@ class WireItem(QGraphicsPathItem):
         match self.source.state:
             case Const.HIGH:  target_color = Color.signal_high
             case Const.LOW:   target_color = Color.signal_low
-            case Const.ERROR: target_color = Color.signal_error
             case _:           target_color = Color.signal_unknown
 
         if self.color_anim.endValue() != target_color:
