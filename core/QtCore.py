@@ -3,7 +3,7 @@
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
-    QPushButton, QLabel, QLineEdit, QTextEdit, QSpinBox, QComboBox,
+    QPushButton, QLabel, QLineEdit, QTextEdit, QSpinBox, QComboBox, QCheckBox,
     QVBoxLayout, QHBoxLayout, QFormLayout,
     QDialog, QFileDialog, QInputDialog, QMessageBox,
     QDialogButtonBox, QMenu, QMenuBar, QLineEdit, QScrollArea,

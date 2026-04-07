@@ -69,3 +69,8 @@ class Prop(IntEnum):
     MIRROR      = 3
     STATE       = 4
     INPUTSIZE   = 5
+    # Timing & Clock (INPUT/IN only)
+    DELAY_PRIMARY = 6   # book[PRIMARY=2] — pre-simulation settle delay
+    DELAY_HIGH    = 7   # book[HIGH=1]    — duration the signal stays HIGH
+    DELAY_LOW     = 8   # book[LOW=0]     — duration the signal stays LOW
+    IS_CLOCK      = 9   # inputlimit == 0 sentinel → auto-toggle clock mode

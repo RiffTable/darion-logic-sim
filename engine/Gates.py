@@ -239,6 +239,18 @@ class Gate:
         cluster.append(self)
         self.mark=True
 
+    def set_pulse(self,val:int,time_type:int):
+        if self.id!=VARIABLE_ID or time_type<0 or time_type>65000:
+            return False
+        self.book[time_type]=val
+        return True
+
+    def clock(self):
+        if self.id!=VARIABLE_ID:
+            return False
+        self.inputlimit=0
+        return True
+
 class Variable(Gate):
     pass
 
