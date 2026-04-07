@@ -95,7 +95,6 @@ class DeleteCommand(QUndoCommand):
             
             for supply in supplies:
                 w.addSupply(supply)
-                w.logicalConnect(source, supply)
 
 
 

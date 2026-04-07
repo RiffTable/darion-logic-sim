@@ -577,6 +577,7 @@ class CircuitScene(QGraphicsScene):
         self.wires  = []
         self.comps  = []
         self.iclist = []
+        self.undo_stack.setClean()
     
     def serialize(self) -> dict:
         """Doesn't include the iclist"""

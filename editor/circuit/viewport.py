@@ -143,9 +143,9 @@ class CircuitView(QGraphicsView):
 
 
     ###======= ACTIONS =======###
-    def centerView(self):
-        m11 = 1.0
-        dx, dy = 0, 0
+    def setCamera(self, center: QPointF = QPointF(0, 0), viewScale: float = 1.0):
+        m11 = viewScale
+        dx, dy = center.toTuple()
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
         self.viewScale = m11
