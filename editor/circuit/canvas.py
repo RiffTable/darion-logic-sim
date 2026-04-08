@@ -637,7 +637,8 @@ class CircuitScene(QGraphicsScene):
             new_wires.append(w)
 
         # Full circuit is now built — simulate from scratch
-        logic.custom_simulate(varlist)
+        if self.simulationMode != Const.DESIGN:
+            logic.custom_simulate(varlist)
         return new_comps, new_wires
 
 
