@@ -219,7 +219,7 @@ class AppWindow(QMainWindow):
             .setShortcuts([QKS("Ctrl+="), QKS("Ctrl++")])
         Actions.add(view, "zoom_out", "Zoom Out", view.zoomOutFromMouse) \
             .setShortcuts([QKS("Ctrl+-"), QKS("Ctrl+_")])
-        Actions.add(view, "center_view", "Center View", view.centerView, QKS("Home"))
+        Actions.add(view, "center_view", "Center View", view.setCamera, QKS("Home"))
         
 
         ### Canvas functions
@@ -275,17 +275,14 @@ class AppWindow(QMainWindow):
         return project
     
     def load_project_data(self, project: dict):
-        dx, dy = project.pop("camera", (0, 0))
+        cx, cy = project.pop("camera", (0, 0))
         m11 = project.pop("zoom", 1.0)
 
         self.cscene.clearCanvas()
         self.cscene.iclist = project.pop("iclist", [])
         self.cscene.deserialize(project)
 
-        self.view.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.view.setTransform(QTransform(m11, 0, 0, m11, dx, dy))
-        self.view.viewScale = m11
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.view.setCamera(QPointF(cx, cy), m11)
     
 
 
@@ -293,7 +290,7 @@ class AppWindow(QMainWindow):
         self.current_file_path = None
 
         self.cscene.clearCanvas()
-        self.view.centerView()
+        self.view.setCamera()
 
         logic.simulate(self.cscene.simulationMode)
     
