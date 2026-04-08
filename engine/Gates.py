@@ -131,6 +131,8 @@ class Gate:
         """Connect source -> self at pin index."""
         if self.id==VARIABLE_ID or self.sources[index] is not None:
             return
+        if source.output==UNKNOWN:
+            source.process()
         source.hitlist.append(Profile(self, index, source.output))
         self.sources[index] = source
         self.book[source.output] += 1

@@ -73,7 +73,7 @@ class Circuit:
     def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 
-    def delobj(self, gate:Gate):
+    def delobj(self, gate:Gate|IC):
         if gate.id == IC_ID:
             self.counter -= gate.counter
         self.counter -= 1
@@ -138,10 +138,6 @@ class Circuit:
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
         for gate in gatelist:
-            if gate.id == IC_ID:
-                gate.hide()
-            else:
-                gate.hide()
             self.delobj(gate)
 
         for gate in gatelist:
@@ -637,7 +633,6 @@ class Circuit:
                 target = profile.target
                 gate_type = target.id
                 limit = target.inputlimit
-
                 if gate_type > VARIABLE_ID:
                     target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
                 else:
@@ -654,7 +649,6 @@ class Circuit:
                             elif gate_type <= NOR_ID: target_output = int(high > 0) ^ (gate_type & 1)
                             else: target_output = (high & 1) ^ (gate_type & 1)
                         else: target_output = UNKNOWN
-
                 if target_output != target.output:
                     target.output = target_output
                     if not target.update:
@@ -678,7 +672,7 @@ class Circuit:
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if Const.MODE==SIMULATE:
+        if Const.MODE==FLIPFLOP:
             if not origin.scheduled:
                 if origin.inputlimit==0:
                     heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))

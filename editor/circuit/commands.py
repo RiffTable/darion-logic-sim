@@ -43,65 +43,62 @@ class AddCompCommand(QUndoCommand):
 
 
 class DeleteCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", comp_list: list[CompItem], wire_list: list[WireItem] = []):
+    def __init__(self, scene, items_to_delete, explicit_wires=None):
         super().__init__()
         self.scene = scene
-        self.comp_list = comp_list
-        self.connections: dict[OutputPinItem, list[InputPinItem]] = {}
+        self.items_to_delete = items_to_delete
         
         # Capture all the wires connected to these comps
-        for comp in self.comp_list:
+        self.wires_to_delete = self._get_attached_wires()
+        if explicit_wires:
+            for w in explicit_wires:
+                if w not in self.wires_to_delete:
+                    self.wires_to_delete.append(w)
+
+    def _get_attached_wires(self):
+        wires = set()
+        for comp in self.items_to_delete:
             for pinlist in comp._pinslist.values():
                 for pin in pinlist:
-                    wire = pin.getWire()
-                    if wire is None:
-                        continue
-
-                    if isinstance(pin, InputPinItem):
-                        self.connections.setdefault(wire.source, []).append(pin)
-                    else:
-                        pin = cast(OutputPinItem, pin)
-                        self.connections[pin] = wire.supplies.copy()
-
-        for w in wire_list:
-            self.connections[w.source] = w.supplies.copy()
+                    if pin.hasWire():
+                        wires.add(pin.getWire())
+        return list(wires)
 
     def redo(self):
         # Perform actual deletion (hide from scene & logic)
-        for supplies in self.connections.values():
-            for supply in supplies:
-                supply.disconnect()
-        
-        for comp in self.comp_list:
+        for wire in self.wires_to_delete:
+            self.scene.removeWire(wire)
+        for comp in self.items_to_delete:
             self.scene.removeComp(comp)
 
     def undo(self):
         # Restore components
-        for comp in self.comp_list:
+        for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
             self.scene.register_comp(comp)
             if comp._unit:
                 logic.reveal([comp._unit])
-        
-        # Restore connections
-        for source, _supplies in self.connections.items():
-            supplies = _supplies.copy()
-            w = source.getWire()
-            if w is None:
-                w = WireItem(source, supplies.pop(0))
-                self.scene.addItem(w)
-                self.scene.wires.append(w)
-            
-            for supply in supplies:
-                w.addSupply(supply)
-                w.logicalConnect(source, supply)
+                
+        for wire in self.wires_to_delete:
+            self.scene.addItem(wire)
+            self.scene.wires.append(wire)
+            # Reattach UI
+            wire.source.setWire(wire)
+            for supply in wire.supplies:
+                supply.setWire(wire)
+                # Reattach Logic
+                if wire.source.logical and supply.logical:
+                    unit, idx = supply.logical
+                    logic.connect(unit, wire.source.logical, idx)
+            wire.updateShape()
+
 
 
 
 #TODO: clean-up
 class ConnectCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", source_pin, target_pin, ghost_wire, multi_wire_mode=False):
+    def __init__(self, scene, source_pin, target_pin, ghost_wire, multi_wire_mode=False):
         super().__init__()
         self.scene = scene
         self.source_pin = source_pin

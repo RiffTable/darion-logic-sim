@@ -182,12 +182,18 @@ class CircuitScene(QGraphicsScene):
     def removeComp(self, comp: CompItem):
         if comp not in self.comps: return
 
-        comp.cutConnections()
-        self.unregister_comp(comp)  # NEW: remove from registry before unit is cleared
-        
+        self.unregister_comp(comp)
+
+        # IMPORTANT: logic.hide() MUST run before cutConnections().
+        # Gate.hide() walks self.sources[] to pop stale Profiles from upstream
+        # hitelists. cutConnections() → _disconnect() → logic.disconnect() nulls
+        # those sources first, causing hide() to skip the cleanup and leave
+        # dangling Profile pointers to the deleted gate → corruption.
         if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
             logic.hide([comp._unit])
-        
+
+        comp.cutConnections()
+
         self.comps.remove(comp)
         self.removeItem(comp)
     
@@ -499,11 +505,9 @@ class CircuitScene(QGraphicsScene):
         key = event.key()
         mod = event.modifiers()
 
-        # # DEBUG
-        # if key == Key.Key_Space:
-            # logic.truthTable()
-        # 	logic.diagnose()
-        # 	print([ic[Const.CUSTOM_NAME] for ic in self.iclist])
+        # DEBUG: Ctrl+Shift+D → print circuit diagnosis
+        if key == Key.Key_D and mod == (KeyMod.ControlModifier | KeyMod.ShiftModifier):
+            logic.diagnose()
 
         super().keyPressEvent(event)
     
