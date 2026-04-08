@@ -67,7 +67,7 @@ cdef void pop(vector[Profile]& hitlist, CPP_Gate* gate_infolist, int target, int
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
-    cdef public uint8_t id
+    cdef public int8_t id
     cdef public int location
     cdef vector[CPP_Gate]* location_ptr
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---

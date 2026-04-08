@@ -77,22 +77,22 @@ class Circuit:
         if gate.id == IC_ID:
             for i in (gate.inputs+gate.outputs+gate.internal):
                 self.counter-=1
-                i.location=-i.location-1
+                i.id=-i.id-1
             self.counter -= gate.counter
         else:
             self.counter -= 1
-            gate.location=-gate.location-1
+            gate.id=-gate.id-1
         self.objlist[gate.code[0]][gate.code[1]]=None
 
     def renewobj(self,gate:Gate):
         if gate.id == IC_ID:
             for i in (gate.inputs+gate.outputs+gate.internal):
                 self.counter+=1
-                i.location=-i.location-1
+                i.id=-i.id-1
             self.counter += gate.counter
         else:
             self.counter += 1
-            gate.location=-gate.location-1
+            gate.id=-gate.id-1
         self.objlist[gate.code[0]][gate.code[1]]=gate
 
     def get_components(self) -> list:
@@ -642,6 +642,8 @@ class Circuit:
             if profile_output != new_output:
                 target = profile.target
                 gate_type = target.id
+                if gate_type<0:
+                    continue
                 limit = target.inputlimit
                 if gate_type > VARIABLE_ID:
                     target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
@@ -730,6 +732,8 @@ class Circuit:
                         target = profile.target
                         gate_type = target.id
                         limit = target.inputlimit
+                        if gate_type<0:
+                            continue
                         if gate_type>VARIABLE_ID:
                             if new_output>HIGH:target_output = new_output
                             else:target_output = new_output ^ (gate_type == NOT_ID)
@@ -752,6 +756,8 @@ class Circuit:
                             target.output = target_output
                             if not target.update:
                                 target.update = True
+                                if target.location<0:
+                                    print('Error in propagation')
                                 self.visual_queue.append(target)
                             if not target.mark:
                                 target.mark = True

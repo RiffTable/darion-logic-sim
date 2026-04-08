@@ -72,10 +72,12 @@ cdef class Circuit:
             for gate in ic.outputs+ic.inputs+ic.internal:
                 gate_info[gate.location].type = -gate_info[gate.location].type -1
                 self.hidden+=1
+                gate.id = -gate.id - 1
         else:
             gate = <Gate>obj
             gate_info[gate.location].type = -gate_info[gate.location].type -1 
             self.hidden += 1
+            gate.id = -gate.id - 1
         self.objlist[obj.code[0]][obj.code[1]] = None
 
     cpdef void renewobj(self, object obj):
@@ -88,10 +90,12 @@ cdef class Circuit:
             
             for gate in ic.outputs+ic.inputs+ic.internal:
                 gate_info[gate.location].type = -gate_info[gate.location].type -1
+                gate.id = -gate.id - 1
                 self.hidden-=1
         else:
             gate = <Gate>obj
             gate_info[gate.location].type = -gate_info[gate.location].type -1 
+            gate.id = -gate.id - 1
             self.hidden -= 1
         self.objlist[obj.code[0]][obj.code[1]] = obj
 
@@ -928,6 +932,9 @@ cdef class Circuit:
                 target_info = &gate_infolist[profile.target]
                 gate_type = target_info.type
                 limit = target_info.inputlimit
+                if gate_type < 0:
+                    profile+=1
+                    continue
                 if gate_type >= NOT_ID:
                     if new_output != UNKNOWN:
                         target_output = new_output ^ (gate_type == NOT_ID)
@@ -1031,6 +1038,9 @@ cdef class Circuit:
                         target_info = &gate_infolist[profile.target]
                         gate_type = target_info.type
                         limit = target_info.inputlimit
+                        if gate_type < 0:
+                            profile+=1
+                            continue
                         if gate_type >= NOT_ID:
                             if new_output != UNKNOWN:
                                 target_output = new_output ^ (gate_type == NOT_ID)

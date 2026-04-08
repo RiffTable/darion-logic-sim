@@ -73,7 +73,6 @@ class DeleteCommand(QUndoCommand):
         for comp in self.items_to_delete:
             self.scene.removeItem(comp)
             self.scene.comps.remove(comp)
-            self.scene.unregister_comp(comp)
 
         # 3. DISAPPEAR WIRES & HANDLE BOUNDARY LOGIC
         for wire in self.wires_to_delete:
@@ -87,16 +86,14 @@ class DeleteCommand(QUndoCommand):
                     if supply.logical:
                         target_unit, target_idx = supply.logical
                         
-                        if target_unit.location >= 0 or source_unit.location >= 0:
+                        if target_unit.id >= 0 or source_unit.id >= 0:
                             logic.disconnect(target_unit, target_idx)
                             supply.setWire(None)
-                            
-                            # THE FIX: Force the alive target to update its UI wires instantly
-                            if target_unit.location >= 0:
+                            if target_unit.id >= 0:
                                 comp = self.scene.comp_registry[target_unit.location]
                                 if comp: comp.poll_update()
                             
-                if source_unit.location >= 0:
+                if source_unit.id >= 0:
                     wire.source.setWire(None)
 
 
@@ -110,7 +107,6 @@ class DeleteCommand(QUndoCommand):
         for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
-            self.scene.register_comp(comp)
             
         # 3. REAPPEAR WIRES & RECONNECT BOUNDARY LOGIC
         for wire in self.wires_to_delete:
@@ -120,9 +116,8 @@ class DeleteCommand(QUndoCommand):
             if wire.source and wire.source.logical:
                 source_unit = wire.source.logical
                 
-                # THE FIX: Force the source to update its UI pins so the restored 
                 # wire inherits the freshest possible state.
-                if source_unit.location >= 0:
+                if source_unit.id >= 0:
                     comp = self.scene.comp_registry[source_unit.location]
                     if comp: comp.poll_update()
                 
@@ -135,7 +130,7 @@ class DeleteCommand(QUndoCommand):
                             supply.setWire(wire)
                             
                             # THE FIX: Force the target to update its UI wires instantly
-                            if target_unit.location >= 0:
+                            if target_unit.id >= 0:
                                 comp = self.scene.comp_registry[target_unit.location]
                                 if comp: comp.poll_update()
                                 
@@ -231,9 +226,8 @@ class PasteCommand(QUndoCommand):
             if wire.source and wire.source.logical:
                 source_unit = wire.source.logical
 
-                # THE FIX: Force the source to update its UI pins so the restored 
                 # wire inherits the freshest possible state.
-                if source_unit.location >= 0:
+                if source_unit.id >= 0:
                     comp = self.scene.comp_registry[source_unit.location]
                     if comp: comp.poll_update()
 
@@ -246,7 +240,7 @@ class PasteCommand(QUndoCommand):
                             supply.setWire(wire)
 
                             # THE FIX: Force the target to update its UI wires instantly
-                            if target_unit.location >= 0:
+                            if target_unit.id >= 0:
                                 comp = self.scene.comp_registry[target_unit.location]
                                 if comp: comp.poll_update()
 
@@ -279,16 +273,16 @@ class PasteCommand(QUndoCommand):
                     if supply.logical:
                         target_unit, target_idx = supply.logical
 
-                        if target_unit.location >= 0 or source_unit.location >= 0:
+                        if target_unit.id >= 0 or source_unit.id >= 0:
                             logic.disconnect(target_unit, target_idx)
                             supply.setWire(None)
 
                             # THE FIX: Force the alive target to update its UI wires instantly
-                            if target_unit.location >= 0:
+                            if target_unit.id >= 0:
                                 comp = self.scene.comp_registry[target_unit.location]
                                 if comp: comp.poll_update()
 
-                if source_unit.location >= 0:
+                if source_unit.id >= 0:
                     wire.source.setWire(None)
 
 

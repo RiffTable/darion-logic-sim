@@ -92,6 +92,8 @@ class CircuitScene(QGraphicsScene):
             while size:
                 size-=1
                 gate_id = logic.pop_visual_queue()
+                if gate_id < 0:
+                    print('Error Found while updating')
                 if gate_id < len(self.comp_registry):
                     comp = self.comp_registry[gate_id]
                     if comp is not None:
@@ -121,6 +123,8 @@ class CircuitScene(QGraphicsScene):
                 self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.OUTPUT][i]
         else:
             loc = comp._unit.location
+            if loc<0:
+                print('Error Found')
             self._ensure_registry_size(loc)
             self.comp_registry[loc] = comp
 
