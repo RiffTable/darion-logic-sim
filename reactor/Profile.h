@@ -1,4 +1,4 @@
-// engine/Profile.h
+// reactor/Profile.h
 #ifndef PROFILE_H
 #define PROFILE_H
 #include <vector>
@@ -14,6 +14,27 @@ struct Profile {
         return target < other.target;
     }
 };
+
+// ─── Task ─────────────────────────────────────────────────────────────────
+// Scheduled propagation event for FLIPFLOP/clock mode.
+// Used in a min-heap (std::priority_queue with greater<Task>).
+//   gate_loc  – index into gate_infolist / gate_verse
+//   time      – absolute simulation tick at which this fires
+//   location  – topological rank used as tiebreaker (lower fires first)
+struct Task {
+    int      gate_loc;
+    unsigned int time;
+    int      location;
+    Task() : gate_loc(-1), time(0), location(0) {}
+    Task(int g, unsigned int t, int loc) : gate_loc(g), time(t), location(loc) {}
+    // min-heap: smallest time first; ties broken by topological location
+    bool operator>(const Task& other) const {
+        if (time != other.time) return time > other.time;
+        return location > other.location;
+    }
+};
+// ──────────────────────────────────────────────────────────────────────────
+
 struct CPP_Gate {
     int8_t type;
     uint8_t output;

@@ -30,7 +30,6 @@ cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse
     cdef CPP_Gate* target_info = &gate_infolist[profile.target]
     if target_info.type < VARIABLE_ID:
         target_info.book[profile.output] -= 1
-    profile.output = UNKNOWN
     cdef Gate target_gate = <Gate>gate_verse[profile.target]
     target_gate._sources[profile.index] = -1
 
@@ -126,7 +125,9 @@ cdef class Gate:
     @value.setter
     def value(self, int val):
         self.location_ptr[0][self.location].value = val
-
+    @inputlimit.setter
+    def inputlimit(self, int val):
+        self.location_ptr[0][self.location].inputlimit = val
     cdef void process(self):
         '''Recompute this gate's output from its current inputs and type
         a slower yet safer method of updating output'''
@@ -184,6 +185,10 @@ cdef class Gate:
         if self_info.type == VARIABLE_ID or self._sources[index] != -1:
             return
         cdef CPP_Gate* src_info = &gate_infolist[source]
+        
+        if src_info.output == UNKNOWN:
+            (<Gate>PyList_GET_ITEM(self.gate_verse, source)).process()
+            
         src_info.hitlist.emplace_back(self.location, index, src_info.output)
         self._sources[index] = source
         if self.id<VARIABLE_ID:
@@ -348,6 +353,18 @@ cdef class Gate:
         '''Mark this gate as scheduled and add it to the copy cluster'''
         cluster.append(self.location)
         self.location_ptr[0][self.location].mark = True
+
+    cpdef bint set_pulse(self, int val, int time_type):
+        if self.id != VARIABLE_ID or time_type < 0 or time_type > 2 or val < 0 or val > 65535:
+            return False
+        self.location_ptr[0][self.location].book[time_type] = val
+        return True
+
+    cpdef bint clock(self):
+        if self.id != VARIABLE_ID:
+            return False
+        self.location_ptr[0][self.location].inputlimit = 0
+        return True
 
 cdef class Variable(Gate):
     pass

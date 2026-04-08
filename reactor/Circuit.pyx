@@ -7,7 +7,7 @@
 import orjson
 import asyncio
 from libcpp.deque cimport deque
-from Gates cimport Gate, Variable, Profile, vector, CPP_Gate
+from Gates cimport Gate, Variable, Profile, Task, vector, CPP_Gate
 from Const cimport *
 from IC cimport IC
 from Store cimport get, decode
@@ -23,6 +23,11 @@ cdef class Circuit:
         self.gate_infolist.reserve(500_000)# the cpp_gate list consisting of every single gate's info in c++
         self.gate_verse = [] # the gate list in python
         self.runner = None        # asyncio.Task for FLIPFLOP drain loop
+        self.Global_Clock = 0
+        cdef unsigned int delay_init[12]
+        delay_init[:] = [2, 0, 3, 1, 4, 5, 0, 0, 0, 0, 0, 0]
+        for i in range(12):
+            self.Global_delay[i] = delay_init[i]
         # time_queue is a C++ deque[int] — default-constructed, no explicit init needed
     def __init__(self):
         # lookup table for objects by code
@@ -332,8 +337,9 @@ cdef class Circuit:
         header    = " | ".join(header_parts)
         separator = "─" * (col_width * len(all_reprs) + 3 * (len(all_reprs) - 1))
         self.visual_queue_clear()
+        cdef int mode=MODE
         self.reset()
-        self.simulate(SIMULATE)
+        self.simulate(mode)
 
         # --- STRING JOINING PHASE ---
         final_table_lines = [separator, header, separator]
@@ -882,7 +888,8 @@ cdef class Circuit:
         cdef Gate g
         set_MODE(DESIGN)
         self.eval_count=0
-        self.time_queue.clear()
+        cdef priority_queue[Task, vector[Task], greater[Task]] empty_pq
+        self.time_queue.swap(empty_pq)
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         for i in self.get_components():
@@ -892,8 +899,12 @@ cdef class Circuit:
             else:
                 (<IC>i).reset()
 
-    cdef void update_gate(self, int origin) nogil:
-        '''Process one gate called from the async drain loop on the main thread.'''
+    cdef void update_gate(self, Task task) nogil:
+        '''Process one task called from the async drain loop on the main thread.'''
+        if task.time > self.Global_Clock:
+            self.Global_Clock = task.time
+            
+        cdef int origin = task.gate_loc
         cdef Profile* profile
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low, limit, gate_type
@@ -947,11 +958,15 @@ cdef class Circuit:
                         target_info.update = True
                     if not target_info.scheduled:
                         target_info.scheduled = True
-                        self.time_queue.push_back(profile.target)
+                        self.time_queue.push(Task(profile.target, self.Global_Clock + self.Global_delay[target_info.type] + limit, profile.target))
                 profile.output = new_output
             profile += 1
 
-
+        if self_info.inputlimit == 0:
+            self_info.value ^= 1
+            self_info.output = self_info.value
+            self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[self_info.output], origin))
+            self_info.scheduled = True
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
@@ -967,10 +982,26 @@ cdef class Circuit:
         cdef CPP_Gate* target_info
         cdef uint16_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
-        
+        self_info = &gate_infolist[origin]
+
+        if MODE == FLIPFLOP:
+            if not self_info.scheduled:
+                if self_info.inputlimit == 0:
+                    self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
+                else:
+                    self.time_queue.push(Task(origin, self.Global_Clock + self.Global_delay[self_info.type] + self_info.inputlimit, origin))
+                self_info.scheduled = True
+            else:
+                if self_info.inputlimit == 0:
+                    self_info.scheduled = False  # Allows resetting of clock
+            with gil:
+                if self.runner is None or self.runner.done():
+                    self.runner = asyncio.create_task(self.oscillate())
+            return
+            
         read_queue[0] = origin
-        if not gate_infolist[origin].update:
-            gate_infolist[origin].update = True
+        if not self_info.update:
+            self_info.update = True
             self.visual_queue.push_back(origin)
             
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
@@ -981,7 +1012,7 @@ cdef class Circuit:
                     self_info = &gate_infolist[read_queue[i]]
                     self_info.mark=False
                     self_info.scheduled=True
-                    self.time_queue.push_back(read_queue[i])
+                    self.time_queue.push(Task(read_queue[i], self.Global_Clock, read_queue[i]))
                 with gil:
                     if self.runner is None or self.runner.done():
                         self.runner=asyncio.create_task(self.oscillate())
@@ -1042,14 +1073,16 @@ cdef class Circuit:
 
     async def oscillate(self):
         cdef int size
+        cdef Task task
         
         while not self.time_queue.empty():
             with nogil:
                 size = self.time_queue.size()
                 while size:
                     size -= 1
-                    self.update_gate(self.time_queue.front())
-                    self.time_queue.pop_front()
+                    task = self.time_queue.top()
+                    self.time_queue.pop()
+                    self.update_gate(task)
             await asyncio.sleep(0.075)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────

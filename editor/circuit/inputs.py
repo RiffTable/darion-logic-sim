@@ -25,6 +25,12 @@ class InputItem(CompItem):
         # Properties
         self.state = int(kwargs.get("state", Const.LOW))
         self.prevState = -1
+
+        # Timing / Clock properties (backed by gate.book[] and gate.clock())
+        self.is_clock:     bool = bool(kwargs.get("is_clock", False))
+        self.delay_primary: int = int(kwargs.get("delay_primary", 0))
+        self.delay_high:    int = int(kwargs.get("delay_high",    0))
+        self.delay_low:     int = int(kwargs.get("delay_low",     0))
         
         # Pins Setup
         if self._setupDefaultPins:
@@ -40,21 +46,64 @@ class InputItem(CompItem):
 
         # Final Setup
         self.setState(True if self.state == Const.HIGH else False)
+        self._apply_pulse_settings()
 
 
     # Properties Data
     def getData(self):
         return super().getData() | {
-            "state"      : self.state,
+            "state"         : self.state,
+            "is_clock"      : self.is_clock,
+            "delay_primary" : self.delay_primary,
+            "delay_high"    : self.delay_high,
+            "delay_low"     : self.delay_low,
         }
     
     def getProperties(self) -> dict:
         dic = super().getProperties() | {
-            Prop.LABEL   : self.tag,
-            Prop.STATE   : self.state
+            Prop.LABEL         : self.tag,
+            Prop.STATE         : self.state,
+            Prop.DELAY_PRIMARY : self.delay_primary,
+            Prop.DELAY_HIGH    : self.delay_high,
+            Prop.DELAY_LOW     : self.delay_low,
+            Prop.IS_CLOCK      : self.is_clock,
         }
         dic.pop(Prop.TAG)
         return dic
+
+    def setProperty(self, prop: Prop, value) -> bool:
+        match prop:
+            case Prop.DELAY_PRIMARY:
+                self.delay_primary = max(0, int(value))
+                self._unit.set_pulse(self.delay_primary, Const.PRIMARY)
+                self.propertyChanged(); return True
+            case Prop.DELAY_HIGH:
+                self.delay_high = max(0, int(value))
+                self._unit.set_pulse(self.delay_high, Const.HIGH)
+                self.propertyChanged(); return True
+            case Prop.DELAY_LOW:
+                self.delay_low = max(0, int(value))
+                self._unit.set_pulse(self.delay_low, Const.LOW)
+                self.propertyChanged(); return True
+            case Prop.IS_CLOCK:
+                self.is_clock = bool(value)
+                if self.is_clock:
+                    self._unit.clock()
+                else:
+                    # Restore inputlimit to 1 (non-clock mode)
+                    self._unit.inputlimit = 1
+                self.propertyChanged(); return True
+        return super().setProperty(prop, value)
+
+    def _apply_pulse_settings(self):
+        """Push stored delay/clock values into the logic unit."""
+        if self._unit is None:
+            return
+        self._unit.set_pulse(self.delay_primary, Const.PRIMARY)
+        self._unit.set_pulse(self.delay_high,    Const.HIGH)
+        self._unit.set_pulse(self.delay_low,     Const.LOW)
+        if self.is_clock:
+            self._unit.clock()
 
     def unitStateChanged(self, state: int):
         self.state = state

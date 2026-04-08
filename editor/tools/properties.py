@@ -91,8 +91,64 @@ class PropertiesPanel(QWidget):
             form.addRow(self.labels[prop], self.widgets[prop])
 
         outer.addLayout(form)
+
+        # ── Timing & Clock section (visible only for INPUT/IN) ──────────
+        self._clock_divider = QFrame()
+        self._clock_divider.setFrameShape(QFrame.Shape.HLine)
+        self._clock_divider.setStyleSheet("color: #555;")
+        outer.addWidget(self._clock_divider)
+
+        self._clock_section_label = QLabel("Timing & Clock")
+        self._clock_section_label.setObjectName("sectionLabel")
+        outer.addWidget(self._clock_section_label)
+
+        clock_form = QFormLayout()
+        clock_form.setSpacing(8)
+        clock_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Primary Delay
+        self.labels[Prop.DELAY_PRIMARY] = QLabel("Start Delay:")
+        primarySpin = QSpinBox()
+        primarySpin.setRange(0, 65000)
+        primarySpin.setSuffix(" ")
+        primarySpin.setToolTip("Pre-simulation settle delay")
+        primarySpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_PRIMARY))
+        self.widgets[Prop.DELAY_PRIMARY] = primarySpin
+        clock_form.addRow(self.labels[Prop.DELAY_PRIMARY], primarySpin)
+
+        # HIGH Delay
+        self.labels[Prop.DELAY_HIGH] = QLabel("HIGH Delay:")
+        highSpin = QSpinBox()
+        highSpin.setRange(0, 65000)
+        highSpin.setSuffix(" ")
+        highSpin.setToolTip("Duration the signal stays HIGH")
+        highSpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_HIGH))
+        self.widgets[Prop.DELAY_HIGH] = highSpin
+        clock_form.addRow(self.labels[Prop.DELAY_HIGH], highSpin)
+
+        # LOW Delay
+        self.labels[Prop.DELAY_LOW] = QLabel("LOW Delay:")
+        lowSpin = QSpinBox()
+        lowSpin.setRange(0, 65000)
+        lowSpin.setSuffix(" ")
+        lowSpin.setToolTip("Duration the signal stays LOW")
+        lowSpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_LOW))
+        self.widgets[Prop.DELAY_LOW] = lowSpin
+        clock_form.addRow(self.labels[Prop.DELAY_LOW], lowSpin)
+
+        outer.addLayout(clock_form)
+
+        # Clock toggle
+        self.labels[Prop.IS_CLOCK] = QLabel("")
+        clockCheck = QCheckBox("Enable Clock Mode")
+        clockCheck.setToolTip("Auto-toggles this input (sets gate.inputlimit = 0)")
+        clockCheck.stateChanged.connect(
+            lambda state: self.changeProperty(Prop.IS_CLOCK, state == Qt.CheckState.Checked.value)
+        )
+        self.widgets[Prop.IS_CLOCK] = clockCheck
+        outer.addWidget(clockCheck)
+
         outer.addStretch()
-        
 
     def apply_theme(self):
         colors = theme.get_theme()
@@ -107,6 +163,12 @@ class PropertiesPanel(QWidget):
                 color: {colors.text.name()};
                 padding-bottom: 4px;
             }}
+            QLabel#sectionLabel {{
+                font-size: 11px;
+                font-weight: bold;
+                color: {colors.text.name()};
+                padding-top: 4px;
+            }}
             QLabel {{
                 color: {colors.text.name()};
                 font-size: 11px;
@@ -120,6 +182,11 @@ class PropertiesPanel(QWidget):
             }}
             QSpinBox::up-button, QSpinBox::down-button {{
                 width: 16px;
+            }}
+            QCheckBox {{
+                color: {colors.text.name()};
+                font-size: 11px;
+                spacing: 6px;
             }}
         """)
 
@@ -168,10 +235,18 @@ class PropertiesPanel(QWidget):
         
         self.title.setText(f"Properties: {tag}")
 
+        # Show/hide the timing section divider and label together
+        timing_props = {Prop.DELAY_PRIMARY, Prop.DELAY_HIGH, Prop.DELAY_LOW, Prop.IS_CLOCK}
+        any_timing = any(p in compProps for p in timing_props)
+        self._clock_divider.setVisible(any_timing)
+        self._clock_section_label.setVisible(any_timing)
+
         for prop in self.widgets.keys():
             isVisible = (prop in compProps)
             self.widgets[prop].setVisible(isVisible)
-            self.labels[prop].setVisible(isVisible)
+            # Only show labels that are in the form (clock checkbox has an empty label)
+            if prop in self.labels:
+                self.labels[prop].setVisible(isVisible and bool(self.labels[prop].text()))
 
             if not isVisible:
                 continue
@@ -196,6 +271,16 @@ class PropertiesPanel(QWidget):
                     cprop = compProps[prop]
                     widget = cast(QLabel, self.widgets[prop])
                     widget.setText("ON" if cprop else "OFF")
+
+                case Prop.DELAY_PRIMARY | Prop.DELAY_HIGH | Prop.DELAY_LOW:
+                    cprop = cast(int, compProps[prop])
+                    widget = cast(QSpinBox, self.widgets[prop])
+                    widget.setValue(cprop)
+
+                case Prop.IS_CLOCK:
+                    cprop = cast(bool, compProps[prop])
+                    widget = cast(QCheckBox, self.widgets[prop])
+                    widget.setChecked(cprop)
 
                 case _:
                     cprop = compProps[prop]

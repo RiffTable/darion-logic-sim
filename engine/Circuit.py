@@ -73,16 +73,26 @@ class Circuit:
     def getobj(self, code: tuple):
         return self.objlist[code[0]][code[1]]
 
-    def delobj(self, gate:Gate):
+    def delobj(self, gate:Gate|IC):
         if gate.id == IC_ID:
+            for i in (gate.inputs+gate.outputs+gate.internal):
+                self.counter-=1
+                i.location=-i.location-1
             self.counter -= gate.counter
-        self.counter -= 1
+        else:
+            self.counter -= 1
+            gate.location=-gate.location-1
         self.objlist[gate.code[0]][gate.code[1]]=None
 
     def renewobj(self,gate:Gate):
         if gate.id == IC_ID:
+            for i in (gate.inputs+gate.outputs+gate.internal):
+                self.counter+=1
+                i.location=-i.location-1
             self.counter += gate.counter
-        self.counter += 1
+        else:
+            self.counter += 1
+            gate.location=-gate.location-1
         self.objlist[gate.code[0]][gate.code[1]]=gate
 
     def get_components(self) -> list:
@@ -138,10 +148,6 @@ class Circuit:
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
         for gate in gatelist:
-            if gate.id == IC_ID:
-                gate.hide()
-            else:
-                gate.hide()
             self.delobj(gate)
 
         for gate in gatelist:
@@ -617,12 +623,14 @@ class Circuit:
             for _ in range(n):
                 task = heapq.heappop(self.time_queue)
                 self.complete_task(task)
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.075)
 
     def complete_task(self, task: Task):
         if task.time > self.Global_Clock:
             self.Global_Clock = task.time
         gate = task.gate
+        if not gate.scheduled:
+            return
         if not gate.update:
             self.visual_queue.append(gate)
             gate.update = True
@@ -635,7 +643,6 @@ class Circuit:
                 target = profile.target
                 gate_type = target.id
                 limit = target.inputlimit
-
                 if gate_type > VARIABLE_ID:
                     target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
                 else:
@@ -652,7 +659,6 @@ class Circuit:
                             elif gate_type <= NOR_ID: target_output = int(high > 0) ^ (gate_type & 1)
                             else: target_output = (high & 1) ^ (gate_type & 1)
                         else: target_output = UNKNOWN
-
                 if target_output != target.output:
                     target.output = target_output
                     if not target.update:
@@ -665,17 +671,12 @@ class Circuit:
                         )
                         target.scheduled = True
                 profile.output = new_output
-        # this is completely experimental don't write anything named CLKx for now, 
-        # unless you want to use it as a auto-toggle
-        # tests passed but needs much more polishing and improvements
-        # just a work around, will be changed in the future
-        if gate.custom_name == 'CLKx':
+        if gate.inputlimit==0:
             gate.value ^= 1
             gate.output = gate.value
-            delay = 100 # this is different for different circuitss
             heapq.heappush(
                 self.time_queue,
-                Task(gate, self.Global_Clock + delay + gate.inputlimit, gate.location)
+                Task(gate, self.Global_Clock + gate.book[gate.output], gate.location)
             )
             gate.scheduled = True
 
@@ -683,8 +684,15 @@ class Circuit:
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
         if Const.MODE==FLIPFLOP:
             if not origin.scheduled:
-                heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+Global_delay[origin.id]+origin.inputlimit,origin.location))
+                if origin.inputlimit==0:
+                    heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
+                else:
+                    heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+Global_delay[origin.id]+origin.inputlimit,origin.location))
                 origin.scheduled=True
+            else:
+                if origin.inputlimit==0:
+                    origin.scheduled=False
+                    
             if self.runner is None or self.runner.done():
                 self.runner=asyncio.create_task(self.task_manager())
             return

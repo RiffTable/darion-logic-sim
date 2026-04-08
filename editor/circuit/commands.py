@@ -43,64 +43,109 @@ class AddCompCommand(QUndoCommand):
 
 
 class DeleteCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", comp_list: list[CompItem], wire_list: list[WireItem] = []):
+    def __init__(self, scene, items_to_delete, explicit_wires=None):
         super().__init__()
         self.scene = scene
-        self.comp_list = comp_list
-        self.connections: dict[OutputPinItem, list[InputPinItem]] = {}
+        self.items_to_delete = items_to_delete
         
-        # Capture all the wires connected to these comps
-        for comp in self.comp_list:
+        self.wires_to_delete = self._get_attached_wires()
+        if explicit_wires:
+            for w in explicit_wires:
+                if w not in self.wires_to_delete:
+                    self.wires_to_delete.append(w)
+
+    def _get_attached_wires(self):
+        wires = set()
+        for comp in self.items_to_delete:
             for pinlist in comp._pinslist.values():
                 for pin in pinlist:
-                    wire = pin.getWire()
-                    if wire is None:
-                        continue
-
-                    if isinstance(pin, InputPinItem):
-                        self.connections.setdefault(wire.source, []).append(pin)
-                    else:
-                        pin = cast(OutputPinItem, pin)
-                        self.connections[pin] = wire.supplies.copy()
-
-        for w in wire_list:
-            self.connections[w.source] = w.supplies.copy()
+                    if pin.hasWire():
+                        wires.add(pin.getWire())
+        return list(wires)
 
     def redo(self):
-        # Perform actual deletion (hide from scene & logic)
-        for supplies in self.connections.values():
-            for supply in supplies:
-                supply.disconnect()
-        
-        for comp in self.comp_list:
-            self.scene.removeComp(comp)
+        # 1. MARK DELETED GATES
+        for comp in self.items_to_delete:
+            if comp._unit:
+                logic.delobj(comp._unit)
+
+        # 2. DISAPPEAR COMPONENTS
+        for comp in self.items_to_delete:
+            self.scene.removeItem(comp)
+            self.scene.comps.remove(comp)
+            self.scene.unregister_comp(comp)
+
+        # 3. DISAPPEAR WIRES & HANDLE BOUNDARY LOGIC
+        for wire in self.wires_to_delete:
+            self.scene.removeItem(wire)
+            self.scene.wires.remove(wire)
+            
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+                
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+                        
+                        if target_unit.location >= 0 or source_unit.location >= 0:
+                            logic.disconnect(target_unit, target_idx)
+                            supply.setWire(None)
+                            
+                            # THE FIX: Force the alive target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+                            
+                if source_unit.location >= 0:
+                    wire.source.setWire(None)
+
 
     def undo(self):
-        # Restore components
-        for comp in self.comp_list:
+        # 1. UNMARK DELETED GATES FIRST
+        for comp in self.items_to_delete:
+            if comp._unit:
+                logic.renewobj(comp._unit)
+
+        # 2. REAPPEAR COMPONENTS
+        for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
             self.scene.register_comp(comp)
-            if comp._unit:
-                logic.reveal([comp._unit])
-        
-        # Restore connections
-        for source, _supplies in self.connections.items():
-            supplies = _supplies.copy()
-            w = source.getWire()
-            if w is None:
-                w = WireItem(source, supplies.pop(0))
-                self.scene.addItem(w)
-                self.scene.wires.append(w)
             
-            for supply in supplies:
-                w.addSupply(supply)
-
-
+        # 3. REAPPEAR WIRES & RECONNECT BOUNDARY LOGIC
+        for wire in self.wires_to_delete:
+            self.scene.addItem(wire)
+            self.scene.wires.append(wire)
+            
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+                
+                # THE FIX: Force the source to update its UI pins so the restored 
+                # wire inherits the freshest possible state.
+                if source_unit.location >= 0:
+                    comp = self.scene.comp_registry[source_unit.location]
+                    if comp: comp.poll_update()
+                
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+                        
+                        if supply.getWire() is None: 
+                            logic.connect(target_unit, source_unit, target_idx)
+                            supply.setWire(wire)
+                            
+                            # THE FIX: Force the target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+                                
+                wire.source.setWire(wire)
+                
+            wire.updateShape()
 
 #TODO: clean-up
 class ConnectCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", source_pin, target_pin, ghost_wire, multi_wire_mode=False):
+    def __init__(self, scene, source_pin, target_pin, ghost_wire, multi_wire_mode=False):
         super().__init__()
         self.scene = scene
         self.source_pin = source_pin
