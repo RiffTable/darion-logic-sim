@@ -211,33 +211,85 @@ class PasteCommand(QUndoCommand):
             self.first_time = False
             self.comps, self.wires = self.scene.deserialize(self.data, addToSelected=True)
             return
-        
-        # Restore components
+
+        # 1. UNMARK DELETED GATES FIRST
+        for comp in self.comps:
+            if comp._unit:
+                logic.renewobj(comp._unit)
+
+        # 2. REAPPEAR COMPONENTS
         for comp in self.comps:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
             self.scene.register_comp(comp)
-            if comp._unit:
-                logic.reveal([comp._unit])
-        
-        # Restore wires
+
+        # 3. REAPPEAR AND RECONNECT WIRES
         for wire in self.wires:
             self.scene.addItem(wire)
             self.scene.wires.append(wire)
-            wire.source.setWire(wire)
-            for supply in wire.supplies:
-                supply.setWire(wire)
-                if wire.source.logical and supply.logical:
-                    unit, idx = supply.logical
-                    logic.connect(unit, wire.source.logical, idx)
+
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+
+                # THE FIX: Force the source to update its UI pins so the restored 
+                # wire inherits the freshest possible state.
+                if source_unit.location >= 0:
+                    comp = self.scene.comp_registry[source_unit.location]
+                    if comp: comp.poll_update()
+
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+
+                        if supply.getWire() is None: 
+                            logic.connect(target_unit, source_unit, target_idx)
+                            supply.setWire(wire)
+
+                            # THE FIX: Force the target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+
+                wire.source.setWire(wire)
+                
             wire.updateShape()
 
     def undo(self):
-        # Like DeleteCommand.redo()
-        for wire in self.wires:
-            self.scene.removeWire(wire)
+        # 1. MARK DELETED GATES
         for comp in self.comps:
-            self.scene.removeComp(comp)
+            if comp._unit:
+                logic.delobj(comp._unit)
+
+        # 2. DISAPPEAR COMPONENTS
+        for comp in self.comps:
+            self.scene.removeItem(comp)
+            self.scene.comps.remove(comp)
+            self.scene.unregister_comp(comp)
+
+        # 3. DISAPPEAR AND DISCONNECT WIRES
+        for wire in self.wires:
+            self.scene.removeItem(wire)
+            if wire in self.scene.wires:
+                self.scene.wires.remove(wire)
+
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+
+                        if target_unit.location >= 0 or source_unit.location >= 0:
+                            logic.disconnect(target_unit, target_idx)
+                            supply.setWire(None)
+
+                            # THE FIX: Force the alive target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+
+                if source_unit.location >= 0:
+                    wire.source.setWire(None)
 
 
 class MoveCommand(QUndoCommand):
