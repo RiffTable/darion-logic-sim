@@ -189,8 +189,8 @@ class CircuitScene(QGraphicsScene):
         # hitelists. cutConnections() → _disconnect() → logic.disconnect() nulls
         # those sources first, causing hide() to skip the cleanup and leave
         # dangling Profile pointers to the deleted gate → corruption.
-        if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
-            logic.hide([comp._unit])
+        # if comp._unit is not None and comp._unit in logic.objlist[comp.LOGIC]:
+        #     logic.hide([comp._unit])
 
         comp.cutConnections()
 

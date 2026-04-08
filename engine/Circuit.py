@@ -75,14 +75,24 @@ class Circuit:
 
     def delobj(self, gate:Gate|IC):
         if gate.id == IC_ID:
+            for i in (gate.inputs+gate.outputs+gate.internal):
+                self.counter-=1
+                i.location=-i.location-1
             self.counter -= gate.counter
-        self.counter -= 1
+        else:
+            self.counter -= 1
+            gate.location=-gate.location-1
         self.objlist[gate.code[0]][gate.code[1]]=None
 
     def renewobj(self,gate:Gate):
         if gate.id == IC_ID:
+            for i in (gate.inputs+gate.outputs+gate.internal):
+                self.counter+=1
+                i.location=-i.location-1
             self.counter += gate.counter
-        self.counter += 1
+        else:
+            self.counter += 1
+            gate.location=-gate.location-1
         self.objlist[gate.code[0]][gate.code[1]]=gate
 
     def get_components(self) -> list:

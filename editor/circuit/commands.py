@@ -65,35 +65,80 @@ class DeleteCommand(QUndoCommand):
         return list(wires)
 
     def redo(self):
-        # Perform actual deletion (hide from scene & logic)
-        for wire in self.wires_to_delete:
-            self.scene.removeWire(wire)
+        # 1. MARK DELETED GATES
+        # Flips locations to negative, suspending evaluation without destroying the graph.
         for comp in self.items_to_delete:
-            self.scene.removeComp(comp)
+            if comp._unit:
+                logic.delobj(comp._unit)
+
+        # 2. DISAPPEAR COMPONENTS
+        # Pure UI removal. No cutConnections() is used.
+        for comp in self.items_to_delete:
+            self.scene.removeItem(comp)
+            self.scene.comps.remove(comp)
+            self.scene.unregister_comp(comp)
+
+        # 3. DISAPPEAR WIRES & HANDLE BOUNDARY LOGIC
+        for wire in self.wires_to_delete:
+            self.scene.removeItem(wire)
+            self.scene.wires.remove(wire)
+            
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+                
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+                        
+                        # Sever logic ONLY if one of the gates is alive (boundary wire).
+                        # This prevents ghost signals to the living circuit.
+                        if target_unit.location >= 0 or source_unit.location >= 0:
+                            logic.disconnect(target_unit, target_idx)
+                            # Leave a breadcrumb that we severed this UI connection
+                            supply.setWire(None)
+                            
+                # ALWAYS clear the source UI pointer if the source gate survived.
+                if source_unit.location >= 0:
+                    wire.source.setWire(None)
+
 
     def undo(self):
-        # Restore components
+        # 1. UNMARK DELETED GATES (Must be FIRST!)
+        # Restores locations to >= 0 so the boundary logic below evaluates correctly.
+        for comp in self.items_to_delete:
+            if comp._unit:
+                logic.renewobj(comp._unit)
+
+        # 2. REAPPEAR COMPONENTS
+        # Pure UI restoration.
         for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
             self.scene.register_comp(comp)
-            if comp._unit:
-                logic.reveal([comp._unit])
-                
+            
+        # 3. REAPPEAR WIRES & RECONNECT BOUNDARY LOGIC
         for wire in self.wires_to_delete:
             self.scene.addItem(wire)
             self.scene.wires.append(wire)
-            # Reattach UI
-            wire.source.setWire(wire)
-            for supply in wire.supplies:
-                supply.setWire(wire)
-                # Reattach Logic
-                if wire.source.logical and supply.logical:
-                    unit, idx = supply.logical
-                    logic.connect(unit, wire.source.logical, idx)
+            
+            if wire.source and wire.source.logical:
+                source_unit = wire.source.logical
+                
+                for supply in wire.supplies:
+                    if supply.logical:
+                        target_unit, target_idx = supply.logical
+                        
+                        # Reconnect ONLY if we left a breadcrumb (supply.getWire() is None).
+                        # Internal cluster wires are bypassed and remain perfectly intact.
+                        if supply.getWire() is None: 
+                            logic.connect(target_unit, source_unit, target_idx)
+                            supply.setWire(wire)
+                            
+                # Reattach UI to the source pin
+                wire.source.setWire(wire)
+                
+            # Force Qt to recalculate bezier paths so they anchor properly to the pins
             wire.updateShape()
-
-
 
 
 #TODO: clean-up
