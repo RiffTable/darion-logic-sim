@@ -41,6 +41,13 @@ cdef extern from "Profile.h":
         int output
         Profile()
         Profile(int target, int pin_index, int output)
+    cdef cppclass Task:
+        int gate_loc
+        unsigned int time
+        int location
+        Task() nogil
+        Task(int gate_loc, unsigned int time, int location) nogil
+        bint operator>(const Task& other) nogil
     cdef cppclass CPP_Gate:
         int8_t type
         uint8_t output
@@ -84,6 +91,8 @@ cdef class Gate:
     cpdef list partial_data(self)
     cdef void clone(self, list dictionary, unordered_map[int,int]& pseudo)
     cpdef void load_to_cluster(self, list cluster)
+    cpdef bint set_pulse(self, int val, int time_type)
+    cpdef bint clock(self)
 
 cdef class Variable(Gate):
     pass

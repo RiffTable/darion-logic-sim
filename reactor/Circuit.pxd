@@ -1,9 +1,23 @@
 # distutils: language = c++
-from Gates cimport Gate, Variable, Profile, CPP_Gate, vector
+from Gates cimport Gate, Variable, Profile, CPP_Gate, vector, Task
 from libcpp.vector cimport vector
 from libcpp.deque cimport deque
-from Const cimport LIMIT
+from Const cimport LIMIT, TOTAL
 from IC cimport IC
+
+cdef extern from "<queue>" namespace "std" nogil:
+    cdef cppclass priority_queue[T, Container=*, Compare=*]:
+        priority_queue()
+        void push(T&)
+        void pop()
+        T top()
+        bint empty()
+        int size()
+        void swap(priority_queue& other)
+        
+cdef extern from "<functional>" namespace "std" nogil:
+    cdef cppclass greater[T]:
+        pass
 
 cdef class Circuit:
     cdef public list objlist
@@ -12,7 +26,9 @@ cdef class Circuit:
     cdef public int hidden
     cdef public unsigned long long eval_count
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
-    cdef deque[int] time_queue     # C++ deque of gate location ints for FLIPFLOP
+    cdef unsigned int Global_Clock
+    cdef unsigned int[12] Global_delay
+    cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist
@@ -54,7 +70,7 @@ cdef class Circuit:
     cpdef void copy(self, list components)
     cpdef list paste(self)
     cpdef void transfer_info(self, Gate gate, int id)
-    cdef void update_gate(self, int gate) nogil
+    cdef void update_gate(self, Task task) nogil
     cdef void propagate(self, int origin) nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)

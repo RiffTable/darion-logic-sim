@@ -48,7 +48,6 @@ class DeleteCommand(QUndoCommand):
         self.scene = scene
         self.items_to_delete = items_to_delete
         
-        # Capture all the wires connected to these comps
         self.wires_to_delete = self._get_attached_wires()
         if explicit_wires:
             for w in explicit_wires:
@@ -66,13 +65,11 @@ class DeleteCommand(QUndoCommand):
 
     def redo(self):
         # 1. MARK DELETED GATES
-        # Flips locations to negative, suspending evaluation without destroying the graph.
         for comp in self.items_to_delete:
             if comp._unit:
                 logic.delobj(comp._unit)
 
         # 2. DISAPPEAR COMPONENTS
-        # Pure UI removal. No cutConnections() is used.
         for comp in self.items_to_delete:
             self.scene.removeItem(comp)
             self.scene.comps.remove(comp)
@@ -90,27 +87,26 @@ class DeleteCommand(QUndoCommand):
                     if supply.logical:
                         target_unit, target_idx = supply.logical
                         
-                        # Sever logic ONLY if one of the gates is alive (boundary wire).
-                        # This prevents ghost signals to the living circuit.
                         if target_unit.location >= 0 or source_unit.location >= 0:
                             logic.disconnect(target_unit, target_idx)
-                            # Leave a breadcrumb that we severed this UI connection
                             supply.setWire(None)
                             
-                # ALWAYS clear the source UI pointer if the source gate survived.
+                            # THE FIX: Force the alive target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+                            
                 if source_unit.location >= 0:
                     wire.source.setWire(None)
 
 
     def undo(self):
-        # 1. UNMARK DELETED GATES (Must be FIRST!)
-        # Restores locations to >= 0 so the boundary logic below evaluates correctly.
+        # 1. UNMARK DELETED GATES FIRST
         for comp in self.items_to_delete:
             if comp._unit:
                 logic.renewobj(comp._unit)
 
         # 2. REAPPEAR COMPONENTS
-        # Pure UI restoration.
         for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
@@ -124,22 +120,28 @@ class DeleteCommand(QUndoCommand):
             if wire.source and wire.source.logical:
                 source_unit = wire.source.logical
                 
+                # THE FIX: Force the source to update its UI pins so the restored 
+                # wire inherits the freshest possible state.
+                if source_unit.location >= 0:
+                    comp = self.scene.comp_registry[source_unit.location]
+                    if comp: comp.poll_update()
+                
                 for supply in wire.supplies:
                     if supply.logical:
                         target_unit, target_idx = supply.logical
                         
-                        # Reconnect ONLY if we left a breadcrumb (supply.getWire() is None).
-                        # Internal cluster wires are bypassed and remain perfectly intact.
                         if supply.getWire() is None: 
                             logic.connect(target_unit, source_unit, target_idx)
                             supply.setWire(wire)
                             
-                # Reattach UI to the source pin
+                            # THE FIX: Force the target to update its UI wires instantly
+                            if target_unit.location >= 0:
+                                comp = self.scene.comp_registry[target_unit.location]
+                                if comp: comp.poll_update()
+                                
                 wire.source.setWire(wire)
                 
-            # Force Qt to recalculate bezier paths so they anchor properly to the pins
             wire.updateShape()
-
 
 #TODO: clean-up
 class ConnectCommand(QUndoCommand):

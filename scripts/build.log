@@ -1,0 +1,177 @@
+warning: D:\Github\darion-logic-sim\reactor\Const.pxd:56:0: Assignment in pxd file will not be executed. Suggest declaring as const.
+warning: D:\Github\darion-logic-sim\reactor\Const.pxd:60:0: Assignment in pxd file will not be executed. Suggest declaring as const.
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+    cdef public int hidden
+    cdef public unsigned long long eval_count
+    cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
+    cdef unsigned int Global_Clock
+    cdef unsigned int[12] Global_delay
+    cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
+                        ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pxd:31:24: unknown type in template argument
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+    cdef public int hidden
+    cdef public unsigned long long eval_count
+    cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
+    cdef unsigned int Global_Clock
+    cdef unsigned int[12] Global_delay
+    cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
+                                     ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pxd:31:37: unknown type in template argument
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+    cdef public int hidden
+    cdef public unsigned long long eval_count
+    cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
+    cdef unsigned int Global_Clock
+    cdef unsigned int[12] Global_delay
+    cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
+                                                    ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pxd:31:52: unknown type in template argument
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+    cpdef void custom_simulate(self, list varlist)
+    cpdef void reset(self)
+    cpdef void copy(self, list components)
+    cpdef list paste(self)
+    cpdef void transfer_info(self, Gate gate, int id)
+    cdef void update_gate(self, Task task) nogil
+                                ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pxd:73:32: 'Task' is not a type identifier
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+                g = <Gate>i
+                g.reset()
+            else:
+                (<IC>i).reset()
+
+    cdef void update_gate(self, Task task) nogil:
+    ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:901:4: Signature not compatible with previous declaration
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+    cpdef void custom_simulate(self, list varlist)
+    cpdef void reset(self)
+    cpdef void copy(self, list components)
+    cpdef list paste(self)
+    cpdef void transfer_info(self, Gate gate, int id)
+    cdef void update_gate(self, Task task) nogil
+                         ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pxd:73:25: Previous declaration is here
+warning: D:\Github\darion-logic-sim\reactor\Circuit.pyx:464:20: Non-trivial type declarators in shared declaration (e.g. mix of pointers and values). Each pointer declaration should be on its own line.
+warning: D:\Github\darion-logic-sim\reactor\Circuit.pyx:464:31: Non-trivial type declarators in shared declaration (e.g. mix of pointers and values). Each pointer declaration should be on its own line.
+warning: D:\Github\darion-logic-sim\reactor\Circuit.pyx:562:16: the result of using negative indices inside of code sections marked as 'wraparound=False' is undefined
+warning: D:\Github\darion-logic-sim\reactor\Circuit.pyx:826:16: the result of using negative indices inside of code sections marked as 'wraparound=False' is undefined
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+        '''reset the circuit's items to unknown value'''
+        cdef Gate g
+        set_MODE(DESIGN)
+        self.eval_count=0
+        cdef priority_queue[Task, vector[Task], greater[Task]] empty_pq
+        self.time_queue.swap(empty_pq)
+                             ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:891:29: Cannot assign type 'priority_queue[Task,vector[Task],greater[Task]]' to 'priority_queue[<error>,vector[<error>],greater[<error>]]'
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+                    if not target_info.update:
+                        self.visual_queue.push_back(profile.target)   # target changed ù mark dirty
+                        target_info.update = True
+                    if not target_info.scheduled:
+                        target_info.scheduled = True
+                        self.time_queue.push(Task(profile.target, self.Global_Clock + self.Global_delay[target_info.type] + limit, profile.target))
+                                                 ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:960:49: Calling gil-requiring function not allowed without gil
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+            profile += 1
+
+        if self_info.inputlimit == 0:
+            self_info.value ^= 1
+            self_info.output = self_info.value
+            self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[self_info.output], origin))
+                                     ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:967:37: Calling gil-requiring function not allowed without gil
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+        self_info = &gate_infolist[origin]
+
+        if MODE == FLIPFLOP:
+            if not self_info.scheduled:
+                if self_info.inputlimit == 0:
+                    self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
+                                             ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:989:45: Calling gil-requiring function not allowed without gil
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+        if MODE == FLIPFLOP:
+            if not self_info.scheduled:
+                if self_info.inputlimit == 0:
+                    self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
+                else:
+                    self.time_queue.push(Task(origin, self.Global_Clock + self.Global_delay[self_info.type] + self_info.inputlimit, origin))
+                                             ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:991:45: Calling gil-requiring function not allowed without gil
+
+Error compiling Cython file:
+------------------------------------------------------------
+...
+                self.eval_count += eval
+                for i in range(end_point):
+                    self_info = &gate_infolist[read_queue[i]]
+                    self_info.mark=False
+                    self_info.scheduled=True
+                    self.time_queue.push(Task(read_queue[i], self.Global_Clock, read_queue[i]))
+                                             ^
+------------------------------------------------------------
+D:\Github\darion-logic-sim\reactor\Circuit.pyx:1014:45: Calling gil-requiring function not allowed without gil
+Traceback (most recent call last):
+Compiling ../reactor\Circuit.pyx because it changed.
+Compiling ../reactor\Const.pyx because it changed.
+Compiling ../reactor\Gates.pyx because it changed.
+Compiling ../reactor\IC.pyx because it changed.
+Compiling ../reactor\Store.pyx because it changed.
+[1/5] Cythonizing ../reactor\Circuit.pyx
+  File "D:\Github\darion-logic-sim\scripts\setup.py", line 43, in <module>
+    ext_modules=cythonize(extensions, compiler_directives={'language_level': "3"}, annotate=True),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Github\darion-logic-sim\.venv\Lib\site-packages\Cython\Build\Dependencies.py", line 1153, in cythonize
+    cythonize_one(*args)
+  File "D:\Github\darion-logic-sim\.venv\Lib\site-packages\Cython\Build\Dependencies.py", line 1297, in cythonize_one
+    raise CompileError(None, pyx_file)
+Cython.Compiler.Errors.CompileError: ../reactor\Circuit.pyx

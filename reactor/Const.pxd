@@ -4,9 +4,11 @@ cpdef enum:
     LOW = 0
     ERROR = 2
     UNKNOWN = 2
+    PRIMARY = 2
 
     DESIGN = 0
     SIMULATE = 1
+    FLIPFLOP = 2
 
     
     LIMIT = 250_000
