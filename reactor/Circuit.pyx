@@ -883,9 +883,9 @@ cdef class Circuit:
         for variable in varlist:
             # set output of variable to its value
             # run the propagation from variable
-            info = &self.gate_infolist[variable]
+            info = &self.gate_infolist[variable.location]
             info.output = info.value
-            self.propagate(variable)
+            self.propagate(variable.location)
 
     cpdef void reset(self):
         '''reset the circuit's items to unknown value'''

@@ -250,20 +250,9 @@ class CircuitScene(QGraphicsScene):
         # Ordering input pins
         inputs.sort(key = lambda i: i.y())
 
-        for input in inputs:
-            w = input.outputPin.getWire()
-            targets = []
-            if w is not None and input.outputPin.logical:
-                targets = [supply.logical for supply in w.supplies if supply.logical is not None]
-
-                self.removeComp(input)
-
-                inpin = cast(Gate, logic.getcomponent(Const.INPUT_PIN_ID))
-                inpin.custom_name = input.tag
-                for g, i in targets:
-                    logic.connect(g, inpin, i)
-            else:
-                self.removeComp(input)
+        for i, input in enumerate(inputs):
+            input._unit.custom_name = input.tag
+            logic.reorder(input._unit, i)
         
         # Ordering output pins
         # Output items are not converted since they are already of class Out
@@ -611,9 +600,6 @@ class CircuitScene(QGraphicsScene):
             # unless you set inputs to unknown they will might cause complex bugs
             # sometimes incomplete parts of circuit oscillate, it wouldn't if it were complete
             # so build the circuit first then simulate from the inputpins.
-            if isinstance(comp, InputItem):
-                comp._unit.output = Const.UNKNOWN
-                varlist.append(comp._unit)
 
             # Getting all pins reference to wire them later
             for _edge, pin_data_list in comp_data["pinslist"].items():
@@ -645,11 +631,9 @@ class CircuitScene(QGraphicsScene):
             new_wires.append(w)
 
         # Full circuit is now built — simulate from scratch
-        if self.simulationMode != Const.DESIGN:
-            logic.custom_simulate(varlist)
-            logic.visual_queue_clear()
-            for comp in new_comps:
-                comp.poll_update()
+        # if self.simulationMode != Const.DESIGN:
+        #     for comp in new_comps:
+        #         comp.poll_update()
         return new_comps, new_wires
 
 
