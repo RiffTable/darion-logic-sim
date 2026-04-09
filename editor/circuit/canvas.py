@@ -155,13 +155,8 @@ class CircuitScene(QGraphicsScene):
             self.simulationMode=Const.DESIGN
             
     
-    def checkState(self, st: EditorState) -> bool:
-        return self.getState() == st
-    
-    def getState(self):
-        return self._state
-        # if self.ghostWire: return EditorState.WIRING
-        # return EditorState.NORMAL
+    def checkState(self, st: EditorState): return self._state == st
+    def getState(self):                    return self._state
     
     def setState(self, st: EditorState):
         self._state = st
@@ -288,12 +283,14 @@ class CircuitScene(QGraphicsScene):
 
         # Wiring: Finish!
         if isinstance(target, CompItem):
-            # Proxying: Wire is connected to the gate's *favorite* pin
+            # Proxying: Wire is connected to the gate's *favorite* pin (proxy pin)
             target = target.proxyPin()
             if target is None: return False
         
+        
         if isinstance(target, InputPinItem):
             t_wire = target.getWire()
+
             # Add wire to canvas
             if len(g_wire.supplies) == 1:
                 self.wires.append(g_wire)
@@ -302,10 +299,10 @@ class CircuitScene(QGraphicsScene):
                 cmd = SwapWireCommand(self, g_wire, t_wire, target, g_pin)
                 self.undo_stack.push(cmd)
                 
-            else:  # Connecting wire to an empty pin
-
-                # End WIRING phase if not multi-wiring
+            else:
+                # Connecting wire to an empty pin
                 if not multiWireMode:
+                    # End WIRING phase if not multi-wiring
                     g_wire.supplies.remove(g_pin);  g_pin.setWire(None)
                     self.setState(EditorState.NORMAL)
                     self.ghostWire = None
@@ -447,11 +444,11 @@ class CircuitScene(QGraphicsScene):
     
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
         item = self.itemAt(event.scenePos(), QTransform())
+        btn = event.button()
+        LMB_normal = self.checkState(EditorState.NORMAL) and btn == MouseBtn.LeftButton
 
-        # Wiring: Start!
-        if self.checkState(EditorState.NORMAL) \
-        and isinstance(item, OutputPinItem) \
-        and event.button() == MouseBtn.LeftButton:
+        if LMB_normal and isinstance(item, OutputPinItem):
+            # Wiring: Start!
             self.setState(EditorState.WIRING)
             w = item.getWire()
             if w is None:
@@ -464,7 +461,8 @@ class CircuitScene(QGraphicsScene):
         
         super().mousePressEvent(event)
 
-        if event.button() == MouseBtn.LeftButton and self.checkState(EditorState.NORMAL):
+        if LMB_normal:
+            # Tracking start of components dragging. Place after super().mousePressEvent
             self._drag_start_positions = {
                 comp: comp.pos() for comp in self.selectedItems() if isinstance(comp, CompItem)
             }

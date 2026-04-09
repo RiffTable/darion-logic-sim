@@ -65,6 +65,25 @@ class WireItem(QGraphicsPathItem):
             u, i = inpin.logical
             logic.connect(u, outpin.logical, i)
     
+    def _addSupply(self, pin: InputPinItem):
+        """Doesn't update shape or connect logicals. Equivalent to:
+        ```
+        wire.supplies.append(pin); pin.setWire(wire)
+        ```
+        """
+        self.supplies.append(pin)
+        pin.setWire(self)
+    
+    def _cutSupply(self, pin: InputPinItem):
+        """Doesn't update shape, disconnect logicals or remove wire when no supply is attached. Equivalent to:
+        ```
+        wire.supplies.remove(pin); pin.setWire(None)
+        ```
+        """
+        self.supplies.remove(pin)
+        pin.setWire(None)
+    
+
     def addSupply(self, pin: InputPinItem):
         """Updates the wire's shape"""
         if pin in self.supplies: return
