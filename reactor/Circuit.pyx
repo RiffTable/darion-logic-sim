@@ -921,6 +921,8 @@ cdef class Circuit:
         if not self_info.update:
             self.visual_queue.push_back(origin) 
             self_info.update = True
+        if not self_info.scheduled:
+            return
         self_info.scheduled = False
         new_output = self_info.output
         profile = self_info.hitlist.data()
@@ -1000,7 +1002,7 @@ cdef class Circuit:
                 self_info.scheduled = True
             else:
                 if self_info.inputlimit == 0:
-                    self_info.scheduled = False  # Allows resetting of clock
+                    self_info.scheduled = False  # Stops clock
             with gil:
                 if self.runner is None or self.runner.done():
                     self.runner = asyncio.create_task(self.oscillate())
