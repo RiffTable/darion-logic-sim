@@ -458,7 +458,12 @@ class CircuitScene(QGraphicsScene):
             else:
                 self.ghostWire = w
                 self.ghostWire.addSupply(self.ghostPin)
-        
+        elif LMB_normal and isinstance(item, InputPinItem) and item.hasWire():
+            from .commands import DisconnectWireCommand
+            t_wire = item.getWire()
+            cmd = DisconnectWireCommand(self, t_wire, item)
+            self.undo_stack.push(cmd)
+            
         super().mousePressEvent(event)
 
         if LMB_normal:

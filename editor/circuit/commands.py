@@ -347,68 +347,133 @@ class SwapWireCommand(QUndoCommand):
         g_pin = self.g_pin
         target = self.target
         t_wire = self.t_wire
+        scene = self.scene
 
         ### Swapping Wires
-        # Disconnect both wires
+        # Disconnect g_wire from g_pin
         if g_pin in g_wire.supplies:
-            g_wire.supplies.remove(g_pin)
+            g_wire._cutSupply(g_pin)
+            
+        # Disconnect t_wire from target
         if target in t_wire.supplies:
-            t_wire.supplies.remove(target)
+            t_wire._cutSupply(target)
         
-        # Connect both wires to the other pins
-        g_wire.supplies.append(target)
-        t_wire.supplies.append(g_pin)
+        # Connect g_wire to target
+        g_wire._addSupply(target)
         
-        # Make both pins aware of their newly connected wires
-        g_pin.setWire(t_wire)
-        target.setWire(g_wire)
-
-        # Update wires' shapes
-        g_wire.updateShape()
-        t_wire.updateShape()
-
         # Logically connect/disconnect
         if target.logical: logic.disconnect(*target.logical)
         g_wire.logicalConnect(g_wire.source, target)
+
+        # UI cleanup for old wire
+        if len(t_wire.supplies) == 0:
+            t_wire.source.setWire(None)
+            if t_wire in scene.wires:
+                scene.wires.remove(t_wire)
+            scene.removeItem(t_wire)
+        else:
+            t_wire.updateShape()
+
+        # Update new wire's shape
+        g_wire.updateShape()
         
-        self.scene.ghostWire = t_wire
-        self.scene.setState(EditorState.WIRING)   # ?Debatable
+        scene.ghostWire = None       # Wire vanishes, does not become ghost wire
+        scene.setState(EditorState.NORMAL)
         
-        if self.g_wire not in self.scene.wires:
-            self.scene.wires.append(self.g_wire)
-            if self.g_wire.scene() != self.scene:
-                self.scene.addItem(self.g_wire)
+        if g_wire not in scene.wires:
+            scene.wires.append(g_wire)
+            if g_wire.scene() != scene:
+                scene.addItem(g_wire)
             self.added_to_scene = True
 
     def undo(self):
-        if self.g_pin in self.t_wire.supplies:
-            self.t_wire.supplies.remove(self.g_pin)
-        self.t_wire.supplies.append(self.target)
+        g_wire = self.g_wire
+        g_pin = self.g_pin
+        target = self.target
+        t_wire = self.t_wire
+        scene = self.scene
         
-        self.g_wire.supplies.append(self.g_pin)
-        if self.target in self.g_wire.supplies:
-            self.g_wire.supplies.remove(self.target)
+        # Reconnect g_wire to g_pin
+        g_wire._addSupply(g_pin)
         
-        if self.target.logical:
-            unit, idx = self.target.logical
-            logic.disconnect(unit, idx)
+        # Disconnect g_wire from target
+        if target in g_wire.supplies:
+            g_wire._cutSupply(target)
             
-        self.t_wire.logicalConnect(self.t_wire.source, self.target)
+        # Reconnect t_wire to target
+        t_wire._addSupply(target)
         
-        self.g_pin.setWire(self.g_wire)
-        self.target.setWire(self.t_wire)
+        # Logically disconnect/connect
+        if target.logical: logic.disconnect(*target.logical)
+        t_wire.logicalConnect(t_wire.source, target)
         
-        self.g_wire.updateShape()
-        self.t_wire.updateShape()
+        # Restore t_wire physically if it was removed
+        if len(t_wire.supplies) == 1:
+            t_wire.source.setWire(t_wire)
+            if t_wire not in scene.wires:
+                scene.wires.append(t_wire)
+            if t_wire.scene() != scene:
+                scene.addItem(t_wire)
+
+        g_wire.updateShape()
+        t_wire.updateShape()
         
-        self.scene.ghostWire = self.g_wire
-        self.scene.setState(EditorState.WIRING)
+        scene.ghostWire = g_wire
+        scene.setState(EditorState.WIRING)
         
         if self.added_to_scene:
-            if self.g_wire in self.scene.wires:
-                self.scene.wires.remove(self.g_wire)
-            self.scene.removeItem(self.g_wire)
+            if g_wire in scene.wires:
+                scene.wires.remove(g_wire)
+            scene.removeItem(g_wire)
             self.added_to_scene = False
+
+class DisconnectWireCommand(QUndoCommand):
+    def __init__(self, scene: "CircuitScene", t_wire: WireItem, target: InputPinItem):
+        super().__init__()
+        self.scene = scene
+        self.t_wire = t_wire
+        self.target = target
+
+    def redo(self):
+        t_wire = self.t_wire
+        target = self.target
+        scene = self.scene
+        
+        # UI Disconnect
+        t_wire._cutSupply(target)
+        
+        # Logical Disconnect
+        if target.logical: logic.disconnect(*target.logical)
+        
+        if len(t_wire.supplies) == 0:
+            t_wire.source.setWire(None)
+            if t_wire in scene.wires:
+                scene.wires.remove(t_wire)
+            scene.removeItem(t_wire)
+        else:
+            t_wire.updateShape()
+
+    def undo(self):
+        t_wire = self.t_wire
+        target = self.target
+        scene = self.scene
+        
+        # UI Reconnect
+        t_wire._addSupply(target)
+        
+        # Logical Reconnect
+        if target.logical:
+            from core.LogicCore import logic
+            t_wire.logicalConnect(t_wire.source, target)
+            
+        if len(t_wire.supplies) == 1:
+            t_wire.source.setWire(t_wire)
+            if t_wire not in scene.wires:
+                scene.wires.append(t_wire)
+            if t_wire.scene() != scene:
+                scene.addItem(t_wire)
+                
+        t_wire.updateShape()
 
 
 class PropertyChangeCommand(QUndoCommand):
