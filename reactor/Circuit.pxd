@@ -70,7 +70,7 @@ cdef class Circuit:
     cpdef void copy(self, list components)
     cpdef list paste(self)
     cpdef void transfer_info(self, Gate gate, int id)
-    cdef void update_gate(self, Task task) nogil
+    cdef void complete_task(self, Task task) nogil
     cdef void propagate(self, int origin) nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)

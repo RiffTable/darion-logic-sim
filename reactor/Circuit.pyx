@@ -903,7 +903,7 @@ cdef class Circuit:
             else:
                 (<IC>i).reset()
 
-    cdef void update_gate(self, Task task) nogil:
+    cdef void complete_task(self, Task task) nogil:
         '''Process one task called from the async drain loop on the main thread.'''
         if task.time > self.Global_Clock:
             self.Global_Clock = task.time
@@ -1005,7 +1005,7 @@ cdef class Circuit:
                     self_info.scheduled = False  # Stops clock
             with gil:
                 if self.runner is None or self.runner.done():
-                    self.runner = asyncio.create_task(self.oscillate())
+                    self.runner = asyncio.create_task(self.task_manager())
             return
             
         read_queue[0] = origin
@@ -1024,7 +1024,7 @@ cdef class Circuit:
                     self.time_queue.push(Task(read_queue[i], self.Global_Clock, read_queue[i]))
                 with gil:
                     if self.runner is None or self.runner.done():
-                        self.runner=asyncio.create_task(self.oscillate())
+                        self.runner=asyncio.create_task(self.task_manager())
                     return
             wave_limit -= 1
             for index in range(end_point):
@@ -1083,19 +1083,29 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    async def oscillate(self):
+    async def task_manager(self):
         cdef int size
         cdef Task task
-        
-        while not self.time_queue.empty():
-            with nogil:
-                size = self.time_queue.size()
-                while size:
-                    size -= 1
-                    task = self.time_queue.top()
-                    self.time_queue.pop()
-                    self.update_gate(task)
-            await asyncio.sleep(0.075)
+        if MODE==FLIPFLOP:
+            while not self.time_queue.empty():
+                with nogil:
+                    size = self.time_queue.size()
+                    while size:
+                        size -= 1
+                        task = self.time_queue.top()
+                        self.time_queue.pop()
+                        self.complete_task(task)
+                await asyncio.sleep(0.075)
+        else:
+            while not self.time_queue.empty():
+                with nogil:
+                    size = self.time_queue.size()
+                    while size:
+                        size -= 1
+                        task = self.time_queue.top()
+                        self.time_queue.pop()
+                        self.complete_task(task)
+                await asyncio.sleep(0)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────
     cpdef bint visual_queue_empty(self):

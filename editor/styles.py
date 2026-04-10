@@ -68,8 +68,8 @@ class Font:
 # List of "magic numbers"
 class Val:
     # Animation Speed (in milliseconds)
-    AnimSpeedLED = 100
-    AnimSpeedPin = 100
-    AnimSpeedWire = 100
+    AnimSpeedLED = 140
+    AnimSpeedPin = 125
+    AnimSpeedWire = 125
 
     AlertUnsaved = True

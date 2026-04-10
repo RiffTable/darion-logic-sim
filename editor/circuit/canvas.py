@@ -85,9 +85,8 @@ class CircuitScene(QGraphicsScene):
         while True:
             if logic.visual_queue_empty():
                 await asyncio.sleep(0.016)
+            # a longer break just in case the queue is empty
             
-            # Active state: Use a strict time budget (e.g., 10ms) instead of a fixed item limit.
-            # This ensures we don't exceed the ~16ms frame window, keeping Qt 60fps smooth.
             size=logic.visual_queue_size()
             while size:
                 size-=1
@@ -100,7 +99,7 @@ class CircuitScene(QGraphicsScene):
                         comp.poll_update()
 
             # Yield to Qt event loop for the remainder of the frame
-            await asyncio.sleep(0)
+            await asyncio.sleep(0)# lower values don't mean anything 0 == 0.005
 
     # ── Registry helpers ──────────────────────────────────────────────
     def _ensure_registry_size(self, location: int):

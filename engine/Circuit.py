@@ -618,12 +618,20 @@ class Circuit:
             i.reset()
 
     async def task_manager(self):
-        while self.time_queue:
-            n=len(self.time_queue)
-            for _ in range(n):
-                task = heapq.heappop(self.time_queue)
-                self.complete_task(task)
-            await asyncio.sleep(0.075)
+        if Const.MODE==FLIPFLOP:
+            while self.time_queue:
+                n=len(self.time_queue)
+                for _ in range(n):
+                    task = heapq.heappop(self.time_queue)
+                    self.complete_task(task)
+                await asyncio.sleep(0.075)
+        else:
+            while self.time_queue:
+                n=len(self.time_queue)
+                for _ in range(n):
+                    task = heapq.heappop(self.time_queue)
+                    self.complete_task(task)
+                await asyncio.sleep(0)
 
     def complete_task(self, task: Task):
         if task.time > self.Global_Clock:
