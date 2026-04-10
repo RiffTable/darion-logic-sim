@@ -147,7 +147,10 @@ class ConnectCommand(QUndoCommand):
         self.target_pin = target_pin
         self.ghost_wire = ghost_wire  # The WireItem created during dragging
         self.multi_wire_mode = multi_wire_mode
+        
         self.added_to_scene = False
+        self.old_limit = -1
+        self.gate_size_changed = False
 
     def redo(self):
         scene = self.scene
@@ -172,7 +175,11 @@ class ConnectCommand(QUndoCommand):
             
             # Connecting at a peeking pin
             if isinstance(unit, Gate) and idx >= unit.inputlimit:
-                unit.setlimits(idx + 1)
+                self.old_limit = unit.inputlimit
+                
+                if unit.setlimits(idx + 1):
+                    # Making sure undo remembers gate resize
+                    self.gate_size_changed = True
             
             logic.connect(unit, source.logical, idx)
 
@@ -193,6 +200,11 @@ class ConnectCommand(QUndoCommand):
                 scene.wires.remove(g_wire)
             scene.removeItem(g_wire)
             self.added_to_scene = False
+        
+        if self.gate_size_changed:
+            gate_comp = cast(GateItem, t_pin.parentComp)
+            gate_comp.setInputCount(self.old_limit)
+            # ^ This automatically calls unit.setlimits(self.old_limit)
 
 
 #TODO: clean-up

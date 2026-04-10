@@ -121,7 +121,7 @@ class InputItem(CompItem):
         return False
     
     def setState(self, state: bool):
-        bookish = Const.HIGH if state else Const.LOW
+        bookish = Const.LOW if (state == Const.HIGH) else Const.HIGH
         self.state = bookish
         logic.toggle(self._unit, bookish)
         self.update()

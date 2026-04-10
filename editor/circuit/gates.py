@@ -32,6 +32,7 @@ class GateItem(CompItem):
         super().__init__(pos, **kwargs)
 
         # Properties
+        self._unit = cast(Gate, self._unit)
         self.state: int = Const.LOW
         self.prevState = -1
         self.minInput = self.MIN_INPUT
