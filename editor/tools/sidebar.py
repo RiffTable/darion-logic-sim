@@ -134,6 +134,7 @@ class ComponentSidebar(QWidget):
         # self.refresh_IC_catagory.connect(self.updateUI)
         
         self.setup_ui()
+        self.collapsed = False
 
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -143,6 +144,7 @@ class ComponentSidebar(QWidget):
         colors = theme.get_theme()
         
         self.search.setStyleSheet(self.get_search_style(colors))
+        self.collapse_btn.setStyleSheet(self.get_collapse_btn_style(colors))
         self.scroll_area.setStyleSheet(self.get_scroll_style())
 
     def get_search_style(self, colors):
@@ -153,7 +155,7 @@ class ComponentSidebar(QWidget):
                 border-radius: 4px;
                 color: {colors.tooltip_bg.name()};
                 padding: 8px;
-                margin: 15px;
+                margin: 10px;
                 font-family: 'Segoe UI', 'Monaco', monospace;
             }}
             QLineEdit:focus {{ 
@@ -170,6 +172,22 @@ class ComponentSidebar(QWidget):
                 color: {colors.tooltip_bg.name()}; 
             }}"""
 
+    def get_collapse_btn_style(self, colors):
+        return f"""
+            QPushButton {{
+                background-color: {colors.secondary_bg.name()};
+                border: none;
+                border-radius: 4px;
+                color: {colors.text.name()};
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {colors.button.name()};
+                color: {colors.tooltip_bg.name()};
+            }}
+        """
+
     def get_scroll_style(self):
         return f"""
             QScrollArea {{ 
@@ -182,14 +200,25 @@ class ComponentSidebar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(0)
+
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search components...")
         
-        clear = QAction("✕", self)
+        clear = QAction("🅧", self)
         self.search.addAction(clear, QLineEdit.ActionPosition.TrailingPosition)
         clear.triggered.connect(self.clear_search)
         self.search.textChanged.connect(lambda: self.search_timer.start())
-        layout.addWidget(self.search)
+        
+        self.collapse_btn = QPushButton("◀")
+        self.collapse_btn.setFixedSize(15, 25)
+        self.collapse_btn.clicked.connect(self.toggle_collapse)
+        
+        search_layout.addWidget(self.search)
+        search_layout.addWidget(self.collapse_btn)
+        layout.addLayout(search_layout)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -208,6 +237,10 @@ class ComponentSidebar(QWidget):
                 btn.clicked.connect(lambda _, c=comp_id: self.spawnComponent(c))
             self.menu.addWidget(section)
             self.sections.append(section)
+
+            if title.lower() in ["gates", "i/o"]:
+                section.toggle.setChecked(True)
+                section.content.setVisible(True)
         
         ### IC Catagory
         ic_data_list = self.retrieve_IC_data()
@@ -243,6 +276,20 @@ class ComponentSidebar(QWidget):
         ### Finishing
         self.scroll_area.setWidget(container)
         layout.addWidget(self.scroll_area)
+
+    def toggle_collapse(self):
+        self.collapsed = not self.collapsed
+
+        if self.collapsed:
+            self.search.setVisible(False)
+            self.scroll_area.setVisible(False)
+            self.collapse_btn.setText("▶")
+            self.setFixedWidth(15)
+        else:
+            self.search.setVisible(True)
+            self.scroll_area.setVisible(True)
+            self.collapse_btn.setText("◀")
+            self.setFixedWidth(200)
 
     def apply_filter(self):
         text = self.search.text().strip()
