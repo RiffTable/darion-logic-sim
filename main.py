@@ -1,4 +1,4 @@
-import sys
+import io, sys, re
 import json
 from pathlib import Path
 from typing import cast
@@ -8,6 +8,7 @@ from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
 
+from engine.Const import get_MODE, set_MODE, SIMULATE, VARIABLE_ID, IC_ID
 import editor.theme as theme
 import editor.actions as Actions
 from editor.styles import Val
@@ -16,6 +17,7 @@ from editor.tools.properties import PropertiesPanel
 from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, SettingsMenu
 from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
+from editor.tools.dialogs import TruthTableDialog, DiagnoseDialog
 from editor.circuit.commands import AddCompCommand
 
 
@@ -142,6 +144,39 @@ class AppWindow(QMainWindow):
         QSettings().setValue("main_window/geometry", self.saveGeometry())
         self.update_props_position()
 
+    def _show_output(self, title: str, func, dialog_class, returns_string: bool = False):
+        if returns_string:
+            # For functions that return a string (like truthTable)
+            text = func()
+        else:
+            # For functions that print to stdout (like diagnose)
+            old = sys.stdout
+            sys.stdout = io.StringIO()
+            func()
+            text = sys.stdout.getvalue()
+            sys.stdout = old
+        
+        # Remove ANSI codes
+        text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
+        
+        if text.strip():
+            dialog_class(self, text).exec()
+        else:
+            QMessageBox.information(self, "No Data", f"No {title.lower()} available.")
+
+    def show_truth_table(self):
+        mode = get_MODE()
+        if mode != SIMULATE:
+            set_MODE(SIMULATE)
+            logic.simulate(SIMULATE)
+        
+        self._show_output("Truth Table", logic.truthTable, TruthTableDialog, returns_string=True)
+        
+        set_MODE(mode)
+
+    def show_diagnose(self):
+        self._show_output("Diagnosis", logic.diagnose, DiagnoseDialog, returns_string=False)
+
     def closeEvent(self, event):
         # To make sure a runtime error isn't raised when closing the app
         if self.cscene:
@@ -244,6 +279,9 @@ class AppWindow(QMainWindow):
         Actions.add(view, "undo", "Undo", scene.undo_stack.undo, SK.Undo)   # Ctrl+Z
         Actions.add(view, "redo", "Redo", scene.undo_stack.redo) \
             .setShortcuts([QKS("Ctrl+Shift+Z"), QKS("Ctrl+Y")])
+        
+        Actions.add(self, "truth_table", "Truth Table", self.show_truth_table, QKS("Ctrl+T"))
+        Actions.add(self, "diagnose", "Diagnose Circuit", self.show_diagnose, QKS("Ctrl+D"))
         
         # Orientation
         Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))

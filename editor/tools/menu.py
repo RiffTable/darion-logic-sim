@@ -79,6 +79,9 @@ class ProjectMenu(BaseMenu):
         self.addAction(Actions.get("load-ic"))
         self.addAction(Actions.get("project-to-ic"))
         self.addSeparator()
+        self.addAction(Actions.get("truth_table"))
+        self.addAction(Actions.get("diagnose"))
+        self.addSeparator()
         self.addMenu(Actions.getMenu("simulation_mode"))
 
 
