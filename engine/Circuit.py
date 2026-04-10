@@ -228,15 +228,7 @@ class Circuit:
         if outputs is not None:
             gate_list = outputs
         else:
-            for item in self.get_components():
-                gate_type = item.id
-                if gate_type == VARIABLE_ID:
-                    continue
-                elif gate_type != IC_ID:
-                    gate_list.append(item)
-                else:
-                    for pin in item.outputs:
-                        gate_list.append(pin)
+            gate_list = [item for item in self.objlist[OUTPUT_PIN_ID] if item is not None]
 
         raw_rows = self.table(variables, gate_list)
 

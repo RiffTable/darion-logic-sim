@@ -287,16 +287,10 @@ cdef class Circuit:
         if outputs is not None:
             gate_list = outputs
         else:
-            for item in self.get_components():
-                gate_type = item.id
-                if gate_type == VARIABLE_ID:
-                    continue
-                elif gate_type != IC_ID:
+            for item in self.objlist[OUTPUT_PIN_ID]:
+                if item is not None:
                     gate_list.append(item)
-                else:
-                    ic = <IC>item
-                    for pin in ic.outputs:
-                        gate_list.append(pin)
+
 
         n = len(variables)
         cdef int rows_count = 1 << n
@@ -883,9 +877,9 @@ cdef class Circuit:
         for variable in varlist:
             # set output of variable to its value
             # run the propagation from variable
-            info = &self.gate_infolist[variable.location]
+            info = &self.gate_infolist[variable]
             info.output = info.value
-            self.propagate(variable.location)
+            self.propagate(variable)
 
     cpdef void reset(self):
         '''reset the circuit's items to unknown value'''

@@ -150,7 +150,11 @@ async def profile_cache():
         print(" -> Simulating temporal locality: sequential RAM inside sub-circuits,")
         print("    but fragmented wire routing between major components.")
         
-    print("Metric: 'Evals/sec' = Active logic evaluations processed per second.\n")
+    print("Metric: 'Evals/sec' = Active logic evaluations processed per second.")
+    print("        This measures the raw propagation speed. Darion only evaluates gates whose")
+    print("        inputs have actually changed. To ensure we are measuring memory subsystem")
+    print("        limits rather than logic skipping, this test uses a gate-chain where every")
+    print("        toggle forces every gate in the chain to flip, yielding 100% active evaluations.\n")
 
     # Geometric Progression ~15% growth
     test_sizes = []
@@ -254,7 +258,7 @@ async def profile_cache():
 
         results.append({
             "size": size, "ns_per_eval": ns_per_eval, "evals_per_sec": evals_per_sec,
-            "mem_mb": current_ram
+            "mem_mb": current_ram, "zone": getattr(profile_cache, "current_zone", 1)
         })
 
         print(f"{size:>12,} | {current_ram:>7.1f} MB | {ns_per_eval:>7.2f} ns | {evals_per_sec/1_000_000:>6.2f} M/s | {degradation_pct:>9.1f}% | {cliff_indicator}{visual_bar} {tag}")
@@ -274,27 +278,50 @@ async def profile_cache():
 
     gc.enable()
     print("-" * 88)
-    print("======================================================================")
+    print("========================================================================================")
     print("  FINAL CACHE INTELLIGENCE REPORT (HARDWARE AGNOSTIC)")
-    print("======================================================================")
-    print(f"-> BASELINE L1/L2 SPEED: {1_000 / baseline_ns if baseline_ns else 0:.2f} M evals/sec ({baseline_ns:.2f} ns/eval)")
-    print("")
-    print("--- DYNAMICALLY DETECTED HARDWARE BOUNDARIES ---")
+    print("========================================================================================")
+    print(f"BACKEND: {'Engine (Python)' if args.engine else 'Reactor (Cython)'}")
+    print(f"BASELINE CORE SPEED: {1_000 / baseline_ns if baseline_ns else 0:.2f} M evals/sec ({baseline_ns:.2f} ns/eval)\n")
+    print("--- DYNAMICALLY DETECTED HARDWARE PROTOCOLS & RAM BOUNDARIES ---")
+    print("The Cache Profiler measures latency spikes to identify the physical constraints of")
+    print("your processor's memory hierarchy. As the active simulation size exceeds cache tiers,")
+    print("the time required to fetch the next gate from memory skyrockets.\n")
     
-    z1_max = profile_cache.zone_limits.get(1, 0)
-    print(f"-> TIER 1 (Core Cache):  Up to {z1_max:,} active gates")
-    print("                         Absolute peak hardware throughput.")
-    
-    z2_max = profile_cache.zone_limits.get(2, 0)
-    if z2_max > z1_max:
-        print(f"-> TIER 2 (Last Level):  {z1_max + 1:,} to {z2_max:,} active gates")
-        print("                         Evicted from Core Cache. Running in shared cache or unified memory.")
-    
-    z3_max = profile_cache.zone_limits.get(3, 0)
-    if z3_max > z2_max:
-        print(f"-> TIER 3 (Main RAM):    {z2_max + 1:,}+ active gates")
-        print("                         CPU is bounded by memory bus speed.")
-    print("======================================================================")
+    def print_zone_stats(z_num, z_name, z_desc):
+        z_results = [r for r in results if r['zone'] == z_num]
+        if not z_results:
+            return
+        z_sizes = [r['size'] for r in z_results]
+        z_ns = [r['ns_per_eval'] for r in z_results]
+        avg_ns = sum(z_ns) / len(z_ns)
+        min_ns, max_ns = min(z_ns), max(z_ns)
+        
+        print(f"-> TIER {z_num} ({z_name})")
+        print(f"   Size Range:   {min(z_sizes):,} to {max(z_sizes):,} active gates")
+        print(f"   Performance:  Avg: {avg_ns:.2f} ns/eval  [Min: {min_ns:.2f}  Max: {max_ns:.2f}]")
+        print(f"   Implication:  {z_desc}\n")
+
+    print_zone_stats(1, "Core Cache (L1/L2)", 
+                     "Absolute peak hardware throughput. The entire active working set fits\n"
+                     "                 within the CPU's fastest, closest memory registers.")
+                     
+    if any(r['zone'] == 2 for r in results):
+        print_zone_stats(2, "Last Level Shared Cache (L3)", 
+                         "Evicted from Core Cache. Data is being fetched from the slower,\n"
+                         "                 shared L3 cache block. Noticeable latency step-up.")
+
+    if any(r['zone'] == 3 for r in results):
+        print_zone_stats(3, "Main Memory (RAM BOUND)", 
+                         "The simulation has overflowed the CPU cache entirely. Logic\n"
+                         "                 propagation is now severely bottlenecked by the main\n"
+                         "                 system memory bus bandwidth, not the processor speed.")
+
+    if args.optimize:
+        print("Note: '--optimize' was enabled, pre-sorting gates topologically.")
+        if profile_cache.current_zone < 3:
+            print("       This dramatically mitigated Main RAM latency hits via hardware prefetching.")
+    print("========================================================================================")
 
 class _Tee:
     """Mirror stdout to a log file simultaneously."""
