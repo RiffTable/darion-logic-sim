@@ -13,7 +13,7 @@ from .catalog import (
     InputItem, OutputItem,
     GateItem, ICitem
 )
-from .commands import AddCompCommand, DeleteCommand, ConnectCommand, PasteCommand, MoveCommand, SetInputCountCommand, SwapWireCommand
+from .commands import AddCompCommand, DeleteCommand, ConnectCommand, PasteCommand, MoveCommand, SetInputCountCommand, SwapWireCommand, DisconnectWireCommand
 
 
 
@@ -429,14 +429,16 @@ class CircuitScene(QGraphicsScene):
         
         self._last_mouse_pos = mousepos
         return super().mouseMoveEvent(event)
-    
+
+
+
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
         item = self.itemAt(event.scenePos(), QTransform())
         btn = event.button()
         LMB_normal = self.checkState(EditorState.NORMAL) and btn == MouseBtn.LeftButton
 
         if LMB_normal and isinstance(item, OutputPinItem):
-            # Wiring: Start!
+            # Start Wire Connection
             self.setState(EditorState.WIRING)
             w = item.getWire()
             if w is None:
@@ -446,12 +448,7 @@ class CircuitScene(QGraphicsScene):
             else:
                 self.ghostWire = w
                 self.ghostWire.addSupply(self.ghostPin)
-        elif LMB_normal and isinstance(item, InputPinItem) and item.hasWire():
-            from .commands import DisconnectWireCommand
-            t_wire = item.getWire()
-            cmd = DisconnectWireCommand(self, t_wire, item)
-            self.undo_stack.push(cmd)
-            
+        
         super().mousePressEvent(event)
 
         if LMB_normal:
@@ -460,18 +457,20 @@ class CircuitScene(QGraphicsScene):
                 comp: comp.pos() for comp in self.selectedItems() if isinstance(comp, CompItem)
             }
 
+
+
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
         # This event only takes place after the CircuitView handles its!
         # RMB drag has been handled
         scenepos = event.scenePos()
         btn = event.button()
-        target = self.itemAt(scenepos, QTransform())
+        item = self.itemAt(scenepos, QTransform())
 
         if self.checkState(EditorState.WIRING):
             # Wiring: Finish?
             if btn == MouseBtn.LeftButton:
                 self.finishWiring(
-                    target,
+                    item,
                     bool(event.modifiers() & KeyMod.ShiftModifier)
                 )
 
@@ -480,6 +479,15 @@ class CircuitScene(QGraphicsScene):
                 self.skipWiring()
                 event.accept()
                 return
+        
+        elif self.checkState(EditorState.NORMAL):
+            # Cut wire supply
+            if btn == MouseBtn.RightButton and isinstance(item, InputPinItem) and item.hasWire():
+                # RMB click; Dragging RMB doesn't trigger it
+                delta = scenepos - event.buttonDownScenePos(MouseBtn.RightButton)
+                if delta.manhattanLength() > QGuiApplication.styleHints().startDragDistance():
+                    cmd = DisconnectWireCommand(self, item)
+                    self.undo_stack.push(cmd)
         
         super().mouseReleaseEvent(event)
 
@@ -495,7 +503,9 @@ class CircuitScene(QGraphicsScene):
                 self.undo_stack.push(cmd)
 
             self._drag_start_positions.clear()
-    
+
+
+
     def keyPressEvent(self, event: QKeyEvent):
         key = event.key()
         mod = event.modifiers()

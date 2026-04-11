@@ -163,7 +163,7 @@ class ConnectCommand(QUndoCommand):
         
         if g_wire not in scene.wires:
             scene.wires.append(g_wire)
-            if g_wire.scene() != scene:
+            if g_wire.scene() is not scene:
                 scene.addItem(g_wire)
             self.added_to_scene = True
             
@@ -394,7 +394,7 @@ class SwapWireCommand(QUndoCommand):
         
         if g_wire not in scene.wires:
             scene.wires.append(g_wire)
-            if g_wire.scene() != scene:
+            if g_wire.scene() is not scene:
                 scene.addItem(g_wire)
             self.added_to_scene = True
 
@@ -424,7 +424,7 @@ class SwapWireCommand(QUndoCommand):
             t_wire.source.setWire(t_wire)
             if t_wire not in scene.wires:
                 scene.wires.append(t_wire)
-            if t_wire.scene() != scene:
+            if t_wire.scene() is not scene:
                 scene.addItem(t_wire)
 
         g_wire.updateShape()
@@ -440,11 +440,11 @@ class SwapWireCommand(QUndoCommand):
             self.added_to_scene = False
 
 class DisconnectWireCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", t_wire: WireItem, target: InputPinItem):
+    def __init__(self, scene: "CircuitScene", target: InputPinItem):
         super().__init__()
         self.scene = scene
-        self.t_wire = t_wire
         self.target = target
+        self.t_wire = cast(WireItem, target.getWire())
 
     def redo(self):
         t_wire = self.t_wire
@@ -475,14 +475,13 @@ class DisconnectWireCommand(QUndoCommand):
         
         # Logical Reconnect
         if target.logical:
-            from core.LogicCore import logic
             t_wire.logicalConnect(t_wire.source, target)
             
         if len(t_wire.supplies) == 1:
             t_wire.source.setWire(t_wire)
             if t_wire not in scene.wires:
                 scene.wires.append(t_wire)
-            if t_wire.scene() != scene:
+            if t_wire.scene() is not scene:
                 scene.addItem(t_wire)
                 
         t_wire.updateShape()

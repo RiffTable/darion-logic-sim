@@ -103,24 +103,24 @@ class CircuitView(QGraphicsView):
         angleDelta = event.angleDelta()
         dev = event.device()
 
-        # Check if Touchpad
-        if dev and dev.type() == QInputDevice.DeviceType.TouchPad:
-            self.panCanvas(pixelDelta)
-            return
 
-        # Check if Mouse Wheel
-        if dev and dev.type() == QInputDevice.DeviceType.Mouse:
-            # angleDelta.y() equals to +/- 120 for mouse scroll, never below
+        # Laptop Touchpad
+        if not pixelDelta.isNull() or (dev and dev.type() == QInputDevice.DeviceType.TouchPad):
+            self.panCanvas(event.pixelDelta())
+            event.accept(); return
+        
+        # Desktop Mouse
+        else:
             dy = angleDelta.y()
-            if abs(dy) <= 10: return
+            if abs(dy) <= 10:
+                return super().wheelEvent(event)
 
-            if self.scroll_inverted:
-                dy = -dy
-                
-            factor = 1.25 if dy > 0 else 0.8
+            # Invert scroll direction if needed
+            if self.scroll_inverted: dy = -dy
 
             self.applyZoom(
-                event.position().toPoint(), factor
+                event.position().toPoint(),
+                1.25 if dy > 0 else 0.8
             )
     
     def viewportEvent(self, event: QEvent):
@@ -160,7 +160,7 @@ class CircuitView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
     
     def applyZoom(self, mousePos: QPoint, factor: float):
-        minZ = 0.5
+        minZ = 0.2
         maxZ = 2.0
 
         # Tracking data

@@ -20,7 +20,8 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QGuiApplication, QInputDevice, QAction, QActionGroup, QKeySequence, QCursor,
     QPalette, QColor, QFont, QPainter, QPen, QBrush, QPainterPath, QTransform,
-    QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent, QUndoCommand, QUndoStack
+    QMouseEvent, QKeyEvent, QWheelEvent, QNativeGestureEvent, QInputEvent,
+    QUndoCommand, QUndoStack
 )
 
 import PySide6.QtAsyncio as QtAsyncio
