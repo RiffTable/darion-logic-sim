@@ -8,7 +8,6 @@ from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
 
-from engine.Const import get_MODE, set_MODE, SIMULATE, VARIABLE_ID, IC_ID
 import editor.theme as theme
 import editor.actions as Actions
 from editor.styles import Val
@@ -144,7 +143,7 @@ class AppWindow(QMainWindow):
         QSettings().setValue("main_window/geometry", self.saveGeometry())
         self.update_props_position()
 
-    def _show_output(self, title: str, func, dialog_class, returns_string: bool = False):
+    def _show_output(self, title: str, func, dialog_class: type, returns_string: bool = False):
         if returns_string:
             # For functions that return a string (like truthTable)
             text = func()
@@ -165,14 +164,16 @@ class AppWindow(QMainWindow):
             QMessageBox.information(self, "No Data", f"No {title.lower()} available.")
 
     def show_truth_table(self):
-        mode = get_MODE()
-        if mode != SIMULATE:
-            set_MODE(SIMULATE)
-            logic.simulate(SIMULATE)
+        # Remember Simulation Mode
+        mode = Const.get_MODE()
+        if mode != Const.SIMULATE:
+            logic.simulate(Const.SIMULATE)
         
+        # Show Table
         self._show_output("Truth Table", logic.truthTable, TruthTableDialog, returns_string=True)
         
-        set_MODE(mode)
+        # Restore Simulation Mode
+        Const.set_MODE(mode)
 
     def show_diagnose(self):
         self._show_output("Diagnosis", logic.diagnose, DiagnoseDialog, returns_string=False)
