@@ -7,7 +7,7 @@ import sysconfig
 
 # --- CONFIGURATION ---
 # Adjusted for running from scripts/ directory
-source_dir = "../reactor"
+source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reactor"))
 source_files = glob.glob(os.path.join(source_dir, "*.pyx"))
 
 extensions = []
@@ -32,7 +32,7 @@ for source in source_files:
         sources=[source],
         language=language,
         include_dirs=[source_dir], # Make sure it finds headers in reactor/
-        extra_compile_args=["-O3", "-march=native"],
+        extra_compile_args=["-O3"] if sys.platform == "darwin" else ["-O3", "-march=native"], # Building with "-march=native" while targeting multiple architectures fails on Darwin.
         extra_link_args=link_args, 
     )
     extensions.append(ext)
@@ -47,7 +47,7 @@ setup(
 print("\n--- Cleaning up ---")
 generated_suffix = sysconfig.get_config_var("EXT_SUFFIX") or (".pyd" if sys.platform == "win32" else ".so")
 target_suffix = ".pyd" if sys.platform == "win32" else ".so"
-target_folder = "../reactor"  # Keep compiled binaries in reactor folder
+target_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reactor"))  # Keep compiled binaries in reactor folder
 
 # Move the built files into reactor/
 # They might be built in the current directory (scripts/) due to inplace build
