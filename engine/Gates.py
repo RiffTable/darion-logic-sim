@@ -209,18 +209,22 @@ class Gate:
     def full_data(self) -> list:
         return [
             self.custom_name,
-            self.code,
+            self.id,
+            self.location,
             self.inputlimit,
-            self.value if self.id==VARIABLE_ID else [s.code if s else ('X', 'X') for s in self.sources],
+            self.value if self.id==VARIABLE_ID else [s.location if s else -1 for s in self.sources],
         ]
+
 
     def partial_data(self) -> list:
         return [
             self.custom_name,
-            self.code,
+            self.id,
+            self.location,
             self.inputlimit,
-            self.value if self.id==VARIABLE_ID else [s.code if s and s.mark else ('X', 'X') for s in self.sources],
+            self.value if self.id==VARIABLE_ID else [s.location if s and s.mark else -1 for s in self.sources],
         ]
+
 
     def decode(self, code: list) -> tuple:
         if len(code) == 2:
@@ -233,9 +237,10 @@ class Gate:
             self.value = dictionary[VALUE]
         else:
             self.setlimits(dictionary[INPUTLIMIT])
-            for index, source in enumerate(dictionary[SOURCES]):
-                if source[0] != 'X':
-                    self.connect(pseudo[self.decode(source)], index)
+            for index, source_loc in enumerate(dictionary[SOURCES]):
+                if source_loc != -1:
+                    self.connect(pseudo[source_loc], index)
+
 
     def load_to_cluster(self, cluster: list):
         cluster.append(self)

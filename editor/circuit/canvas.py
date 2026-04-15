@@ -581,11 +581,12 @@ class CircuitScene(QGraphicsScene):
         for wire in self.wires.copy():
             self.removeWire(wire)
         for comp in self.comps.copy():
-            self.removeComp(comp)
-        
+            self.removeComp(comp)        
         self.wires  = []
         self.comps  = []
         self.iclist = []
+        self.comp_registry=[]
+        logic.clearcircuit()
         self.undo_stack.setClean()
     
     def serialize(self) -> dict:

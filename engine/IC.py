@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from Gates import Gate, Profile, pop, hide_profile, reveal_profile
-from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, NAME, CUSTOM_NAME, CODE, COMPONENTS, MAP, INPUTLIMIT, SOURCES, TAG, DESCRIPTION
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, CUSTOM_NAME, ID, LOCATION, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE, TAG, DESCRIPTION
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
@@ -69,74 +69,58 @@ class IC:
 
     def configure(self, dictionary: list):
         """Set up the IC from a saved plan."""
-        pseudo = {}
-        pseudo[('X', 'X')] = None
+        pseudo = {-1: None}   # location int -> Gate object
         self.custom_name = dictionary[CUSTOM_NAME]
         self.map = dictionary[MAP]
-        self.tag=dictionary[TAG]
-        self.description=dictionary[DESCRIPTION]
+        self.tag = dictionary[TAG]
+        self.description = dictionary[DESCRIPTION]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
-    def decode(self, code: list) -> tuple:
-        if len(code) == 2:
-            return tuple(code)
-        return (code[0], code[1], self.decode(code[2]))
-
     def load_components(self, dictionary: list, pseudo: dict):
-        """Instantiate components from the plan."""
-        for comp_code in dictionary[COMPONENTS]:
-            gate = self.getcomponent(comp_code[0])
-            pseudo[self.decode(comp_code)] = gate
-
-   
-
-    def full_data(self) -> list:
-        dictionary = [            
-            self.custom_name,
-            self.code,
-            [],
-            [],
-            self.tag,
-            self.description
-        ]
-        for i in self.inputs+self.outputs+self.internal:
-            dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.full_data())
-        return dictionary
-
-    def partial_data(self):
-        dictionary=[
-            self.custom_name,
-            self.code,
-            [],
-            [],
-            self.tag,
-            self.description
-        ]
-        for i in self.inputs+self.outputs+self.internal:
-            dictionary[COMPONENTS].append(i.code)
-            dictionary[MAP].append(i.partial_data())
-        return dictionary
+        """Instantiate components from the plan (first pass)."""
+        for comp_data in dictionary[MAP]:
+            gate = self.getcomponent(comp_data[ID])
+            pseudo[comp_data[LOCATION]] = gate   # old location -> new gate object
 
     def clone(self, pseudo: dict):
-        """Wire up all sub-components."""
-        for i in self.map:
-            code = self.decode(i[CODE])
-            gate = pseudo[code]
-            gate.clone(i, pseudo)
-
-    def load_to_cluster(self, cluster: list):
-        for i in self.inputs+self.outputs+self.internal:
-            cluster.append(i)
-            i.mark=True   
+        """Wire up all sub-components (second pass)."""
+        for info in self.map:
+            gate = pseudo[info[LOCATION]]
+            gate.clone(info, pseudo)
 
     def implement(self, pseudo: dict):
-        """Build connections from the map (paste path)."""
-        for i in self.map:
-            code = self.decode(i[CODE])
-            gate = pseudo[code]
-            gate.clone(i, pseudo)
+        """Build connections from the map (paste / generate path)."""
+        for info in self.map:
+            gate = pseudo[info[LOCATION]]
+            gate.clone(info, pseudo)
+
+    def full_data(self) -> list:
+        # IC row: [custom_name, IC_ID, code, tag, map, description]
+        return [
+            self.custom_name,
+            IC_ID,
+            self.code,
+            self.tag,
+            [i.full_data() for i in self.inputs + self.outputs + self.internal],
+            self.description,
+        ]
+
+    def partial_data(self):
+        # IC row: [custom_name, IC_ID, code, tag, map, description]
+        return [
+            self.custom_name,
+            IC_ID,
+            self.code,
+            self.tag,
+            [i.partial_data() for i in self.inputs + self.outputs + self.internal],
+            self.description,
+        ]
+
+    def load_to_cluster(self, cluster: list):
+        for i in self.inputs + self.outputs + self.internal:
+            cluster.append(i)
+            i.mark = True
 
     def hide(self):
         """Disconnect output pins from targets, input pins from sources."""

@@ -26,17 +26,23 @@ OUTPUT_PIN_ID = 10
 IC_ID = 11
 TOTAL = 12
 
-# List-based serialization indices
-NAME = -1
-CUSTOM_NAME = NAME+1
-CODE = NAME+2
-COMPONENTS = NAME+3
-INPUTLIMIT = COMPONENTS
-SOURCES = NAME+4
-VALUE = SOURCES
-MAP = SOURCES
-TAG = SOURCES+1
-DESCRIPTION = SOURCES+2
+# List-based serialization indices  (reactor-compatible)
+# Gate / IC row layout: [custom_name, id, location, inputlimit, sources_or_value]
+CUSTOM_NAME = 0
+ID          = 1
+LOCATION    = 2
+INPUTLIMIT  = 3
+SOURCES     = 4
+VALUE       = SOURCES
+
+# IC row layout: [custom_name, IC_ID, code, tag, map, description]
+MAP         = 4
+TAG         = 3
+DESCRIPTION = 5
+
+# Legacy aliases kept so nothing else breaks
+CODE        = 2
+COMPONENTS  = MAP
 
 MODE = DESIGN
 DEBUG= True

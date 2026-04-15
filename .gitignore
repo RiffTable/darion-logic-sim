@@ -29,4 +29,7 @@ dist/
 *dist
 .nuitka*
 blazing_builds/
+reactor/*.html
+reactor/*c
+tests/ISCAS85/obj_dir
 

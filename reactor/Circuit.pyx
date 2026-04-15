@@ -749,7 +749,7 @@ cdef class Circuit:
         my_ic.tag = tag
         my_ic.description = description
         with open(location, 'wb') as file:
-            file.write(orjson.dumps(my_ic.full_data()))
+            file.write(orjson.dumps(my_ic.partial_data()))
         '''ic building process corrupts gates so i need to clear and rebuild'''
         self.clearcircuit()
 

@@ -358,40 +358,44 @@ class Circuit:
             return tuple(code)
         return (code[0], code[1], self.decode(code[2]))
     def generate(self, circuit):
-        pseudo = {}
-        varlist=[]
-        pseudo[('X', 'X')] = None
-        for i in circuit:
-            code = self.decode(i[CODE])
-            gate = self.getcomponent(code[0])
-            if gate.id == IC_ID:
-                gate.custom_name = i[CUSTOM_NAME]
-                gate.map = i[MAP]
-                gate.tag = i[TAG]
-                gate.description = i[DESCRIPTION]
-                gate.load_components(i, pseudo)
-            if gate.id==VARIABLE_ID:
-                gate.output = UNKNOWN
-                varlist.append(gate)
-            pseudo[code] = gate
-        
-        for gate_dict in circuit:
-            code = self.decode(gate_dict[CODE])
-            gate = pseudo[code]
-            if gate.id == IC_ID:
-                gate.clone(pseudo)
-                self.counter += gate.counter
+        pseudo = {-1: None}   # location int -> Gate object  (reactor-compatible)
+        varlist = []
+        ic_list = []
+        # --- first pass: allocate gates and register locations ---
+        for info in circuit:
+            if info[ID] == IC_ID:
+                gate = self.getcomponent(IC_ID)
+                gate.custom_name = info[CUSTOM_NAME]
+                gate.map = info[MAP]
+                gate.tag = info[TAG]
+                gate.description = info[DESCRIPTION]
+                gate.load_components(info, pseudo)
+                ic_list.append(gate)
             else:
-                gate.clone(gate_dict, pseudo)
-        if get_MODE()!=DESIGN:
+                gate = self.getcomponent(info[ID])
+                if gate.id == VARIABLE_ID:
+                    gate.output = UNKNOWN
+                    varlist.append(gate)
+                pseudo[info[LOCATION]] = gate   # key = original location int
+        # --- second pass: wire gates ---
+        for info in circuit:
+            if info[ID] != IC_ID:
+                gate = pseudo[info[LOCATION]]
+                gate.clone(info, pseudo)
+        # --- third pass: implement IC connections ---
+        for ic in ic_list:
+            ic.implement(pseudo)
+            self.counter += ic.counter
+        if get_MODE() != DESIGN:
             self.custom_simulate(varlist)
 
     def readfromjson(self, location: str):
         with open(location, 'rb') as file:
             circuit = orjson.loads(file.read())
-        if isinstance(circuit, dict):
+        if not isinstance(circuit, list):
             return
         self.generate(circuit)
+
 
     def transfer_info(self,gate:Gate, id:int):
         if id>=IC_ID or id<0:
@@ -497,15 +501,15 @@ class Circuit:
         my_ic.tag = tag
         my_ic.description = description
         with open(location, 'wb') as file:
-            file.write(orjson.dumps(my_ic.full_data()))        
+            file.write(orjson.dumps(my_ic.partial_data()))        
         self.clearcircuit() 
 
     
 
     def get_ic(self, location: str):
         with open(location, 'rb') as file:
-             crct= orjson.loads(file.read())
-        if isinstance(crct[COMPONENTS], list):
+            crct = orjson.loads(file.read())
+        if isinstance(crct[MAP], list):
             return crct
         else:
             print('Cannot Convert to IC')
@@ -549,36 +553,41 @@ class Circuit:
 
     def paste(self):
         circuit = self.copydata
-        pseudo = {}
-        pseudo[('X', 'X')] = None
-        varlist=[]
+        pseudo = {-1: None}   # location int -> Gate object
+        varlist = []
         new_items = []
-        for i in circuit:
-            code = self.decode(i[CODE])
-            gate = self.getcomponent(code[0])
-            new_items.append(gate)
-            if gate.id == IC_ID:
-                gate.custom_name = i[CUSTOM_NAME]
-                gate.map = i[MAP]
-                gate.tag = i[TAG]
-                gate.description = i[DESCRIPTION]
-                gate.load_components(i, pseudo)
-            if gate.id==VARIABLE_ID:
-                gate.value = UNKNOWN
-                varlist.append(gate)
-            pseudo[code] = gate
-
-        for gate_dict in circuit:
-            code = self.decode(gate_dict[CODE])
-            gate = pseudo[code]
-            if gate.id == IC_ID:
-                gate.implement(pseudo)
-                self.counter += gate.counter
-            elif gate:
-                gate.clone(gate_dict, pseudo)
-        if get_MODE()!=DESIGN:
+        ic_list = []
+        # --- first pass: allocate ---
+        for info in circuit:
+            if info[ID] == IC_ID:
+                gate = self.getcomponent(IC_ID)
+                gate.custom_name = info[CUSTOM_NAME]
+                gate.map = info[MAP]
+                gate.tag = info[TAG]
+                gate.description = info[DESCRIPTION]
+                gate.load_components(info, pseudo)
+                ic_list.append(gate)
+                new_items.append(gate)
+            else:
+                gate = self.getcomponent(info[ID])
+                if gate.id == VARIABLE_ID:
+                    gate.value = UNKNOWN
+                    varlist.append(gate)
+                pseudo[info[LOCATION]] = gate
+                new_items.append(gate)
+        # --- second pass: wire ---
+        for info in circuit:
+            if info[ID] != IC_ID:
+                gate = pseudo[info[LOCATION]]
+                gate.clone(info, pseudo)
+        # --- third pass: implement ICs ---
+        for ic in ic_list:
+            ic.implement(pseudo)
+            self.counter += ic.counter
+        if get_MODE() != DESIGN:
             self.custom_simulate(varlist)
         return new_items
+
 
     def simulate(self, Mode: int):
         """Run the simulation."""
