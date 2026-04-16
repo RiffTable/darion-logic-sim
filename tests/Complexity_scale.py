@@ -669,74 +669,7 @@ def build_level_21_alu_slice(circuit, target_gates, VARIABLE_ID, NOT_ID, XOR_ID,
 # =====================================================================
 
 LEVEL_DESCRIPTIONS = {
-    "L0":  ("Linear Chain",
-            "A single inverter chain -- every gate depends solely on the previous one. "
-            "Zero parallelism, one critical path. Measures pure sequential evaluation latency."),
-    "L1":  ("Wide Fan-Out",
-            "One source fans into many independent inverter chains running in parallel. "
-            "Tests the scheduler's ability to dispatch many ready-gates simultaneously."),
-    "L2":  ("Binary Tree",
-            "Balanced binary fan-out tree: 2 children per node, O(log N) depth. "
-            "Reveals how well the engine exploits tree-level parallelism."),
-    "L3":  ("Memory Maze",
-            "Topology identical to L0 but gate objects are shuffled in memory before wiring. "
-            "Isolates the cost of pointer-chasing through fragmented cache lines."),
-    "L4":  ("Glitch Avalanche",
-            "Half chain + N XOR gates each tied to the chain head AND the master. One toggle "
-            "floods the queue with O(N) simultaneous glitch events -- tests event-queue saturation."),
-    "L5":  ("Queue Thrash O(N^2)",
-            "XOR chain where every gate also depends on the very first master node. A single toggle "
-            "cascades O(N^2) re-evaluations -- absolute worst-case queue pressure."),
-    "L6":  ("Sparse Fan-In",
-            "Multiple independent sources reduced by a balanced XOR tree to one output. "
-            "All sources change at once -- measures throughput of wide simultaneous fan-in reduction."),
-    "L7":  ("Dense Braid",
-            "Four parallel AND-gate lanes where each gate also reads from the adjacent lane (wrap-around). "
-            "Maximises wire density; models a tightly interconnected datapath strip."),
-    "L8":  ("Diamond (Exp/Con)",
-            "Expands into a binary fan-out tree then contracts leaf-pairs via AND reduction. "
-            "The hourglass shape exercises both the expand and merge phases of a pipeline."),
-    "L9":  ("Hamming(7,4) ECC",
-            "Parity-bit computation of a Hamming(7,4) error-correcting code. "
-            "Three XOR chains model the syndrome logic found in DRAM ECC controllers."),
-    "L10": ("Ripple Carry Adder",
-            "N cascaded full-adder cells (2x XOR, 2x AND, 1x OR each). Carry must ripple "
-            "through all N stages before the final sum is valid -- the classic sequential bottleneck."),
-    "L11": ("Priority Encoder",
-            "OR-reduction tree: master fans out (true + NOT complement) to N/2 leaf OR gates that all "
-            "fire simultaneously on each toggle. O(N) evals cascade through O(log N) levels -- "
-            "models 'any-bit-set' aggregation in interrupt controllers and bus arbiters."),
-    "L12": ("Wallace Tree",
-            "3-2 full-adder compressor reduction: master + NOT(master) feed all N leaf inputs so "
-            "every compressor cell fires on each toggle. Irregular shrinking width + mixed "
-            "XOR/AND/OR pattern mirrors hardware multiplier internals."),
-    "L13": ("SR Latch Farm",
-            "Banks of SR latches built from OR+NOT pairs with partial feedback paths. "
-            "Models memory-cell arrays; tests graceful degradation under cyclic topology."),
-    "L14": ("Sparse Random DAG",
-            "Randomly seeded DAG (seed=0xDEADBEEF) with backward-only random connections and "
-            "uniform gate-type mix. Thrashes CPU caches and branch predictors -- a synthesised netlist worst case."),
-    "L15": ("Decoder Tree",
-            "Binary address decoder: N address bits produce 2^N AND minterms. Every address-bit "
-            "fans out to half the outputs -- models ROM/SRAM address decode logic. Capped at 10-bit."),
-    "L16": ("CLA 4-bit",
-            "Carry Lookahead Adder: computes propagate (P=A^B) and generate (G=A&B) signals then "
-            "evaluates all carries in parallel via AND/OR. Eliminates the L10 ripple bottleneck."),
-    "L17": ("D-Latch Array",
-            "Chain of D-latches where each Q feeds the next latch's 'previous state': "
-            "Q=(D&En)|(Q_prev&~En). Models a shift-register or pipelined register file."),
-    "L18": ("Barrel Shifter",
-            "Three mux-stages (shift-by-1/2/4) of 8 two-to-one muxes each. "
-            "Regular structure with shared enable signals -- models the shift unit inside an ALU."),
-    "L19": ("CRC-8 LFSR",
-            "CRC-8/MAXIM linear feedback shift register with XOR taps at bit positions 4 and 5. "
-            "Simulates hardware error-detection logic in UART, SPI, and storage interfaces."),
-    "L20": ("8-bit Comparator",
-            "XNORs corresponding bits of two 8-bit words then AND-reduces all XNORs to produce A==B. "
-            "Models equality-check paths in address comparators and content-addressable memory (CAM)."),
-    "L21": ("ALU Slice",
-            "1-bit ALU slice x N: computes AND/OR/XOR/ADD in parallel then muxes the result via a "
-            "2-bit opcode. Stacking N slices models a full N-bit RISC processor datapath."),
+   
 }
 
 # =====================================================================

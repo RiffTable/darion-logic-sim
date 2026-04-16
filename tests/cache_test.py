@@ -1,6 +1,7 @@
 """
-DARION LOGIC SIM - ADVANCED HARDWARE CACHE PROFILER
-Dynamically detects hardware boundaries using latency derivatives.
+DARION LOGIC SIM - HIGH-INTEGRITY CACHE & OPTIMIZATION PROFILER
+Compares unoptimized fragmented memory vs. topologically sorted memory in a single pass.
+Features dynamic cliff detection and tests both Worst-Case and Real-World fragmentation.
 """
 import asyncio
 import time
@@ -11,10 +12,8 @@ import random
 import argparse
 import platform
 import subprocess
-import io
+
 # Force the standard output to use UTF-8
-# Force the standard output to use UTF-8
-import sys
 if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 try:
@@ -23,6 +22,7 @@ try:
         ctypes.windll.kernel32.SetConsoleOutputCP(65001)
 except Exception:
     pass
+
 try:
     import psutil
     process = psutil.Process(os.getpid())
@@ -30,12 +30,8 @@ try:
 except ImportError:
     HAS_PSUTIL = False
 
-parser = argparse.ArgumentParser(description='Run Cache Profiler')
+parser = argparse.ArgumentParser(description='Run High-Integrity Cache Profiler Comparison')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
-parser.add_argument('--mode', type=str, choices=['linear', 'realistic', 'chaotic'], default='realistic',
-                    help="Memory fragmentation mode (default: realistic)")
-parser.add_argument('--optimize', action='store_true',
-                    help='Run optimize() benchmark after the cache profile (chaotic circuit, before/after A/B test)')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -47,7 +43,7 @@ else:
 
 sys.path.append(os.path.join(root_dir, 'control'))
 
-use_reactor = not args.engine  # Reactor (Cython) is default; --engine switches to Python
+use_reactor = not args.engine
 
 if use_reactor:
     print("Using Reactor (Cython) Backend")
@@ -88,7 +84,8 @@ def get_cpu_info():
         pass
     return cpu_name, l2, l3
 
-def build_chain(active_size, mode='realistic'):
+def build_chain(active_size, mode='chaotic'):
+    """Builds a chain with configurable memory allocation modes."""
     c = Circuit()
     first_gate = c.getcomponent(Const.VARIABLE_ID)
     
@@ -111,12 +108,11 @@ def build_chain(active_size, mode='realistic'):
         # Absolute Worst Case (100% Cache Misses)
         random.shuffle(active_gates)
     elif mode == 'realistic':
-        # Real-World Workflow: Users build in discrete sub-circuits (e.g., 64-gate chunks).
-        # Memory is sequential inside the chunk, but jumps randomly between chunks.
+        # Real-World Workflow: Sequential inside sub-circuits, fragmented routing between them
         chunk_size = 64
         chunks = [active_gates[i:i + chunk_size] for i in range(0, len(active_gates), chunk_size)]
-        random.shuffle(chunks) # Shuffle the sub-circuits
-        active_gates = [gate for chunk in chunks for gate in chunk] # Flatten back out
+        random.shuffle(chunks)
+        active_gates = [gate for chunk in chunks for gate in chunk]
 
     # Wire Gates
     prev_gate = first_gate
@@ -136,192 +132,131 @@ def get_ram_mb():
         return process.memory_info().rss / (1024 * 1024)
     return 0.0
 
-async def profile_cache():
-    cpu_name, l2_cache, l3_cache = get_cpu_info()
-    
-    print("======================================================================")
-    print("  DARION LOGIC SIM: ADVANCED CACHE PROFILER (HARDWARE AGNOSTIC)")
-    print("======================================================================")
-    print(f"CPU DETECTED: {cpu_name}")
-    print(f"OS CACHE LIMITS: L2: {l2_cache} | L3: {l3_cache}")
-    print(f"Memory Mode: {args.mode.upper()}")
-    
-    if args.mode == 'realistic':
-        print(" -> Simulating temporal locality: sequential RAM inside sub-circuits,")
-        print("    but fragmented wire routing between major components.")
-        
-    print("Metric: 'Evals/sec' = Active logic evaluations processed per second.")
-    print("        This measures the raw propagation speed. Darion only evaluates gates whose")
-    print("        inputs have actually changed. To ensure we are measuring memory subsystem")
-    print("        limits rather than logic skipping, this test uses a gate-chain where every")
-    print("        toggle forces every gate in the chain to flip, yielding 100% active evaluations.\n")
+def benchmark_pass(c, start_node, size, iterations):
+    """Runs a benchmark pass on the current circuit state."""
+    # Warmup
+    for _ in range(3):
+        c.toggle(start_node, Const.HIGH)
+        c.toggle(start_node, Const.LOW)
 
-    # Geometric Progression ~15% growth
+    best_time_ns = float('inf')
+    best_evals = 0
+    num_passes = 3 if size >= 100000 else 5
+    
+    for _ in range(num_passes):
+        start_evals = c.eval_count if hasattr(c, 'eval_count') else 0
+        start_time = time.perf_counter_ns()
+        for _ in range(iterations):
+            c.toggle(start_node, Const.HIGH)
+            c.toggle(start_node, Const.LOW)
+        end_time = time.perf_counter_ns()
+        end_evals = c.eval_count if hasattr(c, 'eval_count') else 0
+        
+        if (end_time - start_time) < best_time_ns:
+            best_time_ns = end_time - start_time
+            best_evals = end_evals - start_evals
+
+    total_evaluations = best_evals if hasattr(c, 'eval_count') else size * iterations * 2
+    ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
+    return ns_per_eval
+
+async def run_profiler_suite(mode_name):
+    print(f"\n[{mode_name.upper()} FRAGMENTATION vs OPTIMIZED]")
+    if mode_name == 'chaotic':
+        print(" -> Testing Absolute Worst Case: 100% memory fragmentation.")
+    else:
+        print(" -> Testing Real-World Workflows: Sequential chunks, fragmented routing.")
+
     test_sizes = []
     current_size = 100
     while current_size <= 2_000_000:
         test_sizes.append(current_size)
-        current_size = int(current_size * 1.15)
+        current_size = int(current_size * 1.30)  # 30% jump to move through tiers faster
 
-    results = []
     base_ram = get_ram_mb()
+    results = []
+    current_zone = 1
     
-    print(f"{'Active Gates':>12} | {'Actual RAM':>10} | {'ns/eval':>9} | {'Evals/sec':>11} | {'Degradation':>11} | {'Visual'}")
-    print("-" * 88)
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ns)':>10} | {'Unopt (ME/s)':>12} | {'Opt (ns)':>8} | {'Opt (ME/s)':>10} | {'Speedup':>7} | {'Hardware Bounds'}")
+    print("-" * 120)
 
     gc.disable()
-    
-    baseline_ns = None
-    profile_cache.current_zone = 1
-    profile_cache.zone_limits = {1: 0, 2: 0, 3: 0}
 
-    for idx, size in enumerate(test_sizes):
-        c, start_node = build_chain(size, mode=args.mode)
-        if args.optimize:
-            c.optimize()
+    for size in test_sizes:
+        c, start_node = build_chain(size, mode=mode_name)
         current_ram = get_ram_mb() - base_ram
         
-        # Calibration
+        # Calibration to determine iterations
         start_calib = time.perf_counter_ns()
         c.toggle(start_node, Const.HIGH)
         c.toggle(start_node, Const.LOW)
         calib_time = time.perf_counter_ns() - start_calib
+        iterations = max(5, int(50_000_000 / calib_time)) if calib_time > 0 else max(5, 5_000_000 // (size * 2))
+        iterations = min(iterations, 10) if size >= 200000 else iterations
+
+        # --- PASS 1: UNOPTIMIZED ---
+        unopt_ns = benchmark_pass(c, start_node, size, iterations)
+        unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
         
-        iterations = max(5, int(100_000_000 / calib_time)) if calib_time > 0 else max(5, 5_000_000 // (size * 2))
-        iterations = min(iterations, 10) if size >= 500000 else iterations
+        # --- PASS 2: OPTIMIZED ---
+        c.optimize()
+        opt_ns = benchmark_pass(c, start_node, size, iterations)
+        opt_me = 1000.0 / opt_ns if opt_ns > 0 else 0.0
 
-        # Warmup
-        for _ in range(3):
-            c.toggle(start_node, Const.HIGH)
-            c.toggle(start_node, Const.LOW)
-
-
-
-        best_time_ns = float('inf')
-        best_evals = 0
-        num_passes = 3 if size >= 100000 else 5
+        # Metrics
+        speedup = unopt_ns / opt_ns if opt_ns > 0 else 0
         
-        for _ in range(num_passes):
-            start_evals = c.eval_count if hasattr(c, 'eval_count') else 0
-            start_time = time.perf_counter_ns()
-            for _ in range(iterations):
-                c.toggle(start_node, Const.HIGH)
-                c.toggle(start_node, Const.LOW)
-            end_time = time.perf_counter_ns()
-            end_evals = c.eval_count if hasattr(c, 'eval_count') else 0
-            
-            if (end_time - start_time) < best_time_ns:
-                best_time_ns = end_time - start_time
-                best_evals = end_evals - start_evals
-
-        total_evaluations = best_evals if hasattr(c, 'eval_count') else size * iterations * 2
-        ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
-        evals_per_sec = 1_000_000_000 / ns_per_eval if ns_per_eval > 0 else 0.0
-        
-        # Establish a stable L1/L2 baseline using the first few valid measurements
-        if baseline_ns is None and idx >= 2: 
-            baseline_ns = sum(r['ns_per_eval'] for r in results) / len(results)
-
-        degradation_pct = 0.0
-        if baseline_ns:
-            degradation_pct = ((ns_per_eval - baseline_ns) / baseline_ns) * 100
-
-        # --- UNIVERSAL HARDWARE-AGNOSTIC ZONE DETECTION ---
+        # --- DYNAMIC CLIFF DETECTION (Using Unoptimized Latency) ---
         tag = ""
-        cliff_indicator = " "
-        
+        results.append(unopt_ns)
         if len(results) >= 2:
-            rolling_avg_ns = sum(r['ns_per_eval'] for r in results[-3:]) / min(3, len(results))
-            local_jump_pct = ((ns_per_eval - rolling_avg_ns) / rolling_avg_ns) * 100
+            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results)-1)
+            local_jump_pct = ((unopt_ns - rolling_avg_ns) / rolling_avg_ns) * 100
             
             if local_jump_pct > 15.0 and size > 1000:
-                if profile_cache.current_zone == 1:
+                if current_zone == 1:
                     tag = f"<-- CACHE BOUNDARY EVACUATION (+{local_jump_pct:.0f}%)"
-                    cliff_indicator = "!"
-                    profile_cache.current_zone = 2
-                elif profile_cache.current_zone == 2 and local_jump_pct > 20.0:
+                    current_zone = 2
+                elif current_zone == 2 and local_jump_pct > 20.0:
                     tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
-                    cliff_indicator = "!"
-                    profile_cache.current_zone = 3
-            
-            elif degradation_pct > 100 and profile_cache.current_zone < 3:
-                profile_cache.current_zone = 3
+                    current_zone = 3
+            elif unopt_ns > (results[1] * 2.5 if len(results)>1 else 50) and current_zone < 3:
+                current_zone = 3
                 tag = "(RAM BOUND)"
 
-        profile_cache.zone_limits[profile_cache.current_zone] = size
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_ns:>10.2f} | {unopt_me:>12.2f} | {opt_ns:>8.2f} | {opt_me:>10.2f} | {speedup:>6.2f}x | {tag}")
 
-        # Visual Bar
-        anchor_ns = baseline_ns if baseline_ns else ns_per_eval
-        speed_ratio = anchor_ns / ns_per_eval if ns_per_eval > 0 else 0
-        bar_length = int(speed_ratio * 20)
-        visual_bar = "=" * max(1, min(bar_length, 20))
-
-        results.append({
-            "size": size, "ns_per_eval": ns_per_eval, "evals_per_sec": evals_per_sec,
-            "mem_mb": current_ram, "zone": getattr(profile_cache, "current_zone", 1)
-        })
-
-        print(f"{size:>12,} | {current_ram:>7.1f} MB | {ns_per_eval:>7.2f} ns | {evals_per_sec/1_000_000:>6.2f} M/s | {degradation_pct:>9.1f}% | {cliff_indicator}{visual_bar} {tag}")
-
-        # ---> ADD THIS CLEANUP BLOCK <---
+        # Cleanup
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
-            
         c.clearcircuit()
         del c
         del start_node
         gc.collect() 
 
-        if degradation_pct >= 400.0:
-            print(f"\n[!] STOPPING EARLY: Latency degraded by 400%. CPU is fully RAM-bound.")
-            break
-
     gc.enable()
-    print("-" * 88)
-    print("========================================================================================")
-    print("  FINAL CACHE INTELLIGENCE REPORT (HARDWARE AGNOSTIC)")
-    print("========================================================================================")
-    print(f"BACKEND: {'Engine (Python)' if args.engine else 'Reactor (Cython)'}")
-    print(f"BASELINE CORE SPEED: {1_000 / baseline_ns if baseline_ns else 0:.2f} M evals/sec ({baseline_ns:.2f} ns/eval)\n")
-    print("--- DYNAMICALLY DETECTED HARDWARE PROTOCOLS & RAM BOUNDARIES ---")
-    print("The Cache Profiler measures latency spikes to identify the physical constraints of")
-    print("your processor's memory hierarchy. As the active simulation size exceeds cache tiers,")
-    print("the time required to fetch the next gate from memory skyrockets.\n")
+    print("-" * 120)
+
+async def main_profile():
+    cpu_name, l2_cache, l3_cache = get_cpu_info()
     
-    def print_zone_stats(z_num, z_name, z_desc):
-        z_results = [r for r in results if r['zone'] == z_num]
-        if not z_results:
-            return
-        z_sizes = [r['size'] for r in z_results]
-        z_ns = [r['ns_per_eval'] for r in z_results]
-        avg_ns = sum(z_ns) / len(z_ns)
-        min_ns, max_ns = min(z_ns), max(z_ns)
-        
-        print(f"-> TIER {z_num} ({z_name})")
-        print(f"   Size Range:   {min(z_sizes):,} to {max(z_sizes):,} active gates")
-        print(f"   Performance:  Avg: {avg_ns:.2f} ns/eval  [Min: {min_ns:.2f}  Max: {max_ns:.2f}]")
-        print(f"   Implication:  {z_desc}\n")
+    print("========================================================================================================================")
+    print("  DARION LOGIC SIM: HIGH-INTEGRITY CACHE & OPTIMIZER PROFILER")
+    print("========================================================================================================================")
+    print(f"CPU DETECTED: {cpu_name}")
+    print(f"OS CACHE LIMITS: L2: {l2_cache} | L3: {l3_cache}")
+    print("This profiler determines the performance gap between unoptimized user circuits and topologies")
+    print("rectified by the optimize() pass. It dynamically detects hardware cliffs (L2/L3 evictions) to prove")
+    print("that the optimizer successfully flattens the RAM-Bound curve.")
+    print("========================================================================================================================\n")
 
-    print_zone_stats(1, "Core Cache (L1/L2)", 
-                     "Absolute peak hardware throughput. The entire active working set fits\n"
-                     "                 within the CPU's fastest, closest memory registers.")
-                     
-    if any(r['zone'] == 2 for r in results):
-        print_zone_stats(2, "Last Level Shared Cache (L3)", 
-                         "Evicted from Core Cache. Data is being fetched from the slower,\n"
-                         "                 shared L3 cache block. Noticeable latency step-up.")
-
-    if any(r['zone'] == 3 for r in results):
-        print_zone_stats(3, "Main Memory (RAM BOUND)", 
-                         "The simulation has overflowed the CPU cache entirely. Logic\n"
-                         "                 propagation is now severely bottlenecked by the main\n"
-                         "                 system memory bus bandwidth, not the processor speed.")
-
-    if args.optimize:
-        print("Note: '--optimize' was enabled, pre-sorting gates topologically.")
-        if profile_cache.current_zone < 3:
-            print("       This dramatically mitigated Main RAM latency hits via hardware prefetching.")
-    print("========================================================================================")
+    await run_profiler_suite('chaotic')
+    await run_profiler_suite('realistic')
+    
+    print("\n========================================================================================================================")
+    print("  PROFILING COMPLETE.")
+    print("  The 'Speedup' column validates the performance recovery granted by topological linearization.")
+    print("========================================================================================================================")
 
 class _Tee:
     """Mirror stdout to a log file simultaneously."""
@@ -336,20 +271,19 @@ class _Tee:
 
 if __name__ == "__main__":
     from datetime import datetime
-    _LOG = "cache_test_results.txt"
+    _LOG = "comparison_test_results.txt"
     _backend = 'Reactor' if use_reactor else 'Engine'
     with open(_LOG, "a", encoding="utf-8") as _lf:
         _lf.write(f"\n{'='*70}\n")
         _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        _lf.write(f"ARGS : backend={_backend}  mode={args.mode}  optimize={args.optimize}\n")
+        _lf.write(f"ARGS : backend={_backend} HIGH-INTEGRITY COMPARISON\n")
         _lf.write(f"{'='*70}\n")
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)
         try:
-            # ---> RUN INSIDE EVENT LOOP <---
-            asyncio.run(profile_cache())
+            asyncio.run(main_profile())
         except KeyboardInterrupt:
-            print("\n[!] Cache Profiling Aborted by User.")
+            print("\n[!] Profiling Aborted by User.")
         finally:
             sys.stdout = _orig
     print(f"\nLog saved to: {_LOG}")
