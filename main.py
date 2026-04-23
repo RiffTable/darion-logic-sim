@@ -327,6 +327,7 @@ class AppWindow(QMainWindow):
 
     def newFile(self):
         self.current_file_path = None
+        self.update_window_title()
 
         self.cscene.clearCanvas()
         self.view.setCamera()
@@ -334,12 +335,19 @@ class AppWindow(QMainWindow):
         logic.simulate(self.cscene.simulationMode)
     
     def saveFile(self, save_as: bool = False) -> bool:
+        _settings = QSettings()
+
         if self.current_file_path and not save_as:
             # Don't ask if the project has a save file
             filename = self.current_file_path
         else:
+            # Show project folder
+            if self.current_file_path:
+                start_dir = self.current_file_path
+            else:
+                start_dir = str(_settings.value("settings/last_project_dir", str(projectsPath), type=str))
+            
             # Ask for file name
-            start_dir = str(self.current_file_path) if self.current_file_path else str(projectsPath)
             filename, _ = QFileDialog.getSaveFileName(
                 self,
                 "Save Project",
@@ -349,7 +357,7 @@ class AppWindow(QMainWindow):
             if not filename:
                 return False
 
-        # Saving to file
+        # Try saving to file
         try:
             project = self.get_project_data()
             with open(filename, 'w') as file:
@@ -357,6 +365,7 @@ class AppWindow(QMainWindow):
 
                 # File saved successfully
                 self.current_file_path = filename
+                _settings.setValue("last_project_dir", str(Path(filename).parent))
                 self.cscene.undo_stack.setClean()
                 self.update_window_title()
                 return True
@@ -370,8 +379,15 @@ class AppWindow(QMainWindow):
             return False
     
     def loadFile(self):
+        _settings = QSettings()
+
+        # Show project folder
+        if self.current_file_path:
+            start_dir = self.current_file_path
+        else:
+            start_dir = str(_settings.value("settings/last_project_dir", str(projectsPath), type=str))
+        
         # Always ask for file name
-        start_dir = str(self.current_file_path) if self.current_file_path else str(projectsPath)
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Open Project",
@@ -380,12 +396,29 @@ class AppWindow(QMainWindow):
         )
         if not filename: return
 
+        # Are you sure you want to not save your project? :'(
+        if self.is_project_modified and Val.AlertUnsaved:
+            Btn = QMessageBox.StandardButton
+            res = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to save before exiting?",
+                Btn.Save | Btn.Discard | Btn.Cancel
+            )
+            
+            if   res == Btn.Save:   self.saveFile()
+            elif res == Btn.Cancel: return
+
+        # Try opening the file
         try:
             with open(filename, 'r') as file:
                 project:dict = json.load(file)
             
             self.load_project_data(project)
+
             self.current_file_path = filename
+            _settings.setValue("settings/last_project_dir", str(Path(filename).parent))
+            self.update_window_title()
 
         except Exception as e:
             QMessageBox.critical(
@@ -431,6 +464,9 @@ class AppWindow(QMainWindow):
             )
             logic.simulate(self.cscene.simulationMode)
             self.cscene.clearCanvas()
+
+            self.current_file_path = None
+            self.update_window_title()
             self.sidebar.refresh_IC_catagory.emit()
 
 
