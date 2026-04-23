@@ -30,7 +30,8 @@ class Circuit:
         'objlist', 'copydata',
         'counter', 'queue',
         'eval_count','time_queue','runner',
-        'visual_queue','Global_Clock','oscillation_queue'
+        'visual_queue','Global_Clock','oscillation_queue',
+        '_location_map', '_loc_map_counter'
     ]
 
     def __init__(self):
@@ -137,6 +138,25 @@ class Circuit:
             target.value = value
             target.output = value if get_MODE() != DESIGN else UNKNOWN
             self.propagate(target)
+
+    def batch_toggle(self, batch: list):
+        """toggles multiple variables for performance"""
+        if getattr(self, '_loc_map_counter', -1) != self.counter:
+            self._location_map = {g.location: g for g in self.objlist[VARIABLE_ID] if g is not None}
+            self._loc_map_counter = self.counter
+
+        mode = get_MODE()
+        changed_gates = []
+        for location, value in batch:
+            gate = self._location_map.get(location)
+            if gate and value != gate.output:
+                gate.value = value
+                gate.output = value if mode != DESIGN else UNKNOWN
+                changed_gates.append(gate)
+
+        if mode != COMPILE:
+            for gate in changed_gates:
+                self.propagate(gate)
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""

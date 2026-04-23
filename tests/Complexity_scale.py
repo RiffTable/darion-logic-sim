@@ -1,7 +1,7 @@
 """
-DARION LOGIC SIM - TOPOLOGY COMPLEXITY PROFILER v6.0 (True Hardware Metrics)
-Calculates exact C-level evaluation counts by querying the engine directly.
-Includes statistical jitter filtering and zero-overhead timing loops.
+DARION LOGIC SIM - TOPOLOGY COMPLEXITY PROFILER v7.0
+Side-by-side unoptimized vs optimized comparison across all topologies.
+Produces a beautiful Matplotlib grouped column chart.
 Real-life circuit library: L0-L21 covering synthetic stress tests and
 achieved silicon-equivalent topologies (adders, latches, ALU, CRC, etc.).
 """
@@ -13,6 +13,10 @@ import os
 import random
 import argparse
 import asyncio
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 if os.path.exists(os.path.join(script_dir, 'reactor')) or os.path.exists(os.path.join(script_dir, 'engine')):
@@ -24,7 +28,6 @@ else:
 
 parser = argparse.ArgumentParser(description='Topology Complexity Profiler')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
-parser.add_argument('--optimize', action='store_true', help='Call circuit.optimize() after building each topology')
 args, _ = parser.parse_known_args()
 
 if args.engine:
@@ -665,40 +668,269 @@ def build_level_21_alu_slice(circuit, target_gates, VARIABLE_ID, NOT_ID, XOR_ID,
 
 
 # =====================================================================
-# CIRCUIT DESCRIPTIONS  (printed as a legend after the benchmark table)
+# BENCHMARK CORE  -  runs one topology at a given size, with or without
+#                    circuit.optimize(), and returns ME/s.
 # =====================================================================
 
-LEVEL_DESCRIPTIONS = {
-   
-}
+def _bench_one(builder, size, optimize: bool, has_hw_counter: bool) -> float:
+    """Build, (optionally) optimise, then time-measure the topology.
+    Returns ME/s, or -1.0 if skipped due to excessive theoretical load."""
+    TARGET_TOTAL_THEORETICAL_EVALS = 20_000_000
+    MAX_EVALS_PER_PASS             = 250_000_000
+    NUM_PASSES                     = 3
+
+    circuit = CircuitClass()
+    gc.disable()
+
+    master, _count, theoretical_evals, _desc = builder(
+        circuit, size, VARIABLE_ID, NOT_ID, XOR_ID, AND_ID=AND_ID
+    )
+
+    if optimize:
+        circuit.optimize()
+
+    if theoretical_evals > MAX_EVALS_PER_PASS:
+        circuit.clearcircuit()
+        del circuit
+        gc.enable()
+        return -1.0
+
+    vectors  = max(4, TARGET_TOTAL_THEORETICAL_EVALS // theoretical_evals)
+    vectors += vectors % 2          # keep even for HIGH/LOW pairs
+
+    best_time  = float('inf')
+    best_evals = 0
+
+    for _ in range(NUM_PASSES):
+        circuit.toggle(master, LOW)
+        circuit.simulate(DESIGN)
+        circuit.simulate(SIMULATE)
+
+        start_evals = circuit.eval_count if has_hw_counter else 0
+
+        t_start = time.perf_counter()
+        for _ in range(vectors // 2):
+            circuit.toggle(master, HIGH)
+            circuit.toggle(master, LOW)
+        t_end = time.perf_counter()
+
+        pass_time  = t_end - t_start
+        pass_evals = (
+            (circuit.eval_count - start_evals)
+            if has_hw_counter
+            else (theoretical_evals * vectors)
+        )
+
+        if pass_time < best_time:
+            best_time  = pass_time
+            best_evals = pass_evals
+
+    meps = (best_evals / best_time) / 1_000_000 if best_time > 0 else 0.0
+
+    if getattr(circuit, 'runner', None) is not None and not circuit.runner.done():
+        circuit.runner.cancel()
+
+    circuit.clearcircuit()
+    del circuit
+    gc.collect()
+    gc.enable()
+    return meps
+
+
+# =====================================================================
+# CHART  -  5-panel grouped column chart with premium dark theme
+# =====================================================================
+
+# Gate-size tiers
+TEST_SIZES  = [1_000, 5_000, 10_000, 50_000, 100_000]
+SIZE_LABELS = ['1 K', '5 K', '10 K', '50 K', '100 K']
+
+# Colour palette
+_COLOUR_UNOPT = "#FF6B6B"   # coral-red   = unoptimized
+_COLOUR_OPT   = "#00D9C0"   # electric teal = optimized
+_BG           = "#0D1117"   # GitHub-dark background
+_PANEL        = "#161B22"   # panel fill
+_GRID         = "#21262D"   # grid lines
+_TEXT         = "#E6EDF3"   # near-white text
+_ACCENT       = "#58A6FF"   # blue title accent
+_SUBTT        = "#8B949E"   # sub-title grey
+
+# One slightly different shade per size tier so bars are distinguishable
+#   unopt tints (red family)  |  opt tints (teal family)
+_TIER_UNOPT = ["#FF6B6B", "#FF8E53", "#FFC46B", "#E8575A", "#C0392B"]
+_TIER_OPT   = ["#00D9C0", "#00B4D8", "#0096C7", "#0077B6", "#005F73"]
+
+
+def _make_chart(
+    topology_labels: list,          # 22 topology names
+    all_unopt: list,                # [n_sizes][n_topo]  ME/s
+    all_opt:   list,                # [n_sizes][n_topo]  ME/s
+    backend:   str,
+    out_path:  str,
+):
+    """Produce a 5-row subplot grid. Each row = one gate-size tier.
+    Each subplot has 22 grouped bar pairs (unopt left | opt right)."""
+
+    matplotlib.rcParams.update({
+        'font.family':     'DejaVu Sans',
+        'font.size':        9,
+        'figure.facecolor': _BG,
+        'axes.facecolor':   _PANEL,
+        'text.color':       _TEXT,
+        'axes.labelcolor':  _TEXT,
+        'xtick.color':      _TEXT,
+        'ytick.color':      _TEXT,
+        'axes.edgecolor':   _GRID,
+        'grid.color':       _GRID,
+        'grid.linewidth':   0.5,
+        'grid.linestyle':   '--',
+    })
+
+    n_sizes = len(TEST_SIZES)
+    n_topo  = len(topology_labels)
+    x       = np.arange(n_topo)
+    width   = 0.38
+    gap     = 0.03
+
+    fig_h = 4.6 * n_sizes + 1.6     # height scales with rows
+    fig_w = max(22, n_topo * 1.05)  # width scales with topologies
+
+    fig, axes = plt.subplots(
+        nrows=n_sizes, ncols=1,
+        figsize=(fig_w, fig_h),
+        sharex=True,
+    )
+    fig.patch.set_facecolor(_BG)
+
+    for row_idx, ax in enumerate(axes):
+        sz_label  = SIZE_LABELS[row_idx]
+        sz_actual = TEST_SIZES[row_idx]
+        u_vals    = all_unopt[row_idx]
+        o_vals    = all_opt[row_idx]
+
+        col_u = _TIER_UNOPT[row_idx]
+        col_o = _TIER_OPT[row_idx]
+
+        bars_u = ax.bar(
+            x - width / 2 - gap / 2, u_vals, width,
+            color=col_u, alpha=0.90, zorder=3, edgecolor='none',
+        )
+        bars_o = ax.bar(
+            x + width / 2 + gap / 2, o_vals, width,
+            color=col_o, alpha=0.90, zorder=3, edgecolor='none',
+        )
+
+        # ---------- value labels ----------
+        all_vals = [v for v in u_vals + o_vals if v > 0]
+        max_val  = max(all_vals) if all_vals else 1.0
+        ax.set_ylim(0, max_val * 1.22)
+        y_nudge = max_val * 0.006
+
+        def _annotate(bars, colour):
+            for bar in bars:
+                h = bar.get_height()
+                if h <= 0:
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2, 0.8,
+                        'N/A', ha='center', va='bottom',
+                        fontsize=6, color='#666666', rotation=90,
+                    )
+                else:
+                    lbl = f"{h:.0f}" if h >= 10 else f"{h:.1f}"
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        h + y_nudge,
+                        lbl, ha='center', va='bottom',
+                        fontsize=6.5, color=colour, fontweight='bold',
+                    )
+
+        _annotate(bars_u, col_u)
+        _annotate(bars_o, col_o)
+
+        # ---------- row decoration ----------
+        ax.yaxis.grid(True, zorder=0)
+        ax.set_axisbelow(True)
+        ax.tick_params(axis='x', length=0)
+        ax.tick_params(axis='y', length=3, color=_GRID, labelsize=8)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_ylabel('ME / s', color=_TEXT, fontsize=8)
+
+        # Row badge (gate size)
+        ax.text(
+            -0.01, 0.98,
+            f"{sz_label} gates",
+            transform=ax.transAxes,
+            ha='right', va='top',
+            fontsize=10, fontweight='bold',
+            color=col_u,
+        )
+
+        # Per-row legend (unopt / opt) — only on first row to save space
+        if row_idx == 0:
+            legend_handles = [
+                mpatches.Patch(facecolor=col_u, alpha=0.92,
+                               label='Unoptimized  (raw memory layout)'),
+                mpatches.Patch(facecolor=col_o, alpha=0.92,
+                               label='Optimized  (circuit.optimize())'),
+            ]
+            ax.legend(
+                handles=legend_handles,
+                loc='upper right',
+                framealpha=0.18,
+                edgecolor=_GRID,
+                facecolor=_PANEL,
+                labelcolor=_TEXT,
+                fontsize=8.5,
+            )
+
+    # ---------- shared x-axis labels (bottom only) ----------
+    axes[-1].set_xticks(x)
+    axes[-1].set_xticklabels(
+        topology_labels, rotation=38, ha='right', fontsize=8.5,
+    )
+
+    # ---------- master title ----------
+    fig.text(
+        0.5, 0.995,
+        f'DARION LOGIC SIM  \u2014  Topology Complexity Profiler  \u2014  {backend} Backend',
+        ha='center', va='top', fontsize=16, color=_ACCENT, fontweight='bold',
+    )
+    fig.text(
+        0.5, 0.988,
+        'Each panel = one gate-size tier  \u00b7  '
+        'Left bar (warm) = Unoptimized  \u00b7  '
+        'Right bar (cool) = Optimized  \u00b7  '
+        'Height = ME/s (Million Evaluations / Second)  \u00b7  '
+        'N/A = O(N\u00b2) overflow skip',
+        ha='center', va='top', fontsize=8, color=_SUBTT,
+    )
+
+    plt.subplots_adjust(top=0.978, hspace=0.18, left=0.055, right=0.99, bottom=0.08)
+    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor=_BG)
+    print(f"[+] Chart saved -> {out_path}")
+
 
 # =====================================================================
 # MAIN PROFILER
 # =====================================================================
 
 async def run_profiler():
-    print("="*82)
-    print(" DARION LOGIC SIM: TOPOLOGY SCALING PROFILER (V6.0) ")
-    print("="*82)
-    print(f"[+] Backend: {backend_name}")
+    print("=" * 82)
+    print(f"  DARION LOGIC SIM: TOPOLOGY COMPLEXITY PROFILER  (V8.0)")
+    print("=" * 82)
+    print(f"[+] Backend  : {backend_name}")
+    print(f"[+] Sizes    : {', '.join(SIZE_LABELS)} gates per topology")
+    print(f"[+] Mode     : Unoptimized vs Optimized across all size tiers\n")
 
-    temp_circ = CircuitClass()
+    temp_circ      = CircuitClass()
     has_hw_counter = hasattr(temp_circ, 'eval_count')
     del temp_circ
 
-    TEST_SIZES = [1_000, 5_000, 10_000, 50_000, 100_000]
-    TARGET_TOTAL_THEORETICAL_EVALS = 20_000_000 
-    MAX_EVALS_PER_PASS = 250_000_000 # Hard limit to prevent hours of waiting on O(N^2)
-    NUM_PASSES = 3 # Statistical multi-pass to filter OS jitter
-    
-    print(f"\nBenchmarking Backend: {backend_name}")
-    print("Testing structural scale from 1K to 100K gates to stress RAM & CPU Caches.")
-    
     if has_hw_counter:
-        print("[+] Hardware Counter Detected: Using absolute engine-level evaluation metrics.\n")
+        print("[+] Hardware counter detected - using absolute engine-level evaluation counts.")
     else:
-        print("[-] WARNING: 'eval_count' not found in Circuit class.")
-        print("[-] Using theoretical math for ME/s. L4 and L5 scores WILL be artificially inflated.\n")
+        print("[-] WARNING: 'eval_count' not found. Falling back to theoretical math.")
 
     levels = [
         build_level_0_linear, build_level_1_parallel, build_level_2_fanout_tree,
@@ -710,120 +942,56 @@ async def run_profiler():
         build_level_19_crc8_lfsr, build_level_20_magnitude_comparator, build_level_21_alu_slice,
     ]
 
-    print(f"{'Topology':<26} | {'1K Size':>14} | {'5K Size':>14} | {'10K Size':>14} | {'50K Size':>14} | {'100K Size':>14} | {'Scaling':>2}")
-    print("-" * 120)
+    topology_labels = []
+    # all_unopt[size_idx][topo_idx], all_opt[size_idx][topo_idx]
+    all_unopt = [[] for _ in TEST_SIZES]
+    all_opt   = [[] for _ in TEST_SIZES]
+
+    # Console table header
+    col_t = 26
+    sz_w  = 10
+    hdr_sizes = "  ".join(f"{sl:^{sz_w * 2 + 1}}" for sl in SIZE_LABELS)
+    print(f"\n{'Topology':<{col_t}}  {hdr_sizes}")
+    sub_hdr = "  ".join(f"{'Unopt':>{sz_w}} {'Opt':>{sz_w}}" for _ in SIZE_LABELS)
+    print(f"{'':>{col_t}}  {sub_hdr}")
+    print("-" * (col_t + 2 + len(sub_hdr) + 4 * len(SIZE_LABELS)))
 
     for builder in levels:
-        desc_name = ""
-        results = []
-        
-        for size in TEST_SIZES:
-            circuit = CircuitClass()
+        # Cheap label fetch
+        _tmp = CircuitClass()
+        _, _, _, desc = builder(_tmp, 1, VARIABLE_ID, NOT_ID, XOR_ID, AND_ID=AND_ID)
+        _tmp.clearcircuit(); del _tmp
+        topology_labels.append(desc)
 
-            gc.disable()
-            
-            master, count, theoretical_evals, desc = builder(circuit, size, VARIABLE_ID, NOT_ID, XOR_ID, AND_ID=AND_ID)
-            if not desc_name: desc_name = desc
+        row_cells = []
+        for si, size in enumerate(TEST_SIZES):
+            meps_u = _bench_one(builder, size, optimize=False, has_hw_counter=has_hw_counter)
+            meps_o = _bench_one(builder, size, optimize=True,  has_hw_counter=has_hw_counter)
+            all_unopt[si].append(max(0.0, meps_u))
+            all_opt[si].append(max(0.0, meps_o))
 
-            # If --optimize is active, reorder the circuit's internal memory layout
-            if args.optimize:
-                circuit.optimize()
+            def _cv(v): return f"{v:>{sz_w}.0f}" if v >= 10 else (f"{v:>{sz_w}.1f}" if v >= 0 else f"{'N/A':>{sz_w}}")
+            row_cells.append(f"{_cv(meps_u)} {_cv(meps_o)}")
 
-            # Skip if theoretical load exceeds extreme bounds (prevents L5 100K hang)
-            if theoretical_evals > MAX_EVALS_PER_PASS:
-                results.append(-1.0)
-                circuit.clearcircuit()
-                del circuit
-                gc.enable()
-                continue
-                
-            vectors = max(4, TARGET_TOTAL_THEORETICAL_EVALS // theoretical_evals)
-            vectors += (vectors % 2) # Ensure even number for HIGH/LOW pairing
-            
-            best_time = float('inf')
-            best_evals = 0
-            
-            # Multi-pass execution loop
-            for _ in range(NUM_PASSES):
-                circuit.toggle(master, LOW)
-                circuit.simulate(DESIGN)
-                circuit.simulate(SIMULATE)
-                
-                start_evals = circuit.eval_count if has_hw_counter else 0
-                
-                # Zero-overhead timing block
-                t_start = time.perf_counter()
-                for _ in range(vectors // 2):
-                    circuit.toggle(master, HIGH)
-                    circuit.toggle(master, LOW)
-                t_end = time.perf_counter()
-                
-                pass_time = t_end - t_start
-                pass_evals = (circuit.eval_count - start_evals) if has_hw_counter else (theoretical_evals * vectors)
-                
-                if pass_time < best_time:
-                    best_time = pass_time
-                    best_evals = pass_evals
+        print(f"  {desc:<{col_t - 2}}  {'  '.join(row_cells)}")
 
-            m_evals_per_sec = (best_evals / best_time) / 1_000_000 if best_time > 0 else 0
-            results.append(m_evals_per_sec)
+    print("-" * (col_t + 2 + len(sub_hdr) + 4 * len(SIZE_LABELS)))
+    print("\n[+] All topologies profiled across all size tiers. Generating chart...\n")
 
-            # ---> ADD THIS ASYNC CLEANUP BLOCK <---
-            if getattr(circuit, 'runner', None) is not None and not circuit.runner.done():
-                circuit.runner.cancel()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    out_path   = os.path.join(script_dir, "complexity_scale_chart.png")
 
-            circuit.clearcircuit()
-            del circuit
-            gc.collect()
-            gc.enable()
+    _make_chart(
+        topology_labels=topology_labels,
+        all_unopt=all_unopt,
+        all_opt=all_opt,
+        backend=backend_name,
+        out_path=out_path,
+    )
 
-        # Format columns based on whether they were skipped
-        def fmt(val): return f"{val:>9.2f} ME/s" if val >= 0 else f"{'N/A (Skip)':>14}"
-        
-        val_1k = results[0]
-        # Calculate retention using the highest completed tier
-        completed_vals = [r for r in results if r >= 0]
-        highest_tier_val = completed_vals[-1] if completed_vals else val_1k
-        retention = (highest_tier_val / val_1k) * 100 if val_1k > 0 else 0.0
-            
-        retention_str = f"{retention:>5.1f}%"
-            
-        print(f"{desc_name:<26} | {fmt(results[0])} | {fmt(results[1])} | {fmt(results[2])} | {fmt(results[3])} | {fmt(results[4])} | {retention_str}")
-
-    print("-" * 120)
-
-    # ---- Circuit legend ----
-    print(f"\n{'CIRCUIT DESCRIPTIONS':=^120}")
-    for key, (short, desc) in LEVEL_DESCRIPTIONS.items():
-        print(f"  {key:<4} {short:<26}  {desc}")
-    print("=" * 120)
-
-class _Tee:
-    """Mirror stdout to a log file simultaneously."""
-    def __init__(self, *streams):
-        self.streams = streams
-    def write(self, data):
-        for s in self.streams:
-            s.write(data)
-    def flush(self):
-        for s in self.streams:
-            s.flush()
 
 if __name__ == "__main__":
-    from datetime import datetime
-    _LOG = "complexity_scale_results.txt"
-    with open(_LOG, "a", encoding="utf-8") as _lf:
-        _lf.write(f"\n{'='*70}\n")
-        _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        _lf.write(f"ARGS : backend={backend_name}  optimize={args.optimize}\n")
-        _lf.write(f"{'='*70}\n")
-        _orig = sys.stdout
-        sys.stdout = _Tee(_orig, _lf)
-        try:
-            # ---> RUN INSIDE EVENT LOOP <---
-            asyncio.run(run_profiler())
-        except KeyboardInterrupt:
-            print("\n[!] Profiling Aborted by User.")
-        finally:
-            sys.stdout = _orig
-    print(f"\nLog saved to: {_LOG}")
+    try:
+        asyncio.run(run_profiler())
+    except KeyboardInterrupt:
+        print("\n[!] Profiling aborted by user.")

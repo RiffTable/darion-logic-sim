@@ -21,7 +21,7 @@ cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
     '''Get a gate of a given type and add it to the gate_infolist and gate_verse
     for ICs, it does not add to gate_infolist or gate_verse, but instead just returns an IC object'''
     cdef Gate gate
-    cdef uint16_t lim
+    cdef uint8_t lim
     cdef IC ic
     if choice==IC_ID:
         ic = IC(choice,namelist[choice])

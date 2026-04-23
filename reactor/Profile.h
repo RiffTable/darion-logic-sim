@@ -42,19 +42,19 @@ struct CPP_Gate {
     uint8_t scheduled;
     uint8_t mark;
     uint8_t update;
-    uint16_t inputlimit;
-    uint16_t book[3];
+    uint8_t inputlimit;
+    uint8_t book[3];
     std::vector<Profile> hitlist;
-    CPP_Gate() : type(0), output(2), value(0), scheduled(0), mark(0), update(0), inputlimit(2) {
+    CPP_Gate() : type(0), output(2), value(0), scheduled(0), mark(0), update(1), inputlimit(2) {
         book[0] = book[1] = book[2] = 0;
     }
-    CPP_Gate(uint8_t t, uint16_t lim) : type(t), inputlimit(lim) {
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), inputlimit(lim) {
         book[0] = book[1] = book[2] = 0;
         output = 2;
         value = 0;
         scheduled = 0;
         mark = 0;
-        update = 0;
+        update = 1;
     }
 };
 #endif

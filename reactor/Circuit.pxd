@@ -61,7 +61,7 @@ cdef class Circuit:
     cpdef void reorder(self, object gate, int index)
     cpdef void generate(self, list circuit)
     cdef bytearray table(self,vector[int] &var,vector[int] &gate)
-    cpdef str truthTable(self, list variables, list outputs)
+    cpdef str truthTable(self)
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)
@@ -72,6 +72,10 @@ cdef class Circuit:
     cpdef void transfer_info(self, Gate gate, int id)
     cdef void complete_task(self, Task task) nogil
     cdef void propagate(self, int origin) nogil
+    cdef void sweep(self, int origin) nogil
+    cpdef void batch_toggle(self, list batch)
+    cpdef list geometry(self)
+    cdef void batch_propagate(self, vector[int] origins) nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)
     cpdef int pop_visual_queue(self)

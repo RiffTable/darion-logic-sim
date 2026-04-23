@@ -167,7 +167,7 @@ class AppWindow(QMainWindow):
         # Remember Simulation Mode
         mode = Const.get_MODE()
         if mode != Const.SIMULATE:
-            logic.simulate(Const.SIMULATE)
+            return 'Please switch to Simulation Mode first.'
         
         # Show Table
         self._show_output("Truth Table", logic.truthTable, TruthTableDialog, returns_string=True)

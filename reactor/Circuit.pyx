@@ -12,7 +12,7 @@ from Const cimport *
 from IC cimport IC
 from Store cimport get, decode
 from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
-from libc.stdint cimport uint16_t,int8_t
+from libc.stdint cimport uint8_t,int8_t
 from libcpp.unordered_map cimport unordered_map
 from libcpp.vector cimport vector
 from libcpp.deque cimport deque
@@ -150,7 +150,32 @@ cdef class Circuit:
         if value != info.output:
             info.value = value
             info.output = value if MODE != DESIGN else UNKNOWN
-            self.propagate(target)
+            if MODE!=COMPILE:
+                self.propagate(target)
+            else:
+                self.sweep(target)
+
+    cpdef void batch_toggle(self, list batch):
+        '''toggles multiple variables and sweeps exactly once for performance'''
+        cdef int target, value
+        cdef tuple pair
+        cdef CPP_Gate* info
+        cdef bint need_sweep = False
+        cdef int origin=self.gate_infolist.size()
+        for pair in batch:
+            target = pair[0]
+            value = pair[1]
+            info = &self.gate_infolist[target]
+            if value != info.output:
+                info.value = value
+                info.output = value if MODE != DESIGN else UNKNOWN
+                if MODE != COMPILE:
+                    self.propagate(target)
+                else:
+                    if origin>target:
+                        origin=target
+        if MODE==COMPILE:
+            self.sweep(origin)
 
     cpdef void disconnect(self, Gate target, int index):
         '''Disconnect a gate from another gate'''
@@ -268,9 +293,8 @@ cdef class Circuit:
                 view[offset+var_size+k] = gate_infolist[gate[k]].output
         return matrix
         
-    cpdef str truthTable(self, list variables, list outputs):
-        if variables is None:
-            variables = self.get_variables()
+    cpdef str truthTable(self):
+        variables = self.get_variables()
         if len(variables) == 0 or len(variables) > 16 or MODE == DESIGN:
             return ""
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
@@ -286,12 +310,9 @@ cdef class Circuit:
         cdef object item
         
         # Filter gatelist
-        if outputs is not None:
-            gate_list = outputs
-        else:
-            for item in self.objlist[OUTPUT_PIN_ID]:
-                if item is not None:
-                    gate_list.append(item)
+        for item in self.objlist[OUTPUT_PIN_ID]:
+            if item is not None:
+                gate_list.append(item)
 
 
         n = len(variables)
@@ -468,7 +489,6 @@ cdef class Circuit:
         cdef CPP_Gate* info
         cdef vector[CPP_Gate] new_gate_infolist
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-        cdef Gate gate
         cdef deque[int] backup,queue
         n=self.gate_infolist.size()
         serial.resize(n)
@@ -558,8 +578,10 @@ cdef class Circuit:
                 profile+=1
             if new_gate_infolist[i].hitlist.size()>3:
                 sort(new_gate_infolist[i].hitlist.begin(), new_gate_infolist[i].hitlist.end())
+                
         self.gate_infolist.swap(new_gate_infolist)
         cdef list new_gate_verse = []
+        cdef Gate gate
         cdef list sources
         for i in range(n):
             gate=<Gate>PyList_GET_ITEM(self.gate_verse, serial[i])
@@ -927,7 +949,7 @@ cdef class Circuit:
         cdef Py_ssize_t new_output, profile_output, target_output
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint16_t* book
+        cdef uint8_t* book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
         if not self_info.update:
@@ -1001,7 +1023,7 @@ cdef class Circuit:
         cdef int* write_queue = self.queue[1]
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint16_t *book
+        cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
 
@@ -1094,7 +1116,207 @@ cdef class Circuit:
             # buffer switching, read->write and write->read
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
+    cdef void batch_propagate(self, vector[int] origins) nogil:
+        '''propagate the output of a gate to its targets'''
+        cdef Profile* profile
+        cdef Profile* end
+        cdef int gate_loc
+        cdef Py_ssize_t realsource, high, low,limit,gate_type
+        cdef Py_ssize_t new_output, profile_output, target_output
+        cdef Py_ssize_t index = 0, end_point = 0, size = 0
+        cdef Py_ssize_t eval = 0
+        cdef int* read_queue = self.queue[0]
+        cdef int* write_queue = self.queue[1]
+        cdef CPP_Gate* self_info
+        cdef CPP_Gate* target_info
+        cdef uint8_t *book
+        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
 
+        if MODE == FLIPFLOP:
+            for origin in origins:
+                self_info = &gate_infolist[origin]
+                if not self_info.scheduled:
+                    if self_info.inputlimit == 0:
+                        self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
+                    else:
+                        self.time_queue.push(Task(origin, self.Global_Clock + self.Global_delay[self_info.type] + self_info.inputlimit, origin))
+                    self_info.scheduled = True
+                else:
+                    if self_info.inputlimit == 0:
+                        self_info.scheduled = False  # Stops clock
+            with gil:
+                if self.runner is None or self.runner.done():
+                    self.runner = asyncio.create_task(self.task_manager())
+            return
+            
+        for origin in origins:
+            read_queue[end_point] = origin
+            end_point += 1
+            self_info = &gate_infolist[origin]
+            if not self_info.update:
+                self_info.update = True
+                self.visual_queue.push_back(origin)
+            
+        cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
+        while end_point > 0:
+            if unlikely(wave_limit<0):
+                self.eval_count += eval
+                for i in range(end_point):
+                    self_info = &gate_infolist[read_queue[i]]
+                    self_info.mark=False
+                    self_info.scheduled=True
+                    self.time_queue.push(Task(read_queue[i], self.Global_Clock, read_queue[i]))
+                with gil:
+                    if self.runner is None or self.runner.done():
+                        self.runner=asyncio.create_task(self.task_manager())
+                    return
+            wave_limit -= 1
+            for index in range(end_point):
+                self_info = &gate_infolist[read_queue[index]]
+                self_info.mark = False
+                new_output = self_info.output
+                profile = self_info.hitlist.data()
+                end = profile + self_info.hitlist.size()
+                while profile != end:
+                    eval += 1
+                    profile_output = profile.output
+                    if profile_output != new_output:
+                        target_info = &gate_infolist[profile.target]
+                        gate_type = target_info.type
+                        limit = target_info.inputlimit
+                        if gate_type < 0:
+                            profile+=1
+                            continue
+                        if gate_type >= NOT_ID:
+                            if new_output != UNKNOWN:
+                                target_output = new_output ^ (gate_type == NOT_ID)
+                            else:
+                                target_output = UNKNOWN
+                        else:
+                            # update target
+                            book = target_info.book
+                            book[profile_output] -= 1
+                            book[new_output] += 1
+                           
+                            if new_output != UNKNOWN:
+                                high = book[HIGH]
+                                low  = book[LOW]
+                                realsource = high + low
+                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
+                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
+                                else:
+                                    target_output = UNKNOWN
+                            else:
+                                target_output = UNKNOWN
+                        if target_output != target_info.output:
+                            target_info.output = target_output
+                            if not target_info.update:
+                                self.visual_queue.push_back(profile.target)   # target changed — mark dirty
+                                target_info.update = True
+                            if not target_info.mark:
+                                target_info.mark = True
+                                write_queue[size] = profile.target
+                                size += 1
+                        profile.output = new_output
+                    profile += 1
+            # size is actually the growing size of write_queue
+            end_point, size = size, 0
+            # buffer switching, read->write and write->read
+            read_queue, write_queue = write_queue, read_queue
+        self.eval_count += eval
+
+    cdef void sweep(self, int origin) nogil:
+        '''propagate the output of a gate to its targets'''
+        cdef Profile* profile
+        cdef Profile* end
+        cdef Py_ssize_t realsource, high, low,limit,gate_type
+        cdef Py_ssize_t new_output, profile_output, target_output
+        cdef Py_ssize_t index = 0, size = self.gate_infolist.size()-self.hidden
+        cdef Py_ssize_t eval = 0
+        cdef CPP_Gate* self_info
+        cdef CPP_Gate* target_info
+        cdef uint8_t *book
+        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+        for index in range(origin,size):
+            self_info = &gate_infolist[index]
+            new_output = self_info.output
+            profile = self_info.hitlist.data()
+            end = profile + self_info.hitlist.size()
+            while profile != end:
+                eval += 1
+                profile_output = profile.output
+                if profile_output != new_output:
+                    target_info = &gate_infolist[profile.target]
+                    gate_type = target_info.type
+                    limit = target_info.inputlimit
+                    if gate_type < 0:
+                        profile+=1
+                        continue
+                    if gate_type >= NOT_ID:
+                        if new_output != UNKNOWN:
+                            target_output = new_output ^ (gate_type == NOT_ID)
+                        else:
+                            target_output = UNKNOWN
+                    else:
+                        # update target
+                        book = target_info.book
+                        book[profile_output] -= 1
+                        book[new_output] += 1
+                        
+                        if new_output != UNKNOWN:
+                            high = book[HIGH]
+                            low  = book[LOW]
+                            realsource = high + low
+                            if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
+                                if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                                elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                                else:                    target_output = (high & 1) ^ (gate_type & 1)
+                            else:
+                                target_output = UNKNOWN
+                        else:
+                            target_output = UNKNOWN
+                    if target_output != target_info.output:
+                        target_info.output = target_output
+                        if profile.target<index and not target_info.scheduled:
+                            self.time_queue.push(Task(profile.target, self.Global_Clock, profile.target))
+                            target_info.scheduled = True
+                    profile.output = new_output
+                profile += 1
+        # size is actually the growing size of write_queue
+        self.eval_count += eval
+        if not self.time_queue.empty():
+            with gil:
+                if self.runner is None or self.runner.done():
+                    self.runner=asyncio.create_task(self.task_manager())
+
+    cpdef list geometry(self):
+        '''
+        Extracts the raw memory jump distance for every single connection in the circuit.
+        Used for geometry profiling and cache-miss analysis.
+        '''
+        self.optimize()
+        cdef int n = self.gate_infolist.size()
+        cdef int i, j, target, jump
+        cdef list jumps = []
+        
+        # Pre-allocate list size to avoid Python heap fragmentation
+        cdef int total_edges = 0
+        for i in range(n):
+            total_edges += self.gate_infolist[i].hitlist.size()
+            
+        jumps = [0] * total_edges
+        cdef int edge_idx = 0
+        
+        for i in range(n):
+            for j in range(self.gate_infolist[i].hitlist.size()):
+                target = self.gate_infolist[i].hitlist[j].target
+                jump = abs(target - i)
+                jumps[edge_idx] = jump
+                edge_idx += 1
+                
+        return jumps
     async def task_manager(self):
         cdef int size
         cdef Task task

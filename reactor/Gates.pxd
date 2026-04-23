@@ -1,6 +1,6 @@
 # distutils: language = c++
 from Const cimport HIGH, LOW, ERROR, UNKNOWN, DESIGN, SIMULATE, MODE
-from libc.stdint cimport uint16_t,uint8_t,int8_t
+from libc.stdint cimport uint8_t,uint8_t,int8_t
 from libcpp.unordered_map cimport unordered_map
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
@@ -55,11 +55,11 @@ cdef extern from "Profile.h":
         uint8_t scheduled
         uint8_t mark
         uint8_t update
-        uint16_t inputlimit
-        uint16_t book[4]
+        uint8_t inputlimit
+        uint8_t book[4]
         vector[Profile] hitlist
         CPP_Gate()
-        CPP_Gate(uint8_t t, uint16_t lim)
+        CPP_Gate(uint8_t t, uint8_t lim)
 
 cdef void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse)
 cdef void reveal(Profile& profile, Gate source, list gate_verse)

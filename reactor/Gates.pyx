@@ -9,7 +9,7 @@ from cpython.list cimport PyList_GET_SIZE, PyList_GET_ITEM
 from Const cimport *
 from libc.string cimport memmove
 from Store cimport decode
-from libc.stdint cimport uint16_t
+from libc.stdint cimport uint8_t
 from libcpp.unordered_map cimport unordered_map
 
 cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* gate_infolist, int target, int pin_index):
@@ -134,7 +134,7 @@ cdef class Gate:
         cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
         cdef CPP_Gate* info = &gate_infolist[self.location]
         cdef CPP_Gate* src_info
-        cdef uint16_t* book
+        cdef uint8_t* book
         cdef int gate_type = info.type
         cdef int limit = info.inputlimit
         cdef int high, low, realsource
@@ -210,7 +210,7 @@ cdef class Gate:
     cdef void reset(self):
         '''Move all counted inputs back to unknown and set output to unknown'''
         cdef CPP_Gate* info = &self.location_ptr[0][self.location]
-        cdef uint16_t* book
+        cdef uint8_t* book
         if info.type < VARIABLE_ID:
             book = info.book
             book[2] += book[0] + book[1]
@@ -231,7 +231,7 @@ cdef class Gate:
         cdef list sources
         cdef int source_loc
         cdef CPP_Gate* src_info
-        cdef uint16_t* book
+        cdef uint8_t* book
         cdef Py_ssize_t n
         cdef Profile* hitlist
         cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()

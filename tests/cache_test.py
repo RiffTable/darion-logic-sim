@@ -12,6 +12,8 @@ import random
 import argparse
 import platform
 import subprocess
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Force the standard output to use UTF-8
 if hasattr(sys, 'stdout') and hasattr(sys.stdout, 'reconfigure'):
@@ -97,24 +99,19 @@ def build_chain(active_size, mode='chaotic'):
     gate_types = [Const.AND_ID, Const.OR_ID, Const.XOR_ID, Const.NOT_ID]
     active_gates = []
     
-    # Allocate Gates
     for i in range(active_size - 1):
         g_type = gate_types[i % 4]
         g = c.getcomponent(g_type)
         active_gates.append((g, g_type))
     
-    # --- FRAGMENTATION LOGIC ---
     if mode == 'chaotic':
-        # Absolute Worst Case (100% Cache Misses)
         random.shuffle(active_gates)
     elif mode == 'realistic':
-        # Real-World Workflow: Sequential inside sub-circuits, fragmented routing between them
         chunk_size = 64
         chunks = [active_gates[i:i + chunk_size] for i in range(0, len(active_gates), chunk_size)]
         random.shuffle(chunks)
         active_gates = [gate for chunk in chunks for gate in chunk]
 
-    # Wire Gates
     prev_gate = first_gate
     for g, g_type in active_gates:
         c.connect(g, prev_gate, 0)
@@ -134,7 +131,6 @@ def get_ram_mb():
 
 def benchmark_pass(c, start_node, size, iterations):
     """Runs a benchmark pass on the current circuit state."""
-    # Warmup
     for _ in range(3):
         c.toggle(start_node, Const.HIGH)
         c.toggle(start_node, Const.LOW)
@@ -161,23 +157,21 @@ def benchmark_pass(c, start_node, size, iterations):
     return ns_per_eval
 
 async def run_profiler_suite(mode_name):
-    print(f"\n[{mode_name.upper()} FRAGMENTATION vs OPTIMIZED]")
-    if mode_name == 'chaotic':
-        print(" -> Testing Absolute Worst Case: 100% memory fragmentation.")
-    else:
-        print(" -> Testing Real-World Workflows: Sequential chunks, fragmented routing.")
-
+    print(f"\n[{mode_name.upper()} FRAGMENTATION vs OPTIMIZED BFS vs OPTIMIZED SWEEP]")
+    
     test_sizes = []
     current_size = 100
     while current_size <= 2_000_000:
         test_sizes.append(current_size)
-        current_size = int(current_size * 1.30)  # 30% jump to move through tiers faster
+        current_size = int(current_size * 1.30)
 
     base_ram = get_ram_mb()
     results = []
     current_zone = 1
     
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ns)':>10} | {'Unopt (ME/s)':>12} | {'Opt (ns)':>8} | {'Opt (ME/s)':>10} | {'Speedup':>7} | {'Hardware Bounds'}")
+    plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": [], "opt_sweep_me": []}
+    
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Opt Sweep (ME/s)':>16} | {'Speedup (BFS/Swp)':>17} | {'Hardware Bounds'}")
     print("-" * 120)
 
     gc.disable()
@@ -186,7 +180,6 @@ async def run_profiler_suite(mode_name):
         c, start_node = build_chain(size, mode=mode_name)
         current_ram = get_ram_mb() - base_ram
         
-        # Calibration to determine iterations
         start_calib = time.perf_counter_ns()
         c.toggle(start_node, Const.HIGH)
         c.toggle(start_node, Const.LOW)
@@ -194,19 +187,30 @@ async def run_profiler_suite(mode_name):
         iterations = max(5, int(50_000_000 / calib_time)) if calib_time > 0 else max(5, 5_000_000 // (size * 2))
         iterations = min(iterations, 10) if size >= 200000 else iterations
 
-        # --- PASS 1: UNOPTIMIZED ---
+        # PASS 1: UNOPTIMIZED (BFS)
+        c.simulate(Const.SIMULATE)
         unopt_ns = benchmark_pass(c, start_node, size, iterations)
         unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
         
-        # --- PASS 2: OPTIMIZED ---
+        # PASS 2: OPTIMIZED (BFS)
         c.optimize()
-        opt_ns = benchmark_pass(c, start_node, size, iterations)
-        opt_me = 1000.0 / opt_ns if opt_ns > 0 else 0.0
+        opt_bfs_ns = benchmark_pass(c, start_node, size, iterations)
+        opt_bfs_me = 1000.0 / opt_bfs_ns if opt_bfs_ns > 0 else 0.0
 
-        # Metrics
-        speedup = unopt_ns / opt_ns if opt_ns > 0 else 0
+        # PASS 3: OPTIMIZED (SWEEP / COMPILE MODE)
+        c.simulate(Const.COMPILE)
+        opt_sweep_ns = benchmark_pass(c, start_node, size, iterations)
+        opt_sweep_me = 1000.0 / opt_sweep_ns if opt_sweep_ns > 0 else 0.0
+
+        plot_data["sizes"].append(size)
+        plot_data["unopt_me"].append(unopt_me)
+        plot_data["opt_bfs_me"].append(opt_bfs_me)
+        plot_data["opt_sweep_me"].append(opt_sweep_me)
+
+        speedup_bfs = unopt_ns / opt_bfs_ns if opt_bfs_ns > 0 else 0
+        speedup_sweep = unopt_ns / opt_sweep_ns if opt_sweep_ns > 0 else 0
+        speedup_str = f"{speedup_bfs:.1f}x / {speedup_sweep:.1f}x"
         
-        # --- DYNAMIC CLIFF DETECTION (Using Unoptimized Latency) ---
         tag = ""
         results.append(unopt_ns)
         if len(results) >= 2:
@@ -224,9 +228,8 @@ async def run_profiler_suite(mode_name):
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_ns:>10.2f} | {unopt_me:>12.2f} | {opt_ns:>8.2f} | {opt_me:>10.2f} | {speedup:>6.2f}x | {tag}")
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {opt_sweep_me:>16.2f} | {speedup_str:>17} | {tag}")
 
-        # Cleanup
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
         c.clearcircuit()
@@ -236,6 +239,71 @@ async def run_profiler_suite(mode_name):
 
     gc.enable()
     print("-" * 120)
+    return plot_data
+
+def generate_cache_plot(data_chaotic, data_realistic, cpu_name, output_dir):
+    """Generates beautiful separate plots for Realistic and Chaotic fragmentation."""
+    os.makedirs(output_dir, exist_ok=True)
+    plt.style.use('dark_background')
+
+    def create_plot(title, data, save_name, line1_label, line2_label):
+        fig, ax = plt.subplots(figsize=(11, 6.5), facecolor='#121212')
+        ax.set_facecolor('#121212')
+        
+        sizes = data['sizes']
+        unopt = data['unopt_me']
+        opt = data['opt_bfs_me']
+        
+        # Unoptimized Line (The Baseline)
+        ax.plot(sizes, unopt, marker='o', markersize=6, linestyle='-', color='#FF3366', linewidth=2.5, alpha=0.9, label=line1_label)
+        
+        # Optimized Line (The Bridge)
+        ax.plot(sizes, opt, marker='s', markersize=6, linestyle='--', color='#00FFCC', linewidth=2.5, alpha=0.9, label=line2_label)
+        
+        # Fill between to highlight the performance gained
+        ax.fill_between(sizes, unopt, opt, color='#00FFCC', alpha=0.08)
+
+        ax.set_xscale('log')
+        ax.set_title(f"{title}\nCPU: {cpu_name}", fontsize=15, fontweight='bold', color='#FFFFFF', pad=15)
+        ax.set_xlabel("Circuit Size (Number of Active Logic Gates) - Log Scale", fontsize=12, color='#E0E0E0', labelpad=10)
+        ax.set_ylabel("Throughput (Million Evaluations / Sec)", fontsize=12, color='#E0E0E0', labelpad=10)
+        
+        # Decluttering chart junk
+        ax.grid(True, color='#333333', linestyle=':', linewidth=1, alpha=0.8)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_color('#444444')
+        ax.spines['left'].set_color('#444444')
+        ax.tick_params(colors='#E0E0E0', which='both')
+
+        # Cleaner legend
+        legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333', fontsize=11, loc='upper right')
+        for text in legend.get_texts():
+            text.set_color('#E0E0E0')
+            
+        save_path = os.path.join(output_dir, save_name)
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+        plt.close()
+        print(f"Performance Graph saved to: {save_path}")
+
+    # 1. Generate Realistic Plot
+    create_plot(
+        "Realistic Memory Fragmentation: Unoptimized vs Optimized",
+        data_realistic,
+        "cache_profiler_realistic.png",
+        "Realistic (Unoptimized BFS)",
+        "Optimized (BFS Queue)"
+    )
+    
+    # 2. Generate Chaotic Plot
+    create_plot(
+        "Chaotic Memory Fragmentation: Unoptimized vs Optimized",
+        data_chaotic,
+        "cache_profiler_chaotic.png",
+        "Chaotic (Unoptimized BFS)",
+        "Optimized (BFS Queue)"
+    )
 
 async def main_profile():
     cpu_name, l2_cache, l3_cache = get_cpu_info()
@@ -243,23 +311,14 @@ async def main_profile():
     print("========================================================================================================================")
     print("  DARION LOGIC SIM: HIGH-INTEGRITY CACHE & OPTIMIZER PROFILER")
     print("========================================================================================================================")
-    print(f"CPU DETECTED: {cpu_name}")
-    print(f"OS CACHE LIMITS: L2: {l2_cache} | L3: {l3_cache}")
-    print("This profiler determines the performance gap between unoptimized user circuits and topologies")
-    print("rectified by the optimize() pass. It dynamically detects hardware cliffs (L2/L3 evictions) to prove")
-    print("that the optimizer successfully flattens the RAM-Bound curve.")
-    print("========================================================================================================================\n")
-
-    await run_profiler_suite('chaotic')
-    await run_profiler_suite('realistic')
     
-    print("\n========================================================================================================================")
-    print("  PROFILING COMPLETE.")
-    print("  The 'Speedup' column validates the performance recovery granted by topological linearization.")
-    print("========================================================================================================================")
+    data_chaotic = await run_profiler_suite('chaotic')
+    data_realistic = await run_profiler_suite('realistic')
+    
+    plots_dir = os.path.join(script_dir, 'benchmark_plots')
+    generate_cache_plot(data_chaotic, data_realistic, cpu_name, plots_dir)
 
 class _Tee:
-    """Mirror stdout to a log file simultaneously."""
     def __init__(self, *streams):
         self.streams = streams
     def write(self, data):
@@ -274,10 +333,6 @@ if __name__ == "__main__":
     _LOG = "comparison_test_results.txt"
     _backend = 'Reactor' if use_reactor else 'Engine'
     with open(_LOG, "a", encoding="utf-8") as _lf:
-        _lf.write(f"\n{'='*70}\n")
-        _lf.write(f"RUN  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        _lf.write(f"ARGS : backend={_backend} HIGH-INTEGRITY COMPARISON\n")
-        _lf.write(f"{'='*70}\n")
         _orig = sys.stdout
         sys.stdout = _Tee(_orig, _lf)
         try:
@@ -286,4 +341,3 @@ if __name__ == "__main__":
             print("\n[!] Profiling Aborted by User.")
         finally:
             sys.stdout = _orig
-    print(f"\nLog saved to: {_LOG}")

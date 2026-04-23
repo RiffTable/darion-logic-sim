@@ -9,7 +9,7 @@ cpdef enum:
     DESIGN = 0
     SIMULATE = 1
     FLIPFLOP = 2
-
+    COMPILE = 3
     
     LIMIT = 250_000
 
