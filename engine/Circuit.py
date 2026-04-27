@@ -10,6 +10,8 @@ from collections import deque
 import asyncio
 import time
 import heapq
+import io
+import contextlib
 
 Global_delay=[2,0,3,1,4,5,0,0,0,0,0]
 # ─── Circuit ──────────────────────────────────────────────────────
@@ -367,6 +369,15 @@ class Circuit:
                         print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         print("\n" + "=" * 90)
+
+    def diagnose_str(self) -> str:
+        """Captures the output of diagnose() into a string."""
+        f = io.StringIO()
+        
+        with contextlib.redirect_stdout(f):
+            self.diagnose()
+        
+        return f.getvalue()
 
     def writetojson(self, location: str):
         circuit = [gate.full_data() for gate in self.get_components()]

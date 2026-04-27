@@ -144,16 +144,7 @@ class AppWindow(QMainWindow):
         self.update_props_position()
 
     def _show_output(self, title: str, func, dialog_class: type, returns_string: bool = False):
-        if returns_string:
-            # For functions that return a string (like truthTable)
-            text = func()
-        else:
-            # For functions that print to stdout (like diagnose)
-            old = sys.stdout
-            sys.stdout = io.StringIO()
-            func()
-            text = sys.stdout.getvalue()
-            sys.stdout = old
+        text = func()
         
         # Remove ANSI codes
         text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
@@ -176,7 +167,7 @@ class AppWindow(QMainWindow):
         Const.set_MODE(mode)
 
     def show_diagnose(self):
-        self._show_output("Diagnosis", logic.diagnose, DiagnoseDialog, returns_string=False)
+        self._show_output("Diagnosis", logic.diagnose_str, DiagnoseDialog, returns_string=False)
 
     def closeEvent(self, event):
         # To make sure a runtime error isn't raised when closing the app
