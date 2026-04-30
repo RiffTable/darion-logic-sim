@@ -8,7 +8,6 @@ cpdef enum:
 
     DESIGN = 0
     SIMULATE = 1
-    FLIPFLOP = 2
     COMPILE = 3
     
     LIMIT = 250_000
@@ -59,3 +58,7 @@ cpdef Py_ssize_t get_MODE()
 
 cdef public bint DEBUG = False
 cpdef void set_DEBUG()
+
+cdef public double DELAY = 0.01
+cpdef void set_DELAY(double delay)
+cpdef double get_DELAY()

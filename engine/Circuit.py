@@ -650,20 +650,13 @@ class Circuit:
             i.reset()
 
     async def task_manager(self):
-        if Const.MODE==FLIPFLOP:
-            while self.time_queue:
-                n=len(self.time_queue)
-                for _ in range(n):
-                    task = heapq.heappop(self.time_queue)
-                    self.complete_task(task)
-                await asyncio.sleep(0.075)
-        else:
-            while self.time_queue:
-                n=len(self.time_queue)
-                for _ in range(n):
-                    task = heapq.heappop(self.time_queue)
-                    self.complete_task(task)
-                await asyncio.sleep(0)
+
+        while self.time_queue:
+            n=len(self.time_queue)
+            for _ in range(n):
+                task = heapq.heappop(self.time_queue)
+                self.complete_task(task)
+            await asyncio.sleep(Const.DELAY)
 
     def complete_task(self, task: Task):
         if task.time > self.Global_Clock:
@@ -724,17 +717,12 @@ class Circuit:
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if Const.MODE==FLIPFLOP:
-            if not origin.scheduled:
-                if origin.inputlimit==0:
-                    heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
-                else:
-                    heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+Global_delay[origin.id]+origin.inputlimit,origin.location))
-                origin.scheduled=True
-            else:
-                if origin.inputlimit==0:
-                    origin.scheduled=False
-                    
+        if origin.inputlimit==0:
+            if origin.scheduled:
+                origin.scheduled=False
+                return
+            heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
+            origin.scheduled=True
             if self.runner is None or self.runner.done():
                 self.runner=asyncio.create_task(self.task_manager())
             return

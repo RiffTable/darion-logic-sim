@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFormLayout,
     QDialog, QFileDialog, QInputDialog, QMessageBox,
     QDialogButtonBox, QMenu, QMenuBar, QLineEdit, QScrollArea,
-
+    QToolBar, QDoubleSpinBox,
     QGraphicsScene, QGraphicsView,
     QGraphicsTextItem, QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QGraphicsRectItem, QGraphicsSceneMouseEvent,
     QStyle, QStyleOptionGraphicsItem

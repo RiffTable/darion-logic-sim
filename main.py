@@ -71,7 +71,24 @@ class AppWindow(QMainWindow):
         layout_main.addWidget(self.sidebar)
         layout_main.addWidget(self.view)
 
-
+        ###======= TOOLBAR =======###
+        self.toolbar = QToolBar("Simulation Control")
+        self.addToolBar(self.toolbar)
+        
+        self.toolbar.addWidget(QLabel(" Frequency (Hz): "))
+        self.delay_spinbox = QDoubleSpinBox()
+        self.delay_spinbox.setRange(1.0, 400.0)
+        self.delay_spinbox.setSingleStep(1.0)
+        self.delay_spinbox.setDecimals(1)
+        
+        current_delay = Const.get_DELAY()
+        if current_delay > 0:
+            self.delay_spinbox.setValue(1.0 / current_delay)
+        else:
+            self.delay_spinbox.setValue(100.0)
+            
+        self.delay_spinbox.valueChanged.connect(lambda hz: Const.set_DELAY(1.0 / hz if hz > 0 else 1.0))
+        self.toolbar.addWidget(self.delay_spinbox)
 
     def undoStackChanged(self, isClean: bool):
         self.is_project_modified = not isClean

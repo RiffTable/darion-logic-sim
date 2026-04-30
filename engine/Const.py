@@ -8,7 +8,6 @@ PRIMARY = 2
 
 DESIGN = 0
 SIMULATE = 1
-FLIPFLOP = 2
 COMPILE = 3
 
 LIMIT = 500_000
@@ -47,6 +46,8 @@ COMPONENTS  = MAP
 
 MODE = DESIGN
 DEBUG= True
+DELAY = 0.01
+
 def set_MODE(mode):
     global MODE
     MODE = mode
@@ -58,3 +59,9 @@ def set_DEBUG():
     global DEBUG
     DEBUG=True
 
+def set_DELAY(delay):
+    global DELAY
+    DELAY = delay
+
+def get_DELAY():
+    return DELAY

@@ -10,3 +10,9 @@ cpdef void set_DEBUG():
     global DEBUG
     DEBUG = True
 
+cpdef void set_DELAY(double delay):
+    global DELAY
+    DELAY = delay
+
+cpdef double get_DELAY():
+    return DELAY

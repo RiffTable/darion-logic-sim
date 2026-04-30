@@ -941,7 +941,7 @@ cdef class Circuit:
         '''Process one task called from the async drain loop on the main thread.'''
         if task.time > self.Global_Clock:
             self.Global_Clock = task.time
-            
+        
         cdef int origin = task.gate_loc
         cdef Profile* profile
         cdef Profile* end
@@ -1026,17 +1026,12 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-
-        if MODE == FLIPFLOP:
-            if not self_info.scheduled:
-                if self_info.inputlimit == 0:
-                    self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
-                else:
-                    self.time_queue.push(Task(origin, self.Global_Clock + self.Global_delay[self_info.type] + self_info.inputlimit, origin))
-                self_info.scheduled = True
-            else:
-                if self_info.inputlimit == 0:
-                    self_info.scheduled = False  # Stops clock
+        if self_info.inputlimit==0:
+            if self_info.scheduled:
+                self_info.scheduled = False
+                return
+            self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
+            self_info.scheduled = True
             with gil:
                 if self.runner is None or self.runner.done():
                     self.runner = asyncio.create_task(self.task_manager())
@@ -1105,7 +1100,7 @@ cdef class Circuit:
                             if not target_info.update:
                                 self.visual_queue.push_back(profile.target)   # target changed — mark dirty
                                 target_info.update = True
-                            if not target_info.mark:
+                            if not target_info.mark and not target_info.hitlist.empty():
                                 target_info.mark = True
                                 write_queue[size] = profile.target
                                 size += 1
@@ -1132,23 +1127,6 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
 
-        if MODE == FLIPFLOP:
-            for origin in origins:
-                self_info = &gate_infolist[origin]
-                if not self_info.scheduled:
-                    if self_info.inputlimit == 0:
-                        self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
-                    else:
-                        self.time_queue.push(Task(origin, self.Global_Clock + self.Global_delay[self_info.type] + self_info.inputlimit, origin))
-                    self_info.scheduled = True
-                else:
-                    if self_info.inputlimit == 0:
-                        self_info.scheduled = False  # Stops clock
-            with gil:
-                if self.runner is None or self.runner.done():
-                    self.runner = asyncio.create_task(self.task_manager())
-            return
-            
         for origin in origins:
             read_queue[end_point] = origin
             end_point += 1
@@ -1320,26 +1298,15 @@ cdef class Circuit:
     async def task_manager(self):
         cdef int size
         cdef Task task
-        if MODE==FLIPFLOP:
-            while not self.time_queue.empty():
-                with nogil:
-                    size = self.time_queue.size()
-                    while size:
-                        size -= 1
-                        task = self.time_queue.top()
-                        self.time_queue.pop()
-                        self.complete_task(task)
-                await asyncio.sleep(0.075)
-        else:
-            while not self.time_queue.empty():
-                with nogil:
-                    size = self.time_queue.size()
-                    while size:
-                        size -= 1
-                        task = self.time_queue.top()
-                        self.time_queue.pop()
-                        self.complete_task(task)
-                await asyncio.sleep(0)
+        while not self.time_queue.empty():
+            with nogil:
+                size = self.time_queue.size()
+                while size:
+                    size -= 1
+                    task = self.time_queue.top()
+                    self.time_queue.pop()
+                    self.complete_task(task)
+            await asyncio.sleep(DELAY)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────
     cpdef bint visual_queue_empty(self):
