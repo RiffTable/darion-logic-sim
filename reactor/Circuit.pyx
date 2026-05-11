@@ -1211,14 +1211,20 @@ cdef class Circuit:
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low,limit,gate_type
         cdef Py_ssize_t new_output, profile_output, target_output
-        cdef Py_ssize_t index = 0, size = self.gate_infolist.size()-self.hidden
+        cdef Py_ssize_t index = 0, size = self.gate_infolist.size()
         cdef Py_ssize_t eval = 0
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+        self_info = &gate_infolist[origin]
+        if self_info.update == False:
+            self.visual_queue.push_back(origin)
+            self_info.update = True
         for index in range(origin,size):
             self_info = &gate_infolist[index]
+            if self_info.type < 0:
+                continue
             new_output = self_info.output
             profile = self_info.hitlist.data()
             end = profile + self_info.hitlist.size()
@@ -1229,9 +1235,7 @@ cdef class Circuit:
                     target_info = &gate_infolist[profile.target]
                     gate_type = target_info.type
                     limit = target_info.inputlimit
-                    if gate_type < 0:
-                        profile+=1
-                        continue
+                    
                     if gate_type >= NOT_ID:
                         if new_output != UNKNOWN:
                             target_output = new_output ^ (gate_type == NOT_ID)
@@ -1256,6 +1260,9 @@ cdef class Circuit:
                         else:
                             target_output = UNKNOWN
                     if target_output != target_info.output:
+                        if target_info.update == False:
+                            self.visual_queue.push_back(profile.target)
+                            target_info.update = True
                         target_info.output = target_output
                         if profile.target<index and not target_info.scheduled:
                             self.time_queue.push(Task(profile.target, self.Global_Clock, profile.target))

@@ -77,7 +77,7 @@ class AppWindow(QMainWindow):
         
         self.toolbar.addWidget(QLabel(" Frequency (Hz): "))
         self.delay_spinbox = QDoubleSpinBox()
-        self.delay_spinbox.setRange(1.0, 400.0)
+        self.delay_spinbox.setRange(1.0, 100000.0)
         self.delay_spinbox.setSingleStep(1.0)
         self.delay_spinbox.setDecimals(1)
         

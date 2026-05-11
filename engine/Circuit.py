@@ -61,13 +61,12 @@ class Circuit:
             rank = len(self.objlist[choice])
             self.objlist[choice].append(gt)
             gt.code = (choice, rank)
-            if Const.DEBUG:
-                if gt.id == VARIABLE_ID:
-                    gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
-                else:
-                    gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
             if gt.id == VARIABLE_ID:
+                gt.codename = chr(ord('A') + (rank) % 26) + str((rank + 1) // 26)
                 gt.output = LOW if get_MODE() != DESIGN else UNKNOWN
+            else:
+                gt.codename = gt.codename + '-' + str(len(self.objlist[choice]))
+                
         return gt
     
     def optimize(self):
@@ -650,18 +649,19 @@ class Circuit:
             i.reset()
 
     async def task_manager(self):
-
         while self.time_queue:
-            n=len(self.time_queue)
+            n = len(self.time_queue)
             for _ in range(n):
                 task = heapq.heappop(self.time_queue)
+                self.Global_Clock = task.time
                 self.complete_task(task)
             await asyncio.sleep(Const.DELAY)
 
     def complete_task(self, task: Task):
-        if task.time > self.Global_Clock:
-            self.Global_Clock = task.time
         gate = task.gate
+        if gate.inputlimit==0:
+            gate.value^=1
+            gate.output=gate.value
         if not gate.scheduled:
             return
         if not gate.update:
@@ -707,8 +707,6 @@ class Circuit:
                         target.scheduled = True
                 profile.output = new_output
         if gate.inputlimit==0:
-            gate.value ^= 1
-            gate.output = gate.value
             heapq.heappush(
                 self.time_queue,
                 Task(gate, self.Global_Clock + gate.book[gate.output], gate.location)
@@ -717,25 +715,24 @@ class Circuit:
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if origin.inputlimit==0:
+        if get_MODE()!=DESIGN and origin.inputlimit==0:
             if origin.scheduled:
-                origin.scheduled=False
-                return
+                return 
             heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
             origin.scheduled=True
             if self.runner is None or self.runner.done():
                 self.runner=asyncio.create_task(self.task_manager())
             return
-
+        if not origin.update:
+            origin.update=True
+            self.visual_queue.append(origin)     
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_end: int = 1
         write_end: int = 0
         counter: int = 0
         read_buf[0] = origin
-        if not origin.update:
-            origin.update=True
-            self.visual_queue.append(origin)             
+        
         while read_end > 0:
             if counter > self.counter:
                 for i in range(read_end):
