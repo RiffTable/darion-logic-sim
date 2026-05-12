@@ -126,6 +126,7 @@ class Circuit:
         """Connect source -> target at pin index."""
         prev = target.output
         target.connect(source, index)
+        self.visual_queue.append(source)
         if prev != target.output:
             self.propagate(target)
     
