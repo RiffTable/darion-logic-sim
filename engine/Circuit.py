@@ -717,6 +717,7 @@ class Circuit:
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
         if get_MODE()!=DESIGN and origin.inputlimit==0:
             if origin.scheduled:
+                origin.scheduled = False  # second click: cancel the clock
                 return 
             heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
             origin.scheduled=True

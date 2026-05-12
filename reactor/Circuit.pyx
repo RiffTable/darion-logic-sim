@@ -900,6 +900,8 @@ cdef class Circuit:
         cdef Gate variable
         cdef CPP_Gate* info
         set_MODE(Mod)
+        self.visual_queue_clear()
+        self.eval_count = 0
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner=None
@@ -930,6 +932,7 @@ cdef class Circuit:
         self.time_queue.swap(empty_pq)
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
+        self.runner = None
         for i in self.get_components():
             if i.id != IC_ID:
                 g = <Gate>i
@@ -952,8 +955,13 @@ cdef class Circuit:
         cdef uint8_t* book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
+        # Oscillator: flip value BEFORE the scheduled-check so the new output
+        # is already live when we drive the hitlist (mirrors engine behaviour).
+        if self_info.inputlimit == 0:
+            self_info.value ^= 1
+            self_info.output = self_info.value
         if not self_info.update:
-            self.visual_queue.push_back(origin) 
+            self.visual_queue.push_back(origin)
             self_info.update = True
         if not self_info.scheduled:
             return
@@ -1006,8 +1014,7 @@ cdef class Circuit:
             profile += 1
 
         if self_info.inputlimit == 0:
-            self_info.value ^= 1
-            self_info.output = self_info.value
+            # Re-schedule the oscillator for its next half-period.
             self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[self_info.output], origin))
             self_info.scheduled = True
     cdef void propagate(self, int origin) nogil:
@@ -1312,6 +1319,7 @@ cdef class Circuit:
                     size -= 1
                     task = self.time_queue.top()
                     self.time_queue.pop()
+                    self.Global_Clock = task.time  # advance clock per-task, matching engine
                     self.complete_task(task)
             await asyncio.sleep(DELAY)
 
