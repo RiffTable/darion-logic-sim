@@ -1,13 +1,13 @@
 """
 DARION LOGIC SIM - HIGH-INTEGRITY CACHE & OPTIMIZATION PROFILER
 Compares unoptimized fragmented memory vs. topologically sorted memory in a single pass.
-Features dynamic cliff detection and tests both Worst-Case and Real-World fragmentation.
+Features dynamic cliff detection and tests both Worst-Case (Chaotic) and Homogeneous gate chains.
 """
 import asyncio
 import time
 import gc
 import sys
-import os 
+import os
 import random
 import argparse
 import platform
@@ -86,24 +86,66 @@ def get_cpu_info():
         pass
     return cpu_name, l2, l3
 
+# ---------------------------------------------------------------------------
+# Gate metadata helpers
+# ---------------------------------------------------------------------------
+
+# Maps a gate type to (needs_second_input, second_input_value)
+# NOT is unary; all others need a second constant input.
+_GATE_META = {
+    Const.AND_ID:  (True,  Const.HIGH),   # AND  : keep second input HIGH
+    Const.NAND_ID: (True,  Const.HIGH),   # NAND : keep second input HIGH
+    Const.OR_ID:   (True,  Const.LOW),    # OR   : keep second input LOW
+    Const.NOR_ID:  (True,  Const.LOW),    # NOR  : keep second input LOW
+    Const.XOR_ID:  (True,  Const.LOW),    # XOR  : keep second input LOW
+    Const.XNOR_ID: (True,  Const.LOW),    # XNOR : keep second input LOW
+    Const.NOT_ID:  (False, None),          # NOT  : unary, no second input
+}
+
+GATE_NAMES = {
+    Const.AND_ID:  "AND",
+    Const.NAND_ID: "NAND",
+    Const.OR_ID:   "OR",
+    Const.NOR_ID:  "NOR",
+    Const.XOR_ID:  "XOR",
+    Const.XNOR_ID: "XNOR",
+    Const.NOT_ID:  "NOT",
+}
+
+ALL_GATE_TYPES = [
+    Const.AND_ID, Const.NAND_ID,
+    Const.OR_ID,  Const.NOR_ID,
+    Const.XOR_ID, Const.XNOR_ID,
+    Const.NOT_ID,
+]
+
+def _connect_gate(c, g, g_type, prev_gate, const_high, const_low):
+    """Wire a gate to its predecessor and apply a constant second input if needed."""
+    c.connect(g, prev_gate, 0)
+    needs_second, second_val = _GATE_META[g_type]
+    if needs_second:
+        const_gate = const_high if second_val == Const.HIGH else const_low
+        c.connect(g, const_gate, 1)
+
+
 def build_chain(active_size, mode='chaotic'):
-    """Builds a chain with configurable memory allocation modes."""
+    """Builds a mixed-gate chain with configurable memory allocation modes."""
     c = Circuit()
     first_gate = c.getcomponent(Const.VARIABLE_ID)
-    
+
     const_high = c.getcomponent(Const.VARIABLE_ID)
-    const_low = c.getcomponent(Const.VARIABLE_ID)
+    const_low  = c.getcomponent(Const.VARIABLE_ID)
     c.toggle(const_high, Const.HIGH)
-    c.toggle(const_low, Const.LOW)
-    
+    c.toggle(const_low,  Const.LOW)
+
     gate_types = [Const.AND_ID, Const.OR_ID, Const.XOR_ID, Const.NOT_ID]
     active_gates = []
-    
+
     for i in range(active_size - 1):
         g_type = gate_types[i % 4]
         g = c.getcomponent(g_type)
         active_gates.append((g, g_type))
-    
+
     if mode == 'chaotic':
         random.shuffle(active_gates)
     elif mode == 'realistic':
@@ -114,15 +156,36 @@ def build_chain(active_size, mode='chaotic'):
 
     prev_gate = first_gate
     for g, g_type in active_gates:
-        c.connect(g, prev_gate, 0)
-        if g_type == Const.AND_ID:
-            c.connect(g, const_high, 1)
-        elif g_type in (Const.OR_ID, Const.XOR_ID):
-            c.connect(g, const_low, 1)
+        _connect_gate(c, g, g_type, prev_gate, const_high, const_low)
         prev_gate = g
-        
+
     c.simulate(Const.SIMULATE)
     return c, first_gate
+
+
+def build_homogeneous_chain(active_size, gate_type):
+    """Builds a chain made entirely of one gate type, with chaotic allocation order."""
+    c = Circuit()
+    first_gate = c.getcomponent(Const.VARIABLE_ID)
+
+    const_high = c.getcomponent(Const.VARIABLE_ID)
+    const_low  = c.getcomponent(Const.VARIABLE_ID)
+    c.toggle(const_high, Const.HIGH)
+    c.toggle(const_low,  Const.LOW)
+
+    # Allocate all gates first (chaotic allocation order comes naturally from
+    # the interleaved VARIABLE allocs above, but we also shuffle the list).
+    gates = [c.getcomponent(gate_type) for _ in range(active_size - 1)]
+    random.shuffle(gates)
+
+    prev_gate = first_gate
+    for g in gates:
+        _connect_gate(c, g, gate_type, prev_gate, const_high, const_low)
+        prev_gate = g
+
+    c.simulate(Const.SIMULATE)
+    return c, first_gate
+
 
 def get_ram_mb():
     if HAS_PSUTIL:
@@ -138,7 +201,7 @@ def benchmark_pass(c, start_node, size, iterations):
     best_time_ns = float('inf')
     best_evals = 0
     num_passes = 3 if size >= 100000 else 5
-    
+
     for _ in range(num_passes):
         start_evals = c.eval_count if hasattr(c, 'eval_count') else 0
         start_time = time.perf_counter_ns()
@@ -147,7 +210,7 @@ def benchmark_pass(c, start_node, size, iterations):
             c.toggle(start_node, Const.LOW)
         end_time = time.perf_counter_ns()
         end_evals = c.eval_count if hasattr(c, 'eval_count') else 0
-        
+
         if (end_time - start_time) < best_time_ns:
             best_time_ns = end_time - start_time
             best_evals = end_evals - start_evals
@@ -156,30 +219,36 @@ def benchmark_pass(c, start_node, size, iterations):
     ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
     return ns_per_eval
 
+
+# ---------------------------------------------------------------------------
+# Profiler suites
+# ---------------------------------------------------------------------------
+
 async def run_profiler_suite(mode_name):
-    print(f"\n[{mode_name.upper()} FRAGMENTATION vs OPTIMIZED BFS vs OPTIMIZED SWEEP]")
-    
+    """Mixed-gate chaotic/realistic fragmentation profiler (Unopt BFS vs Opt BFS)."""
+    print(f"\n[{mode_name.upper()} FRAGMENTATION — MIXED GATE CHAIN]")
+
     test_sizes = []
     current_size = 100
-    while current_size <= 2_000_000:
+    while current_size <= 1_000_000:
         test_sizes.append(current_size)
         current_size = int(current_size * 1.30)
 
     base_ram = get_ram_mb()
     results = []
     current_zone = 1
-    
-    plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": [], "opt_sweep_me": []}
-    
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Opt Sweep (ME/s)':>16} | {'Speedup (BFS/Swp)':>17} | {'Hardware Bounds'}")
-    print("-" * 120)
+
+    plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": []}
+
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
+    print("-" * 100)
 
     gc.disable()
 
     for size in test_sizes:
         c, start_node = build_chain(size, mode=mode_name)
         current_ram = get_ram_mb() - base_ram
-        
+
         start_calib = time.perf_counter_ns()
         c.toggle(start_node, Const.HIGH)
         c.toggle(start_node, Const.LOW)
@@ -191,32 +260,24 @@ async def run_profiler_suite(mode_name):
         c.simulate(Const.SIMULATE)
         unopt_ns = benchmark_pass(c, start_node, size, iterations)
         unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
-        
+
         # PASS 2: OPTIMIZED (BFS)
         c.optimize()
         opt_bfs_ns = benchmark_pass(c, start_node, size, iterations)
         opt_bfs_me = 1000.0 / opt_bfs_ns if opt_bfs_ns > 0 else 0.0
 
-        # PASS 3: OPTIMIZED (SWEEP / COMPILE MODE)
-        c.simulate(Const.COMPILE)
-        opt_sweep_ns = benchmark_pass(c, start_node, size, iterations)
-        opt_sweep_me = 1000.0 / opt_sweep_ns if opt_sweep_ns > 0 else 0.0
-
         plot_data["sizes"].append(size)
         plot_data["unopt_me"].append(unopt_me)
         plot_data["opt_bfs_me"].append(opt_bfs_me)
-        plot_data["opt_sweep_me"].append(opt_sweep_me)
 
-        speedup_bfs = unopt_ns / opt_bfs_ns if opt_bfs_ns > 0 else 0
-        speedup_sweep = unopt_ns / opt_sweep_ns if opt_sweep_ns > 0 else 0
-        speedup_str = f"{speedup_bfs:.1f}x / {speedup_sweep:.1f}x"
-        
+        speedup = f"{unopt_ns / opt_bfs_ns:.1f}x" if opt_bfs_ns > 0 else "N/A"
+
         tag = ""
         results.append(unopt_ns)
         if len(results) >= 2:
-            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results)-1)
+            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results) - 1)
             local_jump_pct = ((unopt_ns - rolling_avg_ns) / rolling_avg_ns) * 100
-            
+
             if local_jump_pct > 15.0 and size > 1000:
                 if current_zone == 1:
                     tag = f"<-- CACHE BOUNDARY EVACUATION (+{local_jump_pct:.0f}%)"
@@ -224,99 +285,265 @@ async def run_profiler_suite(mode_name):
                 elif current_zone == 2 and local_jump_pct > 20.0:
                     tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
                     current_zone = 3
-            elif unopt_ns > (results[1] * 2.5 if len(results)>1 else 50) and current_zone < 3:
+            elif unopt_ns > (results[1] * 2.5 if len(results) > 1 else 50) and current_zone < 3:
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {opt_sweep_me:>16.2f} | {speedup_str:>17} | {tag}")
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
 
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
         c.clearcircuit()
         del c
         del start_node
-        gc.collect() 
+        gc.collect()
 
     gc.enable()
-    print("-" * 120)
+    print("-" * 100)
     return plot_data
 
+
+async def run_homogeneous_suite(gate_type):
+    """Chaotic chain made of a single gate type — Unopt BFS vs Opt BFS."""
+    gate_name = GATE_NAMES[gate_type]
+    print(f"\n[HOMOGENEOUS CHAOTIC — {gate_name} GATE CHAIN]")
+
+    test_sizes = []
+    current_size = 100
+    while current_size <= 1_000_000:
+        test_sizes.append(current_size)
+        current_size = int(current_size * 1.30)
+
+    base_ram = get_ram_mb()
+    results = []
+    current_zone = 1
+
+    plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": [], "gate": gate_name}
+
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
+    print("-" * 100)
+
+    gc.disable()
+
+    for size in test_sizes:
+        c, start_node = build_homogeneous_chain(size, gate_type)
+        current_ram = get_ram_mb() - base_ram
+
+        start_calib = time.perf_counter_ns()
+        c.toggle(start_node, Const.HIGH)
+        c.toggle(start_node, Const.LOW)
+        calib_time = time.perf_counter_ns() - start_calib
+        iterations = max(5, int(50_000_000 / calib_time)) if calib_time > 0 else max(5, 5_000_000 // (size * 2))
+        iterations = min(iterations, 10) if size >= 200000 else iterations
+
+        # PASS 1: UNOPTIMIZED (BFS)
+        c.simulate(Const.SIMULATE)
+        unopt_ns = benchmark_pass(c, start_node, size, iterations)
+        unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
+
+        # PASS 2: OPTIMIZED (BFS)
+        c.optimize()
+        opt_bfs_ns = benchmark_pass(c, start_node, size, iterations)
+        opt_bfs_me = 1000.0 / opt_bfs_ns if opt_bfs_ns > 0 else 0.0
+
+        plot_data["sizes"].append(size)
+        plot_data["unopt_me"].append(unopt_me)
+        plot_data["opt_bfs_me"].append(opt_bfs_me)
+
+        speedup = f"{unopt_ns / opt_bfs_ns:.1f}x" if opt_bfs_ns > 0 else "N/A"
+
+        tag = ""
+        results.append(unopt_ns)
+        if len(results) >= 2:
+            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results) - 1)
+            local_jump_pct = ((unopt_ns - rolling_avg_ns) / rolling_avg_ns) * 100
+
+            if local_jump_pct > 15.0 and size > 1000:
+                if current_zone == 1:
+                    tag = f"<-- CACHE BOUNDARY EVACUATION (+{local_jump_pct:.0f}%)"
+                    current_zone = 2
+                elif current_zone == 2 and local_jump_pct > 20.0:
+                    tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
+                    current_zone = 3
+            elif unopt_ns > (results[1] * 2.5 if len(results) > 1 else 50) and current_zone < 3:
+                current_zone = 3
+                tag = "(RAM BOUND)"
+
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
+
+        if getattr(c, 'runner', None) is not None and not c.runner.done():
+            c.runner.cancel()
+        c.clearcircuit()
+        del c
+        del start_node
+        gc.collect()
+
+    gc.enable()
+    print("-" * 100)
+    return plot_data
+
+
+# ---------------------------------------------------------------------------
+# Plot generators
+# ---------------------------------------------------------------------------
+
+def _base_ax(fig, ax, title, cpu_name):
+    ax.set_facecolor('#121212')
+    ax.set_xscale('log')
+    ax.set_title(f"{title}\nCPU: {cpu_name}", fontsize=14, fontweight='bold', color='#FFFFFF', pad=15)
+    ax.set_xlabel("Circuit Size (Number of Active Logic Gates) — Log Scale", fontsize=11, color='#E0E0E0', labelpad=10)
+    ax.set_ylabel("Throughput (Million Evaluations / Sec)", fontsize=11, color='#E0E0E0', labelpad=10)
+    ax.grid(True, color='#333333', linestyle=':', linewidth=1, alpha=0.8)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_color('#444444')
+    ax.spines['left'].set_color('#444444')
+    ax.tick_params(colors='#E0E0E0', which='both')
+
+
 def generate_cache_plot(data_chaotic, data_realistic, cpu_name, output_dir):
-    """Generates beautiful separate plots for Realistic and Chaotic fragmentation."""
+    """Generates separate plots for Chaotic and Realistic mixed-gate fragmentation."""
     os.makedirs(output_dir, exist_ok=True)
     plt.style.use('dark_background')
 
-    def create_plot(title, data, save_name, line1_label, line2_label):
+    def create_plot(title, data, save_name):
         fig, ax = plt.subplots(figsize=(11, 6.5), facecolor='#121212')
-        ax.set_facecolor('#121212')
-        
-        sizes = data['sizes']
-        unopt = data['unopt_me']
-        opt = data['opt_bfs_me']
-        
-        # Unoptimized Line (The Baseline)
-        ax.plot(sizes, unopt, marker='o', markersize=6, linestyle='-', color='#FF3366', linewidth=2.5, alpha=0.9, label=line1_label)
-        
-        # Optimized Line (The Bridge)
-        ax.plot(sizes, opt, marker='s', markersize=6, linestyle='--', color='#00FFCC', linewidth=2.5, alpha=0.9, label=line2_label)
-        
-        # Fill between to highlight the performance gained
+        _base_ax(fig, ax, title, cpu_name)
+
+        sizes  = data['sizes']
+        unopt  = data['unopt_me']
+        opt    = data['opt_bfs_me']
+
+        ax.plot(sizes, unopt, marker='o', markersize=6, linestyle='-',
+                color='#FF3366', linewidth=2.5, alpha=0.9, label='Unoptimized (BFS)')
+        ax.plot(sizes, opt,   marker='s', markersize=6, linestyle='--',
+                color='#00FFCC', linewidth=2.5, alpha=0.9, label='Optimized (BFS)')
         ax.fill_between(sizes, unopt, opt, color='#00FFCC', alpha=0.08)
 
-        ax.set_xscale('log')
-        ax.set_title(f"{title}\nCPU: {cpu_name}", fontsize=15, fontweight='bold', color='#FFFFFF', pad=15)
-        ax.set_xlabel("Circuit Size (Number of Active Logic Gates) - Log Scale", fontsize=12, color='#E0E0E0', labelpad=10)
-        ax.set_ylabel("Throughput (Million Evaluations / Sec)", fontsize=12, color='#E0E0E0', labelpad=10)
-        
-        # Decluttering chart junk
-        ax.grid(True, color='#333333', linestyle=':', linewidth=1, alpha=0.8)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_color('#444444')
-        ax.spines['left'].set_color('#444444')
-        ax.tick_params(colors='#E0E0E0', which='both')
-
-        # Cleaner legend
-        legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333', fontsize=11, loc='upper right')
+        legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333',
+                           fontsize=11, loc='upper right')
         for text in legend.get_texts():
             text.set_color('#E0E0E0')
-            
+
         save_path = os.path.join(output_dir, save_name)
         plt.tight_layout()
         plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
         plt.close()
         print(f"Performance Graph saved to: {save_path}")
 
-    # 1. Generate Realistic Plot
     create_plot(
-        "Realistic Memory Fragmentation: Unoptimized vs Optimized",
-        data_realistic,
-        "cache_profiler_realistic.png",
-        "Realistic (Unoptimized BFS)",
-        "Optimized (BFS Queue)"
+        "Chaotic Memory Fragmentation: Unoptimized vs Optimized (Mixed Gates)",
+        data_chaotic, "cache_profiler_chaotic.png"
     )
-    
-    # 2. Generate Chaotic Plot
     create_plot(
-        "Chaotic Memory Fragmentation: Unoptimized vs Optimized",
-        data_chaotic,
-        "cache_profiler_chaotic.png",
-        "Chaotic (Unoptimized BFS)",
-        "Optimized (BFS Queue)"
+        "Realistic Memory Fragmentation: Unoptimized vs Optimized (Mixed Gates)",
+        data_realistic, "cache_profiler_realistic.png"
     )
+
+
+# Colour palette for the 7 gate types on the homogeneous overview plot
+_GATE_COLOURS = {
+    "AND":  "#FF3366",
+    "NAND": "#FF9933",
+    "OR":   "#FFFF33",
+    "NOR":  "#33FF99",
+    "XOR":  "#33CCFF",
+    "XNOR": "#CC66FF",
+    "NOT":  "#FF66CC",
+}
+
+
+def generate_homogeneous_plots(homo_results, cpu_name, output_dir):
+    """
+    Generates:
+      1. One individual plot per gate type (Unopt vs Opt BFS).
+      2. One overview plot comparing Opt BFS across all gate types.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    plt.style.use('dark_background')
+
+    # --- Individual per-gate plots ---
+    for data in homo_results:
+        gate_name = data['gate']
+        colour    = _GATE_COLOURS.get(gate_name, '#FFFFFF')
+
+        fig, ax = plt.subplots(figsize=(11, 6.5), facecolor='#121212')
+        _base_ax(fig, ax,
+                 f"Homogeneous Chaotic Chain — {gate_name} Gate: Unoptimized vs Optimized",
+                 cpu_name)
+
+        sizes  = data['sizes']
+        unopt  = data['unopt_me']
+        opt    = data['opt_bfs_me']
+
+        ax.plot(sizes, unopt, marker='o', markersize=6, linestyle='-',
+                color='#FF3366', linewidth=2.5, alpha=0.9, label='Unoptimized (BFS)')
+        ax.plot(sizes, opt,   marker='s', markersize=6, linestyle='--',
+                color=colour,   linewidth=2.5, alpha=0.9, label=f'Optimized (BFS) — {gate_name}')
+        ax.fill_between(sizes, unopt, opt, color=colour, alpha=0.08)
+
+        legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333',
+                           fontsize=11, loc='upper right')
+        for text in legend.get_texts():
+            text.set_color('#E0E0E0')
+
+        save_path = os.path.join(output_dir, f"cache_profiler_homo_{gate_name.lower()}.png")
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+        plt.close()
+        print(f"Performance Graph saved to: {save_path}")
+
+    # --- Overview: Opt BFS across all gate types ---
+    fig, ax = plt.subplots(figsize=(13, 7), facecolor='#121212')
+    _base_ax(fig, ax,
+             "Homogeneous Chaotic Chains — Optimized BFS Throughput by Gate Type",
+             cpu_name)
+
+    for data in homo_results:
+        gate_name = data['gate']
+        colour    = _GATE_COLOURS.get(gate_name, '#FFFFFF')
+        ax.plot(data['sizes'], data['opt_bfs_me'],
+                marker='o', markersize=5, linestyle='-',
+                color=colour, linewidth=2.0, alpha=0.9, label=gate_name)
+
+    legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333',
+                       fontsize=11, loc='upper right', title='Gate Type',
+                       title_fontsize=11)
+    legend.get_title().set_color('#E0E0E0')
+    for text in legend.get_texts():
+        text.set_color('#E0E0E0')
+
+    save_path = os.path.join(output_dir, "cache_profiler_homo_overview.png")
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+    plt.close()
+    print(f"Performance Graph saved to: {save_path}")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 async def main_profile():
     cpu_name, l2_cache, l3_cache = get_cpu_info()
-    
-    print("========================================================================================================================")
+
+    print("=" * 100)
     print("  DARION LOGIC SIM: HIGH-INTEGRITY CACHE & OPTIMIZER PROFILER")
-    print("========================================================================================================================")
-    
-    data_chaotic = await run_profiler_suite('chaotic')
+    print("=" * 100)
+
+    # 1. Mixed-gate chains (existing chaotic + realistic)
+    data_chaotic  = await run_profiler_suite('chaotic')
     data_realistic = await run_profiler_suite('realistic')
-    
+
+    # 2. Homogeneous single-gate chaotic chains
+    homo_results = []
+    for gate_type in ALL_GATE_TYPES:
+        homo_results.append(await run_homogeneous_suite(gate_type))
+
     plots_dir = os.path.join(script_dir, 'benchmark_plots')
     generate_cache_plot(data_chaotic, data_realistic, cpu_name, plots_dir)
+    generate_homogeneous_plots(homo_results, cpu_name, plots_dir)
+
 
 class _Tee:
     def __init__(self, *streams):

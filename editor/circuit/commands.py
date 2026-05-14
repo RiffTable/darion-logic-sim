@@ -198,8 +198,9 @@ class ConnectCommand(QUndoCommand):
         
         if self.gate_size_changed:
             gate_comp = cast(GateItem, t_pin.parentComp)
-            gate_comp.setInputCount(self.old_limit)
-            # ^ This automatically calls unit.setlimits(self.old_limit)
+            if gate_comp is not None:
+                gate_comp.setInputCount(self.old_limit)
+                # ^ This automatically calls unit.setlimits(self.old_limit)
 
 
 #TODO: clean-up
@@ -395,12 +396,13 @@ class SwapWireCommand(QUndoCommand):
         t_wire = self.t_wire
         scene = self.scene
         
-        # Reconnect g_wire to g_pin
-        g_wire._addSupply(g_pin)
-        
         # Disconnect g_wire from target
         if target in g_wire.supplies:
             g_wire._cutSupply(target)
+
+        # Reconnect g_wire to g_pin (ghostPin) so it follows the cursor again
+        if g_pin not in g_wire.supplies:
+            g_wire._addSupply(g_pin)
             
         # Reconnect t_wire to target
         t_wire._addSupply(target)
@@ -420,14 +422,14 @@ class SwapWireCommand(QUndoCommand):
         g_wire.updateShape()
         t_wire.updateShape()
         
-        scene.ghostWire = g_wire
-        scene.setState(EditorState.WIRING)
-        
         if self.added_to_scene:
             if g_wire in scene.wires:
                 scene.wires.remove(g_wire)
             scene.removeItem(g_wire)
             self.added_to_scene = False
+
+        scene.ghostWire = g_wire
+        scene.setState(EditorState.WIRING)
 
 class DisconnectWireCommand(QUndoCommand):
     def __init__(self, scene: "CircuitScene", target: InputPinItem):
