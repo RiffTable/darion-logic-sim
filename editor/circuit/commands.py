@@ -34,6 +34,8 @@ class AddCompCommand(QUndoCommand):
     def undo(self):
         if self.comp is None:
             return    # This is for pyright
+        if self.comp not in self.scene.comps:
+            return    # Stale undo entry (e.g. after clearCanvas)
         
         self.scene.removeItem(self.comp)
         self.scene.comps.remove(self.comp)
@@ -98,7 +100,11 @@ class DeleteCommand(QUndoCommand):
         # 1. UNMARK DELETED GATES FIRST
         for comp in self.items_to_delete:
             if comp._unit:
-                logic.renewobj(comp._unit)
+                gate = comp._unit
+                c0, c1 = gate.code
+                # Guard: objlist may have been trimmed (e.g. after clearCanvas)
+                if c1 < len(logic.objlist[c0]):
+                    logic.renewobj(gate)
 
         # 2. REAPPEAR COMPONENTS
         for comp in self.items_to_delete:
@@ -344,6 +350,9 @@ class SwapWireCommand(QUndoCommand):
         self.target = target
         self.g_pin = g_pin
         self.added_to_scene = False
+        # True when g_wire only held ghostPin before the swap (brand-new wire).
+        # False when g_wire is an existing wire with other real supplies.
+        self.g_wire_is_new = (len(g_wire.supplies) == 1 and g_pin in g_wire.supplies)
 
     def redo(self):
         g_wire = self.g_wire
@@ -373,7 +382,8 @@ class SwapWireCommand(QUndoCommand):
             t_wire.source.setWire(None)
             if t_wire in scene.wires:
                 scene.wires.remove(t_wire)
-            scene.removeItem(t_wire)
+            if t_wire.scene() is scene:
+                scene.removeItem(t_wire)
         else:
             t_wire.updateShape()
 
@@ -391,27 +401,37 @@ class SwapWireCommand(QUndoCommand):
 
     def undo(self):
         g_wire = self.g_wire
-        g_pin = self.g_pin
         target = self.target
         t_wire = self.t_wire
         scene = self.scene
-        
-        # Disconnect g_wire from target
+
+        # Always cut target from g_wire
         if target in g_wire.supplies:
             g_wire._cutSupply(target)
 
-        # Reconnect g_wire to g_pin (ghostPin) so it follows the cursor again
-        if g_pin not in g_wire.supplies:
-            g_wire._addSupply(g_pin)
-            
-        # Reconnect t_wire to target
-        t_wire._addSupply(target)
-        
-        # Logically disconnect/connect
+        if self.g_wire_is_new:
+            # g_wire was a brand-new wire — strip any remaining supplies and
+            # remove it from the scene entirely.
+            for pin in list(g_wire.supplies):
+                g_wire._cutSupply(pin)
+            if g_wire in scene.wires:
+                scene.wires.remove(g_wire)
+            if g_wire.scene() is scene:
+                scene.removeItem(g_wire)
+            self.added_to_scene = False
+        else:
+            # g_wire is an existing wire — leave it in the scene with its
+            # remaining supplies intact; just refresh its shape.
+            g_wire.updateShape()
+
+        # Logically disconnect target before restoring t_wire
         if target.logical: logic.disconnect(*target.logical)
+
+        # Restore t_wire to target
+        t_wire._addSupply(target)
         t_wire.logicalConnect(t_wire.source, target)
-        
-        # Restore t_wire physically if it was removed
+
+        # Restore t_wire to scene if it was removed during redo
         if len(t_wire.supplies) == 1:
             t_wire.source.setWire(t_wire)
             if t_wire not in scene.wires:
@@ -419,17 +439,11 @@ class SwapWireCommand(QUndoCommand):
             if t_wire.scene() is not scene:
                 scene.addItem(t_wire)
 
-        g_wire.updateShape()
         t_wire.updateShape()
-        
-        if self.added_to_scene:
-            if g_wire in scene.wires:
-                scene.wires.remove(g_wire)
-            scene.removeItem(g_wire)
-            self.added_to_scene = False
 
-        scene.ghostWire = g_wire
-        scene.setState(EditorState.WIRING)
+        # Stay in NORMAL — ghostPin holds nothing, no wire follows the mouse
+        scene.ghostWire = None
+        scene.setState(EditorState.NORMAL)
 
 class DisconnectWireCommand(QUndoCommand):
     def __init__(self, scene: "CircuitScene", target: InputPinItem):
