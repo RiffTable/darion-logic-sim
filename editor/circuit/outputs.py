@@ -15,7 +15,7 @@ from .pins import PinItem, InputPinItem, OutputPinItem
 
 class OutputItem(CompItem):
     TAG="OUT"
-    LOGIC=Const.OUTPUT_PIN_ID
+    LOGIC=Const.PROBE_ID
     NAME=DESC="LED"
     def getRelSize(self): return (4, 2)
     def getRelPadding(self): return (0, 4)

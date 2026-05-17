@@ -29,6 +29,7 @@ cdef class Circuit:
     cdef unsigned int Global_Clock
     cdef unsigned int[12] Global_delay
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
+    cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
     cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist

@@ -227,9 +227,11 @@ cdef class Circuit:
             if gate.id == IC_ID:
                 ic = <IC>gate
                 for pin in ic.outputs:
-                    self.propagate(pin.location)
+                    if self.gate_infolist[pin.location].output != UNKNOWN:
+                        self.propagate(pin.location)
             else:
-                self.propagate((<Gate>gate).location)
+                if self.gate_infolist[(<Gate>gate).location].output != UNKNOWN:
+                    self.propagate((<Gate>gate).location)
 
     # Result
     cpdef void output(self, Gate gate):
@@ -931,6 +933,8 @@ cdef class Circuit:
         self.eval_count=0
         cdef priority_queue[Task, vector[Task], greater[Task]] empty_pq
         self.time_queue.swap(empty_pq)
+        cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] empty_tl
+        self.time_limit.swap(empty_tl)
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner = None
@@ -951,6 +955,7 @@ cdef class Circuit:
         cdef Profile* end
         cdef Py_ssize_t realsource, high, low, limit, gate_type
         cdef Py_ssize_t new_output, profile_output, target_output
+        cdef unsigned int next_time
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
         cdef uint8_t* book
@@ -961,11 +966,11 @@ cdef class Circuit:
         if self_info.inputlimit == 0:
             self_info.value ^= 1
             self_info.output = self_info.value
+        if not self_info.scheduled:
+            return
         if not self_info.update:
             self.visual_queue.push_back(origin)
             self_info.update = True
-        if not self_info.scheduled:
-            return
         self_info.scheduled = False
         new_output = self_info.output
         profile = self_info.hitlist.data()
@@ -1016,7 +1021,9 @@ cdef class Circuit:
 
         if self_info.inputlimit == 0:
             # Re-schedule the oscillator for its next half-period.
-            self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[self_info.output], origin))
+            next_time = self.Global_Clock + self_info.book[self_info.output]
+            self.time_queue.push(Task(origin, next_time, origin))
+            self.time_limit.push(next_time)   # deadline for combinational settling
             self_info.scheduled = True
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
@@ -1034,9 +1041,8 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-        if self_info.inputlimit==0:
+        if MODE != DESIGN and self_info.inputlimit == 0:
             if self_info.scheduled:
-                self_info.scheduled = False
                 return
             self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
             self_info.scheduled = True
@@ -1311,17 +1317,41 @@ cdef class Circuit:
                 
         return jumps
     async def task_manager(self):
-        cdef int size
+        cdef int size, i
         cdef Task task
+        cdef unsigned int limit_time
         while not self.time_queue.empty():
             with nogil:
                 size = self.time_queue.size()
-                while size:
-                    size -= 1
-                    task = self.time_queue.top()
-                    self.time_queue.pop()
-                    self.Global_Clock = task.time  # advance clock per-task, matching engine
-                    self.complete_task(task)
+                i = 0
+                while i < size:
+                    i += 1
+                    # Drain all oscillator tasks sitting at the head of the queue
+                    # (mirrors engine's inner while-inputlimit==0 loop)
+                    while (not self.time_queue.empty() and self.gate_infolist[self.time_queue.top().gate_loc].inputlimit == 0):
+                        with gil: await asyncio.sleep(DELAY)
+                        task = self.time_queue.top()
+                        self.time_queue.pop()
+                        self.Global_Clock = task.time
+                        self.complete_task(task)
+                        # Drain combinational descendants that settle within this
+                        # half-period (time < next oscillator tick)
+                        if not self.time_limit.empty():
+                            limit_time = self.time_limit.top()
+                            while (not self.time_queue.empty() and self.time_queue.top().time < limit_time):
+                                task = self.time_queue.top()
+                                self.time_queue.pop()
+                                self.Global_Clock = task.time
+                                self.complete_task(task)
+                            self.time_limit.pop()
+                    # Fire one non-oscillator task for this slot
+                    if not self.time_queue.empty():
+                        task = self.time_queue.top()
+                        self.time_queue.pop()
+                        self.Global_Clock = task.time
+                        self.complete_task(task)
+                    else:
+                        break
             await asyncio.sleep(DELAY)
 
     # ── Visual-queue helpers (called from the UI layer) ──────────────────

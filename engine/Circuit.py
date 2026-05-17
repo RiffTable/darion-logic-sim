@@ -14,6 +14,7 @@ import io
 import contextlib
 
 Global_delay=[2,0,3,1,4,5,0,0,0,0,0]
+
 # ─── Circuit ──────────────────────────────────────────────────────
 class Task:
     __slots__=['gate','time','location']
@@ -32,8 +33,8 @@ class Circuit:
         'objlist', 'copydata',
         'counter', 'queue',
         'eval_count','time_queue','runner',
-        'visual_queue','Global_Clock','oscillation_queue',
-        '_location_map', '_loc_map_counter'
+        'visual_queue','Global_Clock',
+        '_location_map', '_loc_map_counter','time_limit'
     ]
 
     def __init__(self):
@@ -43,9 +44,10 @@ class Circuit:
         self.counter: int = 0
         self.queue: list = [[None] * LIMIT, [None] * LIMIT]  # double buffer: fixed [2][LIMIT]
         self.eval_count = 0
-        self.time_queue: list[Task] = []
-        self.oscillation_queue:deque[Gate]=deque()
+        self.time_queue: list[Task] = []        
         heapq.heapify(self.time_queue)
+        self.time_limit:list[int]=[]
+        heapq.heapify(self.time_limit)
         self.runner=None
         self.visual_queue: deque[Gate] = deque()  # stores gate locations (ints) for dirty UI updates
         self.Global_Clock=0
@@ -651,15 +653,24 @@ class Circuit:
 
     async def task_manager(self):
         while self.time_queue:
-            n = len(self.time_queue)
-            for _ in range(n):
-                task = heapq.heappop(self.time_queue)
-                self.Global_Clock = task.time
-                self.complete_task(task)
+            n=len(self.time_queue)
+            for i in range(n):
+                while self.time_queue and self.time_queue[0].gate.inputlimit==0:
+                    await asyncio.sleep(Const.DELAY)
+                    self.complete_task(heapq.heappop(self.time_queue))
+                    if self.time_limit:
+                        while self.time_queue and self.time_limit and self.time_queue[0].time<self.time_limit[0]:
+                            self.complete_task(heapq.heappop(self.time_queue))
+                        heapq.heappop(self.time_limit)
+                if self.time_queue:
+                    self.complete_task(heapq.heappop(self.time_queue))
+                else:
+                    break
             await asyncio.sleep(Const.DELAY)
 
     def complete_task(self, task: Task):
         gate = task.gate
+        self.Global_Clock = task.time
         if gate.inputlimit==0:
             gate.value^=1
             gate.output=gate.value
@@ -712,13 +723,13 @@ class Circuit:
                 self.time_queue,
                 Task(gate, self.Global_Clock + gate.book[gate.output], gate.location)
             )
+            heapq.heappush(self.time_limit,self.Global_Clock + gate.book[gate.output])
             gate.scheduled = True
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
         if get_MODE()!=DESIGN and origin.inputlimit==0:
             if origin.scheduled:
-                origin.scheduled = False  # second click: cancel the clock
                 return 
             heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
             origin.scheduled=True

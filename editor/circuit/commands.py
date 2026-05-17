@@ -73,13 +73,21 @@ class DeleteCommand(QUndoCommand):
 
         # 2. DISAPPEAR COMPONENTS
         for comp in self.items_to_delete:
+            if comp not in self.scene.comps:
+                continue    # Already removed (stale entry)
             self.scene.removeItem(comp)
             self.scene.comps.remove(comp)
 
         # 3. DISAPPEAR WIRES & HANDLE BOUNDARY LOGIC
         for wire in self.wires_to_delete:
-            self.scene.removeItem(wire)
-            self.scene.wires.remove(wire)
+            # Guard: only remove from scene lists if still tracked there.
+            # The logical-disconnect below must still run even for stale wires.
+            if wire in self.scene.wires:
+                self.scene.removeItem(wire)
+                self.scene.wires.remove(wire)
+            elif wire.scene() is self.scene:
+                # Wire is in the QGraphicsScene but not scene.wires — remove it anyway
+                self.scene.removeItem(wire)
             
             if wire.source and wire.source.logical:
                 source_unit = wire.source.logical
