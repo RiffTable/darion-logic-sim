@@ -172,24 +172,22 @@ class InputItem(CompItem):
         is_sel   = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore
         is_high  = (self.state == Const.HIGH)
 
-        g_body    = Color.input_active if is_high else Color.input_body
-        g_outline = Color.input_sel_outline if is_sel else Color.input_outline
-        g_label   = Color.input_label
-
+        g_body    = Color.comp_active if is_high else Color.comp_body
+        g_outline = Color.hl_text_bg  if is_sel  else Color.outline
         pen_style = Qt.PenStyle.DashLine if is_sel else Qt.PenStyle.SolidLine
-        painter.setPen(QPen(g_outline, 1.8, pen_style))
+
+        painter.setPen(QPen(g_outline, 2, pen_style))
         painter.setBrush(g_body)
 
         w, h = self.getAbsSize()
         body = QRectF(0, 0, w * GRID.SIZE, h * GRID.SIZE)
 
         if self.is_clock:
-            # Rounded square → clock symbol
             r = GRID.SIZE * 0.5
             painter.drawRoundedRect(body, r, r)
         else:
             painter.drawEllipse(body)
 
-        painter.setPen(g_label)
-        painter.setFont(Font.gate)
+        painter.setPen(Color.text)
+        painter.setFont(Font.default)
         painter.drawText(body, Qt.AlignmentFlag.AlignCenter, self.tag)

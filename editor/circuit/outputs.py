@@ -129,17 +129,15 @@ class OutputItem(CompItem):
         Color  = theme.get_theme()
         is_sel = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore
 
-        g_outline = Color.input_sel_outline if is_sel else Color.output_outline
-        g_label   = Color.output_label
-
+        g_outline = Color.hl_text_bg if is_sel else Color.outline
         pen_style = Qt.PenStyle.DashLine if is_sel else Qt.PenStyle.SolidLine
-        painter.setPen(QPen(g_outline, 1.8, pen_style))
+        painter.setPen(QPen(g_outline, 2, pen_style))
         painter.setBrush(QBrush(self.current_color))   # animated LED colour
 
         w, h = self.getAbsSize()
         body = QRectF(0, 0, w * GRID.SIZE, h * GRID.SIZE)
         painter.drawEllipse(body)
 
-        painter.setPen(g_label)
-        painter.setFont(Font.gate)
+        painter.setPen(Color.text)
+        painter.setFont(Font.default)
         painter.drawText(body, Qt.AlignmentFlag.AlignCenter, self.tag)
