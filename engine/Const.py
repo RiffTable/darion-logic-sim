@@ -35,10 +35,11 @@ INPUTLIMIT  = 3
 SOURCES     = 4
 VALUE       = SOURCES
 
-# IC row layout: [custom_name, IC_ID, code, tag, map, description]
-MAP         = 4
-TAG         = 3
-DESCRIPTION = 5
+# IC row layout: [custom_name, IC_ID, code, tag, map, description, pin_orientations]
+MAP              = 4
+TAG              = 3
+DESCRIPTION      = 5
+PIN_ORIENTATIONS = 6   # [[input_facing, ...], [output_facing, ...]]
 
 # Legacy aliases kept so nothing else breaks
 CODE        = 2

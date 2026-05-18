@@ -81,6 +81,7 @@ class ProjectMenu(BaseMenu):
         self.addSeparator()
         self.addAction(Actions.get("truth_table"))
         self.addAction(Actions.get("diagnose"))
+        self.addAction(Actions.get("timing_diagram"))
         self.addSeparator()
         self.addMenu(Actions.getMenu("simulation_mode"))
 

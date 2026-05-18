@@ -17,6 +17,7 @@ from editor.tools.menu import FileMenu, EditMenu, ViewMenu, ProjectMenu, Setting
 from editor.tools.sidebar import ComponentSidebar
 from editor.tools.ICdialog import ICSetupDialog
 from editor.tools.dialogs import TruthTableDialog, DiagnoseDialog
+from editor.tools.timing_diagram import TimingDiagramDialog
 from editor.circuit.commands import AddCompCommand
 
 
@@ -129,6 +130,18 @@ class AppWindow(QMainWindow):
         if newCreated:
             self.sidebar.refresh_IC_catagory.emit()
     
+    # this is a temporary path because i can't work with the current one
+    @property
+    def ic_path(self) -> Path:
+        """IC folder — sibling 'ICs/' dir next to the open project file,
+        or projectsPath / 'ICs' when no project is open."""
+        if self.current_file_path:
+            folder = Path(self.current_file_path).parent / "ICs"
+        else:
+            folder = projectsPath / "ICs"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
     def retrieve_IC_data(self):
         ic_list: dict[str, tuple[int|None, str|None]] = {}
         names: set[str] = set()
@@ -138,7 +151,7 @@ class AppWindow(QMainWindow):
             names.add(name)
             ic_list[name] = (idx, None)
 
-        for file in ICPath.glob("*.json"):
+        for file in self.ic_path.glob("*.json"):
             filename = str(file.resolve())    # Absolute path
             ic = logic.get_ic(filename)
             if ic is None: continue
@@ -170,6 +183,10 @@ class AppWindow(QMainWindow):
             dialog_class(self, text).exec()
         else:
             QMessageBox.information(self, "No Data", f"No {title.lower()} available.")
+
+    def show_timing_diagram(self):
+        dlg = TimingDiagramDialog(self)
+        dlg.show()
 
     def show_truth_table(self):
         # Remember Simulation Mode
@@ -291,6 +308,7 @@ class AppWindow(QMainWindow):
         
         Actions.add(self, "truth_table", "Truth Table", self.show_truth_table, QKS("Ctrl+T"))
         Actions.add(self, "diagnose", "Diagnose Circuit", self.show_diagnose, QKS("Ctrl+D"))
+        Actions.add(self, "timing_diagram", "Timing Diagram", self.show_timing_diagram, QKS("Ctrl+W"))
         
         # Orientation
         Actions.add(view, "rotate_cw", "Rotate Clockwise", scene.rotateSelectionCW, QKS("R"))
@@ -463,7 +481,7 @@ class AppWindow(QMainWindow):
             logic.reset()
 
             self.cscene.makeICfyable()
-            filename = (ICPath / str(res["name"])).with_suffix(".json")
+            filename = (self.ic_path / str(res["name"])).with_suffix(".json")
             logic.save_as_ic(
                 str(filename),
                 res["name"],
@@ -492,8 +510,7 @@ if __name__ == "__main__":
     projectsPath = Path(docPath) / "Darion Logic Sim" / "Projects"
     projectsPath.mkdir(parents=True, exist_ok=True)
 
-    ICPath = Path(appPath) / "IC"
-    ICPath.mkdir(parents=True, exist_ok=True)
+    # IC files live next to each project (AppWindow.ic_path); no global ICPath needed.
 
 
     ### App Theme

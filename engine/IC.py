@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from Gates import Gate, Profile, pop, hide_profile, reveal_profile
-from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, CUSTOM_NAME, ID, LOCATION, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE, TAG, DESCRIPTION
+from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, CUSTOM_NAME, ID, LOCATION, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE, TAG, DESCRIPTION, PIN_ORIENTATIONS
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
@@ -9,6 +9,7 @@ class IC:
         'inputs', 'internal', 'outputs',
         'codename', 'custom_name', 'code', 'map',
         'id', 'counter', 'tag', 'description',
+        'pin_orientations',
     ]
 
     def __init__(self,id:int,name:str):
@@ -23,6 +24,7 @@ class IC:
         self.map: list = []
         self.tag=''
         self.description=''
+        self.pin_orientations: list[list[int]] = [[], []]  # [input_facings, output_facings]
 
     def __repr__(self):
         return self.custom_name+'-'+self.codename
@@ -74,6 +76,8 @@ class IC:
         self.map = dictionary[MAP]
         self.tag = dictionary[TAG]
         self.description = dictionary[DESCRIPTION]
+        if len(dictionary) > PIN_ORIENTATIONS:
+            self.pin_orientations = dictionary[PIN_ORIENTATIONS]
         self.load_components(dictionary, pseudo)
         self.clone(pseudo)
 
@@ -96,7 +100,7 @@ class IC:
             gate.clone(info, pseudo)
 
     def full_data(self) -> list:
-        # IC row: [custom_name, IC_ID, code, tag, map, description]
+        # IC row: [custom_name, IC_ID, code, tag, map, description, pin_orientations]
         return [
             self.custom_name,
             IC_ID,
@@ -104,10 +108,11 @@ class IC:
             self.tag,
             [i.full_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
+            self.pin_orientations,
         ]
 
     def partial_data(self):
-        # IC row: [custom_name, IC_ID, code, tag, map, description]
+        # IC row: [custom_name, IC_ID, code, tag, map, description, pin_orientations]
         return [
             self.custom_name,
             IC_ID,
@@ -115,6 +120,7 @@ class IC:
             self.tag,
             [i.partial_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
+            self.pin_orientations,
         ]
 
     def load_to_cluster(self, cluster: list):

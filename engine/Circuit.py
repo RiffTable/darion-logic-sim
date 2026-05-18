@@ -12,6 +12,12 @@ import time
 import heapq
 import io
 import contextlib
+try:
+    from editor.tools.timing_tracer import tracer as _tracer
+except ImportError:
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.join(_os.getcwd(), "editor", "tools"))
+    from timing_tracer import tracer as _tracer  # type: ignore
 
 Global_delay=[2,0,3,1,4,5,0,0,0,0,0]
 
@@ -34,7 +40,8 @@ class Circuit:
         'counter', 'queue',
         'eval_count','time_queue','runner',
         'visual_queue','Global_Clock',
-        '_location_map', '_loc_map_counter','time_limit'
+        '_location_map', '_loc_map_counter','time_limit',
+        'recording'
     ]
 
     def __init__(self):
@@ -51,6 +58,7 @@ class Circuit:
         self.runner=None
         self.visual_queue: deque[Gate] = deque()  # stores gate locations (ints) for dirty UI updates
         self.Global_Clock=0
+        self.recording: bool = False
 
     def __repr__(self):
         return 'Circuit'
@@ -444,7 +452,7 @@ class Circuit:
                 gate.process()
                 self.propagate(gate)
 
-    def build_ic(self):
+    def build_ic(self, pin_orientations: dict|None = None):
         my_ic=self.getcomponent(IC_ID)
         queue=[]
         index=0
@@ -485,6 +493,12 @@ class Circuit:
             my_ic.addgate(gate)
         my_ic.counter = size
         self.counter += size
+        # Build pin_orientations lists from the provided dict (loc -> facing)
+        if pin_orientations:
+            my_ic.pin_orientations = [
+                [pin_orientations.get(pin.location, 0) for pin in my_ic.inputs],
+                [pin_orientations.get(pin.location, 0) for pin in my_ic.outputs],
+            ]
         return self.objlist[IC_ID].pop()
 
     def ic_pin_change(self):
@@ -511,13 +525,13 @@ class Circuit:
         if old:old.code,gate.code=gate.code,old.code
         else:gate.code=(gate.code[0],index)
 
-    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = "",components=None):
+    def save_as_ic(self, location: str, ic_name: str = "IC", tag: str = "", description: str = "", components=None, pin_orientations: dict|None = None):
         '''sandboxing if components are given'''
         if components:
             crct=Circuit()
             crct.copy(components)
             crct.paste()
-            crct.save_as_ic(location, ic_name, tag, description)
+            crct.save_as_ic(location, ic_name, tag, description, pin_orientations=pin_orientations)
             return
 
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
@@ -529,7 +543,7 @@ class Circuit:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
 
-        my_ic=self.build_ic()
+        my_ic=self.build_ic(pin_orientations)
         my_ic.custom_name = ic_name
         my_ic.tag = tag
         my_ic.description = description
@@ -659,7 +673,7 @@ class Circuit:
                     await asyncio.sleep(Const.DELAY)
                     self.complete_task(heapq.heappop(self.time_queue))
                     if self.time_limit:
-                        while self.time_queue and self.time_limit and self.time_queue[0].time<self.time_limit[0]:
+                        while self.time_queue and self.time_queue[0].time<self.time_limit[0]:
                             self.complete_task(heapq.heappop(self.time_queue))
                         heapq.heappop(self.time_limit)
                 if self.time_queue:
@@ -674,6 +688,9 @@ class Circuit:
         if gate.inputlimit==0:
             gate.value^=1
             gate.output=gate.value
+            # ── Timing tracer: record clock toggle ────────────────────────
+            if self.recording:
+                _tracer.record(gate, self.Global_Clock)
         if not gate.scheduled:
             return
         if not gate.update:
@@ -717,6 +734,9 @@ class Circuit:
                             Task(target, self.Global_Clock + Global_delay[target.id] + target.inputlimit, target.location)
                         )
                         target.scheduled = True
+                    # ── Timing tracer: record probe/variable state change ──
+                    if self.recording and gate_type in (VARIABLE_ID, PROBE_ID):
+                        _tracer.record(target, self.Global_Clock)
                 profile.output = new_output
         if gate.inputlimit==0:
             heapq.heappush(
