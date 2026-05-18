@@ -58,6 +58,8 @@ class CompItem(QGraphicsItem):
         self._dirty = True
         self._rect = QRectF()
         self._cached_hitbox = QPainterPath()
+        self._gate_path: QPainterPath | None = None   # Set by subclasses to override drawRect
+        self._custom_draw: bool = False               # Set True by GateItem to skip drawRect
         self._prop_change_listener: list[Callable[[], None]] = []
 
         if self.LOGIC != Const.IC_ID:
@@ -319,6 +321,7 @@ class CompItem(QGraphicsItem):
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget):
         if self._dirty: self._updateShape(); self._dirty = False
 
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         Color = theme.get_theme()
         if option.state & QStyle.StateFlag.State_Selected:    # type: ignore ; fuck off pyright
@@ -328,12 +331,19 @@ class CompItem(QGraphicsItem):
         painter.setBrush(Color.comp_body)
 
         self.draw(painter, option, widget)
-        painter.drawRect(self._rect)
 
+        # _gate_path=None → non-gate: draw rect fallback.
+        # _custom_draw=True → GateItem drew shape+text inside draw(); skip both.
+        if self._gate_path is not None:
+            painter.drawPath(self._gate_path)
+        elif not self._custom_draw:
+            painter.drawRect(self._rect)
 
-        painter.setPen(Color.text)
-        painter.setFont(Font.default)
-        painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
+        # Text: only for non-custom components. GateItem.draw() handles its own.
+        if not self._custom_draw:
+            painter.setPen(Color.text)
+            painter.setFont(Font.default)
+            painter.drawText(self._rect, Qt.AlignmentFlag.AlignCenter, self.tag)
 
 
 

@@ -108,14 +108,26 @@ class PinItem(QGraphicsRectItem):
         self.updateVisual()
     
     def paint(self, painter: QPainter, option, widget):
-        # The HITBOX of the pin is larger (half of SIZE) than the visible radius
-        r = 5
+        """
+        Visual rules
+        ────────────
+        • Connected  → skip drawing; the wire endpoint sits exactly here and
+          provides the visual. Drawing on top would look doubled.
+        • Highlighted (hover / proxy) → always draw so the user gets feedback.
+        • Unconnected → draw a filled circle with the same stroke width as
+          wires (3 px) so that when a wire snaps in, the junction is seamless.
+        """
+        if self._wire and not self.isHighlighted:
+            return   # wire covers this point; nothing to add
 
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        r = 3.5   # visual radius – delicate, matches wire stroke width (2 px)
+
+        # Stroke matches wire pen width for a seamless junction look
+        painter.setPen(QPen(self.brush().color(), 2))
         painter.setBrush(self.brush())
-        painter.setPen(self.pen())
-        painter.drawEllipse(QRectF(
-            -r, -r, 2*r, 2*r
-        ))
+        painter.drawEllipse(QRectF(-r, -r, 2*r, 2*r))
     
     # Animation callback
     def _on_color_change(self, color: QColor):

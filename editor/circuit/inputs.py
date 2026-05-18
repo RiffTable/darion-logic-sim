@@ -1,55 +1,87 @@
 from __future__ import annotations
+import math
 from typing import cast
 from core.QtCore import *
+from PySide6.QtGui import QFontMetrics
 from core.LogicCore import *
 from core.Enums import CompEdge, EditorState, Prop
 from editor import theme
+from editor.styles import Font
+import core.grid as GRID
 
 from .compitem import CompItem
 from .pins import PinItem, InputPinItem, OutputPinItem
 
 
-
-
+# ─────────────────────────────────────────────────────────────────────────────
+# InputItem
+# ─────────────────────────────────────────────────────────────────────────────
 
 class InputItem(CompItem):
-    TAG="IN"
-    LOGIC=Const.VARIABLE_ID
-    NAME=DESC="INPUT"
-    def getRelSize(self): return (4, 2)
+    TAG   = "IN"
+    LOGIC = Const.VARIABLE_ID
+    NAME  = DESC = "INPUT"
+
+    # ── Sizing ────────────────────────────────────────────────────────────────
+
+    def _text_side_px(self) -> float:
+        """Diameter of the circle needed to contain the label text."""
+        fm   = QFontMetrics(Font.gate)
+        tw   = fm.horizontalAdvance(self.tag)
+        th   = fm.height()
+        diag = math.hypot(tw, th)
+        # Circle must contain the text diagonal; add 1 GRID.SIZE of padding.
+        return max(GRID.SIZE * 3, diag + GRID.SIZE * 1.2)
+
+    def getRelSize(self) -> tuple[int, int]:
+        """Even-integer grid units so pin lands at the exact centre."""
+        side_px = self._text_side_px()
+        units   = math.ceil(side_px / GRID.SIZE)
+        if units % 2:
+            units += 1          # force even so h//2 == h/2
+        return (units, units)   # square bounding box
+
     def getRelPadding(self): return (0, 4)
+
+    # ── Construction ──────────────────────────────────────────────────────────
 
     def __init__(self, pos: QPointF, **kwargs):
         super().__init__(pos, **kwargs)
+        self._custom_draw = True   # we handle body + text ourselves
 
         # Properties
-        self.state = int(kwargs.get("state", Const.LOW))
-        self.prevState = -1
+        self.state          = int(kwargs.get("state",         Const.LOW))
+        self.prevState      = -1
+        self.is_clock       = bool(kwargs.get("is_clock",     False))
+        self.delay_primary  = int(kwargs.get("delay_primary", 0))
+        self.delay_high     = int(kwargs.get("delay_high",    0))
+        self.delay_low      = int(kwargs.get("delay_low",     0))
 
-        # Timing / Clock properties (backed by gate.book[] and gate.clock())
-        self.is_clock:     bool = bool(kwargs.get("is_clock", False))
-        self.delay_primary: int = int(kwargs.get("delay_primary", 0))
-        self.delay_high:    int = int(kwargs.get("delay_high",    0))
-        self.delay_low:     int = int(kwargs.get("delay_low",     0))
-        
-        # Pins Setup
+        # Pins
         if self._setupDefaultPins:
-            self.addOutputPin(CompEdge.OUTPUT, 1)
+            s = self.getRelSize()[0]
+            self.addOutputPin(CompEdge.OUTPUT, s // 2)
             self.updateShape()
-        
-        # Pins Casting
-        self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
 
-        # Setting Pin logicals
+        self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
         self.outputPin.setLogical(self._unit)
         self.outputPin.logicalStateChanged(self.state)
 
-        # Final Setup
-        self.setState(True if self.state == Const.HIGH else False)
+        self.setState(self.state == Const.HIGH)
         self._apply_pulse_settings()
 
+    # ── Shape (pin repositioned on every updateShape) ─────────────────────────
 
-    # Properties Data
+    def _updateShape(self):
+        super()._updateShape()
+        # Reposition output pin to the true centre of the output edge.
+        s = self.getRelSize()[0]
+        fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
+        self.outputPin.facing = fa
+        self.setPinPos(self.outputPin, gen(s // 2))
+
+    # ── Properties ────────────────────────────────────────────────────────────
+
     def getData(self):
         return super().getData() | {
             "state"         : self.state,
@@ -58,7 +90,7 @@ class InputItem(CompItem):
             "delay_high"    : self.delay_high,
             "delay_low"     : self.delay_low,
         }
-    
+
     def getProperties(self) -> dict:
         dic = super().getProperties() | {
             Prop.LABEL         : self.tag,
@@ -73,6 +105,11 @@ class InputItem(CompItem):
 
     def setProperty(self, prop: Prop, value) -> bool:
         match prop:
+            case Prop.LABEL:
+                self.tag = str(value)
+                if self._unit: self._unit.custom_name = self.tag
+                self.updateShape()          # re-size circle to fit new label
+                self.propertyChanged(); return True
             case Prop.DELAY_PRIMARY:
                 self.delay_primary = max(0, int(value))
                 self._unit.set_pulse(self.delay_primary, Const.PRIMARY)
@@ -90,15 +127,13 @@ class InputItem(CompItem):
                 if self.is_clock:
                     self._unit.clock()
                 else:
-                    # Restore inputlimit to 1 (non-clock mode)
                     self._unit.inputlimit = 1
+                self.update()               # circle ↔ square shape switch
                 self.propertyChanged(); return True
         return super().setProperty(prop, value)
 
     def _apply_pulse_settings(self):
-        """Push stored delay/clock values into the logic unit."""
-        if self._unit is None:
-            return
+        if self._unit is None: return
         self._unit.set_pulse(self.delay_primary, Const.PRIMARY)
         self._unit.set_pulse(self.delay_high,    Const.HIGH)
         self._unit.set_pulse(self.delay_low,     Const.LOW)
@@ -109,36 +144,52 @@ class InputItem(CompItem):
         self.state = state
         self.outputPin.logicalStateChanged(state)
         self.propertyChanged()
-    
+
     def poll_update(self) -> bool:
         if self._unit is None: return False
-        
         current = self._unit.output
         if self.prevState != current:
             self.prevState = current
             self.unitStateChanged(current)
             return True
         return False
-    
+
     def setState(self, state: bool):
-        # bookish = Const.HIGH if (state == Const.HIGH) else Const.LOW
-        # self.state = bookish
         logic.toggle(self._unit, state)
         self.update()
 
-
-    
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
         if event.button() == MouseBtn.LeftButton:
             delta = event.scenePos() - event.buttonDownScenePos(MouseBtn.LeftButton)
             if delta.manhattanLength() < QGuiApplication.styleHints().startDragDistance():
                 self.setState(not self.state)
             return super().mouseReleaseEvent(event)
-    
-    def draw(self, painter, option, widget):
-        # painter.setPen(QPen(Color.outline, 2))
-        Color = theme.get_theme()
-        if self.state == Const.HIGH:
-            painter.setBrush(Color.comp_active)
+
+    # ── Paint ─────────────────────────────────────────────────────────────────
+
+    def draw(self, painter: QPainter, option, widget):
+        Color    = theme.get_theme()
+        is_sel   = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore
+        is_high  = (self.state == Const.HIGH)
+
+        g_body    = Color.input_active if is_high else Color.input_body
+        g_outline = Color.input_sel_outline if is_sel else Color.input_outline
+        g_label   = Color.input_label
+
+        pen_style = Qt.PenStyle.DashLine if is_sel else Qt.PenStyle.SolidLine
+        painter.setPen(QPen(g_outline, 1.8, pen_style))
+        painter.setBrush(g_body)
+
+        w, h = self.getAbsSize()
+        body = QRectF(0, 0, w * GRID.SIZE, h * GRID.SIZE)
+
+        if self.is_clock:
+            # Rounded square → clock symbol
+            r = GRID.SIZE * 0.5
+            painter.drawRoundedRect(body, r, r)
         else:
-            painter.setBrush(Color.comp_body)
+            painter.drawEllipse(body)
+
+        painter.setPen(g_label)
+        painter.setFont(Font.gate)
+        painter.drawText(body, Qt.AlignmentFlag.AlignCenter, self.tag)
