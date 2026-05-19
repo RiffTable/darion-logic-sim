@@ -110,7 +110,6 @@ class PropertiesPanel(QWidget):
         self.labels[Prop.DELAY_PRIMARY] = QLabel("Start Delay:")
         primarySpin = QSpinBox()
         primarySpin.setRange(0, 65000)
-        primarySpin.setSuffix(" ")
         primarySpin.setToolTip("Pre-simulation settle delay")
         primarySpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_PRIMARY))
         self.widgets[Prop.DELAY_PRIMARY] = primarySpin
@@ -120,7 +119,6 @@ class PropertiesPanel(QWidget):
         self.labels[Prop.DELAY_HIGH] = QLabel("HIGH Delay:")
         highSpin = QSpinBox()
         highSpin.setRange(0, 65000)
-        highSpin.setSuffix(" ")
         highSpin.setToolTip("Duration the signal stays HIGH")
         highSpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_HIGH))
         self.widgets[Prop.DELAY_HIGH] = highSpin
@@ -130,7 +128,6 @@ class PropertiesPanel(QWidget):
         self.labels[Prop.DELAY_LOW] = QLabel("LOW Delay:")
         lowSpin = QSpinBox()
         lowSpin.setRange(0, 65000)
-        lowSpin.setSuffix(" ")
         lowSpin.setToolTip("Duration the signal stays LOW")
         lowSpin.valueChanged.connect(partial(self.changeProperty, Prop.DELAY_LOW))
         self.widgets[Prop.DELAY_LOW] = lowSpin

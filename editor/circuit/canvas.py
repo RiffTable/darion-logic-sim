@@ -44,7 +44,7 @@ class CircuitScene(QGraphicsScene):
         self.defaultMirror = False
         self.peeking_disabled = False
         self.bg_style = 1
-        self.simulationMode = Const.DESIGN
+        self.simulationMode = Const.SIMULATE
 
         # Hover and Wiring logic
         self.hoveredComp: CompItem|None = None

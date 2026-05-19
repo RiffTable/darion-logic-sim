@@ -13,7 +13,7 @@ class Facing(IntEnum):
     NORTH    = 3
 
     @classmethod
-    def _missing_(cls, value: int):
+    def _missing_(cls, value):
         if isinstance(value, int): return cls(value % 4)
         return super()._missing_(value)	
     
