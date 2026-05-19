@@ -480,13 +480,14 @@ class AppWindow(QMainWindow):
         if res["accepted"]:
             logic.reset()
 
-            self.cscene.makeICfyable()
+            pin_orientations = self.cscene.makeICfyable()
             filename = (self.ic_path / str(res["name"])).with_suffix(".json")
             logic.save_as_ic(
                 str(filename),
                 res["name"],
                 res["tag"],
-                res["desc"]
+                res["desc"],
+                pin_orientations=pin_orientations
             )
             logic.simulate(self.cscene.simulationMode)
             self.cscene.clearCanvas()

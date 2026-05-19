@@ -115,11 +115,11 @@ class CircuitScene(QGraphicsScene):
             # For ICs, each boundary pin's location maps to the IC's Pin widget
             for i, logic_pin in enumerate(comp._unit.inputs):
                 self._ensure_registry_size(logic_pin.location)
-                self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.INPUT][i]
+                self.comp_registry[logic_pin.location] = comp.input_pins[i]
             
             for i, logic_pin in enumerate(comp._unit.outputs):
                 self._ensure_registry_size(logic_pin.location)
-                self.comp_registry[logic_pin.location] = comp._pinslist[CompEdge.OUTPUT][i]
+                self.comp_registry[logic_pin.location] = comp.output_pins[i]
         else:
             loc = comp._unit.location
             if loc<0:
@@ -259,6 +259,13 @@ class CircuitScene(QGraphicsScene):
         for i, output in enumerate(outputs):
             logic.reorder(output._unit, i)
         
+        # Build pin_orientations dictionary (gate.location -> facing.value)
+        pin_orientations = {}
+        for comp in inputs + outputs:
+            pin_orientations[comp._unit.location] = comp.facing.value
+            
+        return pin_orientations
+        
     
     
     # Wires	Management
@@ -278,10 +285,6 @@ class CircuitScene(QGraphicsScene):
         
         if isinstance(target, InputPinItem):
             t_wire = target.getWire()
-
-            # Add wire to canvas
-            if len(g_wire.supplies) == 1:
-                self.wires.append(g_wire)
 
             if t_wire:  # Swap Connections
                 cmd = SwapWireCommand(self, g_wire, t_wire, target, g_pin)

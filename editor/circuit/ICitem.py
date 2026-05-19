@@ -20,15 +20,40 @@ class ICitem(CompItem):
     def __init__(self, pos: QPointF, ic_data_index: int|str, ic_data, **kwargs):
         self.ic_data_index = int(ic_data_index)
         self._unit = cast(IC, logic.load_ic(ic_data))
-        # self._unit = cast(IC, logic.load_ic(self.cscene.iclist[ic_data_index]))
 
-        # Dimension Setup
+        pin_orientations = getattr(self._unit, 'pin_orientations', [[], []])
+        has_orientations = any(pin_orientations)
+
         ninputs = len(self._unit.inputs)
         noutputs = len(self._unit.outputs)
-        n = max(ninputs, noutputs)
-        h = 2*n if n > 2 else 6
-        
-        self.getRelSize = lambda: (7, h)
+
+        if has_orientations:
+            edge_inputs = {e: [] for e in CompEdge}
+            edge_outputs = {e: [] for e in CompEdge}
+            
+            for i, f_val in enumerate(pin_orientations[0]):
+                edge = CompEdge((f_val + 2) % 4)
+                edge_inputs[edge].append(i)
+                
+            for i, f_val in enumerate(pin_orientations[1]):
+                edge = CompEdge(f_val % 4)
+                edge_outputs[edge].append(i)
+                
+            n_horiz = max(len(edge_inputs[CompEdge.INPUT]) + len(edge_outputs[CompEdge.INPUT]), 
+                          len(edge_inputs[CompEdge.OUTPUT]) + len(edge_outputs[CompEdge.OUTPUT]))
+            n_vert = max(len(edge_inputs[CompEdge.TOP]) + len(edge_outputs[CompEdge.TOP]), 
+                         len(edge_inputs[CompEdge.BOTTOM]) + len(edge_outputs[CompEdge.BOTTOM]))
+                         
+            w = 2 * n_vert if n_vert > 2 else 7
+            h = 2 * n_horiz if n_horiz > 2 else 6
+            w = max(w, 7)
+            h = max(h, 6)
+        else:
+            n = max(ninputs, noutputs)
+            h = 2*n if n > 2 else 6
+            w = 7
+
+        self.getRelSize = lambda: (w, h)
         self.getRelPadding = lambda: (0, 0)
 
         super().__init__(pos, **kwargs)
@@ -37,28 +62,69 @@ class ICitem(CompItem):
 
         # Pins Setup
         if self._setupDefaultPins:
-            start = h//2 + 1 - ninputs
-            fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
-            for i in range(ninputs):
-                self._pinslist[CompEdge.INPUT].append(
-                    InputPinItem(self, gen(start + 2*i), fa)
-                )
-            
-            start = h//2 + 1 - noutputs
-            fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
-            for i in range(noutputs):
-                self._pinslist[CompEdge.OUTPUT].append(
-                    OutputPinItem(self, gen(start + 2*i), fa)
-                )
+            if has_orientations:
+                for edge in CompEdge:
+                    in_indices = edge_inputs[edge]
+                    out_indices = edge_outputs[edge]
+                    
+                    total_pins = len(in_indices) + len(out_indices)
+                    if total_pins == 0: continue
+                    
+                    length = h if edge in (CompEdge.INPUT, CompEdge.OUTPUT) else w
+                    start = length // 2 + 1 - total_pins
+                    fa, gen = self.getPinPosGenerator(edge)
+                    
+                    current_pos = start
+                    for _ in in_indices:
+                        self._pinslist[edge].append(InputPinItem(self, gen(current_pos), fa))
+                        current_pos += 2
+                    for _ in out_indices:
+                        self._pinslist[edge].append(OutputPinItem(self, gen(current_pos), fa))
+                        current_pos += 2
+            else:
+                start = h//2 + 1 - ninputs
+                fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
+                for i in range(ninputs):
+                    self._pinslist[CompEdge.INPUT].append(
+                        InputPinItem(self, gen(start + 2*i), fa)
+                    )
+                
+                start = h//2 + 1 - noutputs
+                fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
+                for i in range(noutputs):
+                    self._pinslist[CompEdge.OUTPUT].append(
+                        OutputPinItem(self, gen(start + 2*i), fa)
+                    )
 
         # Setting Pin Logicals
-        for i, inpin in enumerate(self._unit.inputs):
-            pin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][i])
-            pin.setLogical(inpin)
+        self.input_pins = []
+        self.output_pins = []
+        
+        if has_orientations:
+            input_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, InputPinItem)) for edge in CompEdge}
+            output_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, OutputPinItem)) for edge in CompEdge}
+            
+            for i, inpin in enumerate(self._unit.inputs):
+                edge = CompEdge((pin_orientations[0][i] + 2) % 4)
+                pin = next(input_iters[edge])
+                pin.setLogical(inpin)
+                self.input_pins.append(pin)
+                
+            for i, outpin in enumerate(self._unit.outputs):
+                edge = CompEdge(pin_orientations[1][i] % 4)
+                pin = next(output_iters[edge])
+                pin.setLogical(outpin)
+                self.output_pins.append(pin)
+        else:
+            for i, inpin in enumerate(self._unit.inputs):
+                pin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][i])
+                pin.setLogical(inpin)
+                self.input_pins.append(pin)
 
-        for i, outpin in enumerate(self._unit.outputs):
-            pin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][i])
-            pin.setLogical(outpin)
+            for i, outpin in enumerate(self._unit.outputs):
+                pin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][i])
+                pin.setLogical(outpin)
+                self.output_pins.append(pin)
 
 
 

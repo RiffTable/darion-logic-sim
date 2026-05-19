@@ -202,13 +202,18 @@ class ConnectCommand(QUndoCommand):
             
         # 2. Undo UI connection
         g_wire._cutSupply(t_pin)
-        g_wire.updateShape()
         
         if self.added_to_scene:
             if g_wire in scene.wires:
                 scene.wires.remove(g_wire)
-            scene.removeItem(g_wire)
             self.added_to_scene = False
+            
+        if len(g_wire.supplies) == 0:
+            g_wire.source.setWire(None)
+            if g_wire.scene() is scene:
+                scene.removeItem(g_wire)
+        else:
+            g_wire.updateShape()
         
         if self.gate_size_changed:
             gate_comp = cast(GateItem, t_pin.parentComp)
@@ -426,6 +431,7 @@ class SwapWireCommand(QUndoCommand):
                 scene.wires.remove(g_wire)
             if g_wire.scene() is scene:
                 scene.removeItem(g_wire)
+            g_wire.source.setWire(None)
             self.added_to_scene = False
         else:
             # g_wire is an existing wire — leave it in the scene with its
