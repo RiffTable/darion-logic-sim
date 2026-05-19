@@ -13,7 +13,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import io, sys, re
+import sys, re
 import json
 from pathlib import Path
 from typing import cast
@@ -37,10 +37,18 @@ from editor.circuit.commands import AddCompCommand
 
 
 
+
+
+### Paths
+APPDATA_PATH = QStandardPaths.writableLocation(StandardLocation.AppDataLocation)
+DOC_PATH     = QStandardPaths.writableLocation(StandardLocation.DocumentsLocation)
+
+
+
 class AppWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Darion Logic Sim")
         self.setMinimumSize(800, 500)
 
         central = QWidget()
@@ -105,150 +113,9 @@ class AppWindow(QMainWindow):
             
         self.delay_spinbox.valueChanged.connect(lambda hz: Const.set_DELAY(1.0 / hz if hz > 0 else 1.0))
         self.toolbar.addWidget(self.delay_spinbox)
-
-    def undoStackChanged(self, isClean: bool):
-        self.is_project_modified = not isClean
-        self.update_window_title()
     
-    def update_window_title(self):
-        if self.current_file_path is None:
-            project_name = "Untitled"
-        else:
-            project_name = Path(self.current_file_path).stem
-        asterisk = "*" if self.is_project_modified else ""
-        
-        # Format: "MyProject* - Logic Designer"
-        self.setWindowTitle(f"{project_name}{asterisk} - Darion Logic Sim")
 
-    def refresh_theme(self):
-        theme.apply_palette(cast(QApplication, QApplication.instance()))
-        self.cscene.update()
-
-    def update_props_position(self):
-        panel_x = self.x() + self.width() - self.props_panel.width() - 15
-        panel_y = self.y() + 65
-        self.props_panel.move(panel_x, panel_y)
     
-    
-    ###======= IC MANAGEMENT =======###
-    def spawnComponent(self, comp_id: int):
-        view_center = self.view.viewport().rect().center()
-        pos = self.view.mapToScene(view_center)
-        cmd = AddCompCommand(self.cscene, pos, comp_id)
-        self.cscene.undo_stack.push(cmd)
-    
-    def spawnIC(self, ic_data):
-        center = self.view.viewport().rect().center()
-        pos = self.view.mapToScene(center)
-
-        _, newCreated = self.cscene.addIC(*pos.toTuple(), ic_data)
-        if newCreated:
-            self.sidebar.refresh_IC_catagory.emit()
-    
-    # this is a temporary path because i can't work with the current one
-    @property
-    def ic_path(self) -> Path:
-        """IC folder — sibling 'ICs/' dir next to the open project file,
-        or projectsPath / 'ICs' when no project is open."""
-        if self.current_file_path:
-            folder = Path(self.current_file_path).parent / "ICs"
-        else:
-            folder = projectsPath / "ICs"
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
-
-    def retrieve_IC_data(self):
-        ic_list: dict[str, tuple[int|None, str|None]] = {}
-        names: set[str] = set()
-        
-        for idx, stored_ic in enumerate(self.cscene.iclist):
-            name = stored_ic[Const.CUSTOM_NAME]
-            names.add(name)
-            ic_list[name] = (idx, None)
-
-        for file in self.ic_path.glob("*.json"):
-            filename = str(file.resolve())    # Absolute path
-            ic = logic.get_ic(filename)
-            if ic is None: continue
-
-            name = ic[Const.CUSTOM_NAME]
-            if name in names: continue    # Excludes IC listed in canvas.iclist
-            
-            ic_list[name] = (None, filename)
-        
-        return ic_list
-    
-    ###======= EVENTS =======###
-    def moveEvent(self, event):
-        super().moveEvent(event)
-        self.update_props_position()
-    
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        QSettings().setValue("main_window/geometry", self.saveGeometry())
-        self.update_props_position()
-
-    def _show_output(self, title: str, func, dialog_class: type, returns_string: bool = False):
-        text = func()
-        
-        # Remove ANSI codes
-        text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
-        
-        if text.strip():
-            dialog_class(self, text).exec()
-        else:
-            QMessageBox.information(self, "No Data", f"No {title.lower()} available.")
-
-    def show_timing_diagram(self):
-        dlg = TimingDiagramDialog(self)
-        dlg.show()
-
-    def show_truth_table(self):
-        # Remember Simulation Mode
-        mode = Const.get_MODE()
-        if mode != Const.SIMULATE:
-            return 'Please switch to Simulation Mode first.'
-        
-        # Show Table
-        self._show_output("Truth Table", logic.truthTable, TruthTableDialog, returns_string=True)
-        
-        # Restore Simulation Mode
-        Const.set_MODE(mode)
-
-    def show_diagnose(self):
-        self._show_output("Diagnosis", logic.diagnose_str, DiagnoseDialog, returns_string=False)
-
-    def closeEvent(self, event):
-        # To make sure a runtime error isn't raised when closing the app
-        if self.cscene:
-            self.cscene.blockSignals(True)
-        
-        if self.is_project_modified and Val.AlertUnsaved:
-            Btn = QMessageBox.StandardButton
-            res = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Do you want to save before exiting?",
-                Btn.Save | Btn.Discard | Btn.Cancel
-            )
-            
-            if res == Btn.Save:
-                if self.saveFile():
-                    event.accept()    # Exits
-                else:
-                    self.cscene.blockSignals(False)
-                    event.ignore()    # Save failed. Don't quit
-            
-            elif res == Btn.Cancel:
-                self.cscene.blockSignals(False)
-                event.ignore()    # Cancelled exitting
-            
-            else:
-                event.accept()    # Exits
-        else:
-            event.accept()    # Exits
-
-
 
     ###======= SETTINGS =======###
     def load_settings(self):
@@ -344,7 +211,25 @@ class AppWindow(QMainWindow):
             .setShortcuts([QKS("-"), QKS("_")])
 
 
+    
+    ###======= Component Placement =======###
+    def spawnComponent(self, comp_id: int):
+        view_center = self.view.viewport().rect().center()
+        pos = self.view.mapToScene(view_center)
+        cmd = AddCompCommand(self.cscene, pos, comp_id)
+        self.cscene.undo_stack.push(cmd)
+    
+    def spawnIC(self, ic_data):
+        center = self.view.viewport().rect().center()
+        pos = self.view.mapToScene(center)
 
+        _, newCreated = self.cscene.addIC(*pos.toTuple(), ic_data)
+        if newCreated:
+            self.sidebar.refresh_IC_catagory.emit()
+
+
+
+    ###======= DATA SERIALIZATION =======###
     def get_project_data(self) -> dict:
         t = self.view.transform()
         project = self.cscene.serialize() | {
@@ -363,9 +248,58 @@ class AppWindow(QMainWindow):
         self.cscene.deserialize(project)
 
         self.view.setCamera(QPointF(cx, cy), m11)
-    
+
+    def retrieve_IC_data(self):
+        ic_list: dict[str, tuple[int|None, str|None]] = {}
+        names: set[str] = set()
+        
+        for idx, stored_ic in enumerate(self.cscene.iclist):
+            name = stored_ic[Const.CUSTOM_NAME]
+            names.add(name)
+            ic_list[name] = (idx, None)
+
+        for file in self.getICFolder().glob("*.json"):
+            filename = str(file.resolve())    # Absolute path
+            ic = logic.get_ic(filename)
+            if ic is None: continue
+
+            name = ic[Const.CUSTOM_NAME]
+            if name in names: continue    # Excludes IC listed in canvas.iclist
+            
+            ic_list[name] = (None, filename)
+        
+        return ic_list
 
 
+
+    ###======= PROJECT FOLDERS =======###
+    def getProjectFolder(self) -> Path:
+        """
+        Default: Documents/Darion Logic Sim/Project \\
+        Otherwise, returns parent folder of the current project file
+        """
+        if self.current_file_path:
+            return Path(self.current_file_path)
+        else:
+            folder = Path(str(QSettings().value(
+                "settings/last_project_dir",
+                str(Path(DOC_PATH) / "Darion Logic Sim" / "Projects"),
+                type=str
+            )))
+            folder.mkdir(parents=True, exist_ok=True)
+            return Path(str(folder))
+
+    def getICFolder(self) -> Path:
+        """Location: Documents/Darion Logic Sim/IC"""
+        folder = Path(str(QSettings().value(
+            "settings/ic_dir",
+            str(Path(DOC_PATH) / "Darion Logic Sim" / "IC"),
+            type=str
+        )))
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    ###======= PROJECT FILES =======###
     def newFile(self):
         self.current_file_path = None
         self.update_window_title()
@@ -381,18 +315,12 @@ class AppWindow(QMainWindow):
         if self.current_file_path and not save_as:
             # Don't ask if the project has a save file
             filename = self.current_file_path
-        else:
-            # Show project folder
-            if self.current_file_path:
-                start_dir = self.current_file_path
-            else:
-                start_dir = str(_settings.value("settings/last_project_dir", str(projectsPath), type=str))
-            
+        else:            
             # Ask for file name
             filename, _ = QFileDialog.getSaveFileName(
                 self,
                 "Save Project",
-                start_dir,
+                str(self.getProjectFolder()),
                 "JSON Files (*.json);;All Files (*)"
             )
             if not filename:
@@ -408,7 +336,7 @@ class AppWindow(QMainWindow):
                 self.current_file_path = filename
                 _settings.setValue("last_project_dir", str(Path(filename).parent))
                 self.cscene.undo_stack.setClean()
-                self.update_window_title()
+                # self.update_window_title()    #? Redundant?
                 return True
         
         except Exception as e:
@@ -418,37 +346,19 @@ class AppWindow(QMainWindow):
                 f"Could not save file to:\n{filename}\n\nError: {str(e)}"
             )
             return False
-    
-    def loadFile(self):
-        _settings = QSettings()
 
-        # Show project folder
-        if self.current_file_path:
-            start_dir = self.current_file_path
-        else:
-            start_dir = str(_settings.value("settings/last_project_dir", str(projectsPath), type=str))
-        
+    def loadFile(self):        
         # Always ask for file name
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Open Project",
-            start_dir,
+            str(self.getProjectFolder()),
             "JSON Files (*.json);;All Files (*)"
         )
         if not filename: return
 
         # Are you sure you want to not save your project? :'(
-        if self.is_project_modified and Val.AlertUnsaved:
-            Btn = QMessageBox.StandardButton
-            res = QMessageBox.question(
-                self,
-                "Unsaved Changes",
-                "You have unsaved changes. Do you want to save before exiting?",
-                Btn.Save | Btn.Discard | Btn.Cancel
-            )
-            
-            if   res == Btn.Save:   self.saveFile()
-            elif res == Btn.Cancel: return
+        if not self._tell_user_to_save_before_quitting("You have unsaved changes. Do you want to save before opening a new project?"): return
 
         # Try opening the file
         try:
@@ -458,16 +368,38 @@ class AppWindow(QMainWindow):
             self.load_project_data(project)
 
             self.current_file_path = filename
-            _settings.setValue("settings/last_project_dir", str(Path(filename).parent))
+            QSettings().setValue("settings/last_project_dir", str(Path(filename).parent))
             self.update_window_title()
 
         except Exception as e:
             QMessageBox.critical(
                 self,
                 "Load Error",
-                f"Failed to load project: {os.path.basename(filename)}\n{str(e)}"
+                f"Failed to load project: {Path(filename).name}\n{str(e)}"
             )
-    
+
+    def _tell_user_to_save_before_quitting(self, message: str) -> bool:
+        """Returns TRUE if app quits immediately"""
+        if not (self.is_project_modified and Val.AlertUnsaved):
+            return True
+
+        Btn = QMessageBox.StandardButton
+        res = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            message,
+            Btn.Save | Btn.Discard | Btn.Cancel
+        )
+
+        if res == Btn.Save:
+            return self.saveFile()    # Quit if saved successfully
+        
+        # Quit if I pressed 'Discard', don't if I pressed 'Cancel'
+        return res != Btn.Cancel
+
+
+
+    ###======= IC FILES =======###
     def addICToProject(self):
         """Opens a dialog box"""
         ic_data_list = self.retrieve_IC_data()
@@ -488,15 +420,15 @@ class AppWindow(QMainWindow):
         if ic_data:
             self.spawnIC(ic_data)
 
-    
-    
     def convertProjectToIC(self):
+        #? IC Setup Wizard!
         res = ICSetupDialog.showForm(self)
         if res["accepted"]:
             logic.reset()
 
+            #? How to use pin orientations?
             pin_orientations = self.cscene.makeICfyable()
-            filename = (self.ic_path / str(res["name"])).with_suffix(".json")
+            filename = (self.getICFolder() / str(res["name"])).with_suffix(".json")
             logic.save_as_ic(
                 str(filename),
                 res["name"],
@@ -513,20 +445,89 @@ class AppWindow(QMainWindow):
 
 
 
+    ###======= EVENTS =======###
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self.update_props_position()
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        QSettings().setValue("main_window/geometry", self.saveGeometry())
+        self.update_props_position()
+
+    def closeEvent(self, event):
+        # To make sure a runtime error isn't raised when closing the app
+        if self.cscene: self.cscene.blockSignals(True)
+
+        if self._tell_user_to_save_before_quitting("You have unsaved changes. Do you want to save before exiting?"):
+            event.accept() # Shutting down
+        else:
+            if self.cscene: self.cscene.blockSignals(False)
+            event.ignore() # Not exitting anymore
+
+
+
+    ###======= MISCELLANEOUS =======###
+    def undoStackChanged(self, isClean: bool):
+        self.is_project_modified = not isClean
+        self.update_window_title()
+    
+    def update_window_title(self):
+        if self.current_file_path is None:
+            project_name = "Untitled"
+        else:
+            project_name = Path(self.current_file_path).stem
+        asterisk = "*" if self.is_project_modified else ""
+        
+        # Format: "MyProject* - Logic Designer"
+        self.setWindowTitle(f"{project_name}{asterisk} - Darion Logic Sim")
+
+    def refresh_theme(self):
+        theme.apply_palette(cast(QApplication, QApplication.instance()))
+        self.cscene.update()
+
+    def update_props_position(self):
+        panel_x = self.x() + self.width() - self.props_panel.width() - 15
+        panel_y = self.y() + 65
+        self.props_panel.move(panel_x, panel_y)
+    
+    def _show_output(self, title: str, func, dialog_class: type, returns_string: bool = False):
+        #! This needs fixing so bad
+        text = func()
+        
+        # Remove ANSI codes
+        text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
+        
+        if text.strip():
+            dialog_class(self, text).exec()
+        else:
+            QMessageBox.information(self, "No Data", f"No {title.lower()} available.")
+
+    def show_timing_diagram(self):
+        dlg = TimingDiagramDialog(self)
+        dlg.show()
+
+    def show_truth_table(self):
+        # Remember Simulation Mode
+        mode = Const.get_MODE()
+        if mode != Const.SIMULATE:
+            return 'Please switch to Simulation Mode first.'
+        
+        # Show Table
+        self._show_output("Truth Table", logic.truthTable, TruthTableDialog, returns_string=True)
+        
+        # Restore Simulation Mode
+        Const.set_MODE(mode)
+
+    def show_diagnose(self):
+        self._show_output("Diagnosis", logic.diagnose_str, DiagnoseDialog, returns_string=False)
+
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setOrganizationName("Darion")
     app.setApplicationName("Darion Logic Sim")
-
-
-    ### Paths
-    docPath = QStandardPaths.writableLocation(StandardLocation.DocumentsLocation)
-    appPath = QStandardPaths.writableLocation(StandardLocation.AppDataLocation)
-
-    projectsPath = Path(docPath) / "Darion Logic Sim" / "Projects"
-    projectsPath.mkdir(parents=True, exist_ok=True)
-
-    # IC files live next to each project (AppWindow.ic_path); no global ICPath needed.
 
 
     ### App Theme
