@@ -24,9 +24,10 @@ cdef class Circuit:
     cdef public list copydata
     cdef public list gate_verse
     cdef public int hidden
+    cdef public bint recording
     cdef public unsigned long long eval_count
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
-    cdef unsigned int Global_Clock
+    cdef public unsigned int Global_Clock
     cdef unsigned int[12] Global_delay
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
@@ -46,11 +47,11 @@ cdef class Circuit:
     cpdef void toggle(self, int target, int value)
     cpdef void disconnect(self, Gate target, int index)
     cpdef void delobj(self, object obj)
-    cpdef IC build_ic(self)
+    cpdef IC build_ic(self, dict pin_orientations=*)
     cpdef IC getIC(self, location)
     cpdef object get_ic(self, str location)
     cpdef IC load_ic(self, list crct)
-    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description)
+    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description, list components=*, dict pin_orientations=*)
     cpdef void readfromjson(self, str location)
     cpdef void writetojson(self, str location)
     cpdef void refresh(self)

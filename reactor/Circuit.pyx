@@ -18,6 +18,14 @@ from libcpp.vector cimport vector
 from libcpp.deque cimport deque
 from libcpp.algorithm cimport sort  
 import time
+
+try:
+    from editor.tools.timing_tracer import tracer as _tracer
+except ImportError:
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.join(_os.getcwd(), "editor", "tools"))
+    from timing_tracer import tracer as _tracer  # type: ignore
+
 cdef class Circuit:
     def __cinit__(self):
         self.hidden = 0 # the oscillation breaking system
@@ -34,6 +42,7 @@ cdef class Circuit:
     def __init__(self):
         # lookup table for objects by code
         set_MODE(DESIGN)
+        self.recording = False
         self.objlist = [
             [] for i in range(TOTAL)] # list of visible gates and ics, stored according to it's type
         self.copydata = []
@@ -643,7 +652,7 @@ cdef class Circuit:
             return
         self.generate(circuit)
 
-    cpdef IC build_ic(self):
+    cpdef IC build_ic(self, dict pin_orientations=None):
         '''build an ic from the current circuit'''
         cdef Gate gate, target
         cdef Profile* profile
@@ -698,6 +707,13 @@ cdef class Circuit:
             if gate.id >= INPUT_PIN_ID:
                 continue
             my_ic.addgate(gate)
+        
+        if pin_orientations:
+            my_ic.pin_orientations = [
+                [pin_orientations.get(pin.location, 0) for pin in my_ic.inputs],
+                [pin_orientations.get(pin.location, 0) for pin in my_ic.outputs],
+            ]
+            
         return my_ic
 
     cpdef void ic_pin_change(self):
@@ -757,7 +773,7 @@ cdef class Circuit:
         else:
             gate.code = (gate.code[0], index)
 
-    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description):
+    cpdef void save_as_ic(self, str location, str ic_name, str tag, str description, list components=None, dict pin_orientations=None):
         '''save the circuit as an ic
         if components is not empty, it means the user wants to convert selected items to ic
         '''
@@ -765,17 +781,17 @@ cdef class Circuit:
         cdef CPP_Gate* info
         cdef IC my_ic
         cdef Gate gate
-        # if components:
-        #     '''sandboxing for converting selected items to ic
-        #     create a circuit
-        #     load everything 
-        #     and convert to ic
-        #     '''
-        #     crct = Circuit()
-        #     crct.copy(components)
-        #     crct.paste()
-        #     crct.save_as_ic(location, ic_name, tag, description, None)
-        #     return
+        if components:
+            '''sandboxing for converting selected items to ic
+            create a circuit
+            load everything 
+            and convert to ic
+            '''
+            crct = Circuit()
+            crct.copy(components)
+            crct.paste()
+            crct.save_as_ic(location, ic_name, tag, description, None, pin_orientations)
+            return
         if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
             self.ic_pin_change()
         for gate in self.objlist[INPUT_PIN_ID]:
@@ -787,7 +803,7 @@ cdef class Circuit:
                 if info.hitlist.size() > 0:
                     raise ValueError('Output Pin has extra targets')
         '''build ic and save'''
-        my_ic = self.build_ic()
+        my_ic = self.build_ic(pin_orientations)
         my_ic.custom_name = ic_name
         my_ic.tag = tag
         my_ic.description = description
@@ -831,6 +847,8 @@ cdef class Circuit:
         for i in range(TOTAL):
             self.objlist[i].clear()
         self.hidden = 0
+        self.recording = False
+        _tracer.clear()
 
     cpdef void copy(self, list components):
         '''copy components to self.copydata'''
@@ -938,6 +956,8 @@ cdef class Circuit:
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner = None
+        self.recording = False
+        _tracer.clear()
         for i in self.get_components():
             if i.id != IC_ID:
                 g = <Gate>i
@@ -966,6 +986,9 @@ cdef class Circuit:
         if self_info.inputlimit == 0:
             self_info.value ^= 1
             self_info.output = self_info.value
+            if self.recording:
+                with gil:
+                    _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, origin), self.Global_Clock)
         if not self_info.scheduled:
             return
         if not self_info.update:
@@ -1016,6 +1039,9 @@ cdef class Circuit:
                     if not target_info.scheduled:
                         target_info.scheduled = True
                         self.time_queue.push(Task(profile.target, self.Global_Clock + self.Global_delay[target_info.type] + limit, profile.target))
+                    if self.recording and (gate_type == VARIABLE_ID or gate_type == PROBE_ID):
+                        with gil:
+                            _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target), self.Global_Clock)
                 profile.output = new_output
             profile += 1
 

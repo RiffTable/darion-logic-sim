@@ -13,6 +13,7 @@ cdef class IC:
     cdef public int id
     cdef public str tag
     cdef public str description
+    cdef public list pin_orientations
     cdef vector[CPP_Gate]* gate_infolist_ptr
     cdef public list gate_verse
 

@@ -584,7 +584,11 @@ class Circuit:
         for i in range(TOTAL):
             self.objlist[i].clear()
         self.counter = 0
+        self.time_queue.clear()
+        self.time_limit.clear()
         reset_loc()   # reset shared location counter in Store
+        self.recording = False
+        _tracer.clear()
 
     def copy(self, components: list):
         if not components:
@@ -659,9 +663,12 @@ class Circuit:
         set_MODE(DESIGN)
         self.eval_count=0
         self.time_queue.clear()
+        self.time_limit.clear()
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner=None
+        self.recording = False
+        _tracer.clear()
         for i in self.get_components():
             i.reset()
 
@@ -670,13 +677,16 @@ class Circuit:
             n=len(self.time_queue)
             for i in range(n):
                 while self.time_queue and self.time_queue[0].gate.inputlimit==0:
+                    print('hey1')
                     await asyncio.sleep(Const.DELAY)
                     self.complete_task(heapq.heappop(self.time_queue))
                     if self.time_limit:
                         while self.time_queue and self.time_queue[0].time<self.time_limit[0]:
+                            print('hey2')
                             self.complete_task(heapq.heappop(self.time_queue))
                         heapq.heappop(self.time_limit)
                 if self.time_queue:
+
                     self.complete_task(heapq.heappop(self.time_queue))
                 else:
                     break
@@ -691,6 +701,7 @@ class Circuit:
             # ── Timing tracer: record clock toggle ────────────────────────
             if self.recording:
                 _tracer.record(gate, self.Global_Clock)
+                print('hey i am still alive')
         if not gate.scheduled:
             return
         if not gate.update:

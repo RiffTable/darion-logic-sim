@@ -24,6 +24,7 @@ cdef class IC:
         self.map = []
         self.tag = ''
         self.description = ''
+        self.pin_orientations = [[], []]
         self.gate_infolist_ptr=NULL
 
     def __repr__(self):
@@ -76,6 +77,8 @@ cdef class IC:
             self.tag = dictionary[TAG]
         if len(dictionary) > DESCRIPTION:
             self.description = dictionary[DESCRIPTION]
+        if len(dictionary) > PIN_ORIENTATIONS:
+            self.pin_orientations = dictionary[PIN_ORIENTATIONS]
         self.load_components(dictionary, pseudo) # first phase, loading to hashmap pseudo
         self.clone(pseudo) # second phase, wiring up
 
@@ -117,6 +120,7 @@ cdef class IC:
             self.tag,
             [i.full_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
+            self.pin_orientations,
         ]
         return dictionary
 
@@ -130,6 +134,7 @@ cdef class IC:
             self.tag,
             [i.partial_data() for i in self.inputs + self.outputs + self.internal],
             self.description,
+            self.pin_orientations,
         ]
         return dictionary
 

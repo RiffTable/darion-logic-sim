@@ -38,6 +38,7 @@ cpdef enum:
     MAP=SOURCES
     TAG=NAME+4
     DESCRIPTION=NAME+6
+    PIN_ORIENTATIONS=NAME+7
     
 cdef extern from *:
     """
