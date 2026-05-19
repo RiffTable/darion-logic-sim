@@ -584,8 +584,12 @@ class Circuit:
         for i in range(TOTAL):
             self.objlist[i].clear()
         self.counter = 0
+        self.eval_count=0
         self.time_queue.clear()
         self.time_limit.clear()
+        if self.runner is not None and not self.runner.done():
+            self.runner.cancel()
+        self.runner=None
         reset_loc()   # reset shared location counter in Store
         self.recording = False
         _tracer.clear()
