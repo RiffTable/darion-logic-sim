@@ -1039,7 +1039,7 @@ cdef class Circuit:
                     if not target_info.scheduled:
                         target_info.scheduled = True
                         self.time_queue.push(Task(profile.target, self.Global_Clock + self.Global_delay[target_info.type] + limit, profile.target))
-                    if self.recording and (gate_type == VARIABLE_ID or gate_type == PROBE_ID):
+                    if self.recording and gate_type == PROBE_ID:
                         with gil:
                             _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target), self.Global_Clock)
                 profile.output = new_output

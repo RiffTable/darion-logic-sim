@@ -677,12 +677,10 @@ class Circuit:
             n=len(self.time_queue)
             for i in range(n):
                 while self.time_queue and self.time_queue[0].gate.inputlimit==0:
-                    print('hey1')
                     await asyncio.sleep(Const.DELAY)
                     self.complete_task(heapq.heappop(self.time_queue))
                     if self.time_limit:
                         while self.time_queue and self.time_queue[0].time<self.time_limit[0]:
-                            print('hey2')
                             self.complete_task(heapq.heappop(self.time_queue))
                         heapq.heappop(self.time_limit)
                 if self.time_queue:
@@ -701,7 +699,6 @@ class Circuit:
             # ── Timing tracer: record clock toggle ────────────────────────
             if self.recording:
                 _tracer.record(gate, self.Global_Clock)
-                print('hey i am still alive')
         if not gate.scheduled:
             return
         if not gate.update:
@@ -746,7 +743,7 @@ class Circuit:
                         )
                         target.scheduled = True
                     # ── Timing tracer: record probe/variable state change ──
-                    if self.recording and gate_type in (VARIABLE_ID, PROBE_ID):
+                    if self.recording and gate_type==PROBE_ID:
                         _tracer.record(target, self.Global_Clock)
                 profile.output = new_output
         if gate.inputlimit==0:
