@@ -92,7 +92,7 @@ class AppWindow(QMainWindow):
         self.sidebar = ComponentSidebar(self, self, self.cscene)
         self.load_settings()
 
-        layout_main.addWidget(self.sidebar)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.sidebar)
         layout_main.addWidget(self.view)
 
         ###======= TOOLBAR =======###

@@ -1,4 +1,4 @@
-from pathlib import Path
+from __future__ import annotations
 from typing import cast, Callable, Any
 from core.QtCore import *
 from core.LogicCore import *
@@ -12,12 +12,14 @@ class CategorySection(QWidget):
     def __init__(self, title, parent=None):
         super().__init__(parent)
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setContentsMargins(5, 0, 5, 0)
         self.main_layout.setSpacing(0)
 
+        # Category Title
         self.toggle = QPushButton(title)
         self.toggle.setCheckable(True)
         
+        # Category Contents List
         self.content = QFrame()
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(0, 5, 0, 10)
@@ -32,7 +34,34 @@ class CategorySection(QWidget):
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
 
-    # Stylesheet functions
+
+
+    ### Items List
+    def add_item(self, text: str):
+        colors = theme.get_theme()
+        btn = QPushButton(text)
+        # btn.setProperty("comp_id", comp_id)
+        btn.setStyleSheet(self.get_button_style(colors))
+        self.content_layout.addWidget(btn)
+        self.buttons.append(btn)
+        return btn
+
+    def filter(self, text):
+        if not text:
+            for btn in self.buttons:
+                btn.show()
+            return len(self.buttons)
+        
+        visible = 0
+        for btn in self.buttons:
+            if text.lower() in btn.text().lower():
+                btn.show()
+                visible += 1
+            else:
+                btn.hide()
+        return visible
+
+    ### Stylesheet and Themes
     def apply_theme(self):
         colors = theme.get_theme()
 
@@ -86,55 +115,194 @@ class CategorySection(QWidget):
                 background-color: {colors.button.name()}; 
             }}"""
 
-    def add_item(self, text: str):
+BTN_SIZE = 28
+
+class DockTitleBar(QWidget):
+    def __init__(self, sidebar: ComponentSidebar, parent=None):
+        super().__init__(parent)
+        self.sidebar = sidebar
+        self.setMinimumHeight(BTN_SIZE)
+        self.button_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, self)
+        self.button_layout.setContentsMargins(8, 4, 4, 4)
+        self.button_layout.setSpacing(0)
+
+        # Hamburger Menu
+        self.menu_btn = QPushButton("☰")
+        self.menu_btn.setFixedSize(BTN_SIZE, BTN_SIZE)
+        self.menu_btn.setToolTip("Menu")
+        self.menu_btn.clicked.connect(self.open_menu)
+
+        # Undo Button
+        undo_stack = self.sidebar.cscene.undo_stack
+        self.undo_btn = QPushButton("←")
+        self.undo_btn.setFixedSize(BTN_SIZE, BTN_SIZE)
+        self.undo_btn.setToolTip("Undo")
+        self.undo_btn.clicked.connect(undo_stack.undo)
+        undo_stack.canUndoChanged.connect(self.undo_btn.setEnabled)
+        self.undo_btn.setEnabled(undo_stack.canUndo())
+
+        # Redo Button
+        self.redo_btn = QPushButton("→")
+        self.redo_btn.setFixedSize(BTN_SIZE, BTN_SIZE)
+        self.redo_btn.setToolTip("Redo")
+        self.redo_btn.clicked.connect(undo_stack.redo)
+        undo_stack.canRedoChanged.connect(self.redo_btn.setEnabled)
+        self.redo_btn.setEnabled(undo_stack.canRedo())
+
+        # Collapse/Expand Button
+        self.collapse_btn = QPushButton("⊟")
+        self.collapse_btn.setFixedSize(BTN_SIZE, BTN_SIZE)
+        self.collapse_btn.setToolTip("Collapse")
+        self.collapse_btn.clicked.connect(self.sidebar.toggle_collapse)
+
+        theme.theme_changed.connect(self.apply_theme)
+        self.apply_theme()
+        self.sidebar.dockLocationChanged.connect(self.refresh_layout)
+        # self.refresh_layout()
+
+    def apply_theme(self):
         colors = theme.get_theme()
-        btn = QPushButton(text)
-        # btn.setProperty("comp_id", comp_id)
-        btn.setStyleSheet(self.get_button_style(colors))
-        self.content_layout.addWidget(btn)
-        self.buttons.append(btn)
-        return btn
+        button_style = f"""
+            QPushButton {{
+                background-color: {colors.secondary_bg.name()};
+                color: {colors.text.name()};
+                border: none;
+                border-radius: 3px;
+                font-weight: bold;
+                font-family: 'JetBrains Mono', 'Monaco', monospace;
+                font-size: 18px;
+            }}
+            QPushButton:hover {{
+                background-color: {colors.button.name()};
+                color: {colors.tooltip_bg.name()};
+            }}
+            QPushButton:disabled {{
+                background-color: {colors.secondary_bg.name()};
+                color: {colors.text_inactive.name()};
+            }}
+        """
+        self.menu_btn.setStyleSheet(button_style)
+        self.undo_btn.setStyleSheet(button_style)
+        self.redo_btn.setStyleSheet(button_style)
+        self.collapse_btn.setStyleSheet(button_style)
 
-    def filter(self, text):
-        if not text:
-            for btn in self.buttons:
-                btn.show()
-            return len(self.buttons)
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {colors.secondary_bg.name()};
+                color: {colors.text.name()};
+                border-bottom: 1px solid #3d444d;
+            }}
+        """)
+
+    def refresh_layout(self, dock_area: Qt.DockWidgetArea | None = None):
+        parent = cast(QMainWindow, self.sidebar.parent())
+        lay = self.button_layout
+
+        # Find whether the sidebar is docked to Left or Right
+        if parent is None:
+            dock_area = None
+        elif dock_area is None:
+            dock_area = parent.dockWidgetArea(self.sidebar)
+
+        # Clears all buttons
+        while lay.count():
+            item = lay.takeAt(0)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget:
+                widget.setParent(None)
+
+        # Collapse/Expand
+        if self.sidebar._collapsed:
+            self.collapse_btn.setText("⊞")
+            self.collapse_btn.setToolTip("Expand")
+            lay.setDirection(QBoxLayout.Direction.TopToBottom)
+        else:
+            self.collapse_btn.setText("⊟")
+            self.collapse_btn.setToolTip("Collapse")
+            lay.setDirection(QBoxLayout.Direction.LeftToRight)
         
-        visible = 0
-        for btn in self.buttons:
-            if text.lower() in btn.text().lower():
-                btn.show()
-                visible += 1
-            else:
-                btn.hide()
-        return visible
+        # Ordering the buttons
+        if dock_area == Qt.DockWidgetArea.RightDockWidgetArea and not self.sidebar._collapsed:
+            lay.addWidget(self.collapse_btn)
+            lay.addWidget(self.undo_btn)
+            lay.addWidget(self.redo_btn)
+            lay.addWidget(self.menu_btn)
+        else:
+            lay.addWidget(self.menu_btn)
+            lay.addWidget(self.undo_btn)
+            lay.addWidget(self.redo_btn)
+            lay.addWidget(self.collapse_btn)
+
+    def open_menu(self):
+        parent = cast(QMainWindow, self.sidebar.parent())
+        if parent is None: return
+
+        DockArea = Qt.DockWidgetArea
+        current_area = parent.dockWidgetArea(self.sidebar)
+        menu = QMenu(self)
+
+        def dock_left():
+            parent.addDockWidget(DockArea.LeftDockWidgetArea, self.sidebar)
+
+        def dock_right():
+            parent.addDockWidget(DockArea.RightDockWidgetArea, self.sidebar)
+        
+        if current_area != DockArea.RightDockWidgetArea:
+            action = menu.addAction("Dock to Right")
+            action.triggered.connect(dock_right)
+        if current_area != DockArea.LeftDockWidgetArea:
+            action = menu.addAction("Dock to Left")
+            action.triggered.connect(dock_left)
+
+        #? Lackluster. Menu not streamable
+        menu.exec(self.menu_btn.mapToGlobal(QPoint(0, self.menu_btn.height())))
 
 
-class ComponentSidebar(QWidget):
+
+class ComponentSidebar(QDockWidget):
     refresh_IC_catagory = Signal()
     def __init__(self, theme_manager, parent, canvas: CircuitScene):
-        super().__init__(parent)
+        super().__init__("Sidebar", parent)
+
         if parent:
             self.spawnComponent   = cast(Callable[[int], None], parent.spawnComponent)
             self.spawnIC          = cast(Callable[[Any], None], parent.spawnIC)
             self.retrieve_IC_data = cast(Callable[[], dict[str, tuple[int|None, str|None]]], parent.retrieve_IC_data)
+        
         self.cscene = canvas
 
+        # Configure dock widget
+        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.setFloating(False)
+        
+        self.min_width = 200
+        self.max_width = 800
+
+        # Create custom title bar
+        self.title_bar = DockTitleBar(self)
+        self.setTitleBarWidget(self.title_bar)
+
         self.theme_manager = theme_manager
-        self.setFixedWidth(200)
-        self.sections = []
+        self.sections: list[CategorySection] = []
         
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(150)
         self.search_timer.timeout.connect(self.apply_filter)
         
-        # TODO: updateUI to (just IC needs to be refreshed)
-        # self.refresh_IC_catagory.connect(self.updateUI)
+        # Refresh IC list when project folder or IC list changes
+        self.refresh_IC_catagory.connect(self.build_IC_category)
+        self.ic_section = None
+        
+        # Create internal widget to hold all UI
+        self.widget_container = QWidget()
+        self.setWidget(self.widget_container)
         
         self.setup_ui()
-        self.collapsed = False
+        self._collapsed = False
 
         theme.theme_changed.connect(self.apply_theme)
         self.apply_theme()
@@ -144,8 +312,8 @@ class ComponentSidebar(QWidget):
         colors = theme.get_theme()
         
         self.search.setStyleSheet(self.get_search_style(colors))
-        self.collapse_btn.setStyleSheet(self.get_collapse_btn_style(colors))
         self.scroll_area.setStyleSheet(self.get_scroll_style())
+        self.title_bar.apply_theme()
 
     def get_search_style(self, colors):
         return f"""
@@ -155,7 +323,6 @@ class ComponentSidebar(QWidget):
                 border-radius: 4px;
                 color: {colors.tooltip_bg.name()};
                 padding: 8px;
-                margin: 10px;
                 font-family: 'Segoe UI', 'Monaco', monospace;
             }}
             QLineEdit:focus {{ 
@@ -172,22 +339,6 @@ class ComponentSidebar(QWidget):
                 color: {colors.tooltip_bg.name()}; 
             }}"""
 
-    def get_collapse_btn_style(self, colors):
-        return f"""
-            QPushButton {{
-                background-color: {colors.secondary_bg.name()};
-                border: none;
-                border-radius: 4px;
-                color: {colors.text.name()};
-                font-size: 12px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {colors.button.name()};
-                color: {colors.tooltip_bg.name()};
-            }}
-        """
-
     def get_scroll_style(self):
         return f"""
             QScrollArea {{ 
@@ -196,32 +347,32 @@ class ComponentSidebar(QWidget):
             }}"""
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self.widget_container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        ### Search Box
         search_layout = QHBoxLayout()
-        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setContentsMargins(5, 0, 5, 5)
         search_layout.setSpacing(0)
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search components...")
         
+        #! This button is invisible for some reason
         clear = QAction("🅧", self)
         self.search.addAction(clear, QLineEdit.ActionPosition.TrailingPosition)
         clear.triggered.connect(self.clear_search)
         self.search.textChanged.connect(lambda: self.search_timer.start())
         
-        self.collapse_btn = QPushButton("◀")
-        self.collapse_btn.setFixedSize(15, 25)
-        self.collapse_btn.clicked.connect(self.toggle_collapse)
-        
         search_layout.addWidget(self.search)
-        search_layout.addWidget(self.collapse_btn)
         layout.addLayout(search_layout)
 
+        ### Categories
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.focusNextPrevChild = (lambda next: False)  # Disable horizontal scroll movement
         
         container = QWidget()
         self.menu = QVBoxLayout(container)
@@ -229,7 +380,7 @@ class ComponentSidebar(QWidget):
         self.menu.setSpacing(0)
         self.menu.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        ### Catagories
+        ## Creating all catagories
         for title, items in CATEGORIES.items():
             section = CategorySection(title)
             for comp_id in items:
@@ -238,58 +389,33 @@ class ComponentSidebar(QWidget):
             self.menu.addWidget(section)
             self.sections.append(section)
 
+            # Expand category for "Gates" and "I/O"
             if title.lower() in ["gates", "i/o"]:
                 section.toggle.setChecked(True)
-                section.content.setVisible(True)
         
-        ### IC Catagory
-        ic_data_list = self.retrieve_IC_data()
-        self.ic_section = CategorySection("IC")
-        self.ic_section.add_item("Refresh List").clicked.connect(self.refresh_IC_catagory)
+        ## IC Catagory
+        self.build_IC_category()
 
-        # For ICs stored in (canvas.iclist) then (files)
-        # "ICs Used in the Project"
-        # TODO: Add a separator or label here
-        firsthalf = True
-        for name, (idx, location) in ic_data_list.items():
-            if firsthalf and idx is None:
-                firsthalf = False
-                # "From Files"
-                # TODO: Add a separator or label here
-            
-            btn = self.ic_section.add_item(name)
-            if firsthalf:
-                assert idx is not None
-
-                # Reading ICs stored in canvas.iclist
-                ic_data = self.cscene.iclist[idx]
-                btn.clicked.connect(lambda _, d=ic_data: self.spawnIC(d))
-            else:
-                assert location is not None
-
-                # Reading ICs stored in files
-                btn.clicked.connect(lambda _, loc=location: self.import_IC(loc))
-        
-        self.menu.addWidget(self.ic_section)
-        self.sections.append(self.ic_section)
-
-        ### Finishing
+        ## Finishing
         self.scroll_area.setWidget(container)
         layout.addWidget(self.scroll_area)
+        
+        self.setMinimumWidth(self.min_width)
+        self.setMaximumWidth(self.max_width)
 
     def toggle_collapse(self):
-        self.collapsed = not self.collapsed
+        self._collapsed = not self._collapsed
+        self.title_bar.refresh_layout()
 
-        if self.collapsed:
-            self.search.setVisible(False)
-            self.scroll_area.setVisible(False)
-            self.collapse_btn.setText("▶")
-            self.setFixedWidth(15)
+        if self._collapsed:
+            self.search.hide()
+            self.scroll_area.hide()
+            self.setFixedWidth(BTN_SIZE)
         else:
-            self.search.setVisible(True)
-            self.scroll_area.setVisible(True)
-            self.collapse_btn.setText("◀")
-            self.setFixedWidth(200)
+            self.search.show()
+            self.scroll_area.show()
+            self.setMinimumWidth(self.min_width)
+            self.setMaximumWidth(self.max_width)
 
     def apply_filter(self):
         text = self.search.text().strip()
@@ -299,7 +425,6 @@ class ComponentSidebar(QWidget):
                 section.setVisible(True)
                 for btn in section.buttons:
                     btn.show()
-                section.content.setVisible(False)
                 section.toggle.setChecked(False)
             return
         
@@ -307,13 +432,55 @@ class ComponentSidebar(QWidget):
             visible = section.filter(text)
             section.setVisible(visible > 0)
             if visible > 0:
-                section.content.setVisible(True)
                 section.toggle.setChecked(True)
 
     def clear_search(self):
         self.search.clear()
         self.apply_filter()
     
+    def build_IC_category(self):
+        isExpanded = False
+
+        # Remove IC Catagory
+        if self.ic_section is not None:
+            isExpanded = self.ic_section.toggle.isChecked()
+            self.menu.removeWidget(self.ic_section)
+
+            if self.ic_section in self.sections:
+                self.sections.remove(self.ic_section)
+            
+            self.ic_section.setParent(None)
+            self.ic_section.deleteLater()
+
+        # Recreate IC Category
+        self.ic_section = CategorySection("IC")
+        self.ic_section.add_item("Refresh List").clicked.connect(self.refresh_IC_catagory)
+
+        ic_data_list = self.retrieve_IC_data()
+        firsthalf = True
+
+        #! This needs serious fixing
+        for name, (idx, location) in ic_data_list.items():
+            if firsthalf and idx is None:
+                firsthalf = False
+
+            btn = self.ic_section.add_item(name)
+            if firsthalf:
+                # Reading ICs stored in canvas.iclist
+                assert idx is not None
+                ic_data = self.cscene.iclist[idx]
+                btn.clicked.connect(lambda _, d=ic_data: self.spawnIC(d))
+            else:
+                # Reading ICs stored in files
+                assert location is not None
+                btn.clicked.connect(lambda _, loc=location: self.import_IC(loc))
+
+        # Makes sure the category doesn't randomly expand or collapse
+        self.ic_section.toggle.setChecked(isExpanded)
+        
+        self.menu.addWidget(self.ic_section)
+        self.sections.append(self.ic_section)
+
     # IC stuffs
     def import_IC(self, filename: str):
         ic = logic.get_ic(filename)

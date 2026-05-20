@@ -2,9 +2,9 @@
 # constantly manage packages and ruin how the other project files look
 
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QFrame,
+    QApplication, QMainWindow, QWidget, QFrame, QDockWidget,
     QPushButton, QLabel, QLineEdit, QTextEdit, QSpinBox, QComboBox, QCheckBox,
-    QVBoxLayout, QHBoxLayout, QFormLayout,
+    QBoxLayout, QVBoxLayout, QHBoxLayout, QFormLayout,
     QDialog, QFileDialog, QInputDialog, QMessageBox,
     QDialogButtonBox, QMenu, QMenuBar, QLineEdit, QScrollArea,
     QToolBar, QDoubleSpinBox,

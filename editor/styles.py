@@ -3,6 +3,7 @@ from PySide6.QtGui import QColor, QFont
 
 class LightTheme:
     text           = QColor("#1f2c39")
+    text_inactive  = QColor("#a3b2c2")
     hl_text_bg     = QColor("#3677e0")
     primary_bg     = QColor("#cfd5db")
     secondary_bg   = QColor("#e1e6ec")
@@ -60,6 +61,7 @@ class LightTheme:
 
 class DarkTheme:
     text           = QColor("#d8dee6")
+    text_inactive  = QColor("#6b7684")
     hl_text_bg     = QColor("#2f65ca")
     primary_bg     = QColor("#03070c")
     secondary_bg   = QColor("#121c26")
