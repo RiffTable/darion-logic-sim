@@ -233,13 +233,13 @@ class Circuit:
                 bit = 1 if (gray & mask) else 0
                 if bit != var.output:
                     var.output = bit
-                    self.propagate(var)
+                    self.truth_generator(var)
             else:
                 for j in range(n):
                     var = variables[j]
                     if var.output != 0:
                         var.output = 0
-                        self.propagate(var)
+                        self.truth_generator(var)
 
             # Fast tuple extraction
             v_states = tuple(var.output for var in variables)
@@ -248,6 +248,7 @@ class Circuit:
 
         return raw_rows
 
+    #sync with reactor later
     def truthTable(self, variables: list = None, outputs: list = None) -> str:
         """Gray Code optimized Truth Table with sorting and string caching."""
       
@@ -260,7 +261,7 @@ class Circuit:
         if outputs is not None:
             gate_list = outputs
         else:
-            gate_list = [item for item in self.objlist[OUTPUT_PIN_ID] if item is not None]
+            gate_list = [item for item in self.objlist[PROBE_ID] if item is not None]
 
         raw_rows = self.table(variables, gate_list)
 
@@ -279,7 +280,6 @@ class Circuit:
         OUT_MAP = [
             "F".center(col_width),
             "T".center(col_width),
-            "1/0".center(col_width),
             "X".center(col_width)
         ]
 
@@ -829,6 +829,62 @@ class Circuit:
                                 if target.location<0:
                                     print('Error in propagation')
                                 self.visual_queue.append(target)
+                            if not target.mark:
+                                target.mark = True
+                                write_buf[write_end] = target
+                                write_end += 1
+                        profile.output = new_output
+            read_buf, write_buf = write_buf, read_buf
+            read_end, write_end = write_end, 0
+
+    def truth_generator(self, origin: Gate):
+        """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
+        read_buf: list = self.queue[0]
+        write_buf: list = self.queue[1]
+        read_end: int = 1
+        write_end: int = 0
+        counter: int = 0
+        read_buf[0] = origin        
+        while read_end > 0:
+            if counter > self.counter:
+                for i in range(read_end):
+                    gate = read_buf[i]
+                    gate.output=UNKNOWN
+                counter=0
+            counter += 1
+            for i in range(read_end):
+                gate = read_buf[i]
+                gate.mark = False
+                new_output = gate.output
+                for profile in gate.hitlist:
+                    self.eval_count += 1
+                    profile_output = profile.output
+                    if profile_output != new_output:
+                        target = profile.target
+                        gate_type = target.id
+                        limit = target.inputlimit
+                        if gate_type<0:
+                            continue
+                        if gate_type>VARIABLE_ID:
+                            if new_output>HIGH:target_output = new_output
+                            else:target_output = new_output ^ (gate_type == NOT_ID)
+                        else:
+                            book = target.book
+                            book[profile_output] -= 1
+                            book[new_output] += 1
+                            if new_output>HIGH:target_output = new_output
+                            else:
+                                high = book[HIGH]
+                                low = book[LOW]
+                                realsource = high + low
+                                if realsource == limit or (realsource and realsource + book[UNKNOWN] == limit):
+                                    if gate_type <= NAND_ID:target_output = int(low == 0)^(gate_type & 1)
+                                    elif gate_type <= NOR_ID:target_output = int(high > 0)^(gate_type & 1)
+                                    else:target_output = (high & 1)^(gate_type & 1)
+                                else:target_output = UNKNOWN
+
+                        if target_output != target.output:
+                            target.output = target_output
                             if not target.mark:
                                 target.mark = True
                                 write_buf[write_end] = target
