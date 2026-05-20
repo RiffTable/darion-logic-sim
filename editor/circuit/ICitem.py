@@ -168,7 +168,7 @@ class ICitem(CompItem):
 
 
         # Labels
-        painter.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
+        painter.setFont(QFont("Consolas", 8, QFont.Weight.DemiBold))
         for edge, pins in self._pinslist.items():
             fa = self.edgeToFacing(edge)
 

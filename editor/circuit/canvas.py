@@ -71,6 +71,8 @@ class CircuitScene(QGraphicsScene):
         # Replacement to the simpler listener system
         QTimer.singleShot(0, self._start_async_updater)
 
+
+
     def _start_async_updater(self):
         """Called on the first Qt event-loop tick, after QtAsyncio has installed
         its event loop, so create_task() is safe to call here."""
@@ -648,6 +650,26 @@ class CircuitScene(QGraphicsScene):
         #     for comp in new_comps:
         #         comp.poll_update()
         return new_comps, new_wires
+    
+    def selectionBoundingRect(self, comps: list[CompItem]) -> QRectF:
+        """Generates"""
+        if len(comps) == 0: return QRectF()
+        first = comps[0].sceneBoundingRect()
+        x1 = first.left()
+        x2 = first.right()
+        y1 = first.top()
+        y2 = first.bottom()
+
+        for comp in comps[1:]:
+            rect = comp.sceneBoundingRect()
+            
+            l, r, t, b = rect.left(), rect.right(), rect.top(), rect.bottom()
+            x1 = x1 if l > x1 else l
+            x2 = x2 if r < x2 else r
+            y1 = y1 if t > y1 else t
+            y2 = y2 if b < y2 else b
+        
+        return QRectF(x1, y1, x2-x1, y2-y1)
 
 
 

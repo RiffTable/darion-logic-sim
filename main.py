@@ -249,26 +249,34 @@ class AppWindow(QMainWindow):
 
         self.view.setCamera(QPointF(cx, cy), m11)
 
-    def retrieve_IC_data(self):
-        ic_list: dict[str, tuple[int|None, str|None]] = {}
+    def retrieve_IC_data(self) -> tuple[dict, dict]:
+        """
+        Returns a tuple of two dicts:
+        1. (name `str`, ic_data `DATA`): In-project IC data
+        2. (name `str`, filename `str`): In-folder IC data from absolute path
+        """
         names: set[str] = set()
         
-        for idx, stored_ic in enumerate(self.cscene.iclist):
+        # in-project ICs
+        inproject: dict[str, int] = {}
+        for stored_ic in self.cscene.iclist:
             name = stored_ic[Const.CUSTOM_NAME]
             names.add(name)
-            ic_list[name] = (idx, None)
+            inproject[name] = stored_ic
 
+        # in-folder ICs
+        infolder: dict[str, str] = {}
         for file in self.getICFolder().glob("*.json"):
             filename = str(file.resolve())    # Absolute path
             ic = logic.get_ic(filename)
             if ic is None: continue
 
             name = ic[Const.CUSTOM_NAME]
-            if name in names: continue    # Excludes IC listed in canvas.iclist
+            if name in names: continue    #! Excludes IC listed in canvas.iclist
             
-            ic_list[name] = (None, filename)
+            infolder[name] = filename
         
-        return ic_list
+        return (inproject, infolder)
 
 
 
@@ -283,7 +291,7 @@ class AppWindow(QMainWindow):
         else:
             folder = Path(str(QSettings().value(
                 "settings/last_project_dir",
-                str(Path(DOC_PATH) / "Darion Logic Sim" / "Projects"),
+                str(Val.Paths.projects),
                 type=str
             )))
             folder.mkdir(parents=True, exist_ok=True)
@@ -293,7 +301,7 @@ class AppWindow(QMainWindow):
         """Location: Documents/Darion Logic Sim/IC"""
         folder = Path(str(QSettings().value(
             "settings/ic_dir",
-            str(Path(DOC_PATH) / "Darion Logic Sim" / "IC"),
+            str(Val.Paths.ICs),
             type=str
         )))
         folder.mkdir(parents=True, exist_ok=True)
@@ -379,7 +387,7 @@ class AppWindow(QMainWindow):
             )
 
     def _tell_user_to_save_before_quitting(self, message: str) -> bool:
-        """Returns TRUE if app quits immediately"""
+        """Returns TRUE if app quits immediately or the project is saved"""
         if not (self.is_project_modified and Val.AlertUnsaved):
             return True
 
@@ -394,7 +402,7 @@ class AppWindow(QMainWindow):
         if res == Btn.Save:
             return self.saveFile()    # Quit if saved successfully
         
-        # Quit if I pressed 'Discard', don't if I pressed 'Cancel'
+        # Quit if 'Discard', don't if 'Cancel'
         return res != Btn.Cancel
 
 
@@ -402,23 +410,22 @@ class AppWindow(QMainWindow):
     ###======= IC FILES =======###
     def addICToProject(self):
         """Opens a dialog box"""
-        ic_data_list = self.retrieve_IC_data()
+        inproject, infolder = self.retrieve_IC_data()
 
-        names = list(ic_data_list.keys())
-        ic_name, ok = QInputDialog.getItem(
+        names = list((inproject | infolder).keys())
+        name, ok = QInputDialog.getItem(
             self, "Select IC", "Add an IC to project:", names, 0, False
         )
         
         if not ok: return
-        idx, filename = ic_data_list[ic_name]
 
-        if filename:
-            ic_data = logic.get_ic(filename)
-        elif idx:
-            ic_data = self.cscene.iclist[idx]
+        if name in inproject:
+            ic_data = inproject[name]
+        else:
+            loc = infolder[name]
+            ic_data = logic.get_ic(loc)
         
-        if ic_data:
-            self.spawnIC(ic_data)
+        self.spawnIC(ic_data)
 
     def convertProjectToIC(self):
         #? IC Setup Wizard!

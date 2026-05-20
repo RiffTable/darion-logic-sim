@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import cast, Callable, Any
 from core.QtCore import *
 from core.LogicCore import *
+from editor.styles import Val
 import editor.theme as theme
 from editor.circuit.catalog import LOOKUP, CATEGORIES
 from editor.circuit.canvas import CircuitScene
@@ -269,7 +270,7 @@ class ComponentSidebar(QDockWidget):
         if parent:
             self.spawnComponent   = cast(Callable[[int], None], parent.spawnComponent)
             self.spawnIC          = cast(Callable[[Any], None], parent.spawnIC)
-            self.retrieve_IC_data = cast(Callable[[], dict[str, tuple[int|None, str|None]]], parent.retrieve_IC_data)
+            self.retrieve_IC_data = cast(Callable[[], tuple[dict, dict]], parent.retrieve_IC_data)
         
         self.cscene = canvas
 
@@ -440,8 +441,14 @@ class ComponentSidebar(QDockWidget):
     
     def build_IC_category(self):
         isExpanded = False
+        color = theme.get_theme()
+        folder = str(QSettings().value(
+            "settings/ic_dir",
+            str(Val.Paths.ICs),
+            type=str
+        ))
 
-        # Remove IC Catagory
+        ### Remove IC Catagory
         if self.ic_section is not None:
             isExpanded = self.ic_section.toggle.isChecked()
             self.menu.removeWidget(self.ic_section)
@@ -452,28 +459,37 @@ class ComponentSidebar(QDockWidget):
             self.ic_section.setParent(None)
             self.ic_section.deleteLater()
 
-        # Recreate IC Category
+        ### Recreate IC Category
         self.ic_section = CategorySection("IC")
         self.ic_section.add_item("Refresh List").clicked.connect(self.refresh_IC_catagory)
 
-        ic_data_list = self.retrieve_IC_data()
-        firsthalf = True
+        inproject, infolder = self.retrieve_IC_data()
 
-        #! This needs serious fixing
-        for name, (idx, location) in ic_data_list.items():
-            if firsthalf and idx is None:
-                firsthalf = False
+        ## Reading ICs stored in canvas.iclist
+        # Header
+        if len(inproject) > 0:
+            label1 = QLabel("Used in the Project:")
+            label1.setStyleSheet(f"color: {color.text_inactive.name()};")
+            self.ic_section.content_layout.addWidget(label1)
 
+        # List ICs
+        for name, data in inproject.items():
             btn = self.ic_section.add_item(name)
-            if firsthalf:
-                # Reading ICs stored in canvas.iclist
-                assert idx is not None
-                ic_data = self.cscene.iclist[idx]
-                btn.clicked.connect(lambda _, d=ic_data: self.spawnIC(d))
-            else:
-                # Reading ICs stored in files
-                assert location is not None
-                btn.clicked.connect(lambda _, loc=location: self.import_IC(loc))
+            btn.clicked.connect(lambda _, d=data: self.spawnIC(d))
+        
+        
+        ## Reading ICs stored in files
+        # Header
+        if len(infolder) > 0:
+            label2 = QLabel("Saved in Folder:")
+            label2.setStyleSheet(f"color: {color.text_inactive.name()};")
+            label2.setToolTip(folder)
+            self.ic_section.content_layout.addWidget(label2)
+        
+        # List ICs
+        for name, location in infolder.items():
+            btn = self.ic_section.add_item(name)
+            btn.clicked.connect(lambda _, loc=location: self.import_IC(loc))
 
         # Makes sure the category doesn't randomly expand or collapse
         self.ic_section.toggle.setChecked(isExpanded)

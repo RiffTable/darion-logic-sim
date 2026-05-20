@@ -1,5 +1,6 @@
 from PySide6.QtGui import QColor, QFont
-
+from PySide6.QtCore import QStandardPaths
+from pathlib import Path
 
 class LightTheme:
     text           = QColor("#1f2c39")
@@ -129,3 +130,10 @@ class Val:
     AnimSpeedWire = 125
 
     AlertUnsaved = True
+    class Paths:
+        appdata   = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+        documents = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        projects  = Path(documents) / "Darion Logic Sim" / "Projects"
+        ICs       = Path(documents) / "Darion Logic Sim" / "IC"
+
+
