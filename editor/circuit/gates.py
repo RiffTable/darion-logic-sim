@@ -9,7 +9,7 @@ import editor.theme as theme
 from editor.styles import Font
 
 from .compitem import CompItem
-from .pins import PinItem, InputPinItem, OutputPinItem
+from .pins import PinItem, InputPin, OutputPin
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ def _or_curve_x(y: float, H: float, cx: float) -> float:
 
 
 def _make_curved_pin_pos(
-    gate: GateItem,
+    gate: GateComp,
     pin_index: int,
     n_pins: int,
     body_w: float,
@@ -197,7 +197,7 @@ def _make_curved_pin_pos(
 # GateItem base
 # ─────────────────────────────────────────────────────────────────────────────
 
-class GateItem(CompItem):
+class GateComp(CompItem):
     MIN_INPUT  = 2
     MAX_INPUT  = 69
     HAS_BUBBLE = False
@@ -235,8 +235,8 @@ class GateItem(CompItem):
             self.addOutputPin(CompEdge.OUTPUT, h//2)
             self.updateShape()
 
-        self.inputPins  = cast(list[InputPinItem], self._pinslist[CompEdge.INPUT])
-        self.outputPin  = cast(OutputPinItem,      self._pinslist[CompEdge.OUTPUT][0])
+        self.inputPins  = cast(list[InputPin], self._pinslist[CompEdge.INPUT])
+        self.outputPin  = cast(OutputPin,      self._pinslist[CompEdge.OUTPUT][0])
 
         for i, p in enumerate(self.inputPins):
             p.setLogical(self._unit, i)
@@ -246,7 +246,7 @@ class GateItem(CompItem):
 
         self.proxyIndex  = self.findFirstEmptyPin()
         self.peekingPin: PinItem|None = None
-        self.stashedPins: list[InputPinItem] = []
+        self.stashedPins: list[InputPin] = []
 
 
     # ── Properties ────────────────────────────────────────────────────────────
@@ -320,7 +320,7 @@ class GateItem(CompItem):
         if (activePinCountChange == +1) and pin is self.proxyPin():
             self.proxyIndex = self.findFirstEmptyPin()
         if (activePinCountChange == -1) and pin in self.inputPins:
-            index = self.inputPins.index(cast(InputPinItem, pin))
+            index = self.inputPins.index(cast(InputPin, pin))
             self.proxyIndex = min(self.proxyIndex, index)
 
     def setInputCount(self, size: int) -> bool:
@@ -368,7 +368,7 @@ class GateItem(CompItem):
         """Redistribute straight-edge input pins with margin so they never sit
         on sharp corners.  OR/XOR subclasses override this for curved placement.
         Pin Y positions are snapped to GRID.SIZE so wires stay on the grid."""
-        pins: list[InputPinItem] = self._pinslist[CompEdge.INPUT]
+        pins: list[InputPin] = self._pinslist[CompEdge.INPUT]
         n = len(pins)
         if not n:
             return
@@ -490,7 +490,7 @@ class GateItem(CompItem):
 # Concrete gate classes
 # ─────────────────────────────────────────────────────────────────────────────
 
-class NOTGate(GateItem):
+class NOTGate(GateComp):
     TAG = "NOT";  LOGIC = Const.NOT_ID;  NAME = DESC = "NOT Gate"
     MIN_INPUT = MAX_INPUT = 1
     HAS_BUBBLE = True
@@ -503,7 +503,7 @@ class NOTGate(GateItem):
         return _not_path(w * GRID.SIZE, h * GRID.SIZE)
 
 
-class ANDGate(GateItem):
+class ANDGate(GateComp):
     TAG = "AND";  LOGIC = Const.AND_ID;  NAME = DESC = "AND Gate"
 
     def _build_canonical_path(self) -> QPainterPath:
@@ -511,7 +511,7 @@ class ANDGate(GateItem):
         return _and_path(w * GRID.SIZE, h * GRID.SIZE)
 
 
-class NANDGate(GateItem):
+class NANDGate(GateComp):
     TAG = "NAND"; LOGIC = Const.NAND_ID; NAME = DESC = "NAND Gate"
     HAS_BUBBLE = True
 
@@ -532,7 +532,7 @@ class _ORMixin:
         return lambda y, h: _or_curve_x(y, h, cx)
 
     def _reposition_input_pins(self, body_w: float, body_h: float):
-        pins: list[InputPinItem] = self._pinslist[CompEdge.INPUT]  # type: ignore[attr-defined]
+        pins: list[InputPin] = self._pinslist[CompEdge.INPUT]  # type: ignore[attr-defined]
         n = len(pins)
         if not n: return
         x_fn = self._curved_x_fn(body_w)
@@ -541,11 +541,11 @@ class _ORMixin:
             self.setPinPos(pin, pos)  # type: ignore[attr-defined]
 
 
-class ORGate(_ORMixin, GateItem):
+class ORGate(_ORMixin, GateComp):
     TAG = "OR";   LOGIC = Const.OR_ID;   NAME = DESC = "OR Gate"
 
 
-class NORGate(_ORMixin, GateItem):
+class NORGate(_ORMixin, GateComp):
     TAG = "NOR";  LOGIC = Const.NOR_ID;  NAME = DESC = "NOR Gate"
     HAS_BUBBLE = True
 
@@ -562,10 +562,10 @@ class _XORMixin(_ORMixin):
         return lambda y, h: _or_curve_x(y, h, cx) - off
 
 
-class XORGate(_XORMixin, GateItem):
+class XORGate(_XORMixin, GateComp):
     TAG = "XOR";  LOGIC = Const.XOR_ID;  NAME = DESC = "XOR Gate"
 
 
-class XNORGate(_XORMixin, GateItem):
+class XNORGate(_XORMixin, GateComp):
     TAG = "XNOR"; LOGIC = Const.XNOR_ID; NAME = DESC = "XNOR Gate"
     HAS_BUBBLE = True

@@ -10,14 +10,14 @@ from editor.styles import Font
 import core.grid as GRID
 
 from .compitem import CompItem
-from .pins import PinItem, InputPinItem, OutputPinItem
+from .pins import PinItem, InputPin, OutputPin
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # InputItem
 # ─────────────────────────────────────────────────────────────────────────────
 
-class InputItem(CompItem):
+class InputComp(CompItem):
     TAG   = "IN"
     LOGIC = Const.VARIABLE_ID
     NAME  = DESC = "INPUT"
@@ -63,7 +63,7 @@ class InputItem(CompItem):
             self.addOutputPin(CompEdge.OUTPUT, s // 2)
             self.updateShape()
 
-        self.outputPin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][0])
+        self.outputPin = cast(OutputPin, self._pinslist[CompEdge.OUTPUT][0])
         self.outputPin.setLogical(self._unit)
         self.outputPin.logicalStateChanged(self.state)
 

@@ -66,7 +66,7 @@ class PinItem(QGraphicsRectItem):
         return {
             "pos"     : self.pos().toTuple(),
             "wire"    : self.getWireID(),
-            "isInput" : isinstance(self, InputPinItem)
+            "isInput" : isinstance(self, InputPin)
         }
 
     # Wire configuration
@@ -161,7 +161,7 @@ class PinItem(QGraphicsRectItem):
 
 
 ###======= INPUT PIN =======###
-class InputPinItem(PinItem):
+class InputPin(PinItem):
     def __init__(self, parent: CompItem|None, relpos: QPointF, facing: Facing):
         super().__init__(parent, relpos, facing)
         self.logical: tuple[Gate, int] | None = None
@@ -187,7 +187,7 @@ class InputPinItem(PinItem):
 
 
 ###======= OUTPUT PIN =======###
-class OutputPinItem(PinItem):
+class OutputPin(PinItem):
     def __init__(self, parent: CompItem, relpos: QPointF, facing: Facing):
         super().__init__(parent, relpos, facing)
         self.logical: Gate | None = None

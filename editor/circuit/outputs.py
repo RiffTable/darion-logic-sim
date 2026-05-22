@@ -10,14 +10,14 @@ from editor import theme
 import core.grid as GRID
 
 from .compitem import CompItem
-from .pins import PinItem, InputPinItem, OutputPinItem
+from .pins import PinItem, InputPin, OutputPin
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OutputItem
 # ─────────────────────────────────────────────────────────────────────────────
 
-class OutputItem(CompItem):
+class OutputComp(CompItem):
     TAG   = "OUT"
     LOGIC = Const.PROBE_ID
     NAME  = DESC = "LED"
@@ -62,7 +62,7 @@ class OutputItem(CompItem):
             self.addInputPin(CompEdge.INPUT, s // 2)
             self.updateShape()
 
-        self.inputPin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][0])
+        self.inputPin = cast(InputPin, self._pinslist[CompEdge.INPUT][0])
         self.inputPin.setLogical(self._unit, 0)
 
     # ── Shape ─────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ class OutputItem(CompItem):
             return True
         return False
 
-    def proxyPin(self) -> InputPinItem | None:
+    def proxyPin(self) -> InputPin | None:
         return None if self.inputPin.hasWire() else self.inputPin
 
     # ── Paint ─────────────────────────────────────────────────────────────────

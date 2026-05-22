@@ -8,7 +8,7 @@ import editor.theme as theme
 
 if TYPE_CHECKING:
     from .canvas import CircuitScene
-    from .pins import InputPinItem, OutputPinItem
+    from .pins import InputPin, OutputPin
 
 
 
@@ -18,7 +18,7 @@ class WireItem(QGraphicsPathItem):
     _COUNT = 1    # NO CONNECTION = ZERO (0)
     MINWALK = 2
     
-    def __init__(self, beg: OutputPinItem, end: InputPinItem):
+    def __init__(self, beg: OutputPin, end: InputPin):
         super().__init__()
 
         # Behavior
@@ -32,7 +32,7 @@ class WireItem(QGraphicsPathItem):
         # Properties
         self._id = WireItem._COUNT
         self.source = beg
-        self.supplies: list[InputPinItem] = [end]
+        self.supplies: list[InputPin] = [end]
 
         # Color animation – prevents strobe on fast oscillators
         self.current_color: QColor = theme.get_theme().signal_unknown
@@ -60,12 +60,12 @@ class WireItem(QGraphicsPathItem):
 
     # Connection configuration
     @classmethod
-    def logicalConnect(cls, outpin: OutputPinItem, inpin: InputPinItem):
+    def logicalConnect(cls, outpin: OutputPin, inpin: InputPin):
         if inpin.logical and outpin.logical:
             u, i = inpin.logical
             logic.connect(u, outpin.logical, i)
     
-    def _addSupply(self, pin: InputPinItem):
+    def _addSupply(self, pin: InputPin):
         """Doesn't update shape or connect logicals. Equivalent to:
         ```
         wire.supplies.append(pin); pin.setWire(wire)
@@ -74,7 +74,7 @@ class WireItem(QGraphicsPathItem):
         self.supplies.append(pin)
         pin.setWire(self)
     
-    def _cutSupply(self, pin: InputPinItem):
+    def _cutSupply(self, pin: InputPin):
         """Doesn't update shape, disconnect logicals or remove wire when no supply is attached. Equivalent to:
         ```
         wire.supplies.remove(pin); pin.setWire(None)
@@ -84,7 +84,7 @@ class WireItem(QGraphicsPathItem):
         pin.setWire(None)
     
 
-    def addSupply(self, pin: InputPinItem):
+    def addSupply(self, pin: InputPin):
         """Updates the wire's shape"""
         if pin in self.supplies: return
         self.supplies.append(pin)
@@ -93,7 +93,7 @@ class WireItem(QGraphicsPathItem):
         self.logicalConnect(self.source, pin)
         self.updateShape()
     
-    def cutSupply(self, pin: InputPinItem):
+    def cutSupply(self, pin: InputPin):
         """Updates the wire's shape"""
         if not pin in self.supplies: return
 

@@ -5,7 +5,7 @@ from core.QtCore import *
 from core.Enums import Prop, Facing
 
 import editor.theme as theme
-from editor.circuit.catalog import CompItem, GateItem
+from editor.circuit.catalog import CompItem, GateComp
 from editor.circuit.commands import PropertyChangeCommand
 
 

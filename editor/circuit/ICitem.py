@@ -7,13 +7,13 @@ import editor.theme as theme
 from editor.styles import Font
 
 from .compitem import CompItem
-from .pins import InputPinItem, OutputPinItem
+from .pins import InputPin, OutputPin
 
 
 
 
 
-class ICitem(CompItem):
+class IC_Comp(CompItem):
     TAG = DESC = NAME = ""
     LOGIC = Const.IC_ID
 
@@ -76,24 +76,24 @@ class ICitem(CompItem):
                     
                     current_pos = start
                     for _ in in_indices:
-                        self._pinslist[edge].append(InputPinItem(self, gen(current_pos), fa))
+                        self._pinslist[edge].append(InputPin(self, gen(current_pos), fa))
                         current_pos += 2
                     for _ in out_indices:
-                        self._pinslist[edge].append(OutputPinItem(self, gen(current_pos), fa))
+                        self._pinslist[edge].append(OutputPin(self, gen(current_pos), fa))
                         current_pos += 2
             else:
                 start = h//2 + 1 - ninputs
                 fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
                 for i in range(ninputs):
                     self._pinslist[CompEdge.INPUT].append(
-                        InputPinItem(self, gen(start + 2*i), fa)
+                        InputPin(self, gen(start + 2*i), fa)
                     )
                 
                 start = h//2 + 1 - noutputs
                 fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
                 for i in range(noutputs):
                     self._pinslist[CompEdge.OUTPUT].append(
-                        OutputPinItem(self, gen(start + 2*i), fa)
+                        OutputPin(self, gen(start + 2*i), fa)
                     )
 
         # Setting Pin Logicals
@@ -101,8 +101,8 @@ class ICitem(CompItem):
         self.output_pins = []
         
         if has_orientations:
-            input_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, InputPinItem)) for edge in CompEdge}
-            output_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, OutputPinItem)) for edge in CompEdge}
+            input_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, InputPin)) for edge in CompEdge}
+            output_iters = {edge: (p for p in self._pinslist[edge] if isinstance(p, OutputPin)) for edge in CompEdge}
             
             for i, inpin in enumerate(self._unit.inputs):
                 edge = CompEdge((pin_orientations[0][i] + 2) % 4)
@@ -117,12 +117,12 @@ class ICitem(CompItem):
                 self.output_pins.append(pin)
         else:
             for i, inpin in enumerate(self._unit.inputs):
-                pin = cast(InputPinItem, self._pinslist[CompEdge.INPUT][i])
+                pin = cast(InputPin, self._pinslist[CompEdge.INPUT][i])
                 pin.setLogical(inpin)
                 self.input_pins.append(pin)
 
             for i, outpin in enumerate(self._unit.outputs):
-                pin = cast(OutputPinItem, self._pinslist[CompEdge.OUTPUT][i])
+                pin = cast(OutputPin, self._pinslist[CompEdge.OUTPUT][i])
                 pin.setLogical(outpin)
                 self.output_pins.append(pin)
 
@@ -140,7 +140,7 @@ class ICitem(CompItem):
         changed = False
         for pinlist in self._pinslist.values():
             for pin in pinlist:
-                if isinstance(pin, OutputPinItem) and pin.logical is not None:
+                if isinstance(pin, OutputPin) and pin.logical is not None:
                     current = pin.logical.output
                     if current != pin.state:
                         pin.logicalStateChanged(current)

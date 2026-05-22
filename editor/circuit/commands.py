@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, cast
 from core.QtCore import *
 from core.LogicCore import *
 from core.Enums import EditorState, Prop
-from .catalog import CompItem, WireItem, InputPinItem, OutputPinItem, GateItem
+from .catalog import CompItem, WireItem, InputPin, OutputPin, GateComp
 
 if TYPE_CHECKING:
     from .canvas import CircuitScene
@@ -149,7 +149,7 @@ class DeleteCommand(QUndoCommand):
 
 #TODO: clean-up
 class ConnectCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", source_pin: OutputPinItem, target_pin: InputPinItem, ghost_wire: WireItem, multi_wire_mode: bool = False):
+    def __init__(self, scene: "CircuitScene", source_pin: OutputPin, target_pin: InputPin, ghost_wire: WireItem, multi_wire_mode: bool = False):
         super().__init__()
         self.scene = scene
         self.source_pin = source_pin
@@ -216,7 +216,7 @@ class ConnectCommand(QUndoCommand):
             g_wire.updateShape()
         
         if self.gate_size_changed:
-            gate_comp = cast(GateItem, t_pin.parentComp)
+            gate_comp = cast(GateComp, t_pin.parentComp)
             if gate_comp is not None:
                 gate_comp.setInputCount(self.old_limit)
                 # ^ This automatically calls unit.setlimits(self.old_limit)
@@ -335,7 +335,7 @@ class MoveCommand(QUndoCommand):
 
 
 class SetInputCountCommand(QUndoCommand):
-    def __init__(self, changes: list[tuple[GateItem, int, int]]):
+    def __init__(self, changes: list[tuple[GateComp, int, int]]):
         super().__init__()
         self.changes = changes  # list of (item, old_size, new_size)
         self.first_time = False
@@ -355,7 +355,7 @@ class SetInputCountCommand(QUndoCommand):
 
 #TODO: clean-up
 class SwapWireCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", g_wire: WireItem, t_wire: WireItem, target: InputPinItem, g_pin: InputPinItem):
+    def __init__(self, scene: "CircuitScene", g_wire: WireItem, t_wire: WireItem, target: InputPin, g_pin: InputPin):
         super().__init__()
         self.scene = scene
         self.g_wire = g_wire
@@ -460,7 +460,7 @@ class SwapWireCommand(QUndoCommand):
         scene.setState(EditorState.NORMAL)
 
 class DisconnectWireCommand(QUndoCommand):
-    def __init__(self, scene: "CircuitScene", target: InputPinItem):
+    def __init__(self, scene: "CircuitScene", target: InputPin):
         super().__init__()
         self.scene = scene
         self.target = target

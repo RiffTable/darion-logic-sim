@@ -9,9 +9,9 @@ import time
 
 import editor.theme as theme
 from .catalog import (
-    LOOKUP, CompItem, WireItem, PinItem, InputPinItem, OutputPinItem,
-    InputItem, OutputItem,
-    GateItem, ICitem
+    LOOKUP, CompItem, WireItem, PinItem, InputPin, OutputPin,
+    InputComp, OutputComp,
+    GateComp, IC_Comp
 )
 from .commands import AddCompCommand, DeleteCommand, ConnectCommand, PasteCommand, MoveCommand, SetInputCountCommand, SwapWireCommand, DisconnectWireCommand
 
@@ -51,7 +51,7 @@ class CircuitScene(QGraphicsScene):
         self.hoveredPin: PinItem|None = None
         self.hoverViaProxy = False
         self.ghostWire: WireItem|None = None
-        self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
+        self.ghostPin = InputPin(None, QPointF(), Facing.WEST)
 
         self.ghostPin.hide()    # These three lines does the same thing but still...
         self.ghostPin.setEnabled(False)    # You can never be too sure
@@ -214,7 +214,7 @@ class CircuitScene(QGraphicsScene):
     
     
     # IC Management
-    def addIC(self, x: float, y:float, ic_data) -> tuple[ICitem, bool]:
+    def addIC(self, x: float, y:float, ic_data) -> tuple[IC_Comp, bool]:
         """Adds ic_data to iclist if it hasn't been yet"""
         name = ic_data[Const.CUSTOM_NAME]
 
@@ -228,7 +228,7 @@ class CircuitScene(QGraphicsScene):
             ic_data_index = len(self.iclist) - 1
             newCreated = True
         
-        comp = ICitem(
+        comp = IC_Comp(
             QPointF(x, y),
             ic_data_index,
             self.iclist[ic_data_index],
@@ -242,11 +242,11 @@ class CircuitScene(QGraphicsScene):
         return (comp, newCreated)
     
     def makeICfyable(self):
-        inputs: list[InputItem] = []
-        outputs: list[OutputItem] = []
+        inputs: list[InputComp] = []
+        outputs: list[OutputComp] = []
         for comp in self.comps:
-            if isinstance(comp, InputItem):    inputs.append(comp)
-            elif isinstance(comp, OutputItem): outputs.append(comp)
+            if isinstance(comp, InputComp):    inputs.append(comp)
+            elif isinstance(comp, OutputComp): outputs.append(comp)
         
         # Ordering input pins
         inputs.sort(key = lambda i: i.y())
@@ -285,7 +285,7 @@ class CircuitScene(QGraphicsScene):
             if target is None: return False
         
         
-        if isinstance(target, InputPinItem):
+        if isinstance(target, InputPin):
             t_wire = target.getWire()
 
             if t_wire:  # Swap Connections
@@ -401,7 +401,7 @@ class CircuitScene(QGraphicsScene):
             # Highlight Pin
             if pin:
                 S = self.checkState(EditorState.WIRING)
-                I = isinstance(pin, InputPinItem)
+                I = isinstance(pin, InputPin)
                 highlightCondition = ((I == S) and not(pin.hasWire() and I))
 
                 pin.highlight(highlightCondition, proxying)
@@ -427,7 +427,7 @@ class CircuitScene(QGraphicsScene):
 
         # Positioning the ghost pin
         if self.ghostPin is None:
-            self.ghostPin = InputPinItem(None, QPointF(), Facing.WEST)
+            self.ghostPin = InputPin(None, QPointF(), Facing.WEST)
         
         if self.hoveredPin is None:
             self.ghostPin.setPos(GRID.snapF(mousepos))
@@ -442,7 +442,7 @@ class CircuitScene(QGraphicsScene):
         btn = event.button()
         LMB_normal = self.checkState(EditorState.NORMAL) and btn == MouseBtn.LeftButton
 
-        if LMB_normal and isinstance(item, OutputPinItem):
+        if LMB_normal and isinstance(item, OutputPin):
             # Start Wire Connection
             self.setState(EditorState.WIRING)
             w = item.getWire()
@@ -487,7 +487,7 @@ class CircuitScene(QGraphicsScene):
         
         elif self.checkState(EditorState.NORMAL):
             # Cut wire supply
-            if btn == MouseBtn.RightButton and isinstance(item, InputPinItem) and item.hasWire():
+            if btn == MouseBtn.RightButton and isinstance(item, InputPin) and item.hasWire():
                 # RMB click; Dragging RMB doesn't trigger it
                 delta = scenepos - event.buttonDownScenePos(MouseBtn.RightButton)
                 if delta.manhattanLength() > QGuiApplication.styleHints().startDragDistance():
@@ -602,8 +602,8 @@ class CircuitScene(QGraphicsScene):
         }
     
     def deserialize(self, data: dict, addToSelected: bool = False) -> tuple[list[CompItem], list[WireItem]]:
-        sources: dict[int, OutputPinItem] = {}
-        supplies: dict[int, list[InputPinItem]] = {}
+        sources: dict[int, OutputPin] = {}
+        supplies: dict[int, list[InputPin]] = {}
         varlist = []
         new_comps = []
         new_wires = []
@@ -624,11 +624,11 @@ class CircuitScene(QGraphicsScene):
                     if w == 0: continue
 
                     if pin_data["isInput"]:
-                        p = cast(InputPinItem, comp._pinslist[edge][i])
+                        p = cast(InputPin, comp._pinslist[edge][i])
                         if w in supplies: supplies[w].append(p)
                         else:             supplies[w] = [p]
                     else:
-                        p = cast(OutputPinItem, comp._pinslist[edge][i])
+                        p = cast(OutputPin, comp._pinslist[edge][i])
                         sources[w] = p
 
         # Wiring
@@ -734,10 +734,10 @@ class CircuitScene(QGraphicsScene):
     
     # Gate Input
     def increaseInputsForSelected(self):
-        changes: list[tuple[GateItem, int, int]] = []
+        changes: list[tuple[GateComp, int, int]] = []
 
         for item in self.selectedItems():
-            if isinstance(item, GateItem):
+            if isinstance(item, GateComp):
                 n = len(item.inputPins)
                 if item.setInputCount(n + 1):
                     changes.append((item, n, n + 1))
@@ -747,10 +747,10 @@ class CircuitScene(QGraphicsScene):
             self.undo_stack.push(cmd)
 
     def decreaseInputsForSelected(self):
-        changes: list[tuple[GateItem, int, int]] = []
+        changes: list[tuple[GateComp, int, int]] = []
 
         for item in self.selectedItems():
-            if isinstance(item, GateItem):
+            if isinstance(item, GateComp):
                 n = len(item.inputPins)
                 if item.setInputCount(n - 1):
                     changes.append((item, n, n - 1))

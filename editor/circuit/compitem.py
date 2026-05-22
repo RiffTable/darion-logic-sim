@@ -7,7 +7,7 @@ import core.grid as GRID
 
 import editor.theme as theme
 from editor.styles import Font
-from .pins import PinItem, InputPinItem, OutputPinItem
+from .pins import PinItem, InputPin, OutputPin
 
 if TYPE_CHECKING:
     from .canvas import CircuitScene
@@ -59,7 +59,7 @@ class CompItem(QGraphicsItem):
         self._rect = QRectF()
         self._cached_hitbox = QPainterPath()
         self._gate_path: QPainterPath | None = None   # Set by subclasses to override drawRect
-        self._custom_draw: bool = False               # Set True by GateItem to skip drawRect
+        self._custom_draw: bool = False               # Set True by GateComp to skip drawRect
         self._prop_change_listener: list[Callable[[], None]] = []
 
         if self.LOGIC != Const.IC_ID:
@@ -74,7 +74,7 @@ class CompItem(QGraphicsItem):
                 facing = self.edgeToFacing(edge)
                 pinslist = self._pinslist[edge]
                 for pin in pins:
-                    PinType = InputPinItem if pin["isInput"] else OutputPinItem
+                    PinType = InputPin if pin["isInput"] else OutputPin
                     newpin = PinType(self, QPointF(*pin["pos"]), facing)
                     #? Logical Not Set Yet. Do that in the child classes
                     pinslist.append(newpin)
@@ -196,21 +196,21 @@ class CompItem(QGraphicsItem):
 
 
     ### Pin Configuration
-    def addInputPin(self, edge: CompEdge, index: int) -> InputPinItem:
+    def addInputPin(self, edge: CompEdge, index: int) -> InputPin:
         """Call updateShape() afterwards if needed"""
         pinslist = self._pinslist[edge]
 
         fa, gen = self.getPinPosGenerator(edge)
-        newpin = InputPinItem(self, gen(index), fa)
+        newpin = InputPin(self, gen(index), fa)
         pinslist.append(newpin)
         return newpin
     
-    def addOutputPin(self, edge: CompEdge, index: int) -> OutputPinItem:
+    def addOutputPin(self, edge: CompEdge, index: int) -> OutputPin:
         """Call updateShape() afterwards if needed"""
         pinslist = self._pinslist[edge]
 
         fa, gen = self.getPinPosGenerator(edge)
-        newpin = OutputPinItem(self, gen(index), fa)
+        newpin = OutputPin(self, gen(index), fa)
         pinslist.append(newpin)
         return newpin
     
@@ -243,7 +243,7 @@ class CompItem(QGraphicsItem):
     # The system had been refactored so its not really smart anymore
     # but it still kinda is ig
     # betterHoverEnter/Leave is now controlled via the SCENE
-    def proxyPin(self) -> InputPinItem|None:
+    def proxyPin(self) -> InputPin|None:
         """The getter function for the proxy pin. If the proxy pin is stored as an index, then dereference it here"""
         return None    # ABSTRACT METHOD (defaults to None)
     

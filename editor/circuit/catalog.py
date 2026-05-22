@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from .compitem import CompItem
-from .gates import (GateItem,
+from .gates import (GateComp,
     NOTGate, ANDGate, NANDGate, ORGate, NORGate, XORGate, XNORGate
 )
-from .ICitem import ICitem
-from .inputs import InputItem
-from .outputs import OutputItem
+from .ICitem import IC_Comp
+from .inputs import InputComp
+from .outputs import OutputComp
 from .wireitem import WireItem
-from .pins import PinItem, InputPinItem, OutputPinItem
+from .pins import PinItem, InputPin, OutputPin
 
 
 
@@ -46,9 +46,9 @@ LOOKUP: dict[int, type[CompItem]] = {
     4:  NORGate,
     5:  XORGate,
     6:  XNORGate,
-    10: ICitem,
-    11: InputItem,
-    21: OutputItem
+    10: IC_Comp,
+    11: InputComp,
+    21: OutputComp
 }
 CATEGORIES: dict[str, list[int]] = {
     "Gates": [0, 1, 2, 3, 4, 5, 6],
