@@ -268,13 +268,20 @@ class AppWindow(QMainWindow):
         infolder: dict[str, str] = {}
         for file in self.getICFolder().glob("*.json"):
             filename = str(file.resolve())    # Absolute path
-            ic = logic.get_ic(filename)
-            if ic is None: continue
 
-            name = ic[Const.CUSTOM_NAME]
-            if name in names: continue    #! Excludes IC listed in canvas.iclist
+            try:    # Don't crash the software if a random .json file is in the folder
+                ic = logic.get_ic(filename)
+                if ic is None: continue
+
+                name = ic[Const.CUSTOM_NAME]
+                if name in names: continue    #! Excludes IC listed in canvas.iclist
+                
+                infolder[name] = filename
             
-            infolder[name] = filename
+            except Exception as e:
+                #! Maybe log these errors elsewhere
+                print(f"Warning: Incorrect schema or unrelated file {filename} in the IC folder: {str(e)}")
+
         
         return (inproject, infolder)
 
