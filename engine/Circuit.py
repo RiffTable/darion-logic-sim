@@ -41,7 +41,7 @@ class Circuit:
         'eval_count','time_queue','runner',
         'visual_queue','Global_Clock',
         '_location_map', '_loc_map_counter','time_limit',
-        'recording'
+        'recording', 'clocks_enabled'
     ]
 
     def __init__(self):
@@ -59,6 +59,7 @@ class Circuit:
         self.visual_queue: deque[Gate] = deque()  # stores gate locations (ints) for dirty UI updates
         self.Global_Clock=0
         self.recording: bool = False
+        self.clocks_enabled: bool = False
 
     def __repr__(self):
         return 'Circuit'
@@ -146,10 +147,26 @@ class Circuit:
 
     def toggle(self, target: Variable, value: int):
         """Switch a variable on/off."""
+        if target.scheduled:return
         if value != target.output:
             target.value = value
             target.output = value if get_MODE() != DESIGN else UNKNOWN
             self.propagate(target)
+
+    def enable_all_clocks(self, enable: bool = True):
+        self.clocks_enabled = enable
+        if enable:
+            for gate in self.objlist[VARIABLE_ID]:
+                if gate is not None and getattr(gate, 'inputlimit', None) == 0:
+                    if not gate.scheduled:
+                        heapq.heappush(self.time_queue, Task(gate, self.Global_Clock + gate.book[PRIMARY], gate.location))
+                        gate.scheduled = True
+            if self.runner is None or self.runner.done():
+                self.runner = asyncio.create_task(self.task_manager())
+        else:
+            for gate in self.objlist[VARIABLE_ID]:
+                if gate is not None and getattr(gate, 'inputlimit', None) == 0:
+                    gate.scheduled = False
 
     def batch_toggle(self, batch: list):
         """toggles multiple variables for performance"""
@@ -683,7 +700,6 @@ class Circuit:
                             self.complete_task(heapq.heappop(self.time_queue))
                         heapq.heappop(self.time_limit)
                 if self.time_queue:
-
                     self.complete_task(heapq.heappop(self.time_queue))
                 else:
                     break
@@ -691,6 +707,8 @@ class Circuit:
 
     def complete_task(self, task: Task):
         gate = task.gate
+        if not gate.scheduled:
+            return
         self.Global_Clock = task.time
         if gate.inputlimit==0:
             gate.value^=1
@@ -698,8 +716,6 @@ class Circuit:
             # ── Timing tracer: record clock toggle ────────────────────────
             if self.recording:
                 _tracer.record(gate, self.Global_Clock)
-        if not gate.scheduled:
-            return
         if not gate.update:
             self.visual_queue.append(gate)
             gate.update = True
@@ -755,14 +771,6 @@ class Circuit:
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if get_MODE()!=DESIGN and origin.inputlimit==0:
-            if origin.scheduled:
-                return 
-            heapq.heappush(self.time_queue,Task(origin,self.Global_Clock+origin.book[PRIMARY],origin.location))
-            origin.scheduled=True
-            if self.runner is None or self.runner.done():
-                self.runner=asyncio.create_task(self.task_manager())
-            return
         if not origin.update:
             origin.update=True
             self.visual_queue.append(origin)     

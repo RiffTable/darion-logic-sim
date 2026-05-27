@@ -147,7 +147,7 @@ class InputComp(CompItem):
 
     def poll_update(self) -> bool:
         if self._unit is None: return False
-        current = self._unit.output
+        current = self._unit.value
         if self.prevState != current:
             self.prevState = current
             self.unitStateChanged(current)

@@ -55,6 +55,7 @@ class OutputComp(CompItem):
         self.color_anim = QVariantAnimation()
         self.color_anim.setDuration(Val.AnimSpeedLED)
         self.color_anim.valueChanged.connect(self._on_color_change)
+        theme.theme_changed.connect(self.updateVisual)
 
         # Pins
         if self._setupDefaultPins:
@@ -98,18 +99,20 @@ class OutputComp(CompItem):
         self.current_color = color
         self.update()
 
-    def unitStateChanged(self, state: int):
-        self.state = state
-        self.propertyChanged()
-
+    def updateVisual(self):
         Color = theme.get_theme()
-        target = Color.LED_on if state == Const.HIGH else Color.LED_off
+        target = Color.LED_on if self.state == Const.HIGH else Color.LED_off
 
         if self.color_anim.endValue() != target:
             self.color_anim.stop()
             self.color_anim.setStartValue(self.current_color)
             self.color_anim.setEndValue(target)
             self.color_anim.start()
+
+    def unitStateChanged(self, state: int):
+        self.state = state
+        self.propertyChanged()
+        self.updateVisual()
 
     def poll_update(self) -> bool:
         if self._unit is None: return False

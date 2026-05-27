@@ -43,6 +43,7 @@ cdef class Circuit:
         # lookup table for objects by code
         set_MODE(DESIGN)
         self.recording = False
+        self.clocks_enabled = False
         self.objlist = [
             [] for i in range(TOTAL)] # list of visible gates and ics, stored according to it's type
         self.copydata = []
@@ -155,8 +156,10 @@ cdef class Circuit:
             self.propagate(target.location)
 
     cpdef void toggle(self, int target, int value):
-        '''toggles a variable's value'''
+        '''Toggle a variable's value and output, then propagate'''
         cdef CPP_Gate* info = &self.gate_infolist[target]
+        if info.scheduled:
+            return
         if value != info.output:
             info.value = value
             info.output = value if MODE != DESIGN else UNKNOWN
@@ -164,6 +167,26 @@ cdef class Circuit:
                 self.propagate(target)
             else:
                 self.sweep(target)
+
+    cpdef void enable_all_clocks(self, bint enable=True):
+        self.clocks_enabled = enable
+        cdef CPP_Gate* gate_info
+        cdef Gate gate
+        if enable:
+            for gate in self.objlist[VARIABLE_ID]:
+                if gate is not None:
+                    gate_info = &self.gate_infolist[gate.location]
+                    if gate_info.inputlimit == 0 and not gate_info.scheduled:
+                        self.time_queue.push(Task(gate.location, self.Global_Clock + gate_info.book[PRIMARY], gate.location))
+                        gate_info.scheduled = True
+            if self.runner is None or self.runner.done():
+                self.runner = asyncio.create_task(self.task_manager())
+        else:
+            for gate in self.objlist[VARIABLE_ID]:
+                if gate is not None:
+                    gate_info = &self.gate_infolist[gate.location]
+                    if gate_info.inputlimit == 0:
+                        gate_info.scheduled = False
 
     cpdef void batch_toggle(self, list batch):
         '''toggles multiple variables and sweeps exactly once for performance'''
@@ -974,9 +997,7 @@ cdef class Circuit:
 
     cdef void complete_task(self, Task task) nogil:
         '''Process one task called from the async drain loop on the main thread.'''
-        if task.time > self.Global_Clock:
-            self.Global_Clock = task.time
-        
+        self.Global_Clock = task.time   
         cdef int origin = task.gate_loc
         cdef Profile* profile
         cdef Profile* end
@@ -988,6 +1009,10 @@ cdef class Circuit:
         cdef uint8_t* book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
+        
+        if not self_info.scheduled:
+            return
+            
         # Oscillator: flip value BEFORE the scheduled-check so the new output
         # is already live when we drive the hitlist (mirrors engine behaviour).
         if self_info.inputlimit == 0:
@@ -996,8 +1021,6 @@ cdef class Circuit:
             if self.recording:
                 with gil:
                     _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, origin), self.Global_Clock)
-        if not self_info.scheduled:
-            return
         if not self_info.update:
             self.visual_queue.push_back(origin)
             self_info.update = True
@@ -1054,9 +1077,11 @@ cdef class Circuit:
 
         if self_info.inputlimit == 0:
             # Re-schedule the oscillator for its next half-period.
-            next_time = self.Global_Clock + self_info.book[self_info.output]
-            self.time_queue.push(Task(origin, next_time, origin))
-            self.time_limit.push(next_time)   # deadline for combinational settling
+            next_time = self_info.book[self_info.output]
+            if next_time==0:
+                next_time=1
+            self.time_queue.push(Task(origin, self.Global_Clock+ next_time, origin))
+            self.time_limit.push(self.Global_Clock+next_time)   # deadline for combinational settling
             self_info.scheduled = True
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
@@ -1074,15 +1099,6 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-        if MODE != DESIGN and self_info.inputlimit == 0:
-            if self_info.scheduled:
-                return
-            self.time_queue.push(Task(origin, self.Global_Clock + self_info.book[PRIMARY], origin))
-            self_info.scheduled = True
-            with gil:
-                if self.runner is None or self.runner.done():
-                    self.runner = asyncio.create_task(self.task_manager())
-            return
             
         read_queue[0] = origin
         if not self_info.update:
@@ -1353,9 +1369,7 @@ cdef class Circuit:
         while not self.time_queue.empty():
             with nogil:
                 size = self.time_queue.size()
-                i = 0
-                while i < size:
-                    i += 1
+                for i in range(size):
                     # Drain all oscillator tasks sitting at the head of the queue
                     # (mirrors engine's inner while-inputlimit==0 loop)
                     while (not self.time_queue.empty() and self.gate_infolist[self.time_queue.top().gate_loc].inputlimit == 0):
@@ -1371,14 +1385,12 @@ cdef class Circuit:
                             while (not self.time_queue.empty() and self.time_queue.top().time < limit_time):
                                 task = self.time_queue.top()
                                 self.time_queue.pop()
-                                self.Global_Clock = task.time
                                 self.complete_task(task)
                             self.time_limit.pop()
                     # Fire one non-oscillator task for this slot
                     if not self.time_queue.empty():
                         task = self.time_queue.top()
                         self.time_queue.pop()
-                        self.Global_Clock = task.time
                         self.complete_task(task)
                     else:
                         break

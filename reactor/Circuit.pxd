@@ -25,6 +25,7 @@ cdef class Circuit:
     cdef public list gate_verse
     cdef public int hidden
     cdef public bint recording
+    cdef public bint clocks_enabled
     cdef public unsigned long long eval_count
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
     cdef public unsigned int Global_Clock
@@ -45,6 +46,7 @@ cdef class Circuit:
     cpdef void optimize(self)
     cpdef void connect(self, Gate target, int source, int index)
     cpdef void toggle(self, int target, int value)
+    cpdef void enable_all_clocks(self, bint enable=*)
     cpdef void disconnect(self, Gate target, int index)
     cpdef void delobj(self, object obj)
     cpdef IC build_ic(self, dict pin_orientations=*)

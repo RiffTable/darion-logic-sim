@@ -94,3 +94,4 @@ class SettingsMenu(BaseMenu):
     def setup_menu(self):
         self.addAction(Actions.get("invert_scroll"))
         self.addAction(Actions.get("disable_peeking"))
+        self.addAction(Actions.get("enable_ticking"))
