@@ -388,16 +388,17 @@ cdef class Circuit:
 
         return "\n".join(final_table_lines)
 
-    def diagnose(self):
+    def diagnose(self) -> str:
         '''Diagnose the circuit'''
         cdef Gate comp
         cdef CPP_Gate* info
         cdef Profile* profile
         cdef Profile* end
         cdef list ics
-        print("=" * 90)
-        print(" " * 35 + "CIRCUIT DIAGNOSIS")
-        print("=" * 90)
+        cdef list out = []
+        out.append("=" * 90)
+        out.append(" " * 35 + "CIRCUIT DIAGNOSIS")
+        out.append("=" * 90)
 
         gates = [c for c in self.get_components() if c.id != IC_ID]
         if gates:
@@ -411,8 +412,8 @@ cdef class Circuit:
             total_width = sum(w for _, w in columns)
             fmt = "".join(f"{{:<{w}}}" for _, w in columns)
 
-            print("\n" + fmt.format(*[n for n, _ in columns]))
-            print("-" * total_width)
+            out.append("\n" + fmt.format(*[n for n, _ in columns]))
+            out.append("-" * total_width)
 
             for comp in gates:
                 info = &self.gate_infolist[comp.location]
@@ -443,32 +444,33 @@ cdef class Circuit:
                 extra = len(name_colored) - len(name_plain)
                 comp_col_w = columns[0][1] + extra
                 row_fmt = f"{{:<{comp_col_w}}}" + "".join(f"{{:<{w}}}" for _, w in columns[1:])
-                print(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
+                out.append(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
 
-            print("-" * total_width)
+            out.append("-" * total_width)
 
         ics = [c for c in self.objlist[IC_ID] if c is not None]
         if ics:
-            print("\n" + "=" * 90)
-            print(" " * 40 + "IC STATUS")
-            print("=" * 90)
+            out.append("\n" + "=" * 90)
+            out.append(" " * 40 + "IC STATUS")
+            out.append("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {repr(ic)} (Code: {ic.code})")
-                print("  " + "-" * 50)
+                out.append(f"\n  IC: {repr(ic)} (Code: {ic.code})")
+                out.append("  " + "-" * 50)
 
                 if ic.inputs:
-                    print("  INPUT PINS:")
+                    out.append("  INPUT PINS:")
                     for pin in ic.inputs:
                         ch = [repr(<Gate>PyList_GET_ITEM(self.gate_verse, c)) for c in pin._sources if c != -1] if isinstance(pin._sources, list) else [f"val:{pin._sources}"]
-                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
                 if ic.outputs:
-                    print("  OUTPUT PINS:")
+                    out.append("  OUTPUT PINS:")
                     for pin in ic.outputs:
                         ch = [repr(<Gate>PyList_GET_ITEM(self.gate_verse, c)) for c in pin._sources if c != -1] if isinstance(pin._sources, list) else [f"val:{pin._sources}"]
-                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
+                        out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
-        print("\n" + "=" * 90)
+        out.append("\n" + "=" * 90)
+        return "\n".join(out)
 
     cpdef void writetojson(self, str location):
         '''Write the circuit's entire info to a json file'''
@@ -578,7 +580,7 @@ cdef class Circuit:
         # i is location of each hidden gate, it will be pushed to the end of queue
         for i in hidden:
             hash_map[i]=j
-            serial[j]=node
+            serial[j]=i    # FIX: was 'node' (last active gate) — must be 'i' (this hidden gate's old index)
             j+=1
         # create new info_list
         new_gate_infolist.resize(n)
@@ -1306,7 +1308,7 @@ cdef class Circuit:
                             target_output = UNKNOWN
                     if target_output != target_info.output:
                         target_info.output = target_output
-                        if profile.target<index and not target_info.scheduled:
+                        if profile.target<=index and not target_info.scheduled:
                             self.time_queue.push(Task(profile.target, self.Global_Clock, profile.target))
                             target_info.scheduled = True
                     profile.output = new_output

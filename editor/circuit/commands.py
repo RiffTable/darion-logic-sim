@@ -118,6 +118,7 @@ class DeleteCommand(QUndoCommand):
         for comp in self.items_to_delete:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
+            self.scene.register_comp(comp)
             
         # 3. REAPPEAR WIRES & RECONNECT BOUNDARY LOGIC
         for wire in self.wires_to_delete:
@@ -247,7 +248,7 @@ class PasteCommand(QUndoCommand):
         for comp in self.comps:
             self.scene.addItem(comp)
             self.scene.comps.append(comp)
-            self.scene.register_comp(comp)
+            self.scene.register_comp(comp)     # write current gate.location -> comp
 
         # 3. REAPPEAR AND RECONNECT WIRES
         for wire in self.wires:

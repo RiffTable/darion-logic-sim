@@ -534,7 +534,7 @@ class AppWindow(QMainWindow):
         Const.set_MODE(mode)
 
     def show_diagnose(self):
-        self._show_output("Diagnosis", logic.diagnose_str, DiagnoseDialog, returns_string=False)
+        self._show_output("Diagnosis", logic.diagnose, DiagnoseDialog, returns_string=True)
 
 
 

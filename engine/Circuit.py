@@ -307,11 +307,12 @@ class Circuit:
         final_table_lines.append("")
         return "\n".join(final_table_lines)
 
-    def diagnose(self):
-        """Print a detailed report."""
-        print("=" * 90)
-        print(" " * 35 + "CIRCUIT DIAGNOSIS")
-        print("=" * 90)
+    def diagnose(self) -> str:
+        """Return a detailed report of the circuit."""
+        out = []
+        out.append("=" * 90)
+        out.append(" " * 35 + "CIRCUIT DIAGNOSIS")
+        out.append("=" * 90)
 
         gates = [c for c in self.get_components() if c.id != IC_ID]
         if gates:
@@ -325,8 +326,8 @@ class Circuit:
             total_width = sum(w for _, w in columns)
             fmt = "".join(f"{{:<{w}}}" for _, w in columns)
 
-            print("\n" + fmt.format(*[n for n, _ in columns]))
-            print("-" * total_width)
+            out.append("\n" + fmt.format(*[n for n, _ in columns]))
+            out.append("-" * total_width)
 
             for comp in gates:
                 # Sources: repr() keeps column widths intact; no color needed for source names.
@@ -351,43 +352,37 @@ class Circuit:
                 extra = len(name_colored) - len(name_plain)   # bytes added by ANSI codes
                 comp_col_w = columns[0][1] + extra
                 row_fmt = f"{{:<{comp_col_w}}}" + "".join(f"{{:<{w}}}" for _, w in columns[1:])
-                print(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
+                out.append(row_fmt.format(name_colored, ch_str, book, tgt_str, comp.getoutput()))
 
-            print("-" * total_width)
+            out.append("-" * total_width)
 
         ics = [c for c in self.objlist[IC_ID] if c is not None]
         if ics:
-            print("\n" + "=" * 90)
-            print(" " * 40 + "IC STATUS")
-            print("=" * 90)
+            out.append("\n" + "=" * 90)
+            out.append(" " * 40 + "IC STATUS")
+            out.append("=" * 90)
             for ic in ics:
-                print(f"\n  IC: {repr(ic)} (Code: {ic.code})")
-                print("  " + "-" * 50)
+                out.append(f"\n  IC: {repr(ic)} (Code: {ic.code})")
+                out.append("  " + "-" * 50)
 
                 if ic.inputs:
-                    print("  INPUT PINS:")
+                    out.append("  INPUT PINS:")
                     for pin in ic.inputs:
                         ch = [repr(c) for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         targets = [repr(p.target) for p in pin.hitlist]
-                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
+                        out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
                 if ic.outputs:
-                    print("  OUTPUT PINS:")
+                    out.append("  OUTPUT PINS:")
                     for pin in ic.outputs:
                         ch = [repr(c) for c in pin.sources if c is not None] if isinstance(pin.sources, list) else [f"val:{pin.sources}"]
                         targets = [repr(p.target) for p in pin.hitlist]
-                        print(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
+                        out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
-        print("\n" + "=" * 90)
+        out.append("\n" + "=" * 90)
+        return "\n".join(out)
 
-    def diagnose_str(self) -> str:
-        """Captures the output of diagnose() into a string."""
-        f = io.StringIO()
-        
-        with contextlib.redirect_stdout(f):
-            self.diagnose()
-        
-        return f.getvalue()
+
 
     def writetojson(self, location: str):
         circuit = [gate.full_data() for gate in self.get_components()]
