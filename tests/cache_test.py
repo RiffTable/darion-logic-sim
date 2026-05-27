@@ -521,6 +521,66 @@ def generate_homogeneous_plots(homo_results, cpu_name, output_dir):
 
 
 # ---------------------------------------------------------------------------
+# Bottleneck proof
+# ---------------------------------------------------------------------------
+
+def print_bottleneck_proof(data_chaotic, homo_results):
+    """Isolates and compares the exact penalties of Branching vs Memory at max scale."""
+    print("\n" + "=" * 100)
+    print("  THE BOTTLENECK PROOF: BRANCHING vs. MEMORY (At Maximum Scale)")
+    print("=" * 100)
+
+    # Extract AND gate data
+    and_data = next((d for d in homo_results if d['gate'] == "AND"), None)
+    if not and_data or not data_chaotic['sizes']:
+        print("Insufficient data for proof.")
+        return
+
+    # Look at the largest circuit size tested (usually ~1,000,000 gates)
+    target_size = data_chaotic['sizes'][-1]
+    mixed_idx = data_chaotic['sizes'].index(target_size)
+    and_idx = and_data['sizes'].index(target_size)
+
+    # 1. Perfect Baseline (Homogeneous + Optimized)
+    # 0 Branch Penalty, 0 Memory Penalty
+    baseline_me = and_data['opt_bfs_me'][and_idx]
+
+    # 2. Branch Penalty (Mixed + Optimized)
+    # Massive Branch Penalty, 0 Memory Penalty
+    branch_me = data_chaotic['opt_bfs_me'][mixed_idx]
+    branch_penalty = baseline_me - branch_me
+
+    # 3. Memory Penalty (Homogeneous + Unoptimized)
+    # 0 Branch Penalty, Massive Memory Penalty
+    memory_me = and_data['unopt_me'][and_idx]
+    memory_penalty = baseline_me - memory_me
+
+    print(f"Target Circuit Size: {target_size:,} gates\n")
+    print(f"1. THE BASELINE (Perfect Memory, No Branches)   : {baseline_me:>8.2f} ME/s (AND Opt)")
+    print(f"2. THE BRANCH PENALTY (Perfect Memory, Branches): {branch_me:>8.2f} ME/s (Mixed Opt)")
+    print(f"3. THE MEMORY PENALTY (Bad Memory, No Branches) : {memory_me:>8.2f} ME/s (AND Unopt)\n")
+
+    print("-" * 55)
+
+    # Calculate percentage drops (safeguard against division by zero)
+    if baseline_me > 0:
+        print(f"Cost of Branch Mispredictions : -{branch_penalty:>6.2f} ME/s ({(branch_penalty/baseline_me)*100:>5.1f}% drop)")
+        print(f"Cost of L3 Cache/RAM Misses   : -{memory_penalty:>6.2f} ME/s ({(memory_penalty/baseline_me)*100:>5.1f}% drop)")
+
+    print("-" * 55)
+
+    if memory_penalty > branch_penalty and branch_penalty > 0:
+        ratio = memory_penalty / branch_penalty
+        print(f"CONCLUSION: Memory Latency is {ratio:.1f}x more devastating than Branch Misprediction.")
+    elif memory_penalty > branch_penalty:
+        print("CONCLUSION: Memory Latency is the absolute dominant bottleneck.")
+    else:
+        print("CONCLUSION: Branch Misprediction is the dominant bottleneck.")
+
+    print("=" * 100 + "\n")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -543,6 +603,8 @@ async def main_profile():
     plots_dir = os.path.join(script_dir, 'benchmark_plots')
     generate_cache_plot(data_chaotic, data_realistic, cpu_name, plots_dir)
     generate_homogeneous_plots(homo_results, cpu_name, plots_dir)
+
+    print_bottleneck_proof(data_chaotic, homo_results)
 
 
 class _Tee:

@@ -493,6 +493,8 @@ cdef class Circuit:
     cpdef void optimize(self):
         '''Optimize the circuit using topological sort so prefetcher never has to look back. 
         Also pushes back hidden gates with mutated info type'''
+        if self.gate_infolist.empty():
+            return
         self.copydata.clear()
         cdef int i=0,j=0,n
         cdef vector[int] hash_map,in_degree,hidden,serial
@@ -920,19 +922,22 @@ cdef class Circuit:
         '''simulate the circuit'''
         cdef Gate variable
         cdef CPP_Gate* info
-        set_MODE(Mod)
+        set_MODE(SIMULATE)
         self.visual_queue_clear()
         self.eval_count = 0
         if self.runner is not None and not self.runner.done():
             self.runner.cancel()
         self.runner=None
-        for variable in self.objlist[VARIABLE_ID]:
-            if variable is not None:
-                # set output of variable to its value
-                # run the propagation from variable
-                info = &self.gate_infolist[variable.location]
-                info.output = info.value
-                self.propagate(variable.location)
+        if Mod==COMPILE:
+            self.sweep(0)
+        else:
+            for variable in self.objlist[VARIABLE_ID]:
+                if variable is not None:
+                    # set output of variable to its value
+                    # run the propagation from variable
+                    info = &self.gate_infolist[variable.location]
+                    info.output = info.value
+                    self.propagate(variable.location)
 
     cpdef void custom_simulate(self, list varlist):
         '''simulate the circuit'''
@@ -1258,13 +1263,13 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-        if self_info.update == False:
-            self.visual_queue.push_back(origin)
-            self_info.update = True
-        for index in range(origin,size):
+
+        for index in range(size):
             self_info = &gate_infolist[index]
             if self_info.type < 0:
                 continue
+            elif self_info.type==VARIABLE_ID:
+                self_info.output=self_info.value
             new_output = self_info.output
             profile = self_info.hitlist.data()
             end = profile + self_info.hitlist.size()
@@ -1300,9 +1305,6 @@ cdef class Circuit:
                         else:
                             target_output = UNKNOWN
                     if target_output != target_info.output:
-                        if target_info.update == False:
-                            self.visual_queue.push_back(profile.target)
-                            target_info.update = True
                         target_info.output = target_output
                         if profile.target<index and not target_info.scheduled:
                             self.time_queue.push(Task(profile.target, self.Global_Clock, profile.target))

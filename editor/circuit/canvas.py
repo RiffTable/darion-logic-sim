@@ -78,6 +78,26 @@ class CircuitScene(QGraphicsScene):
         its event loop, so create_task() is safe to call here."""
         self.ui_update_task = asyncio.create_task(self.async_ui_updater())
 
+    def organize_components(self):
+        """
+        This is an optimization not a feature just faster switching between
+        pause and start simulation
+        """
+        if not hasattr(logic,'gate_verse'):return
+        logic.optimize()
+        new_list=[None for _ in range(len(self.comp_registry))] 
+        for comp in self.comps:
+            if comp is not None:
+                if comp._unit.id == Const.IC_ID:
+                # For ICs, each boundary pin's location maps to the IC's Pin widget
+                    for i, logic_pin in enumerate(comp._unit.inputs):
+                        new_list[logic_pin.location] = comp.input_pins[i]
+                    
+                    for i, logic_pin in enumerate(comp._unit.outputs):
+                        new_list[logic_pin.location] = comp.output_pins[i]
+                else:
+                    new_list[comp._unit.location]=comp
+        self.comp_registry=new_list
 
     # ── Async UI consumer ─────────────────────────────────────────────
     async def async_ui_updater(self):
@@ -145,15 +165,18 @@ class CircuitScene(QGraphicsScene):
 
     # Editor State Management
     def setSimulationMode(self, mode: str):
+        if mode==self.simulationMode: return
+
         if mode == "simulate": 
-            logic.simulate(Const.SIMULATE)
+            self.organize_components()
+            logic.simulate(Const.COMPILE)
             self.simulationMode=Const.SIMULATE
         else:
             logic.reset()
-            for comp in self.comp_registry:
-                if comp is  not None:
-                    comp.poll_update()
             self.simulationMode=Const.DESIGN
+        for comp in self.comp_registry:
+            if comp is  not None:
+                comp.poll_update()
             
     
     def checkState(self, st: EditorState): return self._state == st
