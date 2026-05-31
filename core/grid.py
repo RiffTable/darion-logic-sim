@@ -18,3 +18,10 @@ def snapT(tup: tuple[float, float]) -> tuple[float, float]:
         math.floor(x/SIZE+0.5)*SIZE,
         math.floor(y/SIZE+0.5)*SIZE
     )
+
+def toPointF(pos: tuple[int, int]) -> QPointF:
+    return QPointF(*pos)*SIZE
+
+def fromPointF(point: QPointF) -> tuple[int, int]:
+    x, y = point.toTuple()
+    return (round(x/SIZE), round(y/SIZE))

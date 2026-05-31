@@ -43,6 +43,11 @@ from editor.circuit.commands import AddCompCommand
 APPDATA_PATH = QStandardPaths.writableLocation(StandardLocation.AppDataLocation)
 DOC_PATH     = QStandardPaths.writableLocation(StandardLocation.DocumentsLocation)
 
+### SCHEMA
+# 0: (No Schema) Absolute Position System
+# 1: Distributed Serialization System
+PROJECT_SCHEMA = 1
+
 
 
 class AppWindow(QMainWindow):
@@ -236,9 +241,9 @@ class AppWindow(QMainWindow):
     ###======= DATA SERIALIZATION =======###
     def get_project_data(self) -> dict:
         t = self.view.transform()
-        project = self.cscene.serialize() | {
+        project = {"schema_version": 1} | self.cscene.serialize() | {
             "iclist": self.cscene.iclist,
-            "camera": (t.dx(), t.dy()),
+            "camera": (round(t.dx()), round(t.dy())),
             "zoom":   t.m11(),
         }
         return project

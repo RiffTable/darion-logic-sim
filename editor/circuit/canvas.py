@@ -222,11 +222,14 @@ class CircuitScene(QGraphicsScene):
     
     def addCompFromData(self, _data: dict) -> CompItem:
         data = _data.copy()
+
+        ### Schema lookup
+
         comp_type = LOOKUP[data.pop("id")]
         if comp_type.LOGIC == Const.IC_ID:
             data["ic_data"] = self.iclist[int(data["ic_data_index"])]
         
-        pos = QPointF(*data.pop("pos")) + QPoint(7, 5)*GRID.SIZE
+        pos = (QPointF(*data.pop("pos")) + QPoint(7, 5))*GRID.SIZE
         
         comp = comp_type(pos, **data)
         
@@ -675,7 +678,7 @@ class CircuitScene(QGraphicsScene):
         return new_comps, new_wires
     
     def selectionBoundingRect(self, comps: list[CompItem]) -> QRectF:
-        """Generates"""
+        """Generates"""   #!
         if len(comps) == 0: return QRectF()
         first = comps[0].sceneBoundingRect()
         x1 = first.left()

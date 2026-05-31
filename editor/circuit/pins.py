@@ -64,7 +64,7 @@ class PinItem(QGraphicsRectItem):
     # Serialization
     def getData(self):
         return {
-            "pos"     : self.pos().toTuple(),
+            "pos"     : GRID.fromPointF(self.pos()),
             "wire"    : self.getWireID(),
             "isInput" : isinstance(self, InputPin)
         }

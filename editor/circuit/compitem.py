@@ -107,7 +107,7 @@ class CompItem(QGraphicsItem):
     def getData(self):
         return {
             "id"       : self.ID,
-            "pos"      : self.pos().toTuple(),
+            "pos"      : GRID.fromPointF(self.pos()),
             "tag"      : self.tag,
             "facing"   : self.facing.value,
             "mirror"   : self.isMirrored,
