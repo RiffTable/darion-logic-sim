@@ -36,12 +36,7 @@ class CompItem(QGraphicsItem):
         # visually face the opposite way, ultimately making
         # self.facing sound STUPID!
         
-        self._pinslist: dict[CompEdge, list[PinItem]] = {
-            CompEdge.OUTPUT : [],
-            CompEdge.BOTTOM : [],
-            CompEdge.INPUT  : [],
-            CompEdge.TOP    : [],
-        }
+        self._pinslist: list[list[PinItem]] = [[], [], [], []]
 
         super().__init__()
         self.setPos(GRID.snapF(pos))
@@ -112,8 +107,8 @@ class CompItem(QGraphicsItem):
             "facing"   : self.facing.value,
             "mirror"   : self.isMirrored,
             "pinslist" : {
-                edge.value: [p.getData() for p in pins]
-                for edge, pins in self._pinslist.items()
+                edge: [p.getData() for p in pins]
+                for edge, pins in enumerate(self._pinslist)
             },
         }
 
@@ -230,7 +225,7 @@ class CompItem(QGraphicsItem):
         if pin._wire: pin._wire.updateShape()
     
     def cutConnections(self):
-        list_of_pinlists = self._pinslist.values()
+        list_of_pinlists = self._pinslist
         pins = [pin for pinlist in list_of_pinlists for pin in pinlist]    # Funniest line ever
         for p in pins:
             p.disconnect()
@@ -365,8 +360,8 @@ class CompItem(QGraphicsItem):
         elif rotation == 3:
             rotator = lambda x, y: (+y, -x)    # 270° CW
         
-        for edge, pinlist in self._pinslist.items():
-            fa = self.edgeToFacing(edge)
+        for edge, pinlist in enumerate(self._pinslist):
+            fa = self.edgeToFacing(CompEdge(edge))
             for pin in pinlist:
                 pin.facing = fa
                 x, y = pin.pos().toTuple()
@@ -392,8 +387,8 @@ class CompItem(QGraphicsItem):
         else:
             mirrorer = lambda x, y: (w*GRID.SIZE-x, y)    # Vertical
         
-        for edge, pinlist in self._pinslist.items():
-            fa = self.edgeToFacing(edge)
+        for edge, pinlist in enumerate(self._pinslist):
+            fa = self.edgeToFacing(CompEdge(edge))
             for pin in pinlist:
                 pin.facing = fa
                 x, y = pin.pos().toTuple()
@@ -415,8 +410,8 @@ class CompItem(QGraphicsItem):
         else:
             flipper = lambda x, y: (x, h*GRID.SIZE-y)    # Vertical
         
-        for edge, pinlist in self._pinslist.items():
-            fa = self.edgeToFacing(edge)
+        for edge, pinlist in enumerate(self._pinslist):
+            fa = self.edgeToFacing(CompEdge(edge))
             for pin in pinlist:
                 pin.facing = fa
                 x, y = pin.pos().toTuple()
@@ -426,7 +421,9 @@ class CompItem(QGraphicsItem):
         
         self.updateShape()
         self.propertyChanged()
-    
+
+
+
     def rotateCW(self):
         self.setFacing(Facing(self.facing + 1))
     def rotateCCW(self):

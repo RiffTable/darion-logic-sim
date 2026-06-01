@@ -85,19 +85,21 @@ class CircuitScene(QGraphicsScene):
         """
         if not hasattr(logic,'gate_verse'):return
         logic.optimize()
-        new_list=[None for _ in range(len(self.comp_registry))] 
+        new_list: list[CompItem | None] = [None for _ in range(len(self.comp_registry))] 
         for comp in self.comps:
             if comp is not None:
                 if comp._unit.id == Const.IC_ID:
-                # For ICs, each boundary pin's location maps to the IC's Pin widget
+                    assert isinstance(comp, IC_Comp)
+                    # For ICs, each boundary pin's location maps to the IC's Pin widget
+
                     for i, logic_pin in enumerate(comp._unit.inputs):
                         new_list[logic_pin.location] = comp.input_pins[i]
                     
                     for i, logic_pin in enumerate(comp._unit.outputs):
                         new_list[logic_pin.location] = comp.output_pins[i]
                 else:
-                    new_list[comp._unit.location]=comp
-        self.comp_registry=new_list
+                    new_list[comp._unit.location] = comp
+        self.comp_registry = new_list
 
     # ── Async UI consumer ─────────────────────────────────────────────
     async def async_ui_updater(self):
@@ -135,6 +137,8 @@ class CircuitScene(QGraphicsScene):
             return
         if comp._unit.id == Const.IC_ID:
             # For ICs, each boundary pin's location maps to the IC's Pin widget
+            assert isinstance(comp, IC_Comp)
+
             for i, logic_pin in enumerate(comp._unit.inputs):
                 self._ensure_registry_size(logic_pin.location)
                 self.comp_registry[logic_pin.location] = comp.input_pins[i]
@@ -644,7 +648,7 @@ class CircuitScene(QGraphicsScene):
 
             # Getting all pins reference to wire them later
             for _edge, pin_data_list in comp_data["pinslist"].items():
-                edge = CompEdge(int(_edge))
+                edge = int(_edge)
                 for i, pin_data in enumerate(pin_data_list):
                     w = pin_data["wire"]
                     if w == 0: continue

@@ -368,8 +368,8 @@ class GateComp(CompItem):
         """Redistribute straight-edge input pins with margin so they never sit
         on sharp corners.  OR/XOR subclasses override this for curved placement.
         Pin Y positions are snapped to GRID.SIZE so wires stay on the grid."""
-        pins: list[InputPin] = self._pinslist[CompEdge.INPUT]
-        n = len(pins)
+        
+        n = len(self.inputPins)
         if not n:
             return
         margin = PIN_MARGIN_REL * GRID.SIZE
@@ -391,7 +391,7 @@ class GateComp(CompItem):
             positions = [_snap(raw)]
         else:
             positions = [_snap(margin + i * span / (n - 1)) for i in range(n)]
-        for pin, y_canon in zip(pins, positions):
+        for pin, y_canon in zip(self.inputPins, positions):
             pin.facing = fa
             # gen() expects grid-unit index; pass pixel / GRID.SIZE
             self.setPinPos(pin, gen(y_canon / GRID.SIZE))
@@ -433,7 +433,7 @@ class GateComp(CompItem):
         W = w_rel * GRID.SIZE   # canonical dims
         H = h_rel * GRID.SIZE
 
-        is_sel = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore
+        is_sel = bool(option.state & QStyle.StateFlag.State_Selected)
 
         # ── Per-gate colours ──────────────────────────────────────────────
         _fallback = (Color.gate_body, Color.gate_outline, Color.gate_label)
@@ -522,9 +522,9 @@ class NANDGate(GateComp):
 
 # ── OR / NOR ──────────────────────────────────────────────────────────────────
 
-class _ORMixin:
+class _ORMixin(GateComp):
     def _build_canonical_path(self) -> QPainterPath:
-        w, h = self.getRelSize()      # type: ignore[attr-defined]
+        w, h = self.getRelSize()
         return _or_path(w * GRID.SIZE, h * GRID.SIZE)
 
     def _curved_x_fn(self, body_w: float):
@@ -532,13 +532,12 @@ class _ORMixin:
         return lambda y, h: _or_curve_x(y, h, cx)
 
     def _reposition_input_pins(self, body_w: float, body_h: float):
-        pins: list[InputPin] = self._pinslist[CompEdge.INPUT]  # type: ignore[attr-defined]
-        n = len(pins)
+        n = len(self.inputPins)
         if not n: return
         x_fn = self._curved_x_fn(body_w)
-        for i, pin in enumerate(pins):
-            pos = _make_curved_pin_pos(self, i, n, body_w, body_h, x_fn)  # type: ignore[arg-type]
-            self.setPinPos(pin, pos)  # type: ignore[attr-defined]
+        for i, pin in enumerate(self.inputPins):
+            pos = _make_curved_pin_pos(self, i, n, body_w, body_h, x_fn)
+            self.setPinPos(pin, pos)
 
 
 class ORGate(_ORMixin, GateComp):

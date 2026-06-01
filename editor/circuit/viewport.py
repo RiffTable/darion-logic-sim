@@ -160,8 +160,8 @@ class CircuitView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
     
     def applyZoom(self, mousePos: QPoint, factor: float):
-        minZ = 0.2
-        maxZ = 2.0
+        minZ = 0.3
+        maxZ = 4.0
 
         # Tracking data
         curZ = self.transform().m11()
