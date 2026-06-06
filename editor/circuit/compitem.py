@@ -151,6 +151,20 @@ class CompItem(QGraphicsItem):
 
 
     ### Logical Unit
+    def updatePinsLayout(self):
+        ...    # ABSTRACT METHOD
+    
+    # def updatePinsLayout(self):  #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!fuck
+    #     """Automatically calls `updateShape()` right after"""
+    #     for edge, pins in self._pinslist.items():
+    #         fa, gen = self.getPinPosGenerator(edge)
+
+    #         for i, pin in enumerate(pins):
+    #             pin.facing = fa
+    #             self.setPinPos(pin, gen(i))
+    #     self.updateShape()
+    
+    
     def unitStateChanged(self, state: int):
         ...    # ABSTRACT METHOD
 
@@ -165,7 +179,7 @@ class CompItem(QGraphicsItem):
     def facingToEdge(self, facing: Facing) -> CompEdge:
         return CompEdge((facing - self.facing) * (-1 if self.isMirrored else 1))
 
-    def getPinPosGenerator(self, edge: CompEdge) -> tuple[Facing, Callable[[int], QPointF]]:
+    def getPinPosGenerator(self, edge: CompEdge|int) -> tuple[Facing, Callable[[int], QPointF]]:
         """Set `facing` and `size` before calling"""
         # This was way too complicated then expected
         w, h = self.getAbsSize()
@@ -216,7 +230,7 @@ class CompItem(QGraphicsItem):
         pin.disconnect()
         
         pinlist.pop(index)
-        pin.setParentItem(None)  # pyright: ignore[reportArgumentType]
+        pin.setParentItem(None)  # pyright: ignore
         self.cscene.removeItem(pin)
 
     def setPinPos(self, pin: PinItem, placement: QPointF):
@@ -346,81 +360,24 @@ class CompItem(QGraphicsItem):
 
     ###======= ACTIONS =======###
     def setFacing(self, facing: Facing):
-        rotation = (facing - self.facing) % 4
-        if rotation == 0: return
-
-        w, h = self.getAbsSize()
-        self.facing = facing
-        new_w, new_h = self.getAbsSize()
-
-        if rotation == 1:  
-            rotator = lambda x, y: (-y, +x)    # 90° CW
-        elif rotation == 2:
-            rotator = lambda x, y: (-x, -y)    # 180° CW
-        elif rotation == 3:
-            rotator = lambda x, y: (+y, -x)    # 270° CW
+        if facing == self.facing: return
         
-        for edge, pinlist in enumerate(self._pinslist):
-            fa = self.edgeToFacing(CompEdge(edge))
-            for pin in pinlist:
-                pin.facing = fa
-                x, y = pin.pos().toTuple()
-
-                dx = x / (w*GRID.SIZE) - 0.5
-                dy = y / (h*GRID.SIZE) - 0.5
-
-                new_dx, new_dy = rotator(dx, dy)
-                pin.setPos(
-                    (new_dx + 0.5) * new_w*GRID.SIZE,
-                    (new_dy + 0.5) * new_h*GRID.SIZE
-                )
-
-        self.updateShape()
+        self.facing = facing
         self.propertyChanged()
+        self.updatePinsLayout()
+        # self.updateShape()
 
     def mirror(self):
         self.isMirrored = not self.isMirrored
-        w, h = self.getAbsSize()
-
-        if self.facing%2 == 0:
-            mirrorer = lambda x, y: (x, h*GRID.SIZE-y)    # Horizontal
-        else:
-            mirrorer = lambda x, y: (w*GRID.SIZE-x, y)    # Vertical
-        
-        for edge, pinlist in enumerate(self._pinslist):
-            fa = self.edgeToFacing(CompEdge(edge))
-            for pin in pinlist:
-                pin.facing = fa
-                x, y = pin.pos().toTuple()
-                new_x, new_y = mirrorer(x, y)
-
-                pin.setPos(new_x, new_y)
-
-        self.updateShape()
         self.propertyChanged()
+        self.updatePinsLayout()
+        # self.updateShape()
     
     def flip(self):
-        self.facing = Facing(self.facing+2)
         self.isMirrored = not self.isMirrored
-
-        w, h = self.getAbsSize()
-
-        if self.facing%2 == 0:
-            flipper = lambda x, y: (w*GRID.SIZE-x, y)    # Horizontal
-        else:
-            flipper = lambda x, y: (x, h*GRID.SIZE-y)    # Vertical
-        
-        for edge, pinlist in enumerate(self._pinslist):
-            fa = self.edgeToFacing(CompEdge(edge))
-            for pin in pinlist:
-                pin.facing = fa
-                x, y = pin.pos().toTuple()
-                new_x, new_y = flipper(x, y)
-
-                pin.setPos(new_x, new_y)
-        
-        self.updateShape()
+        self.setFacing(Facing(self.facing+2))
         self.propertyChanged()
+        # self.updateShape()
 
 
 
