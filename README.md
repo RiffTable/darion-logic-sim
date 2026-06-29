@@ -67,56 +67,68 @@ python interface/CLI.py
 
 ## Structure
 
-*I want to warn you, this section is very messy. It will be cleaned up in the future.*
+## I. Language and Backend Choice
 
-### Dual-Backend Architecture
+**Python vs. Cython**
 
-The simulator ships with two interchangeable backends sharing the exact same API, demonstrating a practical transition from Object-Oriented Programming (OOP) to Data-Oriented Design (DOD).
+Python is a very easy language to work with and has versatile library support. However, it is a dynamically typed language that uses an interpreter. Interpreters are inherently slow, and Python's Object-Oriented Programming (OOP) relies completely on references. Because objects are scattered across memory (RAM), they must be fetched from random locations. This memory fragmentation is a major reason why Python is a poor choice when performance is a priority.
 
-- **Engine (Pure Python & OOP):** Built with standard Python objects, this backend is highly flexible and made for simplicity and debugability. It prioritizes exact chronological realism, precise hardware delay modeling, and visual observation over raw throughput.
-- **Reactor (Cython/C++ & DOD):** Python's object overhead scatters data across memory, which bottlenecks massive circuits. The Reactor shifts to a strict Data-Oriented Design. By dropping the Global Interpreter Lock (`nogil`) and packing gate states into contiguous C-structs (`std::vector`), it strips Python entirely out of the propagation hot-loop. While Cython makes debugging more complex, it allows the CPU cache to process logic at native C speeds, scaling the performance to extreme lengths. 
+Cython, on the other hand, allows the use of compiled code alongside the interpreter. To run at native C++ speeds, the code must be "Python-proof"—written with C/C++ style and data types. Properly written code is crucial for Cython to reach its full potential; it must be completely free from Pythonic objects. Using Pythonic objects in the backend triggers the Global Interpreter Lock (GIL), which entirely negates the performance benefits of the compiled code.
 
-#### The DOD Bridge: Memory as Identity
-In the Reactor, the circuit's state is split into two layers:
-- `gate_infolist`: A C++ vector of packed structs containing purely numeric physics data (outputs, hitlists, limits) where the `nogil` execution occurs.
-- `gate_verse`: A Python list holding the high-level UI wrappers (names, custom data).
+## II. Core Optimizations and Data-Oriented Design
 
-The bridge is the `location` attribute. Rather than just an ID, `location` is the exact memory index of the gate within the C++ array. This guarantees $O(1)$ memory lookups for the physics engine and allows the UI to instantly map a physical change to its graphical widget without searching.
+**Array of Structures (AOS) & Memory Management**
 
+To achieve maximum performance, the reactor backend utilizes Data-Oriented Design through an Array of Structures (AOS) approach. A special C++ struct was created to hold data related to propagation and connections, acting as an addition to the standard Python gate.
 
-### Core Simulation Mechanics
+This approach provides three major structural advantages:
 
-#### Evaluation ($O(1)$ Logic)
-To achieve consistent evaluation times regardless of a gate's fan-in (number of inputs), the engine avoids traditional input-polling.
+1. **Memory Locality:** Retrieving data from specific, contiguous places in memory (arrays and structs) is significantly faster than fetching it from random locations. The CPU actively tries to keep this array in its cache, aggressively boosting simulation speeds at high scales.
+    
+2. **Topological Compilation:** By topologically sorting the array using a modified Kahn's algorithm, the memory locations of the gates' data chunks can be manipulated. Gates are aligned in memory such that high speeds are maintained even if the circuit's size far exceeds the CPU's cache limit.
+    
+3. **Unique Identification:** The array naturally creates a unique ID (the array index) for every gate. This ID is used directly to dictate gates across UI updates, serialization, and propagation.
+    
 
-- **The Book Algorithm:** All gates (other than NOT gates) maintain a tuple called 'Book'. It tracks the number of inputs with HIGH, LOW or UNKNOWN signal. Every input change updates the 'Book', determining its new output instantly using a simple algorithm. Examples:
-  - AND gate output is HIGH only when `book[LOW]` is zero.
-  - NOR gate output is HIGH only when `book[HIGH]` is zero.
+This backend is designed to compete with the simulation speeds of Verilog. It can handle multiple input toggles and simulate an entire circuit in a single array traversal. (Note: The UX aspect of this feature is still under construction and is currently only used to transition from design mode to simulate mode effectively optimizing it without disturbing the user).
 
-- **Forward Evaluation:** Gates are evaluated directly from their source to target. This makes the queue strictly based on gates that have changed their output and need to propagate. 
+## III. Circuit Evaluation and Simulation Engine
 
-#### Propagation & Time Management
-Propagation utilizes dual buffers (`read_queue` and `write_queue`) to simulate synchronous hardware delta-cycles, ensuring parallel logic paths evaluate simultaneously.
-- **State Flags (`mark` & `scheduled`):** The `mark` flag ensures a gate is added to the active wave buffer only once per cycle, even if multiple inputs trigger it. The `scheduled` flag prevents duplicate entries in the broader time manager.
-- **Realism vs. Throughput:** The **Engine** uses a priority queue (`heapq`) to model physical gate delays, input-limit penalties, and transient hardware glitches (race conditions).
-  - The **Reactor** uses a priority queue, discarding physical delay modeling in favor of strict causal correctness and maximum throughput.
-- **Oscillation Protection:** A dynamic counter monitors the propagation depth. If an infinite loop or rapid oscillation is detected, the engine intentionally throttles the raw execution, passing the state to the slower time managers. This yields execution back to the UI, allowing users to watch the oscillation without freezing the application.
+**Memorization and Forward Evaluation**
 
-### UI Synchronization: The Visual Queue
+A special book array is used to store the states of inputs. If a gate changes its output, it directly modifies this array. Propositional and quantifier logic is heavily utilized to ensure **O(1) evaluation**, regardless of the input size, without needing to check the states of other gate inputs. Certain components, such as NOT gates and buffer gates, bypass the book array entirely and operate directly on the state of their inputs.
 
-The physics backend crunches logic millions of times faster than the 60 FPS PySide6 frontend can render.
-- When a gate changes state, its `update` flag is set to true, and its `location` is pushed to a lightweight `visual_queue`. The flag ensures it is only queued once per frame.
-- An asynchronous UI task operates on a strict time budget (e.g., ~16ms). It drains the visual queue, looks up the corresponding widget via the `location` index, and repaints only the specific wires and gates that changed.
-- This completely decouples the UI from the physics engine, maintaining fluid rendering while the backend handles massive calculations.
+**Clocks and Discrete Event Simulation**
 
+Variables or inputs are converted into clocks, utilizing the book array to store and control delays. The simulator uses a dedicated `Task` object that wraps gates (or gate locations) into delayed tasks, which execute when their time is up.
 
-### Integrated Circuits (ICs) & Serialization
+The entire system relies on a priority queue for artificial timing, mirroring real-world nanosecond delays. The discrete event simulation system allows users to tweak timing at precise values, modifying clock pulses to solve race conditions.
 
-Users can select components and package them into reusable Integrated Circuits (IC).
-- **Infinite Nesting (UI/Storage):** IC definitions can be nested hierarchically to any depth (e.g., a CPU built from ALUs, built from Adders).
-- **Zero-Cost Execution:** The execution is explicitly not recursive. During simulation prep, the Reactor's `build_ic()` flattens the hierarchy. This restores the IC into primitive gates. This guarantees that deep UI hierarchies incur zero function-call overhead during simulation.
+**Real-World Glitches & Delays**
 
----
+Every gate adds its own propagation delay relative to its input. This accurately showcases real-world glitches, helping users design circuits while remaining fully aware of the hardware consequences of their design choices.
+
+- _Example (CSE-2104 Project):_ When building an asynchronous mod-10 counter with reset pins, a known physical glitch causes the circuit to reset to 4 instead of 0. Another glitch briefly displays the intermediate value of 10—or (1010)2—which shouldn't visually persist. Our simulator is the only one capable of showcasing these specific hardware issues beforehand. Users can fix these simulated race conditions natively by adding buffer gates to introduce extra propagation delay.
+    
+
+**Oscillations**
+
+Handling oscillations was one of the most complex challenges. While simulators like Logisim simply count up to a static limit before throwing a warning (which is inefficient), this simulator uses a dynamic counter to detect oscillations much earlier. It propagates the simulation in batches so the system can display the oscillation to the user without hanging or crashing.
+The dynamic counter works on the theory of maximum depth, propagation occurs in waves so the maximum amount of wave(depth) is the total number of gates + 1, which can be understood by imagining a chain of not gates and then also a xor-gate connected to itself(the +1 comes from this).
+
+## IV. System Architecture and Integration
+
+**UI Decoupling**
+
+The UI is built entirely in Python, while the propagation function is strictly built in Cython (and must remain free of Python objects). To bridge this, a parallel array of UI elements is created, referencing the `location` attribute (the array index). These act as currencies between the frontend and backend.
+
+During simulation, UI updates occur in between clock pulses. After propagation, indices are loaded into a deque accessed by the UI, which updates the elements asynchronously. This decoupling is achieved using parallel location integers and special intermediate functions that act as an API for the UI. _(Note: Updating the UI only between clock pulses may swallow some unstable signals or oscillations if a gate changes state multiple times between two pulses)._
+
+**IC Deserialization**
+
+Integrated Circuit (IC) creation is designed to be minimal and nearly indistinguishable from a standard circuit. It strictly stores input pins, output pins, internal gates, and a full internal connection map. External pins are short-circuited, behaving like buffer gates visible to the UI. During propagation, the "IC" entity does not exist as a separate overhead layer.
+
+During IC creation, a Breadth-First Search (BFS) traversal is performed to remove unnecessary internal gates and extra pins. For example, if four 1-bit full adders are connected to create a 4-bit full adder, all redundant internal pins from the unit ICs are removed. Only the strictly necessary external I/O pins remain, vastly reducing the size and entity cost of the final IC.
 
 ## Credits
 
