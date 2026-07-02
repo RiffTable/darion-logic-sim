@@ -22,30 +22,10 @@ class InputComp(CompItem):
     LOGIC = Const.VARIABLE_ID
     NAME  = DESC = "INPUT"
 
-    # ── Sizing ────────────────────────────────────────────────────────────────
-
-    def _text_side_px(self) -> float:
-        """Diameter of the circle needed to contain the label text."""
-        fm   = QFontMetrics(Font.gate)
-        tw   = fm.horizontalAdvance(self.tag)
-        th   = fm.height()
-        diag = math.hypot(tw, th)
-        # Circle must contain the text diagonal; add 1 GRID.SIZE of padding.
-        return max(GRID.SIZE * 3, diag + GRID.SIZE * 1.2)
-
-    def getRelSize(self) -> tuple[int, int]:
-        """Even-integer grid units so pin lands at the exact centre."""
-        side_px = self._text_side_px()
-        units   = math.ceil(side_px / GRID.SIZE)
-        if units % 2:
-            units += 1          # force even so h//2 == h/2
-        return (units, units)   # square bounding box
-
-    def getRelPadding(self): return (0, 4)
-
     # ── Construction ──────────────────────────────────────────────────────────
 
     def __init__(self, pos: QPointF, **kwargs):
+        self.rLength, self.rBreadth = (4, 4)
         super().__init__(pos, **kwargs)
         self._custom_draw = True   # we handle body + text ourselves
 
@@ -59,7 +39,7 @@ class InputComp(CompItem):
 
         # Pins
         if self._setupDefaultPins:
-            s = self.getRelSize()[0]
+            s = self.rLength
             self.addOutputPin(CompEdge.OUTPUT, s // 2)
             self.updateShape()
 
@@ -75,7 +55,7 @@ class InputComp(CompItem):
     def _updateShape(self):
         super()._updateShape()
         # Reposition output pin to the true centre of the output edge.
-        s = self.getRelSize()[0]
+        s = self.rLength
         fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
         self.outputPin.facing = fa
         self.setPinPos(self.outputPin, gen(s // 2))

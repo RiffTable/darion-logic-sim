@@ -24,8 +24,12 @@ class CompItem(QGraphicsItem):
     TAG: str
     NAME: str
     DESC: str
+
+    rLength: int
+    rBreadth: int
     
     def __init__(self, pos: QPointF, **kwargs):
+
         # Properties
         self.tag = str(kwargs.get("tag", self.TAG))
         self.facing = Facing(kwargs.get("facing", Facing.EAST))
@@ -53,6 +57,7 @@ class CompItem(QGraphicsItem):
         self._dirty = True
         self._rect = QRectF()
         self._cached_hitbox = QPainterPath()
+        self._cached_brect = QRectF()
         self._gate_path: QPainterPath | None = None   # Set by subclasses to override drawRect
         self._custom_draw: bool = False               # Set True by GateComp to skip drawRect
         self._prop_change_listener: list[Callable[[], None]] = []
@@ -266,52 +271,29 @@ class CompItem(QGraphicsItem):
     def _updateShape(self):
         """DO NOT set _dirty to False before call this"""
         # This part changes the bounding rect and "shape" of the compItem
-        # For when you're changing number of pins. Edges without any pins will not have any "hitbox"
         self._rect = self.getRect()
-
-        girth = GRID.SIZE
-        hitbox_rect = self._rect.adjusted(
-            -girth if len(self._pinslist[self.facingToEdge(Facing.WEST)])  > 0 else 0,
-            -girth if len(self._pinslist[self.facingToEdge(Facing.NORTH)]) > 0 else 0,
-            +girth if len(self._pinslist[self.facingToEdge(Facing.EAST)])  > 0 else 0,
-            +girth if len(self._pinslist[self.facingToEdge(Facing.SOUTH)]) > 0 else 0
-        )
         
         path = QPainterPath()
-        path.addRect(hitbox_rect)
+        path.addRect(self._rect)
         self._cached_hitbox = path
+        self._cached_brect = path.boundingRect()
     
     def shape(self) -> QPainterPath:
         return self._cached_hitbox
     def boundingRect(self) -> QRectF:
-        return self._cached_hitbox.boundingRect()
+        return self._cached_brect
 
 
     ### Dimension
     def getRect(self):
-        w, h = self.getAbsSize()
-        dx, dy = self.getAbsPadding()
-        return QRectF(-dx, -dy, w*GRID.SIZE + 2*dx, h*GRID.SIZE + 2*dy)
-
-    def getRelSize(self) -> tuple[int, int]:
-        """Calculates relative size in GRID units regardless of facing: `(length, breadth)`"""
-        ...    # ABSTRACTE METHOD
-    
-    def getRelPadding(self) -> tuple[float, float]:
-        """Calculates relative padding regardless of facing: `(length, breadth)`"""
-        ...    # ABSTRACTE METHOD
+        g = GRID.SIZE
+        if self.facing%2 == 0: return QRectF(0, 0, self.rLength *g, self.rBreadth*g)
+        else:                  return QRectF(0, 0, self.rBreadth*g, self.rLength *g)
     
     def getAbsSize(self) -> tuple[int, int]:
         """Calculates absolute size in GRID units: `(width, height)`"""
-        a, b = self.getRelSize()
-        if self.facing%2 == 0: return (a, b)
-        else:                  return (b, a)
-    
-    def getAbsPadding(self) -> tuple[float, float]:
-        """Calculates absolute padding: `(width, height)`"""
-        a, b = self.getRelPadding()
-        if self.facing%2 == 0: return (a, b)
-        else:                  return (b, a)
+        if self.facing%2 == 0: return (self.rLength , self.rBreadth)
+        else:                  return (self.rBreadth, self.rLength)
 
 
     ### Events

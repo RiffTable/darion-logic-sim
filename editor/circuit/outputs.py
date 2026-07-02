@@ -22,27 +22,10 @@ class OutputComp(CompItem):
     LOGIC = Const.PROBE_ID
     NAME  = DESC = "LED"
 
-    # ── Sizing ────────────────────────────────────────────────────────────────
-
-    def _text_side_px(self) -> float:
-        fm   = QFontMetrics(Font.gate)
-        tw   = fm.horizontalAdvance(self.tag)
-        th   = fm.height()
-        diag = math.hypot(tw, th)
-        return max(GRID.SIZE * 3, diag + GRID.SIZE * 1.2)
-
-    def getRelSize(self) -> tuple[int, int]:
-        side_px = self._text_side_px()
-        units   = math.ceil(side_px / GRID.SIZE)
-        if units % 2:
-            units += 1
-        return (units, units)
-
-    def getRelPadding(self): return (0, 4)
-
     # ── Construction ──────────────────────────────────────────────────────────
 
     def __init__(self, pos: QPointF, **kwargs):
+        self.rLength, self.rBreadth = (4, 4)
         super().__init__(pos, **kwargs)
         self._custom_draw = True
 
@@ -59,7 +42,7 @@ class OutputComp(CompItem):
 
         # Pins
         if self._setupDefaultPins:
-            s = self.getRelSize()[0]
+            s = self.rLength
             self.addInputPin(CompEdge.INPUT, s // 2)
             self.updateShape()
 
@@ -70,7 +53,7 @@ class OutputComp(CompItem):
 
     def _updateShape(self):
         super()._updateShape()
-        s = self.getRelSize()[0]
+        s = self.rLength
         fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
         self.inputPin.facing = fa
         self.setPinPos(self.inputPin, gen(s // 2))

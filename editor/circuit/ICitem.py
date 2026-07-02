@@ -53,8 +53,7 @@ class IC_Comp(CompItem):
             h = 2*n if n > 2 else 6
             w = 7
 
-        self.getRelSize = lambda: (w, h)
-        self.getRelPadding = lambda: (0, 0)
+        self.rLength, self.rBreadth = (w, h)
 
         super().__init__(pos, **kwargs)
 

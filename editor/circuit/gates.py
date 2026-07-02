@@ -203,24 +203,13 @@ class GateComp(CompItem):
     HAS_BUBBLE = False
     IS_XOR     = False
 
-    def getRelSize(self):
-        n = len(self._pinslist[CompEdge.INPUT])
-
-        # Width
-        if n < 5:    w = 6
-        elif n < 10: w = 8
-        else:        w = 10
-
-        # Height
-        if n > 3:    h = 2*(n-1)
-        else:        h = 4
-
-        return (w, h)
-
-    def getRelPadding(self): return (0, 9)
-
     def __init__(self, pos: QPointF, **kwargs):
+        self.rLength = 4
+        self.rBreadth = 4
         super().__init__(pos, **kwargs)
+
+        self.inputPins  = cast(list[InputPin], self._pinslist[CompEdge.INPUT])
+        
 
         # Properties
         self._unit = cast(Gate, self._unit)
@@ -241,13 +230,10 @@ class GateComp(CompItem):
                 for i in range(self.minInput):
                     self.addInputPin(CompEdge.INPUT, 2*i)
 
-            _, h = self.getRelSize()
+            n = self.minInput
+            h = 2*(n-1) if (n > 3) else 4
             self.addOutputPin(CompEdge.OUTPUT, h//2)
             self.updateShape()
-
-        # Pins Casting
-        self.inputPins  = cast(list[InputPin], self._pinslist[CompEdge.INPUT])
-        self.outputPin  = cast(OutputPin,      self._pinslist[CompEdge.OUTPUT][0])
 
         # Setting Pin Logicals
         for i, p in enumerate(self.inputPins):
@@ -260,6 +246,10 @@ class GateComp(CompItem):
         self.proxyIndex  = self.findFirstEmptyPin()
         self.peekingPin: PinItem|None = None
         self.stashedPins: list[InputPin] = []
+    
+    @property
+    def outputPin(self):
+        return cast(OutputPin, self._pinslist[CompEdge.OUTPUT][0])
 
 
     # ── Properties ────────────────────────────────────────────────────────────
@@ -330,9 +320,11 @@ class GateComp(CompItem):
         """Call `updateShape()` afterwards if needed"""
         n = len(self.inputPins)
         fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
+
         if n == 2:
             self.setPinPos(self.inputPins[0], gen(0))
             self.setPinPos(self.inputPins[1], gen(2))
+        
         if self.stashedPins:
             pin = self.stashedPins.pop()
             pin.facing = fa
@@ -341,15 +333,18 @@ class GateComp(CompItem):
             pin.setParentItem(self)
         else:
             pin = self.addInputPin(CompEdge.INPUT, 2*n)
+        
         return pin.setLogical(self._unit, n)
 
     def popGatePin(self):
         """Call `updateShape()` afterwards if needed"""
         n = len(self.inputPins)
         _, gen = self.getPinPosGenerator(CompEdge.INPUT)
+
         if n == 3:
             self.setPinPos(self.inputPins[0], gen(1))
             self.setPinPos(self.inputPins[1], gen(3))
+        
         self.stashedPins.append(self.inputPins[n-1])
         self.removePin(CompEdge.INPUT, n-1)
 
@@ -431,8 +426,7 @@ class GateComp(CompItem):
             return
         margin = PIN_MARGIN_REL * GRID.SIZE
         fa, gen = self.getPinPosGenerator(CompEdge.INPUT)
-        w_rel, h_rel = self.getRelSize()
-        body_h_px = h_rel * GRID.SIZE
+        body_h_px = self.rBreadth * GRID.SIZE
         if n == 1:
             raw = body_h_px / 2.0
         else:
@@ -454,9 +448,24 @@ class GateComp(CompItem):
             self.setPinPos(pin, gen(y_canon / GRID.SIZE))
 
     def _updateShape(self):
-        w_rel, h_rel = self.getRelSize()
-        body_w = w_rel * GRID.SIZE   # canonical pixel width
-        body_h = h_rel * GRID.SIZE   # canonical pixel height
+        # !Calculate relative shape variables
+        if not isinstance(self, NOTGate):
+            n = len(self._pinslist[CompEdge.INPUT])
+
+            # Width
+            if   n < 5 : self.rLength  = 6
+            elif n < 10: self.rLength  = 8
+            else       : self.rLength  = 10
+
+            # Height
+            if   n > 3 : self.rBreadth = 2*(n-1)
+            else       : self.rBreadth = 4
+        else:
+            self.rLength = self.rBreadth = 4
+
+
+        body_w = self.rLength * GRID.SIZE   # canonical pixel width
+        body_h = self.rBreadth * GRID.SIZE   # canonical pixel height
 
         # Store canonical path (used in draw())
         self._canonical_path = self._build_canonical_path()
@@ -468,7 +477,7 @@ class GateComp(CompItem):
         opin = self.outputPin
         fa, gen = self.getPinPosGenerator(CompEdge.OUTPUT)
         opin.facing = fa
-        base_pos = gen(h_rel // 2)
+        base_pos = gen(self.rBreadth // 2)
         if self.HAS_BUBBLE:
             base_pos = base_pos + fa.toPointF(2 * BUBBLE_R)
         self.setPinPos(opin, base_pos)
@@ -486,9 +495,8 @@ class GateComp(CompItem):
         gate transform, then resetting the painter to draw axis-aligned text.
         """
         Color = theme.get_theme()
-        w_rel, h_rel = self.getRelSize()
-        W = w_rel * GRID.SIZE   # canonical dims
-        H = h_rel * GRID.SIZE
+        W = self.rLength * GRID.SIZE   # canonical dims
+        H = self.rBreadth * GRID.SIZE
 
         is_sel = bool(option.state & QStyle.StateFlag.State_Selected)
 
@@ -552,20 +560,19 @@ class NOTGate(GateComp):
     MIN_INPUT = MAX_INPUT = 1
     HAS_BUBBLE = True
 
-    def getRelSize(self):    return (4, 4)   # square: triangle fits neatly
-    def getRelPadding(self): return (0, 4)
+    def __init__(self, pos: QPointF, **kwargs):
+        self.rLength, self.rBreadth = (4, 4)
+        super().__init__(pos, **kwargs)
 
     def _build_canonical_path(self) -> QPainterPath:
-        w, h = self.getRelSize()
-        return _not_path(w * GRID.SIZE, h * GRID.SIZE)
+        return _not_path(self.rLength*GRID.SIZE, self.rBreadth*GRID.SIZE)
 
 
 class ANDGate(GateComp):
     TAG = "AND";  LOGIC = Const.AND_ID;  NAME = DESC = "AND Gate"
 
     def _build_canonical_path(self) -> QPainterPath:
-        w, h = self.getRelSize()
-        return _and_path(w * GRID.SIZE, h * GRID.SIZE)
+        return _and_path(self.rLength*GRID.SIZE, self.rBreadth*GRID.SIZE)
 
 
 class NANDGate(GateComp):
@@ -573,16 +580,14 @@ class NANDGate(GateComp):
     HAS_BUBBLE = True
 
     def _build_canonical_path(self) -> QPainterPath:
-        w, h = self.getRelSize()
-        return _and_path(w * GRID.SIZE, h * GRID.SIZE)
+        return _and_path(self.rLength*GRID.SIZE, self.rBreadth*GRID.SIZE)
 
 
 # ── OR / NOR ──────────────────────────────────────────────────────────────────
 
 class _ORMixin(GateComp):
     def _build_canonical_path(self) -> QPainterPath:
-        w, h = self.getRelSize()
-        return _or_path(w * GRID.SIZE, h * GRID.SIZE)
+        return _or_path(self.rLength*GRID.SIZE, self.rBreadth*GRID.SIZE)
 
     def _curved_x_fn(self, body_w: float):
         cx = body_w * OR_CX_FRAC
