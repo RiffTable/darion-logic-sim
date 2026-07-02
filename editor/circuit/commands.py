@@ -45,7 +45,7 @@ class AddCompCommand(QUndoCommand):
 
 
 class DeleteCommand(QUndoCommand):
-    def __init__(self, scene, items_to_delete, explicit_wires=None):
+    def __init__(self, scene, items_to_delete: list[CompItem], explicit_wires: list[WireItem]=[]):
         super().__init__()
         self.scene = scene
         self.items_to_delete = items_to_delete
@@ -59,7 +59,7 @@ class DeleteCommand(QUndoCommand):
     def _get_attached_wires(self):
         wires = set()
         for comp in self.items_to_delete:
-            for pinlist in comp._pinslist.values():
+            for pinlist in comp._pinslist:
                 for pin in pinlist:
                     if pin.hasWire():
                         wires.add(pin.getWire())

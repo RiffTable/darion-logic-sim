@@ -137,7 +137,7 @@ class IC_Comp(CompItem):
         if self._unit is None: return False
 
         changed = False
-        for pinlist in self._pinslist.values():
+        for pinlist in self._pinslist:
             for pin in pinlist:
                 if isinstance(pin, OutputPin) and pin.logical is not None:
                     current = pin.logical.output
@@ -168,8 +168,8 @@ class IC_Comp(CompItem):
 
         # Labels
         painter.setFont(QFont("Consolas", 8, QFont.Weight.DemiBold))
-        for edge, pins in self._pinslist.items():
-            fa = self.edgeToFacing(edge)
+        for edge, pins in enumerate(self._pinslist):
+            fa = self.edgeToFacing(CompEdge(edge))
 
             # Position
             match fa:

@@ -647,7 +647,7 @@ class CircuitScene(QGraphicsScene):
             # so build the circuit first then simulate from the inputpins.
 
             # Getting all pins reference to wire them later
-            for _edge, pin_data_list in comp_data["pinslist"].items():
+            for _edge, pin_data_list in enumerate(comp_data["pinslist"]):
                 edge = int(_edge)
                 for i, pin_data in enumerate(pin_data_list):
                     w = pin_data["wire"]

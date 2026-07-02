@@ -68,9 +68,9 @@ class CompItem(QGraphicsItem):
 
         self._setupDefaultPins = False if ("pinslist" in kwargs) else True
         if not self._setupDefaultPins:
-            new_pinslist = cast(dict[str, list[dict]], kwargs.get("pinslist", {}))
-            for _edge, pins in new_pinslist.items():
-                edge = CompEdge(int(_edge))
+            new_pinslist = cast(list[list[dict]], kwargs.get("pinslist", {}))
+            for _edge, pins in enumerate(new_pinslist):
+                edge = CompEdge(_edge)
                 facing = self.edgeToFacing(edge)
                 pinslist = self._pinslist[edge]
                 for pin in pins:
@@ -111,10 +111,10 @@ class CompItem(QGraphicsItem):
             "tag"      : self.tag,
             "facing"   : self.facing.value,
             "mirror"   : self.isMirrored,
-            "pinslist" : {
-                edge: [p.getData() for p in pins]
-                for edge, pins in enumerate(self._pinslist)
-            },
+            "pinslist" : [
+                [p.getData() for p in pins]
+                for pins in self._pinslist
+            ],
         }
 
     def getProperties(self) -> dict[Prop, Any]:
