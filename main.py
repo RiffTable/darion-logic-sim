@@ -22,6 +22,7 @@ from functools import partial
 from core.Enums import Facing
 from core.QtCore import *
 from core.LogicCore import *
+import core.grid as GRID
 
 import editor.theme as theme
 import editor.actions as Actions
@@ -46,7 +47,7 @@ DOC_PATH     = QStandardPaths.writableLocation(StandardLocation.DocumentsLocatio
 ### SCHEMA
 # 0: (No Schema) Absolute Position System
 # 1: Distributed Serialization System
-PROJECT_SCHEMA = 1
+PROJECT_SCHEMA: int = 1
 
 
 
@@ -241,7 +242,8 @@ class AppWindow(QMainWindow):
     ###======= DATA SERIALIZATION =======###
     def get_project_data(self) -> dict:
         t = self.view.transform()
-        project = {"schema_version": 1} | self.cscene.serialize() | {
+
+        project = { "schema_version": PROJECT_SCHEMA } | self.cscene.serialize() | {
             "iclist": self.cscene.iclist,
             "camera": (round(t.dx()), round(t.dy())),
             "zoom":   t.m11(),
@@ -249,14 +251,50 @@ class AppWindow(QMainWindow):
         return project
     
     def load_project_data(self, project: dict):
-        cx, cy = project.pop("camera", (0, 0))
-        m11 = project.pop("zoom", 1.0)
+        schema = project.pop("schema_version", 0)
+        G = GRID.SIZE
 
-        self.cscene.clearCanvas()
-        self.cscene.iclist = project.pop("iclist", [])
-        self.cscene.deserialize(project)
 
-        self.view.setCamera(QPointF(cx, cy), m11)
+        # ─────── SCHEMA VERSION v0 ───────────────────────────────────────
+        if schema == 0:
+            print("Converting from schema v0")
+            for comp in project["comps"]:
+                # Update comp.pos
+                x, y = comp["pos"]
+                comp["pos"] = (round(x / G), round(y / G))
+                
+                # Update comp.pinslist to list[list]
+                flattened_pinslist = list(comp["pinslist"].values())
+                
+                # Update pin.pos
+                for pins in flattened_pinslist:
+                    for pin in pins:
+                        px, py = pin["pos"]
+                        pin["pos"] = (round(px / G), round(py / G))
+                
+                comp["pinslist"] = flattened_pinslist
+
+            schema = 1    # Updated to the next version (v1)
+        
+        
+        # ─────── SCHEMA VERSION v1 (CURRENT)──────────────────────────────
+        if schema == 1:
+            cx, cy = project.pop("camera", (0, 0))
+            m11 = project.pop("zoom", 1.0)
+
+            self.cscene.clearCanvas()
+            self.cscene.iclist = project.pop("iclist", [])
+            self.cscene.deserialize(project)
+
+            self.view.setCamera(QPointF(cx, cy), m11)
+        
+        
+        # ─────── INCORRECT SCHEMA VERSION ────────────────────────────────
+        if schema != PROJECT_SCHEMA:
+            #! WARNING: INCORRECT SCHEMA VALUE. DATA CORRUPTED
+            print("WARNING: INCORRECT SCHEMA VALUE. DATA CORRUPTED")
+
+
 
     def retrieve_IC_data(self) -> tuple[dict, dict]:
         """
