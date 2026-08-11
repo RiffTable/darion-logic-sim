@@ -37,7 +37,10 @@ import subprocess
 import shutil
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests"))
+_SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT  = os.path.dirname(_SCRIPT_DIR)
+
+sys.path.insert(0, _SCRIPT_DIR)
 try:
     from verilog_to_circ import convert_file, vector_file_path
 except ImportError:
@@ -52,9 +55,9 @@ except ImportError:
 # 1. ICARUS VERILOG HARNESS RUNNER
 # ===========================================================================
 
-_VPI_TIMER_C   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harness_build", "vpi_timer.c")
-_VPI_TIMER_VPI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harness_build", "vpi_timer.vpi")
-_VPI_DIR       = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harness_build")
+_VPI_DIR       = os.path.join(_SCRIPT_DIR, "harness_build") if os.path.exists(os.path.join(_SCRIPT_DIR, "harness_build")) else os.path.join(_PROJECT_ROOT, "harness_build")
+_VPI_TIMER_C   = os.path.join(_VPI_DIR, "vpi_timer.c")
+_VPI_TIMER_VPI = os.path.join(_VPI_DIR, "vpi_timer.vpi")
 
 
 def build_vpi_timer() -> bool:
@@ -580,10 +583,12 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
 
 def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool):
     script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
     target_path = os.path.join(script_dir, mode)
     if not os.path.exists(target_path):
-        target_path = os.path.join(os.path.dirname(script_dir), mode)
+        target_path = os.path.join(project_root, mode)
 
+    sys.path.insert(0, project_root)
     sys.path.insert(0, target_path)
     import Circuit
     import Const
@@ -646,7 +651,18 @@ def main():
         args.output = os.path.join(dump_dir, f"unified_iscas_benchmark_{timestamp}")
 
     harness_dir = os.path.abspath(args.harness)
-    harness_cp  = os.path.abspath(args.jar) + os.pathsep + harness_dir
+    if not os.path.exists(harness_dir) and not os.path.isabs(args.harness):
+        alt_harness = os.path.join(_PROJECT_ROOT, args.harness)
+        if os.path.exists(alt_harness):
+            harness_dir = alt_harness
+
+    jar_path = os.path.abspath(args.jar)
+    if not os.path.exists(jar_path) and not os.path.isabs(args.jar):
+        alt_jar = os.path.join(_PROJECT_ROOT, args.jar)
+        if os.path.exists(alt_jar):
+            jar_path = alt_jar
+
+    harness_cp  = jar_path + os.pathsep + harness_dir
     measured    = args.vectors - args.warmup
     if measured <= 0:
         print(f"[-] Error: --warmup ({args.warmup}) must be < --vectors ({args.vectors})"); sys.exit(1)
@@ -669,7 +685,7 @@ def main():
     header = (
         f"{'Circuit':<16} | "
         f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | "
-        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14} | {'Icarus-vvp(ms)':<14} | {'Icarus-tot(ms)':<14}"
+        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14}"
     )
     print(header)
     print("-" * W)
@@ -690,8 +706,6 @@ def main():
                       else ("ERR" if 'sweep_error' in r_res else "N/A"))
         l_str      = f"{l_res['time_ms']:.1f}"       if 'error' not in l_res else "ERR"
         i_sim_str  = f"{i_res['time_ms']:.2f}"       if 'error' not in i_res else "ERR"
-        i_vvp_str  = f"{i_res.get('run_ms', i_res.get('time_ms', 0)):.1f}" if 'error' not in i_res else "ERR"
-        i_tot_str  = f"{i_res['total_ms']:.1f}"      if 'error' not in i_res else "ERR"
 
         # Eval counts sub-line — widths match the timing columns exactly:
         # Engine(ms)=10, Rx-prop(ms)=11, Rx-sweep(ms)=12
@@ -703,7 +717,7 @@ def main():
         print(
             f"{filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
-            f"{l_str:>11} | {i_sim_str:>14} | {i_vvp_str:>14} | {i_tot_str:>14}"
+            f"{l_str:>11} | {i_sim_str:>14}"
         )
         print(f"  {'evals':<14} | {e_ev} | {r_ev} | {rs_ev}")
         sys.stdout.flush()
@@ -869,7 +883,7 @@ def _save_results(all_results: list, args):
     hdr = (
         f"{'Circuit':<16} | "
         f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | "
-        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14} | {'Icarus-tot(ms)':<14}"
+        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14}"
     )
     lines.append(hdr)
     lines.append("-" * W)
@@ -880,11 +894,10 @@ def _save_results(all_results: list, args):
                    else ("ERR" if 'sweep_error' in r_res else "N/A"))
         l_str   = f"{l_res['time_ms']:.1f}"     if 'error' not in l_res else "ERR"
         i_s_str = f"{i_res['time_ms']:.1f}"     if 'error' not in i_res else "ERR"
-        i_t_str = f"{i_res['total_ms']:.1f}"    if 'error' not in i_res else "ERR"
         lines.append(
             f"{filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
-            f"{l_str:>11} | {i_s_str:>14} | {i_t_str:>14}"
+            f"{l_str:>11} | {i_s_str:>14}"
         )
     lines.append("=" * W)
 
