@@ -127,7 +127,65 @@ def generate_trigger_plot(circuit_name, engine_data, reactor_data, output_dir):
     plt.tight_layout()
     plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
     plt.close()
+
+def generate_geometry_vs_speed_plot(geom_speed_data, output_dir):
+    """Generates scatter plot graphing Mean Jump Distance (RAM indices) vs Mean Avg Evaluation Speed (M/s)."""
+    if not geom_speed_data:
+        return None
+        
+    plt.style.use('dark_background')
+    fig, ax = plt.subplots(figsize=(12, 7), facecolor='#121212')
+    ax.set_facecolor('#1A1A1A')
     
+    circuits = [d['circuit'] for d in geom_speed_data]
+    jumps = [d['mean_jump'] for d in geom_speed_data]
+    
+    engine_speeds = [d.get('engine_speed') for d in geom_speed_data]
+    reactor_speeds = [d.get('reactor_speed') for d in geom_speed_data]
+    
+    has_engine = any(s is not None for s in engine_speeds)
+    has_reactor = any(s is not None for s in reactor_speeds)
+    
+    if has_engine:
+        valid_e = [(j, s, c) for j, s, c in zip(jumps, engine_speeds, circuits) if s is not None]
+        if valid_e:
+            ej, es, ec = zip(*valid_e)
+            ax.scatter(ej, es, color='#FF9800', s=80, alpha=0.9, zorder=4, label='Engine (Pure Python)')
+            for j, s, c in valid_e:
+                ax.annotate(c.replace('.v', ''), (j, s), xytext=(6, 6), textcoords='offset points', fontsize=9, color='#FFCC80', alpha=0.9, fontweight='bold')
+                
+    if has_reactor:
+        valid_r = [(j, s, c) for j, s, c in zip(jumps, reactor_speeds, circuits) if s is not None]
+        if valid_r:
+            rj, rs, rc = zip(*valid_r)
+            ax.scatter(rj, rs, color='#00E5FF', s=90, marker='^', alpha=0.9, zorder=5, label='Reactor (Cython DOD)')
+            for j, s, c in valid_r:
+                ax.annotate(c.replace('.v', ''), (j, s), xytext=(6, -12), textcoords='offset points', fontsize=9, color='#80DEEA', alpha=0.9, fontweight='bold')
+                
+    ax.axvline(8, color='#FF5252', linestyle='--', linewidth=1.5, alpha=0.8, label='L1 Cache Line Boundary (>8 indices)')
+    
+    ax.set_title("Circuit Geometry vs. Execution Speed\n(Mean Jump Distance vs. Mean Avg Eval Speed)", fontsize=15, fontweight='bold', color='#FFFFFF', pad=15)
+    ax.set_xlabel("Mean Connection Jump Distance in RAM (Indices)", fontsize=12, color='#E0E0E0', labelpad=10)
+    ax.set_ylabel("Mean Avg Evaluation Speed (Million evals / sec)", fontsize=12, color='#E0E0E0', labelpad=10)
+    
+    ax.grid(True, color='#333333', linestyle=':', linewidth=1, alpha=0.8)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_color('#444444')
+    ax.spines['left'].set_color('#444444')
+    ax.tick_params(colors='#E0E0E0', which='both')
+    
+    legend = ax.legend(frameon=True, facecolor='#1A1A1A', edgecolor='#333333', fontsize=10, loc='upper right')
+    for text in legend.get_texts():
+        text.set_color('#E0E0E0')
+        
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "geometry_vs_eval_speed.png")
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+    plt.close()
+    return save_path
+
 class VerilogRunner:
     def __init__(self, v_file_path, circuit_cls, const_mod):
         self.Circuit = circuit_cls
@@ -235,13 +293,10 @@ class VerilogRunner:
         if len(self.nodes) == 0:
             raise ValueError("No valid nodes parsed.")
             
-        if use_optimize:
-            self.circuit.simulate(self.const.COMPILE)
-            if hasattr(self.circuit, 'optimize'):
-                self.circuit.optimize()
-        else:
+        self.circuit.simulate(self.const.COMPILE)
+        if use_optimize and hasattr(self.circuit, 'optimize'):
             self.circuit.optimize()
-            self.circuit.simulate(self.const.SIMULATE)
+        self.circuit.simulate(self.const.SIMULATE)
             
         fast_batch_toggle = self.circuit.batch_toggle 
         batched_instructions = []
@@ -443,12 +498,79 @@ if __name__ == "__main__":
                     footer += f"REACTOR AVERAGE THROUGHPUT : {r_avg:.2f} Million evals/sec ({r_runs} valid circuits)\n"
                 footer += "="*120 + "\n"
                 print_and_log(footer, f)
+
+            # RUN GEOMETRIC ANALYSIS & COMBINED GRAPH
+            print("\n" + "="*120)
+            print(" [MASTER] RUNNING GEOMETRIC LOCALITY ANALYSIS")
+            print("="*120)
+            
+            reactor_path = os.path.join(root_dir, 'reactor')
+            if reactor_path not in sys.path:
+                sys.path.insert(0, reactor_path)
+            import Circuit as GeomCircuit
+            import Const as GeomConst
+            
+            geom_speed_data = []
+            for filepath in v_files:
+                filename = os.path.basename(filepath)
+                print(f"  -> Profiling geometry for {filename}... ", end="", flush=True)
+                mean_jump = 0.0
+                try:
+                    g_runner = VerilogRunner(filepath, GeomCircuit.Circuit, GeomConst)
+                    jumps = g_runner.circuit.geometry()
+                    if jumps:
+                        mean_jump = float(np.mean(jumps))
+                    print(f"OK (Mean Jump: {mean_jump:.1f} indices)")
+                except Exception as ge:
+                    print(f"FAILED ({ge})")
+                    
+                e_spd, r_spd = None, None
+                for r in final_results:
+                    if r.get('file', '').startswith(filename) and 'error' not in r:
+                        if '[Engine]' in r['file']:
+                            e_spd = r['batch_ms']
+                        elif '[Reactor]' in r['file']:
+                            r_spd = r['batch_ms']
+                            
+                geom_speed_data.append({
+                    'circuit': filename,
+                    'mean_jump': mean_jump,
+                    'engine_speed': e_spd,
+                    'reactor_speed': r_spd
+                })
+                
+            geom_plot_file = generate_geometry_vs_speed_plot(geom_speed_data, plots_dir)
+            
+            with open(report_path, 'a', encoding='utf-8') as f:
+                geom_sec = f"\n{'='*120}\n GEOMETRY vs. PERFORMANCE COMBINED SUMMARY\n{'='*120}\n"
+                geom_col = "{:<24} | {:>20} | {:>18} | {:>18} | {:>12}\n"
+                geom_sec += geom_col.format("Circuit", "Mean Jump (indices)", "Engine Avg (M/s)", "Reactor Avg (M/s)", "Speedup")
+                geom_sec += "-" * 120 + "\n"
+                print_and_log(geom_sec, f)
+                
+                for g in geom_speed_data:
+                    e_str = f"{g['engine_speed']:.2f}" if g['engine_speed'] is not None else "N/A"
+                    r_str = f"{g['reactor_speed']:.2f}" if g['reactor_speed'] is not None else "N/A"
+                    if g['engine_speed'] and g['reactor_speed'] and g['engine_speed'] > 0:
+                        spdup = f"{g['reactor_speed'] / g['engine_speed']:.2f}x"
+                    else:
+                        spdup = "N/A"
+                    row = geom_col.format(g['circuit'], f"{g['mean_jump']:.1f}", e_str, r_str, spdup).strip()
+                    print_and_log(row, f)
+                    
+                print_and_log("=" * 120 + "\n", f)
                 
             print(f"\n[SUCCESS] Benchmark report saved to: {report_path}")
+            if geom_plot_file:
+                print(f"[SUCCESS] Geometry vs. Speed plot saved to: {geom_plot_file}")
 
         finally:
-            if os.path.exists(engine_json): os.remove(engine_json)
-            if os.path.exists(reactor_json): os.remove(reactor_json)
+            for json_file in [engine_json, reactor_json]:
+                if os.path.exists(json_file):
+                    try:
+                        os.remove(json_file)
+                    except PermissionError:
+                        pass
         sys.exit(0)
 
     # ==========================================
@@ -462,13 +584,18 @@ if __name__ == "__main__":
             print(f"[{idx+1}/{len(v_files)}] Testing {filename}... ", end="", flush=True)
             
         try:
+            import asyncio
             runner = VerilogRunner(filepath, BackendCircuit, BackendConst)
-            stats = runner.run_benchmark(vectors=VECTORS_RUN, use_optimize=args.optimize)
+            
+            async def run_bench_async():
+                return runner.run_benchmark(vectors=VECTORS_RUN, use_optimize=args.optimize)
+                
+            stats = asyncio.run(run_bench_async())
             suffix = " [Engine]" if args.engine else " [Reactor]"
             stats['file'] = filename + suffix
             
             if not args.dump_json:
-                print(f"OK ({stats['nodes']} nodes | Peak Trigger: {stats['peak_burst'][0]:.2f} M/s)")
+                print(f"OK ({stats['nodes']} nodes | Avg Trigger: {stats['mean_burst_ms']:.2f} M/s)")
                 raw_data = stats.pop('raw_trigger_data', [])
                 if args.engine: generate_trigger_plot(filename, raw_data, [], plots_dir)
                 else: generate_trigger_plot(filename, [], raw_data, plots_dir)
@@ -483,3 +610,41 @@ if __name__ == "__main__":
     if args.dump_json:
         with open(args.dump_json, 'w') as f: json.dump(results, f)
         sys.exit(0)
+    else:
+        overall_avg = 0.0
+        valid_runs = 0
+        total_evals = 0
+        total_time = 0
+        
+        log_file_path = os.path.join(script_dir, 'benchmark_runs.log')
+        with open(log_file_path, 'a', encoding='utf-8') as f:
+            f.write(f"\n{'='*80}\n")
+            import datetime
+            f.write(f" RUN TIME: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f" MODE    : {'Engine' if args.engine else 'Reactor'}\n")
+            f.write(f" VECTORS : {VECTORS_RUN:,}\n")
+            f.write(f"{'-'*80}\n")
+            
+            for r in results:
+                if 'error' in r:
+                    f.write(f"{r.get('file', 'Unknown'):<22} | ERROR: {r['error']}\n")
+                else:
+                    f.write(f"{r.get('file', 'Unknown'):<22} | Nodes: {r.get('nodes', 0):>6} | Avg Trigger: {r.get('mean_burst_ms', 0):>6.2f} M/s | Peak: {r.get('peak_burst', [0])[0]:>6.2f} M/s\n")
+                    overall_avg += r.get('mean_burst_ms', 0)
+                    valid_runs += 1
+                    total_evals += r.get('evals', 0)
+                    total_time += r.get('duration', 0)
+            
+            f.write(f"{'-'*80}\n")
+            if valid_runs > 0:
+                avg_trigger = overall_avg / valid_runs
+                f.write(f"OVERALL AVG TRIGGER : {avg_trigger:.2f} M/s\n")
+                if total_time > 0:
+                    throughput = (total_evals / (total_time / 1000)) / 1_000_000
+                    f.write(f"OVERALL THROUGHPUT  : {throughput:.2f} M/s\n")
+            f.write(f"{'='*80}\n")
+            
+        if valid_runs > 0:
+            avg_trigger = overall_avg / valid_runs
+            print(f"\nOverall Average Trigger: {avg_trigger:.2f} M/s")
+            print(f"Detailed run log appended to {log_file_path}")

@@ -108,7 +108,7 @@ cdef class IC:
         cdef Gate i
         for i in self.outputs + self.inputs + self.internal:
             cluster.append(i.location)
-            gate_infolist[i.location].mark = True
+            gate_infolist[i.location].flags |= FLAG_MARK
 
     cpdef list full_data(self):
         '''Serialise the IC with full connection info, used for saving the parent circuit'''

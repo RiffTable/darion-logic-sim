@@ -34,6 +34,16 @@ except ImportError:
 
 parser = argparse.ArgumentParser(description='Run High-Integrity Cache Profiler Comparison')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--chaotic', action='store_true', help='Run mixed chaotic test')
+parser.add_argument('--realistic', action='store_true', help='Run mixed realistic test')
+parser.add_argument('--mixed', action='store_true', help='Run all mixed tests')
+parser.add_argument('--and', dest='gate_and', action='store_true', help='Run homogeneous AND test')
+parser.add_argument('--nand', dest='gate_nand', action='store_true', help='Run homogeneous NAND test')
+parser.add_argument('--or', dest='gate_or', action='store_true', help='Run homogeneous OR test')
+parser.add_argument('--nor', dest='gate_nor', action='store_true', help='Run homogeneous NOR test')
+parser.add_argument('--xor', dest='gate_xor', action='store_true', help='Run homogeneous XOR test')
+parser.add_argument('--xnor', dest='gate_xnor', action='store_true', help='Run homogeneous XNOR test')
+parser.add_argument('--not', dest='gate_not', action='store_true', help='Run homogeneous NOT test')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -240,8 +250,8 @@ async def run_profiler_suite(mode_name):
 
     plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": []}
 
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
-    print("-" * 100)
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Mean Jump':>9} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
+    print("-" * 115)
 
     gc.disable()
 
@@ -260,6 +270,9 @@ async def run_profiler_suite(mode_name):
         c.simulate(Const.SIMULATE)
         unopt_ns = benchmark_pass(c, start_node, size, iterations)
         unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
+
+        jumps = c.geometry()
+        mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
 
         # PASS 2: OPTIMIZED (BFS)
         c.optimize()
@@ -289,7 +302,7 @@ async def run_profiler_suite(mode_name):
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {mean_jump:>9.1f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
 
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
@@ -299,7 +312,7 @@ async def run_profiler_suite(mode_name):
         gc.collect()
 
     gc.enable()
-    print("-" * 100)
+    print("-" * 115)
     return plot_data
 
 
@@ -320,8 +333,8 @@ async def run_homogeneous_suite(gate_type):
 
     plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": [], "gate": gate_name}
 
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
-    print("-" * 100)
+    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Mean Jump':>9} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
+    print("-" * 115)
 
     gc.disable()
 
@@ -340,6 +353,9 @@ async def run_homogeneous_suite(gate_type):
         c.simulate(Const.SIMULATE)
         unopt_ns = benchmark_pass(c, start_node, size, iterations)
         unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
+
+        jumps = c.geometry()
+        mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
 
         # PASS 2: OPTIMIZED (BFS)
         c.optimize()
@@ -369,7 +385,7 @@ async def run_homogeneous_suite(gate_type):
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
+        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {mean_jump:>9.1f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
 
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
@@ -379,7 +395,7 @@ async def run_homogeneous_suite(gate_type):
         gc.collect()
 
     gc.enable()
-    print("-" * 100)
+    print("-" * 115)
     return plot_data
 
 
@@ -407,6 +423,8 @@ def generate_cache_plot(data_chaotic, data_realistic, cpu_name, output_dir):
     plt.style.use('dark_background')
 
     def create_plot(title, data, save_name):
+        if not data:
+            return
         fig, ax = plt.subplots(figsize=(11, 6.5), facecolor='#121212')
         _base_ax(fig, ax, title, cpu_name)
 
@@ -494,6 +512,8 @@ def generate_homogeneous_plots(homo_results, cpu_name, output_dir):
         print(f"Performance Graph saved to: {save_path}")
 
     # --- Overview: Opt BFS across all gate types ---
+    if not homo_results:
+        return
     fig, ax = plt.subplots(figsize=(13, 7), facecolor='#121212')
     _base_ax(fig, ax,
              "Homogeneous Chaotic Chains — Optimized BFS Throughput by Gate Type",
@@ -526,6 +546,8 @@ def generate_homogeneous_plots(homo_results, cpu_name, output_dir):
 
 def print_bottleneck_proof(data_chaotic, homo_results):
     """Isolates and compares the exact penalties of Branching vs Memory at max scale."""
+    if not data_chaotic or not homo_results:
+        return
     print("\n" + "=" * 100)
     print("  THE BOTTLENECK PROOF: BRANCHING vs. MEMORY (At Maximum Scale)")
     print("=" * 100)
@@ -591,13 +613,41 @@ async def main_profile():
     print("  DARION LOGIC SIM: HIGH-INTEGRITY CACHE & OPTIMIZER PROFILER")
     print("=" * 100)
 
+    run_chaotic = args.chaotic or args.mixed
+    run_realistic = args.realistic or args.mixed
+    run_gates = []
+    
+    gate_args = {
+        'gate_and': Const.AND_ID,
+        'gate_nand': Const.NAND_ID,
+        'gate_or': Const.OR_ID,
+        'gate_nor': Const.NOR_ID,
+        'gate_xor': Const.XOR_ID,
+        'gate_xnor': Const.XNOR_ID,
+        'gate_not': Const.NOT_ID,
+    }
+    
+    for arg_name, gate_id in gate_args.items():
+        if getattr(args, arg_name, False):
+            run_gates.append(gate_id)
+            
+    if not (run_chaotic or run_realistic or run_gates):
+        run_chaotic = True
+        run_realistic = True
+        run_gates = ALL_GATE_TYPES
+
+    data_chaotic = None
+    data_realistic = None
+
     # 1. Mixed-gate chains (existing chaotic + realistic)
-    data_chaotic  = await run_profiler_suite('chaotic')
-    data_realistic = await run_profiler_suite('realistic')
+    if run_chaotic:
+        data_chaotic  = await run_profiler_suite('chaotic')
+    if run_realistic:
+        data_realistic = await run_profiler_suite('realistic')
 
     # 2. Homogeneous single-gate chaotic chains
     homo_results = []
-    for gate_type in ALL_GATE_TYPES:
+    for gate_type in run_gates:
         homo_results.append(await run_homogeneous_suite(gate_type))
 
     plots_dir = os.path.join(script_dir, 'benchmark_plots')

@@ -54,6 +54,8 @@ cdef class Gate:
             self._sources = [-1, -1]
         self.code = ()
         self.custom_name = ''
+        if id == VARIABLE_ID:
+            self.delay_book = [0, 0, 0]
 
     def __repr__(self):
         return self.codename if self.custom_name == '' else self.custom_name
@@ -97,7 +99,31 @@ cdef class Gate:
     @property 
     def scheduled(self):
         '''Whether this gate is already queued for propagation this tick'''
-        return self.location_ptr[0][self.location].scheduled
+        return bool(self.location_ptr[0][self.location].flags & FLAG_SCHEDULED)
+    
+    @scheduled.setter
+    def scheduled(self, bint val):
+        if val: self.location_ptr[0][self.location].flags |= FLAG_SCHEDULED
+        else: self.location_ptr[0][self.location].flags &= ~FLAG_SCHEDULED
+
+    @property
+    def mark(self):
+        return bool(self.location_ptr[0][self.location].flags & FLAG_MARK)
+        
+    @mark.setter
+    def mark(self, bint val):
+        if val: self.location_ptr[0][self.location].flags |= FLAG_MARK
+        else: self.location_ptr[0][self.location].flags &= ~FLAG_MARK
+
+    @property
+    def update(self):
+        return bool(self.location_ptr[0][self.location].flags & FLAG_UPDATE)
+        
+    @update.setter
+    def update(self, bint val):
+        if val: self.location_ptr[0][self.location].flags |= FLAG_UPDATE
+        else: self.location_ptr[0][self.location].flags &= ~FLAG_UPDATE
+
     @property
     def output(self):
         '''Current output value of this gate'''
@@ -106,7 +132,7 @@ cdef class Gate:
     @property
     def value(self):
         '''Stored toggle value, only meaningful for variables'''
-        return self.location_ptr[0][self.location].value
+        return bool(self.location_ptr[0][self.location].flags & FLAG_VALUE)
     
     @property
     def sources(self):
@@ -124,7 +150,8 @@ cdef class Gate:
         self.location_ptr[0][self.location].output = val
     @value.setter
     def value(self, int val):
-        self.location_ptr[0][self.location].value = val
+        if val: self.location_ptr[0][self.location].flags |= FLAG_VALUE
+        else: self.location_ptr[0][self.location].flags &= ~FLAG_VALUE
     @inputlimit.setter
     def inputlimit(self, int val):
         self.location_ptr[0][self.location].inputlimit = val
@@ -146,7 +173,7 @@ cdef class Gate:
 
         if gate_type >= VARIABLE_ID:
             if gate_type == VARIABLE_ID:
-                info.output = info.value
+                info.output = info.flags& FLAG_VALUE
             else:
                 source_loc = self._sources[0]
                 if source_loc == -1:
@@ -216,7 +243,8 @@ cdef class Gate:
             book[2] += book[0] + book[1]
             book[0] = book[1] =  0
         info.output = UNKNOWN
-        info.scheduled = False
+        info.flags &= ~FLAG_SCHEDULED
+        info.target_time = 0
         cdef Profile* profile = info.hitlist.data()
         cdef Profile* end = profile + info.hitlist.size()
         while profile < end:
@@ -320,7 +348,7 @@ cdef class Gate:
             self.id,
             self.location,
             info.inputlimit,
-            info.value if info.type == VARIABLE_ID else list(self._sources),
+            bool(info.flags & FLAG_VALUE) if info.type == VARIABLE_ID else list(self._sources),
             ]
         return dictionary
 
@@ -333,7 +361,7 @@ cdef class Gate:
             self.id,
             self.location,
             info.inputlimit,
-            info.value if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and gate_infolist[src_loc].mark else -1 for src_loc in self._sources],
+            bool(info.flags & FLAG_VALUE) if info.type == VARIABLE_ID else [src_loc if src_loc != -1 and (gate_infolist[src_loc].flags & FLAG_MARK) else -1 for src_loc in self._sources],
             ]
         return dictionary
 
@@ -342,7 +370,8 @@ cdef class Gate:
         self.custom_name = dictionary[CUSTOM_NAME]
         cdef CPP_Gate* info = &self.location_ptr[0][self.location]
         if info.type == VARIABLE_ID:
-            info.value = dictionary[VALUE]
+            if dictionary[VALUE]: info.flags |= FLAG_VALUE
+            else: info.flags &= ~FLAG_VALUE
         else:
             self.setlimits(dictionary[INPUTLIMIT])
             for index, source in enumerate(dictionary[SOURCES]):
@@ -352,12 +381,12 @@ cdef class Gate:
     cpdef void load_to_cluster(self, list cluster):
         '''Mark this gate as scheduled and add it to the copy cluster'''
         cluster.append(self.location)
-        self.location_ptr[0][self.location].mark = True
+        self.location_ptr[0][self.location].flags |= FLAG_MARK
 
     cpdef bint set_pulse(self, int val, int time_type):
         if self.id != VARIABLE_ID or time_type < 0 or time_type > 2 or val < 0 or val > 65535:
             return False
-        self.location_ptr[0][self.location].book[time_type] = val
+        self.delay_book[time_type] = val
         return True
 
     cpdef bint clock(self):

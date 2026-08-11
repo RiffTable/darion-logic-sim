@@ -30,6 +30,8 @@ cdef class Circuit:
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
     cdef public unsigned int Global_Clock
     cdef unsigned int[12] Global_delay
+    cdef unsigned int[12] FanIn_delay
+    cdef unsigned int[12] FanOut_delay
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
     cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer

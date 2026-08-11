@@ -1,0 +1,42 @@
+
+================================================================================
+ RUN TIME: 2026-08-10 16:03:19
+ MODE    : Reactor
+ VECTORS : 500
+--------------------------------------------------------------------------------
+c17.v [Reactor]        | Nodes:     11 | Avg Trigger:  82.73 M/s | Peak: 170.00 M/s
+c432.v [Reactor]       | Nodes:    196 | Avg Trigger: 176.06 M/s | Peak: 374.50 M/s
+c499.v [Reactor]       | Nodes:    243 | Avg Trigger: 360.70 M/s | Peak: 471.25 M/s
+c880.v [Reactor]       | Nodes:    417 | Avg Trigger: 140.59 M/s | Peak: 231.58 M/s
+c1355.v [Reactor]      | Nodes:    587 | Avg Trigger: 195.38 M/s | Peak: 239.33 M/s
+c1908.v [Reactor]      | Nodes:    898 | Avg Trigger: 163.43 M/s | Peak: 216.00 M/s
+c2670.v [Reactor]      | Nodes:   1388 | Avg Trigger: 131.65 M/s | Peak: 232.94 M/s
+c3540.v [Reactor]      | Nodes:   1706 | Avg Trigger: 132.01 M/s | Peak: 170.00 M/s
+c5315.v [Reactor]      | Nodes:   2461 | Avg Trigger: 125.27 M/s | Peak: 139.88 M/s
+c6288.v [Reactor]      | Nodes:   2448 | Avg Trigger: 167.15 M/s | Peak: 180.59 M/s
+c7552.v [Reactor]      | Nodes:   3672 | Avg Trigger: 124.75 M/s | Peak: 142.63 M/s
+--------------------------------------------------------------------------------
+OVERALL AVG TRIGGER : 163.61 M/s
+OVERALL THROUGHPUT  : 156.98 M/s
+================================================================================
+
+================================================================================
+ RUN TIME: 2026-08-10 16:03:23
+ MODE    : Reactor
+ VECTORS : 500
+--------------------------------------------------------------------------------
+c17.v [Reactor]        | Nodes:     11 | Avg Trigger:  70.62 M/s | Peak: 200.00 M/s
+c432.v [Reactor]       | Nodes:    196 | Avg Trigger: 164.81 M/s | Peak: 296.67 M/s
+c499.v [Reactor]       | Nodes:    243 | Avg Trigger: 352.33 M/s | Peak: 452.50 M/s
+c880.v [Reactor]       | Nodes:    417 | Avg Trigger: 149.40 M/s | Peak: 330.00 M/s
+c1355.v [Reactor]      | Nodes:    587 | Avg Trigger: 199.53 M/s | Peak: 289.26 M/s
+c1908.v [Reactor]      | Nodes:    898 | Avg Trigger: 156.77 M/s | Peak: 291.43 M/s
+c2670.v [Reactor]      | Nodes:   1388 | Avg Trigger: 128.71 M/s | Peak: 153.83 M/s
+c3540.v [Reactor]      | Nodes:   1706 | Avg Trigger: 127.29 M/s | Peak: 169.22 M/s
+c5315.v [Reactor]      | Nodes:   2461 | Avg Trigger: 123.94 M/s | Peak: 146.15 M/s
+c6288.v [Reactor]      | Nodes:   2448 | Avg Trigger: 163.36 M/s | Peak: 175.94 M/s
+c7552.v [Reactor]      | Nodes:   3672 | Avg Trigger: 127.60 M/s | Peak: 164.56 M/s
+--------------------------------------------------------------------------------
+OVERALL AVG TRIGGER : 160.40 M/s
+OVERALL THROUGHPUT  : 154.35 M/s
+================================================================================

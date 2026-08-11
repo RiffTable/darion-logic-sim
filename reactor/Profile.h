@@ -16,18 +16,12 @@ struct Profile {
 };
 
 // ─── Task ─────────────────────────────────────────────────────────────────
-// Scheduled propagation event for FLIPFLOP/clock mode.
-// Used in a min-heap (std::priority_queue with greater<Task>).
-//   gate_loc  – index into gate_infolist / gate_verse
-//   time      – absolute simulation tick at which this fires
-//   location  – topological rank used as tiebreaker (lower fires first)
 struct Task {
     int      gate_loc;
     unsigned int time;
     int      location;
     Task() : gate_loc(-1), time(0), location(0) {}
     Task(int g, unsigned int t, int loc) : gate_loc(g), time(t), location(loc) {}
-    // min-heap: smallest time first; ties broken by topological location
     bool operator>(const Task& other) const {
         if (time != other.time) return time > other.time;
         return location > other.location;
@@ -35,26 +29,31 @@ struct Task {
 };
 // ──────────────────────────────────────────────────────────────────────────
 
+// Bitmask Definitions
+enum GateFlags : uint8_t {
+    FLAG_VALUE     = 1 << 0, // Bit 0 (Dec: 1)
+    FLAG_SCHEDULED = 1 << 1, // Bit 1 (Dec: 2)
+    FLAG_MARK      = 1 << 2, // Bit 2 (Dec: 4)
+    FLAG_UPDATE    = 1 << 3  // Bit 3 (Dec: 8)
+};
+
 struct CPP_Gate {
     int8_t type;
     uint8_t output;
-    uint8_t value;
-    uint8_t scheduled;
-    uint8_t mark;
-    uint8_t update;
     uint8_t inputlimit;
+    uint8_t flags;
     uint8_t book[3];
     std::vector<Profile> hitlist;
-    CPP_Gate() : type(0), output(2), value(0), scheduled(0), mark(0), update(0), inputlimit(2) {
+    unsigned int target_time;
+
+    // FIXED: output and inputlimit now come before flags in the init list
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), hitlist(), target_time(0) {
         book[0] = book[1] = book[2] = 0;
     }
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), inputlimit(lim) {
+
+    // FIXED: output and inputlimit now come before flags in the init list
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), hitlist(), target_time(0) {
         book[0] = book[1] = book[2] = 0;
-        output = 2;
-        value = 0;
-        scheduled = 0;
-        mark = 0;
-        update = 0;
     }
 };
 #endif

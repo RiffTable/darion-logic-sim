@@ -18,13 +18,12 @@ __pycache__
 
 file.json/
 temp.json/
-build/
-*build
-build*/
+
 
 reactor/*.pyd
 reactor/*.so
-scripts/build/
+build/
+*/blazing_build
 dist/
 *dist
 .nuitka*
@@ -32,4 +31,6 @@ blazing_builds/
 reactor/*.html
 reactor/*c
 tests/ISCAS85/obj_dir
-tests/benchmark_plots/*
+tests/*plots/
+tests/*/.png
+tests/*.log
