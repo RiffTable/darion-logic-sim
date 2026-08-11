@@ -43,16 +43,17 @@ struct CPP_Gate {
     uint8_t inputlimit;
     uint8_t flags;
     uint8_t book[3];
-    std::vector<Profile> hitlist;
+    int edge_start;
+    int edge_length;
     unsigned int target_time;
 
     // FIXED: output and inputlimit now come before flags in the init list
-    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), hitlist(), target_time(0) {
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), edge_start(0), edge_length(0), target_time(0) {
         book[0] = book[1] = book[2] = 0;
     }
 
     // FIXED: output and inputlimit now come before flags in the init list
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), hitlist(), target_time(0) {
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), edge_start(0), edge_length(0), target_time(0) {
         book[0] = book[1] = book[2] = 0;
     }
 };

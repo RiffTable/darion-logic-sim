@@ -12,18 +12,25 @@ from Store cimport decode
 from libc.stdint cimport uint8_t
 from libcpp.unordered_map cimport unordered_map
 
-cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* gate_infolist, int target, int pin_index):
-    '''Remove a specific entry from a hitlist by target gate and pin index'''
-    cdef Profile* profile = hitlist.data()
-    cdef Profile* end = profile + hitlist.size()
-    while profile < end:
-        if profile.target == target and profile.index == pin_index:
+cdef inline void pop(vector[Profile]* global_hitlist, CPP_Gate* gate_infolist, int origin, int target, int pin_index, int total_gates):
+    '''Remove a specific entry from the global hitlist and shift subsequent bounds'''
+    cdef CPP_Gate* info = &gate_infolist[origin]
+    cdef int start = info.edge_start
+    cdef int end_idx = start + info.edge_length
+    cdef int i,j
+    
+    for i in range(start, end_idx):
+        if global_hitlist[0][i].target == target and global_hitlist[0][i].index == pin_index:
             if gate_infolist[target].type < VARIABLE_ID:
-                gate_infolist[target].book[profile.output] -= 1
-            profile[0] = (end-1)[0] # swap and pop
-            hitlist.pop_back()
+                gate_infolist[target].book[global_hitlist[0][i].output] -= 1
+            
+            global_hitlist[0].erase(global_hitlist[0].begin() + i)
+            info.edge_length -= 1
+            
+            for j in range(total_gates):
+                if j != origin and gate_infolist[j].edge_start > start:
+                    gate_infolist[j].edge_start -= 1
             break
-        profile += 1
 
 cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse):
     '''Sever one outgoing connection and zero out the target's source slot'''
@@ -78,10 +85,12 @@ cdef class Gate:
         '''All gates this gate currently drives'''
         cdef list targets = []
         cdef CPP_Gate* base = self.location_ptr[0].data()
-        cdef CPP_Gate* info=base+self.location
-        cdef Profile* profile = info.hitlist.data()
-        cdef Profile* end = profile + info.hitlist.size()
+        cdef CPP_Gate* info = base + self.location
+        
+        cdef Profile* profile = self.global_profile_ptr[0].data() + info.edge_start
+        cdef Profile* end = profile + info.edge_length
         cdef list gate_verse = self.gate_verse
+        
         while profile < end:
             targets.append(<Gate>(PyList_GET_ITEM(gate_verse, profile.target)))
             profile += 1
@@ -207,30 +216,49 @@ cdef class Gate:
 
     cdef void connect(self, int source, int index):
         '''Wire a source gate into this gate's input slot at index'''
-        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* gate_infolist = self.location_ptr[0].data()
         cdef CPP_Gate* self_info = &gate_infolist[self.location]
+        cdef CPP_Gate* src_info
+        cdef int insert_pos, i, size
+        cdef Profile new_prof
+        
         if self_info.type == VARIABLE_ID or self._sources[index] != -1:
             return
-        cdef CPP_Gate* src_info = &gate_infolist[source]
+            
+        src_info = &gate_infolist[source]
         
         if src_info.output == UNKNOWN:
             (<Gate>PyList_GET_ITEM(self.gate_verse, source)).process()
             
-        src_info.hitlist.emplace_back(self.location, index, src_info.output)
+        insert_pos = src_info.edge_start + src_info.edge_length
+        new_prof = Profile(self.location, index, src_info.output)
+        self.global_profile_ptr[0].insert(self.global_profile_ptr[0].begin() + insert_pos, new_prof)
+        src_info.edge_length += 1
+        
+        size = self.location_ptr[0].size()
+        for i in range(size):
+            if i != source and gate_infolist[i].edge_start >= insert_pos:
+                gate_infolist[i].edge_start += 1
+                
         self._sources[index] = source
-        if self.id<VARIABLE_ID:
+        if self.id < VARIABLE_ID:
             self_info.book[src_info.output] += 1
         self.process()
 
     cdef void disconnect(self, int index):
         '''Remove whatever is wired into input slot at index and clear the output'''
-        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* gate_infolist = self.location_ptr[0].data()
         cdef CPP_Gate* self_info = &gate_infolist[self.location]
+        cdef int src_loc
+        cdef CPP_Gate* src_info
+        
         if self_info.type == VARIABLE_ID or self._sources[index] == -1:
             return
-        cdef int src_loc = self._sources[index]
-        cdef CPP_Gate* src_info = &gate_infolist[src_loc]
-        pop(src_info.hitlist, gate_infolist, self.location, index)
+            
+        src_loc = self._sources[index]
+        src_info = &gate_infolist[src_loc]
+        cdef int total_gates = self.location_ptr[0].size()
+        pop(self.global_profile_ptr, gate_infolist, src_loc, self.location, index, total_gates)
         self._sources[index] = -1
         self_info.output = UNKNOWN
 
@@ -245,8 +273,8 @@ cdef class Gate:
         info.output = UNKNOWN
         info.flags &= ~FLAG_SCHEDULED
         info.target_time = 0
-        cdef Profile* profile = info.hitlist.data()
-        cdef Profile* end = profile + info.hitlist.size()
+        cdef Profile* profile = self.global_profile_ptr[0].data() + info.edge_start
+        cdef Profile* end = profile + info.edge_length
         while profile < end:
             profile.output = UNKNOWN
             profile += 1
@@ -262,21 +290,22 @@ cdef class Gate:
         cdef uint8_t* book
         cdef Py_ssize_t n
         cdef Profile* hitlist
-        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* gate_infolist = self.location_ptr[0].data()
         cdef CPP_Gate* info = &gate_infolist[self.location]
-        n = info.hitlist.size()
-        hitlist = info.hitlist.data()
+        n = info.edge_length
+        hitlist = self.global_profile_ptr[0].data() + info.edge_start
         for i in range(n):
             hide(hitlist[i], gate_infolist, self.gate_verse)
 
         sources = self._sources
+        cdef int total_gates = self.location_ptr[0].size()
         if info.type != VARIABLE_ID:
             n = len(sources)
             for i in range(n):
                 source_loc = sources[i]
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    pop(src_info.hitlist,gate_infolist, self.location, i)
+                    pop(self.global_profile_ptr, gate_infolist, source_loc, self.location, i, total_gates)
 
         # 3. Zero out own state
         info.output = UNKNOWN
@@ -291,18 +320,34 @@ cdef class Gate:
         cdef Py_ssize_t n = len(sources)
         cdef int source_loc
         cdef CPP_Gate* src_info
-        cdef CPP_Gate* gate_infolist=self.location_ptr[0].data()
+        cdef CPP_Gate* gate_infolist = self.location_ptr[0].data()
         cdef CPP_Gate* info = &gate_infolist[self.location]
+        
+        cdef int insert_pos
+        cdef int j
+        cdef int size
+        cdef Profile new_prof
+        
         if info.type != VARIABLE_ID:
             for i in range(n):
                 source_loc = sources[i]
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    src_info.hitlist.emplace_back(self.location, i, src_info.output)
+                    
+                    insert_pos = src_info.edge_start + src_info.edge_length
+                    new_prof = Profile(self.location, i, src_info.output)
+                    self.global_profile_ptr[0].insert(self.global_profile_ptr[0].begin() + insert_pos, new_prof)
+                    src_info.edge_length += 1
+                    
+                    size = self.location_ptr[0].size()
+                    for j in range(size):
+                        if j != source_loc and gate_infolist[j].edge_start >= insert_pos:
+                            gate_infolist[j].edge_start += 1
+                            
                     info.book[src_info.output] += 1
 
-        n = info.hitlist.size()
-        cdef Profile* hitlist = info.hitlist.data()
+        n = info.edge_length
+        cdef Profile* hitlist = self.global_profile_ptr[0].data() + info.edge_start
         for i in range(n):
             reveal(hitlist[i], self, self.gate_verse)
 

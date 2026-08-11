@@ -1,4 +1,4 @@
-from Gates cimport Gate,CPP_Gate,vector
+from Gates cimport Gate,CPP_Gate,vector,Profile
 from libcpp.vector cimport vector
 from IC cimport IC
 from Const cimport *
@@ -17,7 +17,7 @@ cdef tuple namelist=(
     'IC',
 )
 
-cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
+cdef object get(int choice, vector[CPP_Gate]& gate_infolist, vector[Profile]& global_hitlist, list gate_verse):
     '''Get a gate of a given type and add it to the gate_infolist and gate_verse
     for ICs, it does not add to gate_infolist or gate_verse, but instead just returns an IC object'''
     cdef Gate gate
@@ -34,6 +34,7 @@ cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
         gate_infolist.emplace_back(CPP_Gate(choice, lim))
         gate.location = gate_infolist.size()-1
         gate.location_ptr = &gate_infolist
+        gate.global_profile_ptr = &global_hitlist
         gate.gate_verse = gate_verse
         gate_verse.append(gate)
         return gate

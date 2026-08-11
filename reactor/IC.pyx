@@ -35,7 +35,7 @@ cdef class IC:
 
     cpdef object getcomponent(self, int choice):
         '''Get a gate from the store and register it under the right pin group'''
-        cdef object gt = get(choice, self.gate_infolist_ptr[0],self.gate_verse)
+        cdef object gt = get(choice, self.gate_infolist_ptr[0], self.global_profile_ptr[0], self.gate_verse)
         if gt:
             if gt.id == INPUT_PIN_ID:
                 rank = len(self.inputs)
@@ -159,8 +159,8 @@ cdef class IC:
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
         for pin_out in self.outputs:
             pin_out_info = &gate_infolist[pin_out.location]
-            hitlist = pin_out_info.hitlist.data()
-            sz = pin_out_info.hitlist.size()
+            hitlist = self.global_profile_ptr[0].data() + pin_out_info.edge_start
+            sz = pin_out_info.edge_length
             for i in range(sz):
                 hide(hitlist[i],gate_infolist, self.gate_verse)
 
@@ -169,7 +169,7 @@ cdef class IC:
             for index, source_loc in enumerate(<list>pin_in._sources):
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    pop(src_info.hitlist,gate_infolist, pin_in.location, index)
+                    pop(self.global_profile_ptr, gate_infolist, source_loc, pin_in.location, index, self.gate_infolist_ptr[0].size())
 
     cpdef void reveal(self):
         '''Plug the IC back into the live graph — re-registers inputs and reconnects output targets'''
@@ -180,22 +180,33 @@ cdef class IC:
         cdef Profile* hitlist
         cdef size_t i, sz
         cdef CPP_Gate* gate_infolist = self.gate_infolist_ptr[0].data()
-        # Re-register in external source hitlists
-
+        
         cdef int source_loc
+        cdef int insert_pos
+        cdef Profile new_prof
+        cdef int total_gates = self.gate_infolist_ptr[0].size()
+        cdef int _idx
+        
+        # Re-register in external source hitlists
         for pin_in in self.inputs:
             pin_in_info = &gate_infolist[pin_in.location]
             source_loc = pin_in._sources[0]
             if source_loc != -1:
                 src_info = &gate_infolist[source_loc]
-                src_info.hitlist.emplace_back(pin_in.location, 0, src_info.output)
+                insert_pos = src_info.edge_start + src_info.edge_length
+                new_prof = Profile(pin_in.location, 0, src_info.output)
+                self.global_profile_ptr[0].insert(self.global_profile_ptr[0].begin() + insert_pos, new_prof)
+                src_info.edge_length += 1
+                for _idx in range(total_gates):
+                    if _idx != source_loc and gate_infolist[_idx].edge_start >= insert_pos:
+                        gate_infolist[_idx].edge_start += 1
             pin_in.process()
 
         # Reconnect output targets via hitlist
         for pin_out in self.outputs:
             pin_out_info = &gate_infolist[pin_out.location]
-            hitlist = pin_out_info.hitlist.data()
-            sz = pin_out_info.hitlist.size()
+            hitlist = self.global_profile_ptr[0].data() + pin_out_info.edge_start
+            sz = pin_out_info.edge_length
             for i in range(sz):
                 reveal(hitlist[i], pin_out, self.gate_verse)
 
@@ -234,8 +245,8 @@ cdef class IC:
             for pin in self.inputs:
                 targets = []
                 pin_info = &gate_infolist[pin.location]
-                p = pin_info.hitlist.data()
-                pend = p + pin_info.hitlist.size()
+                p = self.global_profile_ptr[0].data() + pin_info.edge_start
+                pend = p + pin_info.edge_length
                 while p < pend:
                     targets.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
                     p += 1
@@ -251,8 +262,8 @@ cdef class IC:
                     ch_str = f"val:{pin.sources}"
                 tgt = []
                 pin_info = &gate_infolist[pin.location]
-                p = pin_info.hitlist.data()
-                pend = p + pin_info.hitlist.size()
+                p = self.global_profile_ptr[0].data() + pin_info.edge_start
+                pend = p + pin_info.edge_length
                 while p < pend:
                     tgt.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
                     p += 1

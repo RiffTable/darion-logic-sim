@@ -37,6 +37,7 @@ cdef class Circuit:
     cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
     cdef int queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist
+    cdef vector[Profile] global_hitlist
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef list get_components(self)

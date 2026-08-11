@@ -9,6 +9,7 @@ cdef extern from "<vector>" namespace "std" nogil:
             iterator operator++()
             bint operator!=(iterator)
             bint operator==(iterator)
+            iterator operator+(int)
             
         vector()
         
@@ -24,6 +25,8 @@ cdef extern from "<vector>" namespace "std" nogil:
         void clear()
         void reserve(int)
         void resize(int)
+        iterator erase(iterator)
+        iterator insert(iterator, T&)
         
         bint empty()
         int size()
@@ -55,7 +58,8 @@ cdef extern from "Profile.h":
         uint8_t flags
         uint8_t book[3]
         unsigned int target_time
-        vector[Profile] hitlist
+        int edge_start
+        int edge_length
         CPP_Gate()
         CPP_Gate(uint8_t t, uint8_t lim)
 
@@ -67,13 +71,14 @@ cdef enum GateFlags:
 
 cdef void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse)
 cdef void reveal(Profile& profile, Gate source, list gate_verse)
-cdef void pop(vector[Profile]& hitlist, CPP_Gate* gate_infolist, int target, int pin_index)
+cdef void pop(vector[Profile]* global_hitlist, CPP_Gate* gate_infolist, int origin, int target, int pin_index, int total_gates)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---
     cdef public int8_t id
     cdef public int location
     cdef vector[CPP_Gate]* location_ptr
+    cdef vector[Profile]* global_profile_ptr
     # --- 8-BYTE ALIGNED (COLD PYTHON OBJECTS) ---
     cdef public list _sources
     cdef public list gate_verse
