@@ -33,4 +33,4 @@ reactor/*c
 tests/ISCAS85/obj_dir
 tests/*plots/
 tests/*/.png
-tests/*.log
+tests/*.log/
