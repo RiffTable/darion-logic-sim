@@ -44,6 +44,8 @@ parser.add_argument('--nor', dest='gate_nor', action='store_true', help='Run hom
 parser.add_argument('--xor', dest='gate_xor', action='store_true', help='Run homogeneous XOR test')
 parser.add_argument('--xnor', dest='gate_xnor', action='store_true', help='Run homogeneous XNOR test')
 parser.add_argument('--not', dest='gate_not', action='store_true', help='Run homogeneous NOT test')
+parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
+parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
 args, unknown = parser.parse_known_args()
 
 base_dir = os.getcwd()
@@ -650,9 +652,11 @@ async def main_profile():
     for gate_type in run_gates:
         homo_results.append(await run_homogeneous_suite(gate_type))
 
-    plots_dir = os.path.join(script_dir, 'benchmark_plots')
-    generate_cache_plot(data_chaotic, data_realistic, cpu_name, plots_dir)
-    generate_homogeneous_plots(homo_results, cpu_name, plots_dir)
+    if getattr(args, 'plot', False):
+        plots_dir = os.path.join(script_dir, 'test_results', 'cache_test', 'plots')
+        os.makedirs(plots_dir, exist_ok=True)
+        generate_cache_plot(data_chaotic, data_realistic, cpu_name, plots_dir)
+        generate_homogeneous_plots(homo_results, cpu_name, plots_dir)
 
     print_bottleneck_proof(data_chaotic, homo_results)
 
@@ -669,14 +673,24 @@ class _Tee:
 
 if __name__ == "__main__":
     from datetime import datetime
-    _LOG = "comparison_test_results.txt"
-    _backend = 'Reactor' if use_reactor else 'Engine'
-    with open(_LOG, "a", encoding="utf-8") as _lf:
-        _orig = sys.stdout
+    
+    _orig = sys.stdout
+    if getattr(args, 'dump', False):
+        dump_dir = os.path.join(script_dir, 'test_results', 'cache_test', 'datas')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _LOG = os.path.join(dump_dir, f"cache_test_{timestamp}.txt")
+        _lf = open(_LOG, "a", encoding="utf-8")
         sys.stdout = _Tee(_orig, _lf)
-        try:
-            asyncio.run(main_profile())
-        except KeyboardInterrupt:
-            print("\n[!] Profiling Aborted by User.")
-        finally:
-            sys.stdout = _orig
+    else:
+        _lf = None
+
+    _backend = 'Reactor' if use_reactor else 'Engine'
+    try:
+        asyncio.run(main_profile())
+    except KeyboardInterrupt:
+        print("\n[!] Profiling Aborted by User.")
+    finally:
+        sys.stdout = _orig
+        if _lf:
+            _lf.close()

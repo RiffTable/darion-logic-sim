@@ -19,6 +19,8 @@ parser.add_argument('--reactor', action='store_true', help='Run Cython Reactor e
 parser.add_argument('--optimize', action='store_true', help='Enable Data-Oriented topological sorting')
 parser.add_argument('--vectors', type=int, default=None, help='Override default vector count')
 parser.add_argument('--dump_json', type=str, help=argparse.SUPPRESS) # Internal use for IPC
+parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
+parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
 
 args, unknown = parser.parse_known_args()
 
@@ -57,8 +59,11 @@ if not run_dual:
     BackendConst = Const
 
 def generate_trigger_plot(circuit_name, engine_data, reactor_data, output_dir):
-    """Generates side-by-side spectrum scatter plots with stats HUD."""
-    if not engine_data and not reactor_data:
+    """Generates trigger volatility plot."""
+    if output_dir is None:
+        return
+    num_plots = sum(1 for d in [engine_data, reactor_data] if d)
+    if num_plots == 0:
         return
         
     plt.style.use('dark_background')
@@ -130,7 +135,7 @@ def generate_trigger_plot(circuit_name, engine_data, reactor_data, output_dir):
 
 def generate_geometry_vs_speed_plot(geom_speed_data, output_dir):
     """Generates scatter plot graphing Mean Jump Distance (RAM indices) vs Mean Avg Evaluation Speed (M/s)."""
-    if not geom_speed_data:
+    if output_dir is None or not geom_speed_data:
         return None
         
     plt.style.use('dark_background')
@@ -392,7 +397,10 @@ if __name__ == "__main__":
         sys.exit(1)
         
     v_files.sort(key=os.path.getsize)
-    plots_dir = os.path.join(script_dir, 'benchmark_plots')
+    if getattr(args, 'plot', False):
+        plots_dir = os.path.join(script_dir, 'test_results', 'iscas_test', 'plots')
+    else:
+        plots_dir = None
 
     # ==========================================
     # MASTER CONTROLLER: DUAL MODE (PER FILE)
@@ -403,7 +411,8 @@ if __name__ == "__main__":
         print(f" [MASTER] Engine Vectors: {VECTORS_ENGINE:,} | Reactor Vectors: {VECTORS_REACTOR:,}")
         print("="*60)
         
-        os.makedirs(plots_dir, exist_ok=True)
+        if plots_dir:
+            os.makedirs(plots_dir, exist_ok=True)
         engine_json = os.path.join(script_dir, "temp_engine_data.json")
         reactor_json = os.path.join(script_dir, "temp_reactor_data.json")
         final_results = []
@@ -616,7 +625,15 @@ if __name__ == "__main__":
         total_evals = 0
         total_time = 0
         
-        log_file_path = os.path.join(script_dir, 'benchmark_runs.log')
+        if getattr(args, 'dump', False):
+            import datetime
+            dump_dir = os.path.join(script_dir, 'test_results', 'iscas_test', 'datas')
+            os.makedirs(dump_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file_path = os.path.join(dump_dir, f"iscas_test_{timestamp}.txt")
+        else:
+            log_file_path = os.path.join(script_dir, 'benchmark_runs.log')
+        
         with open(log_file_path, 'a', encoding='utf-8') as f:
             f.write(f"\n{'='*80}\n")
             import datetime

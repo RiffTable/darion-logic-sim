@@ -623,6 +623,8 @@ def main():
     parser.add_argument('--warmup',  type=int, default=5000,  help="Untimed warmup vectors (same for all engines)")
     parser.add_argument('--optimize', action='store_true', help="Enable topological optimization in Engine/Reactor")
     parser.add_argument('--output',  type=str, default="iscas_results", help="Base path for output files")
+    parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
+    parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
 
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--mode',    type=str, choices=['engine', 'reactor'], help=argparse.SUPPRESS)
@@ -635,6 +637,13 @@ def main():
 
     if not args.target:
         print("[-] Error: No target path specified."); sys.exit(1)
+
+    if getattr(args, 'dump', False):
+        import datetime
+        dump_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_results', 'unified_iscas_benchmark', 'datas')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.output = os.path.join(dump_dir, f"unified_iscas_benchmark_{timestamp}")
 
     harness_dir = os.path.abspath(args.harness)
     harness_cp  = os.path.abspath(args.jar) + os.pathsep + harness_dir
@@ -1039,5 +1048,36 @@ def _save_results(all_results: list, args):
     print(f"[+] Human-readable results saved -> {txt_path}")
 
 
+class _Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 if __name__ == '__main__':
-    main()
+    _orig = sys.stdout
+    _lf = None
+    import sys
+    
+    # We delay argument parsing to main, but we can do a quick check for --dump to wrap sys.stdout
+    if '--dump' in sys.argv:
+        import os
+        import datetime
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dump_dir = os.path.join(script_dir, 'test_results', 'unified_iscas_benchmark', 'datas')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        _LOG = os.path.join(dump_dir, f"unified_iscas_benchmark_stdout_{timestamp}.txt")
+        _lf = open(_LOG, "a", encoding="utf-8")
+        sys.stdout = _Tee(_orig, _lf)
+
+    try:
+        main()
+    finally:
+        sys.stdout = _orig
+        if _lf:
+            _lf.close()

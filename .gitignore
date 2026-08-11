@@ -30,6 +30,9 @@ dist/
 blazing_builds/
 reactor/*.html
 reactor/*c
+
+
+!tests/test_results
 tests/ISCAS85/obj_dir
 tests/*plots/
 tests/*/.png

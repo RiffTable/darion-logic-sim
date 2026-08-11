@@ -1074,7 +1074,7 @@ class AggressiveTestSuite:
                 c2.connect(g, v1, 0)
                 c2.connect(g, v2, 1)
         c2.simulate(Const.SIMULATE)
-        tt = c2.truthTable(None,None)
+        tt = c2.truthTable()
         self.assert_test(tt is not None and len(tt) > 0, "truthTable with all gate types")
 
         # writetojson / readfromjson

@@ -75,10 +75,11 @@ def analyze_file(filepath, output_dir):
     ax.grid(True, alpha=0.15)
     ax.legend()
     
-    os.makedirs(output_dir, exist_ok=True)
-    save_path = os.path.join(output_dir, f"{filename}_geometry.png")
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        save_path = os.path.join(output_dir, f"{filename}_geometry.png")
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=150)
     plt.close()
 
     return {
@@ -111,6 +112,8 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Circuit Geometry Analyzer')
     parser.add_argument('target', nargs='?', type=str, help='Path to a .v file or directory containing .v files')
+    parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
+    parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
     args = parser.parse_args()
 
     target = args.target
@@ -136,15 +139,47 @@ if __name__ == "__main__":
         print(f"Invalid target: '{target}'")
         sys.exit(1)
 
-    plots_dir = os.path.join(current_dir, 'geometry_plots')
+    if getattr(args, 'plot', False):
+        plots_dir = os.path.join(current_dir, 'test_results', 'geometry', 'plots')
+    else:
+        plots_dir = None
+
     results = []
     
-    for filepath in v_files:
-        res = analyze_file(filepath, plots_dir)
-        if res:
-            results.append(res)
-            
-    if len(results) > 0:
-        print_batch_summary(results)
-    
-    print(f"Saved plots to: {plots_dir}")
+    class _Tee:
+        def __init__(self, *streams):
+            self.streams = streams
+        def write(self, data):
+            for s in self.streams:
+                s.write(data)
+        def flush(self):
+            for s in self.streams:
+                s.flush()
+
+    _orig = sys.stdout
+    if getattr(args, 'dump', False):
+        import datetime
+        dump_dir = os.path.join(current_dir, 'test_results', 'geometry', 'datas')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        _LOG = os.path.join(dump_dir, f"geometry_{timestamp}.txt")
+        _lf = open(_LOG, "a", encoding="utf-8")
+        sys.stdout = _Tee(_orig, _lf)
+    else:
+        _lf = None
+
+    try:
+        for filepath in v_files:
+            res = analyze_file(filepath, plots_dir)
+            if res:
+                results.append(res)
+                
+        if len(results) > 0:
+            print_batch_summary(results)
+        
+        if plots_dir:
+            print(f"Saved plots to: {plots_dir}")
+    finally:
+        sys.stdout = _orig
+        if _lf:
+            _lf.close()

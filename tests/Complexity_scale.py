@@ -28,6 +28,8 @@ else:
 
 parser = argparse.ArgumentParser(description='Topology Complexity Profiler')
 parser.add_argument('--engine', action='store_true', help='Use Python engine backend (default: Reactor/Cython)')
+parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
+parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
 args, _ = parser.parse_known_args()
 
 if args.engine:
@@ -978,20 +980,48 @@ async def run_profiler():
     print("-" * (col_t + 2 + len(sub_hdr) + 4 * len(SIZE_LABELS)))
     print("\n[+] All topologies profiled across all size tiers. Generating chart...\n")
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    out_path   = os.path.join(script_dir, "complexity_scale_chart.png")
+    if getattr(args, 'plot', False):
+        plots_dir = os.path.join(script_dir, 'test_results', 'Complexity_scale', 'plots')
+        os.makedirs(plots_dir, exist_ok=True)
+        out_path = os.path.join(plots_dir, "complexity_scale_chart.png")
+        _make_chart(
+            topology_labels=topology_labels,
+            all_unopt=all_unopt,
+            all_opt=all_opt,
+            backend=backend_name,
+            out_path=out_path,
+        )
 
-    _make_chart(
-        topology_labels=topology_labels,
-        all_unopt=all_unopt,
-        all_opt=all_opt,
-        backend=backend_name,
-        out_path=out_path,
-    )
 
+class _Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
 
 if __name__ == "__main__":
+    from datetime import datetime
+    
+    _orig = sys.stdout
+    if getattr(args, 'dump', False):
+        dump_dir = os.path.join(script_dir, 'test_results', 'Complexity_scale', 'datas')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _LOG = os.path.join(dump_dir, f"Complexity_scale_{timestamp}.txt")
+        _lf = open(_LOG, "a", encoding="utf-8")
+        sys.stdout = _Tee(_orig, _lf)
+    else:
+        _lf = None
+
     try:
         asyncio.run(run_profiler())
     except KeyboardInterrupt:
         print("\n[!] Profiling aborted by user.")
+    finally:
+        sys.stdout = _orig
+        if _lf:
+            _lf.close()
