@@ -32,6 +32,7 @@ cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse
         target_info.book[profile.output] -= 1
     cdef Gate target_gate = <Gate>gate_verse[profile.target]
     target_gate._sources[profile.index] = -1
+    profile.output = UNKNOWN
 
 cdef inline void reveal(Profile& profile, Gate source, list gate_verse):
     '''Restore one outgoing connection and re-register the source in the target's book'''
@@ -90,7 +91,8 @@ cdef class Gate:
     @property
     def book(self):
         '''Input tally: counts of LOW, HIGH, UNKNOWN sources'''
-        return self.location_ptr[0][self.location].book
+        cdef CPP_Gate* info = &self.location_ptr[0][self.location]
+        return [info.book[0], info.book[1], info.book[2]]
 
     @property
     def inputlimit(self):

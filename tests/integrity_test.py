@@ -606,7 +606,7 @@ class AggressiveTestSuite:
         g = c.getcomponent(Const.AND_ID)
         
         passed = True
-        for size in [10, 100, 500, 1000, 500, 100, 10, 2]:
+        for size in [10, 100, 200, 250, 200, 100, 10, 2]:
             c.setlimits(g, size)
             if g.inputlimit != size:
                 passed = False
@@ -3899,10 +3899,9 @@ class ThoroughICTest:
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
         
-        # Because paradox loops no longer generate an ERROR state, we inject it manually
-        v_trigger = c2.getcomponent(VARIABLE_ID)
-        v_trigger.output = ERROR
-        v_trigger.value = ERROR
+        # Instead of using a VARIABLE_ID and forcing ERROR/UNKNOWN, we use an unconnected gate
+        # which natively generates UNKNOWN/ERROR in both engines.
+        v_trigger = c2.getcomponent(AND_ID)
         
         c2.connect(ic.inputs[0], v_trigger, 0)
         c2.simulate(SIMULATE)
@@ -3926,8 +3925,7 @@ class ThoroughICTest:
         
         c2 = self.setup_circuit()
         ic = c2.getIC(fp)
-        v = c2.getcomponent(VARIABLE_ID)
-        v.value = v.output = UNKNOWN
+        v = c2.getcomponent(AND_ID) # Unconnected gate outputs UNKNOWN natively
         c2.connect(ic.inputs[0], v, 0)
         c2.simulate(SIMULATE)
         

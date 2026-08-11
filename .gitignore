@@ -32,8 +32,7 @@ reactor/*.html
 reactor/*c
 
 
-!tests/test_results
-tests/ISCAS85/obj_dir
+!tests/test_results/*/*/*
+
 tests/*plots/
 tests/*/.png
-tests/*.log/

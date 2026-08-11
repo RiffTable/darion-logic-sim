@@ -201,6 +201,7 @@ class Circuit:
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
         for gate in gatelist:
+            gate.hide()
             self.delobj(gate)
 
         for gate in gatelist:
@@ -217,8 +218,8 @@ class Circuit:
             if gate.id == IC_ID:
                 gate.reveal()
             else:
-                gate.reveal()
                 self.renewobj(gate)
+                gate.reveal()
 
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
@@ -329,7 +330,7 @@ class Circuit:
         return "\n".join(final_table_lines)
 
     def diagnose(self) -> str:
-        """Return a detailed report of the circuit."""
+        """Print and return a detailed report of the circuit."""
         out = []
         out.append("=" * 90)
         out.append(" " * 35 + "CIRCUIT DIAGNOSIS")
@@ -401,7 +402,9 @@ class Circuit:
                         out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         out.append("\n" + "=" * 90)
-        return "\n".join(out)
+        result = "\n".join(out)
+        print(result)
+        return result
 
 
 

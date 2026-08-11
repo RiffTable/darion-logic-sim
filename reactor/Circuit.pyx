@@ -337,8 +337,9 @@ cdef class Circuit:
                 view[offset+var_size+k] = gate_infolist[gate[k]].output
         return matrix
         
-    cpdef str truthTable(self):
-        variables = self.get_variables()
+    cpdef str truthTable(self, list variables=None, list outputs=None):
+        if variables is None:
+            variables = self.get_variables()
         if len(variables) == 0 or len(variables) > 16 or MODE == DESIGN:
             return ""
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
@@ -353,10 +354,13 @@ cdef class Circuit:
         cdef IC ic
         cdef object item
         
-        # Filter gatelist
-        for item in self.objlist[OUTPUT_PIN_ID]:
-            if item is not None:
-                gate_list.append(item)
+        if outputs is None:
+            # Filter gatelist
+            for item in self.objlist[OUTPUT_PIN_ID]:
+                if item is not None:
+                    gate_list.append(item)
+        else:
+            gate_list = outputs
 
 
         n = len(variables)
@@ -502,7 +506,9 @@ cdef class Circuit:
                         out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}")
 
         out.append("\n" + "=" * 90)
-        return "\n".join(out)
+        cdef str result = "\n".join(out)
+        print(result)
+        return result
 
     cpdef void writetojson(self, str location):
         '''Write the circuit's entire info to a json file'''
