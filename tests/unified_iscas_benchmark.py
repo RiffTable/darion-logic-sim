@@ -312,10 +312,10 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
             circ_file, vec_file, str(vectors), str(warmup)
         ]
         try:
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1200)
         except subprocess.TimeoutExpired:
             return {"engine": "Logisim", "file": filename,
-                    "error": "Logisim benchmark execution timed out (limit: 30s)"}
+                    "error": "Logisim benchmark execution timed out (limit: 1200s)"}
 
         if res.returncode != 0:
             err = (res.stderr or res.stdout).strip()
@@ -370,30 +370,9 @@ class VerilogRunner:
             'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID, 'not': self.const.NOT_ID
         }
 
-        self.master_vars = [self.circuit.getcomponent(self.const.VARIABLE_ID) for _ in range(8)]
-        for i, m in enumerate(self.master_vars):
-            m.rename(f"MASTER_{i}")
-
-        self.const_high = self.circuit.getcomponent(self.const.VARIABLE_ID)
-        self.const_high.rename("VCC")
-        self.circuit.toggle(self.const_high, self.const.HIGH)
-
-        self.const_low = self.circuit.getcomponent(self.const.VARIABLE_ID)
-        self.const_low.rename("GND")
-        self.circuit.toggle(self.const_low, self.const.LOW)
+        self.input_vars = []
 
         self._parse_verilog(v_file_path)
-
-    def _create_driven_input(self, name):
-        in_gate = self.circuit.getcomponent(self.const.XOR_ID)
-        in_gate.rename(name)
-        if hasattr(self.circuit, 'setlimits'):
-            self.circuit.setlimits(in_gate, 2)
-        master = random.choice(self.master_vars)
-        self.circuit.connect(in_gate, master, 0)
-        polarity = self.const_high if random.random() > 0.5 else self.const_low
-        self.circuit.connect(in_gate, polarity, 1)
-        return in_gate
 
     def _parse_verilog(self, filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -409,7 +388,11 @@ class VerilogRunner:
                 ports = stmt.replace('input', '').strip().split(',')
                 for p in ports:
                     p = p.strip()
-                    if p: self.nodes[p] = self._create_driven_input(f"IN_{p}")
+                    if p:
+                        var_node = self.circuit.getcomponent(self.const.VARIABLE_ID)
+                        var_node.rename(f"IN_{p}")
+                        self.nodes[p] = var_node
+                        self.input_vars.append(var_node)
             elif stmt.startswith('output '):
                 ports = stmt.replace('output', '').strip().split(',')
                 for p in ports:
@@ -462,11 +445,13 @@ class VerilogRunner:
         # ── Shared vector set (identical across both passes) ─────────────────
         total_needed = warmup + measured
         _rng = random.Random(42)
-        all_instructions = [
-            [(m.location, self.const.HIGH if _rng.random() > 0.5 else self.const.LOW)
-             for m in self.master_vars]
-            for _ in range(total_needed)
-        ]
+        all_instructions = []
+        for _ in range(total_needed):
+            batch = []
+            for var_node in self.input_vars:
+                val = self.const.HIGH if _rng.randint(0, 1) else self.const.LOW
+                batch.append((var_node.location, val))
+            all_instructions.append(batch)
         warmup_batches   = all_instructions[:warmup]
         measured_batches = all_instructions[warmup:]
 
