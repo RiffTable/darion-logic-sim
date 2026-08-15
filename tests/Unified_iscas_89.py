@@ -3,15 +3,16 @@ iscas89_sequential_verifier.py
 ==============================
 Sequential State Verification Testbench for ISCAS89 Circuits.
 
-Compares simulation states across 3 execution engines:
+Compares simulation states across 4 execution engines:
   1. Icarus Verilog (base Model via Verilog File I/O)
   2. Pure Python Engine
   3. Cython Reactor - Propagate (SIMULATE mode / BFS Wavefront)
+  4. Cython Reactor - Sweep (COMPILE mode / Topological Forward-Pass)
 
 Features:
   - 50-cycle warmup sequence (inputs set to 0, clock toggling) to flush DFF states.
-  - Automatically loads and maps DFF.json as an IC for both Python Engine and Reactor.
-  - Injects fallback Icarus DFF modules if missing in the source Verilog.
+  - Automatically loads and maps DFF.json as an IC.
+  - Awaits `task_manager` to safely resolve sequential feedback loops in Sweep mode.
 """
 
 import os
@@ -21,6 +22,7 @@ import random
 import argparse
 import subprocess
 import shutil
+import asyncio  # CRITICAL: Required for task_manager resolution
 
 try:
     import orjson
@@ -64,7 +66,6 @@ def parse_verilog_ports(v_file: str):
     module_name = "circuit"
     module_body = content
     
-    # Find the main module (ignore dff)
     for m in re.finditer(r'\bmodule\s+([a-zA-Z0-9_]+)(.*?)\bendmodule\b', content, flags=re.DOTALL):
         if m.group(1).lower() != 'dff':
             module_name = m.group(1)
@@ -92,13 +93,11 @@ def parse_verilog_ports(v_file: str):
 # ===========================================================================
 
 def generate_icarus_tb(v_file: str, tb_file: str, vector_file: str, output_file: str, vectors_count: int):
-    """Generates an Icarus testbench that writes outputs directly to file."""
     module_name, inputs, outputs = parse_verilog_ports(v_file)
 
     with open(v_file, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Inject 'initial Q = 0;' into any existing dff module so it matches engine's deterministic start
     if not re.search(r'\binitial\s+Q\s*=\s*0\b', content):
         content = re.sub(r'(?i)(\bmodule\s+dff\b.*?)\balways\b', r'\1initial Q = 0;\n    always', content, flags=re.DOTALL)
 
@@ -145,11 +144,11 @@ def generate_icarus_tb(v_file: str, tb_file: str, vector_file: str, output_file:
     has_dff_def = re.search(r'\bmodule\s+(?i:dff)\b', content)
     if not has_dff_def:
         tb.append("\n// Injected DFF models for Icarus Verilog ISCAS89 Testing\n")
-        tb.append("module DFF (input D, input CK, output reg Q);\n")
+        tb.append("module DFF (input CK, output reg Q, input D);\n")
         tb.append("    initial Q = 0;\n")
         tb.append("    always @(posedge CK) Q <= D;\n")
         tb.append("endmodule\n")
-        tb.append("module dff (input D, input CK, output reg Q);\n")
+        tb.append("module dff (input CK, output reg Q, input D);\n")
         tb.append("    initial Q = 0;\n")
         tb.append("    always @(posedge CK) Q <= D;\n")
         tb.append("endmodule\n")
@@ -159,7 +158,6 @@ def generate_icarus_tb(v_file: str, tb_file: str, vector_file: str, output_file:
 
 
 def run_icarus_base(v_file: str, vectors: list) -> list:
-    """Runs Icarus Verilog and returns the normalized 2D list of output states."""
     base_path = os.path.splitext(v_file)[0]
     tb_file = base_path + "_base_tb.v"
     vvp_file = base_path + "_base.vvp"
@@ -221,7 +219,6 @@ class VerilogStateRunner:
         self.dff_connections = []
         self.dff_crct = None
 
-        # Resolve DFF.json dependency
         for p in [os.path.join(_SCRIPT_DIR, "DFF.json"), os.path.join(_PROJECT_ROOT, "DFF.json"), "DFF.json"]:
             if os.path.exists(p):
                 try:
@@ -279,7 +276,6 @@ class VerilogStateRunner:
                     gate_type = match.group(1).lower()
                     ports_str = match.group(3)
 
-                    # Handle ISCAS89 Sequential Elements
                     if gate_type.startswith('dff'):
                         if not self.dff_crct:
                             raise RuntimeError("DFF.json is required for sequential ISCAS89 circuits but was not found.")
@@ -292,7 +288,6 @@ class VerilogStateRunner:
                             clk_wire = wires.get('CK', wires.get('CLK', wires.get('C')))
                             q_wire = wires.get('Q')
                         else:
-                            # Handle positional port ordering: dff inst_name (CK, Q, D)
                             pts = [p.strip() for p in ports_str.split(',')]
                             if len(pts) >= 3:
                                 clk_wire = pts[0]
@@ -312,7 +307,6 @@ class VerilogStateRunner:
                         self.dff_connections.append((dff_inst, d_wire, clk_wire))
                         continue
 
-                    # Standard ISCAS Combinational Gates
                     if gate_type in self.VERILOG_GATE_MAP:
                         ports = [p.strip() for p in ports_str.split(',')]
                         out_wire = ports[0]
@@ -325,7 +319,6 @@ class VerilogStateRunner:
                         self.nodes[out_wire] = gate
                         connections.append((out_wire, in_wires))
 
-        # Wire Combinational Gates
         for target_id, source_ids in connections:
             target_gate = self.nodes.get(target_id)
             if not target_gate: continue
@@ -334,9 +327,8 @@ class VerilogStateRunner:
                 if source_gate:
                     self.circuit.connect(target_gate, source_gate, pin_index)
 
-        # Wire Sequential Flip-Flop ICs
         for dff_inst, d_wire, clk_wire in self.dff_connections:
-            # Matches your DFF.json: inputs[0] is CLK, inputs[1] is D
+            # Matches current DFF.json: inputs[0] = CLK, inputs[1] = D
             if clk_wire:
                 clk_gate = self.nodes.get(clk_wire)
                 if clk_gate and len(dff_inst.inputs) > 0:
@@ -347,11 +339,10 @@ class VerilogStateRunner:
                     self.circuit.connect(dff_inst.inputs[1], d_gate, 0)
 
     def _get_current_state(self) -> list:
-        """Extracts the state by calling output directly on the python Gate objects."""
         return [g.output for g in self.output_objects]
 
-    def run_vectors(self, raw_vectors: list, target_mode: int) -> list:
-        """Simulates all vectors via batch toggle and captures output states."""
+    async def _run_vectors_async(self, raw_vectors: list, target_mode: int) -> list:
+        """Asynchronous execution loop to resolve sequential sweeps via task_manager."""
         if hasattr(self.circuit, 'optimize'):
             self.circuit.optimize()
 
@@ -369,14 +360,22 @@ class VerilogStateRunner:
         results = []
         for b in batches:
             self.circuit.batch_toggle(b)
+            
+            # CRITICAL: Wait for task_manager to resolve time_queue sequentially
+            if getattr(self.circuit, 'runner', None) and not self.circuit.runner.done():
+                await self.circuit.runner
+                
             results.append(self._get_current_state())
 
         self.const.set_MODE(self.const.SIMULATE)
         return results
 
+    def run_vectors(self, raw_vectors: list, target_mode: int) -> list:
+        """Synchronous wrapper to instantiate the asyncio loop."""
+        return asyncio.run(self._run_vectors_async(raw_vectors, target_mode))
+
 
 def run_worker_process(filepath: str, exec_mode: str, vectors: list) -> list:
-    """Spawns an isolated Python process to evaluate vectors."""
     temp_vec_json = filepath + f"_{exec_mode}_in.tmp.json"
     temp_out_json = filepath + f"_{exec_mode}_out.tmp.json"
 
@@ -405,7 +404,6 @@ def run_worker_process(filepath: str, exec_mode: str, vectors: list) -> list:
 
 
 def internal_worker_main(filepath: str, exec_mode: str, in_file: str, out_file: str):
-    """Entry point for the isolated subprocess (Supports both Python Engine and Reactor)."""
     is_reactor = 'reactor' in exec_mode
     pkg_dir = 'reactor' if is_reactor else 'engine'
     
@@ -420,7 +418,9 @@ def internal_worker_main(filepath: str, exec_mode: str, in_file: str, out_file: 
     import Const
 
     vectors = load_json_file(in_file)
-    target_const_mode = Const.SIMULATE
+    
+    # Map execution mode properly to constants (SWEEP triggers COMPILE mode)
+    target_const_mode = Const.COMPILE if 'sweep' in exec_mode else Const.SIMULATE
 
     runner = VerilogStateRunner(filepath, Circuit.Circuit, Const, is_reactor=is_reactor)
     results = runner.run_vectors(vectors, target_mode=target_const_mode)
@@ -445,7 +445,6 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
     warmup_count = 50
     raw_vectors = []
     
-    # 1. Warmup Sequence (Initiate inputs to 0, toggle clock to flush state)
     for i in range(warmup_count):
         vec = [0] * len(inputs)
         if clock_idx != -1:
@@ -454,18 +453,14 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
             if inputs: vec[0] = i % 2 
         raw_vectors.append(vec)
 
-    # 2. Random Test Vectors (2-phase strictly synchronous clocking)
     rng = random.Random(seed)
     if clock_idx != -1:
         for _ in range(vector_count):
             base_vec = [rng.randint(0, 1) for _ in range(len(inputs))]
-            
-            # Phase 1: Setup Data, CLK=0
             setup_vec = list(base_vec)
             setup_vec[clock_idx] = 0
             raw_vectors.append(setup_vec)
             
-            # Phase 2: Trigger CLK=1, Hold Data
             trigger_vec = list(base_vec)
             trigger_vec[clock_idx] = 1
             raw_vectors.append(trigger_vec)
@@ -482,6 +477,9 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
 
     # Cython Reactor (SIMULATE mode)
     rx_prop_states = run_worker_process(v_file, 'reactor_prop', raw_vectors)
+    
+    # Cython Reactor (COMPILE mode Sweep)
+    rx_sweep_states = run_worker_process(v_file, 'reactor_sweep', raw_vectors)
 
     mismatches = []
     vector_logs = []
@@ -492,10 +490,12 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
         g_out = icarus_states[i]
         e_out = engine_states[i]
         rp_out = rx_prop_states[i]
+        rs_out = rx_sweep_states[i]
 
         match_engine = (e_out == g_out)
         match_rx_prop = (rp_out == g_out)
-        all_match = match_engine and match_rx_prop
+        match_rx_sweep = (rs_out == g_out)
+        all_match = match_engine and match_rx_prop and match_rx_sweep
         is_warmup = (i < warmup_count)
 
         log_entry = {
@@ -504,6 +504,7 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
             "base_icarus": g_out,
             "engine": e_out,
             "rx_prop": rp_out,
+            "rx_sweep": rs_out,
             "pass": all_match,
         }
 
@@ -519,14 +520,15 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
                     "expected": g_out,
                     "engine_actual": e_out if not match_engine else "MATCH",
                     "rx_prop_actual": rp_out if not match_rx_prop else "MATCH",
+                    "rx_sweep_actual": rs_out if not match_rx_sweep else "MATCH",
                 })
 
     return {
         "circuit": filename,
         "inputs_count": len(inputs),
         "outputs_count": len(outputs),
-        "total_vectors": total_vectors - warmup_count,
-        "pass_count": pass_count,
+        "total_vectors": (total_vectors - warmup_count) // 2 if clock_idx != -1 else total_vectors - warmup_count,
+        "pass_count": pass_count // 2 if clock_idx != -1 else pass_count,
         "fail_count": len(mismatches),
         "status": "PASS" if len(mismatches) == 0 else "FAIL",
         "mismatches": mismatches,
@@ -555,7 +557,7 @@ def main():
             sys.stdout.reconfigure(encoding='utf-8')
         except Exception:
             pass
-    parser = argparse.ArgumentParser(description="Unified Sequential ISCAS89 State Verifier (Python Engine & Reactor vs Icarus)")
+    parser = argparse.ArgumentParser(description="Unified Sequential ISCAS89 State Verifier (Python, Rx-Prop & Rx-Sweep vs Icarus)")
     parser.add_argument('target', nargs='?', type=str, help="Path to .v file or directory")
     parser.add_argument('--vectors', type=int, default=1000, help="Number of test vectors per circuit (excluding warmup)")
     parser.add_argument('--seed', type=int, default=42, help="PRNG Seed")
@@ -581,12 +583,12 @@ def main():
         print("[-] Error: No .v files found.")
         sys.exit(1)
 
-    print("=" * 105)
-    print("  UNIFIED ISCAS89 SEQUENTIAL STATE VERIFICATION SUITE (PYTHON & REACTOR)")
+    print("=" * 115)
+    print("  UNIFIED ISCAS89 SEQUENTIAL STATE VERIFICATION SUITE (PYTHON, RX-PROP, RX-SWEEP)")
     print(f"  Test Vectors/Circuit : {args.vectors:,} (after 50 warmup cycles) | Base Model: Icarus Verilog")
-    print("=" * 105)
+    print("=" * 115)
     print(f"{'Circuit':<18} | {'Inputs':<8} | {'Outputs':<8} | {'Vectors':<10} | {'Passed':<10} | {'Failed':<8} | {'Status':<8}")
-    print("-" * 105)
+    print("-" * 115)
 
     all_reports = []
     overall_pass = True
@@ -615,8 +617,9 @@ def main():
             print(f"      Expected (Icarus): {res['mismatches'][0]['expected']}")
             print(f"      Engine  : {res['mismatches'][0]['engine_actual']}")
             print(f"      Rx-Prop : {res['mismatches'][0]['rx_prop_actual']}")
+            print(f"      Rx-Sweep: {res['mismatches'][0]['rx_sweep_actual']}")
 
-    print("=" * 105)
+    print("=" * 115)
 
     json_path = args.output if args.output.endswith('.json') else args.output + '.json'
     dump_json_file(json_path, all_reports, indent=True)

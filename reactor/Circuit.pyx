@@ -529,261 +529,261 @@ cdef class Circuit:
             self.gate_infolist.pop_back()
             n-=1
 
-    cpdef void optimize(self):
-
-        if self.gate_infolist.empty():
-            return
-            
-        self.copydata.clear()
-        cdef int i=0, pos=0, n, source
-        cdef vector[int] hash_map, source_ptr, hidden, visited, stack, serial
-        cdef Profile* profile
-        cdef Profile* end
-        cdef CPP_Gate* info
-        cdef vector[CPP_Gate] new_gate_infolist
-        cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
-        cdef Gate gate
-        
-        n = self.gate_infolist.size()
-        visited.resize(n, 0)
-        hash_map.resize(n, 0)
-        source_ptr.resize(n, 0) # tally the source to find the next source as a replacement of recursion 
-        serial.resize(n, 0)   # this helps to serially store data mostly for hitlist, if i only use hashmap it gets destroyed at big circuits. 
-        
-        cdef int active_gates = n
-
-        for i in range(n):
-            info = &gate_infolist[i]
-            if info.type < 0:
-                active_gates -= 1
-                hidden.push_back(i)
-                continue
-                
-            if info.hitlist.empty() and not visited[i]:
-                stack.push_back(i)
-                visited[i] = 1 # Mark root visited instantly to prevent loopback
-                
-                while not stack.empty():
-                    node = stack.back()
-                    info = &gate_infolist[node]
-                    gate = <Gate>PyList_GET_ITEM(self.gate_verse, node)
-                    
-                    if source_ptr[node] == info.inputlimit:
-                        stack.pop_back()
-                        hash_map[node] = pos
-                        serial[pos] = node  # Log sequential evaluation order
-                        pos += 1
-                    else:
-                        source = gate._sources[source_ptr[node]]
-                        if source > -1 and not visited[source]:
-                            stack.push_back(source)
-                            visited[source] = 1
-                        source_ptr[node] += 1
-                        
-        # ---------------------------------------------------------
-        # PASS 2: Catch Floating Leftovers
-        # ---------------------------------------------------------
-        for i in range(n):
-            info = &gate_infolist[i]
-            if info.type < 0 or visited[i]:
-                continue
-                
-            stack.push_back(i)
-            visited[i] = 1
-            
-            while not stack.empty():
-                node = stack.back()
-                info = &gate_infolist[node]
-                gate = <Gate>PyList_GET_ITEM(self.gate_verse, node)
-                
-                if source_ptr[node] == info.inputlimit:
-                    stack.pop_back()
-                    hash_map[node] = pos
-                    serial[pos] = node
-                    pos += 1
-                else:
-                    source = gate._sources[source_ptr[node]]
-                    if source > -1 and not visited[source]:
-                        stack.push_back(source)
-                        visited[source] = 1
-                    source_ptr[node] += 1
-
-        # ---------------------------------------------------------
-        # PASS 3: Append Hidden Gates
-        # ---------------------------------------------------------
-        for i in hidden:
-            hash_map[i] = pos
-            serial[pos] = i
-            pos += 1
-            
-        if pos != n:
-            print('Error Occured')
-            return
-            
-        # ---------------------------------------------------------
-        # PASS 4: Contiguous Heap Allocation Mapping
-        # ---------------------------------------------------------
-        new_gate_infolist.resize(n)
-        cdef int old_pos
-        
-        for i in range(n):
-            old_pos = serial[i]
-            # Triggers C++ copy assignment in perfect topological order.
-            # Forces the memory allocator to place hitlist arrays physically adjacent.
-            new_gate_infolist[i] = gate_infolist[old_pos]
-            
-            profile = new_gate_infolist[i].hitlist.data()
-            end = profile + new_gate_infolist[i].hitlist.size()
-            
-            while profile < end:
-                # Update the target location using hash map
-                profile.target = hash_map[profile.target]
-                profile += 1
-                
-            if new_gate_infolist[i].hitlist.size() > 3:
-                sort(new_gate_infolist[i].hitlist.begin(), new_gate_infolist[i].hitlist.end())
-                
-        self.gate_infolist.swap(new_gate_infolist)
-        
-        # ---------------------------------------------------------
-        # PASS 5: Python Gate Verse Syncing
-        # ---------------------------------------------------------
-        cdef list new_gate_verse = [None for _ in range(n)]
-        cdef list sources
-        cdef int new_pos
-        
-        for i in range(n):
-            gate = <Gate>PyList_GET_ITEM(self.gate_verse, i)
-            new_pos = hash_map[i]
-            gate.location = new_pos
-            sources = gate._sources
-            
-            for index in range(len(sources)):
-                if sources[index] != -1:
-                    # Update the source location
-                    sources[index] = hash_map[sources[index]]
-                    
-            new_gate_verse[new_pos] = gate
-            
-        self.gate_verse[:] = new_gate_verse
-
     # cpdef void optimize(self):
-    #     '''Optimize the circuit using topological sort so prefetcher never has to look back. 
-    #     Also pushes back hidden gates with mutated info type'''
+
     #     if self.gate_infolist.empty():
     #         return
+            
     #     self.copydata.clear()
-    #     cdef int i=0,j=0,n
-    #     cdef vector[int] hash_map,in_degree,hidden,serial
-    #     cdef Profile* profile, *end
-    #     cdef int degree=0,index=0,active_gates=0
+    #     cdef int i=0, pos=0, n, source
+    #     cdef vector[int] hash_map, source_ptr, hidden, visited, stack, serial
+    #     cdef Profile* profile
+    #     cdef Profile* end
     #     cdef CPP_Gate* info
     #     cdef vector[CPP_Gate] new_gate_infolist
-    #     cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
-    #     cdef deque[int] backup,queue
-    #     n=self.gate_infolist.size()
-    #     serial.resize(n)
-    #     hash_map.resize(n)
-    #     in_degree.resize(n)
-    #     active_gates=n
+    #     cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
+    #     cdef Gate gate
+        
+    #     n = self.gate_infolist.size()
+    #     visited.resize(n, 0)
+    #     hash_map.resize(n, 0)
+    #     source_ptr.resize(n, 0) # tally the source to find the next source as a replacement of recursion 
+    #     serial.resize(n, 0)   # this helps to serially store data mostly for hitlist, if i only use hashmap it gets destroyed at big circuits. 
+        
+    #     cdef int active_gates = n
+
     #     for i in range(n):
-    #         info=&gate_infolist[i]
-    #         if info.type<0:
-    #             in_degree[i]=-1
-    #             active_gates-=1
+    #         info = &gate_infolist[i]
+    #         if info.type < 0:
+    #             active_gates -= 1
     #             hidden.push_back(i)
     #             continue
-    #         profile=info.hitlist.data()
-    #         end=profile+info.hitlist.size()
-    #         while profile<end:
-    #             '''count of how many gates point to the target gate'''
-    #             in_degree[profile.target]+=1
-    #             profile+=1
-    #     i=0
-    #     for index in range(n):
-    #         if in_degree[index]==0:
-    #             backup.push_back(index)
-    #     cdef int node
-    #     while not backup.empty():
-    #         node=backup.front()
-    #         backup.pop_front()
-    #         queue.push_back(node)
-    #         while not queue.empty():
-    #             node=queue.front()
-    #             queue.pop_front()
-    #             info=&gate_infolist[node]
-    #             hash_map[node]=j
-    #             serial[j]=node
-    #             j+=1
-    #             profile=info.hitlist.data()
-    #             end=profile+info.hitlist.size()
-    #             while profile<end:
-    #                 '''if the target's dependencies are already in to the list push it to the list now'''
-    #                 if in_degree[profile.target]>0:
-    #                     in_degree[profile.target]-=1
-    #                     if in_degree[profile.target]==0:
-    #                         queue.push_back(profile.target)
-    #                 profile+=1
-    #     for index in range(n):
-    #         if in_degree[index]>0:
-    #             backup.push_back(index)
-    #     while not backup.empty():
-    #         node=backup.front()
-    #         backup.pop_front()
-    #         if in_degree[node]==1:
-    #             queue.push_back(node)
-    #             in_degree[node]-=1
-    #             while not queue.empty():
-    #                 node=queue.front()
-    #                 queue.pop_front()
-    #                 info=&gate_infolist[node]
-    #                 hash_map[node]=j
-    #                 serial[j]=node
-    #                 j+=1
-    #                 profile=info.hitlist.data()
-    #                 end=profile+info.hitlist.size()
-    #                 while profile<end:
-    #                     '''if the target's dependencies are already in to the list push it to the list now'''
-    #                     if in_degree[profile.target]>0:
-    #                         in_degree[profile.target]-=1
-    #                         if in_degree[profile.target]==0:
-    #                             queue.push_back(profile.target)
-    #                     profile+=1
-    #         elif in_degree[node]>1:
-    #             backup.push_back(node)
-        
-    #     # i is location of each hidden gate, it will be pushed to the end of queue
-    #     for i in hidden:
-    #         hash_map[i]=j
-    #         serial[j]=i    # FIX: was 'node' (last active gate) — must be 'i' (this hidden gate's old index)
-    #         j+=1
-    #     # create new info_list
-    #     new_gate_infolist.resize(n)
+                
+    #         if info.hitlist.empty() and not visited[i]:
+    #             stack.push_back(i)
+    #             visited[i] = 1 # Mark root visited instantly to prevent loopback
+                
+    #             while not stack.empty():
+    #                 node = stack.back()
+    #                 info = &gate_infolist[node]
+    #                 gate = <Gate>PyList_GET_ITEM(self.gate_verse, node)
+                    
+    #                 if source_ptr[node] == info.inputlimit:
+    #                     stack.pop_back()
+    #                     hash_map[node] = pos
+    #                     serial[pos] = node  # Log sequential evaluation order
+    #                     pos += 1
+    #                 else:
+    #                     source = gate._sources[source_ptr[node]]
+    #                     if source > -1 and not visited[source]:
+    #                         stack.push_back(source)
+    #                         visited[source] = 1
+    #                     source_ptr[node] += 1
+                        
+    #     # ---------------------------------------------------------
+    #     # PASS 2: Catch Floating Leftovers
+    #     # ---------------------------------------------------------
     #     for i in range(n):
-    #         new_gate_infolist[i]=gate_infolist[serial[i]]
-    #         profile=new_gate_infolist[i].hitlist.data()
-    #         end=profile+new_gate_infolist[i].hitlist.size()
-    #         while profile<end:
-    #             '''update the target location'''
-    #             profile.target=hash_map[profile.target]
-    #             profile+=1
-    #         if new_gate_infolist[i].hitlist.size()>3:
+    #         info = &gate_infolist[i]
+    #         if info.type < 0 or visited[i]:
+    #             continue
+                
+    #         stack.push_back(i)
+    #         visited[i] = 1
+            
+    #         while not stack.empty():
+    #             node = stack.back()
+    #             info = &gate_infolist[node]
+    #             gate = <Gate>PyList_GET_ITEM(self.gate_verse, node)
+                
+    #             if source_ptr[node] == info.inputlimit:
+    #                 stack.pop_back()
+    #                 hash_map[node] = pos
+    #                 serial[pos] = node
+    #                 pos += 1
+    #             else:
+    #                 source = gate._sources[source_ptr[node]]
+    #                 if source > -1 and not visited[source]:
+    #                     stack.push_back(source)
+    #                     visited[source] = 1
+    #                 source_ptr[node] += 1
+
+    #     # ---------------------------------------------------------
+    #     # PASS 3: Append Hidden Gates
+    #     # ---------------------------------------------------------
+    #     for i in hidden:
+    #         hash_map[i] = pos
+    #         serial[pos] = i
+    #         pos += 1
+            
+    #     if pos != n:
+    #         print('Error Occured')
+    #         return
+            
+    #     # ---------------------------------------------------------
+    #     # PASS 4: Contiguous Heap Allocation Mapping
+    #     # ---------------------------------------------------------
+    #     new_gate_infolist.resize(n)
+    #     cdef int old_pos
+        
+    #     for i in range(n):
+    #         old_pos = serial[i]
+    #         # Triggers C++ copy assignment in perfect topological order.
+    #         # Forces the memory allocator to place hitlist arrays physically adjacent.
+    #         new_gate_infolist[i] = gate_infolist[old_pos]
+            
+    #         profile = new_gate_infolist[i].hitlist.data()
+    #         end = profile + new_gate_infolist[i].hitlist.size()
+            
+    #         while profile < end:
+    #             # Update the target location using hash map
+    #             profile.target = hash_map[profile.target]
+    #             profile += 1
+                
+    #         if new_gate_infolist[i].hitlist.size() > 3:
     #             sort(new_gate_infolist[i].hitlist.begin(), new_gate_infolist[i].hitlist.end())
                 
     #     self.gate_infolist.swap(new_gate_infolist)
-    #     cdef list new_gate_verse = []
-    #     cdef Gate gate
+        
+    #     # ---------------------------------------------------------
+    #     # PASS 5: Python Gate Verse Syncing
+    #     # ---------------------------------------------------------
+    #     cdef list new_gate_verse = [None for _ in range(n)]
     #     cdef list sources
+    #     cdef int new_pos
+        
     #     for i in range(n):
-    #         gate=<Gate>PyList_GET_ITEM(self.gate_verse, serial[i])
-    #         gate.location=i
+    #         gate = <Gate>PyList_GET_ITEM(self.gate_verse, i)
+    #         new_pos = hash_map[i]
+    #         gate.location = new_pos
     #         sources = gate._sources
+            
     #         for index in range(len(sources)):
     #             if sources[index] != -1:
-    #                 '''update the source location'''
+    #                 # Update the source location
     #                 sources[index] = hash_map[sources[index]]
-    #         new_gate_verse.append(gate)
+                    
+    #         new_gate_verse[new_pos] = gate
+            
     #     self.gate_verse[:] = new_gate_verse
+
+    cpdef void optimize(self):
+        '''Optimize the circuit using topological sort so prefetcher never has to look back. 
+        Also pushes back hidden gates with mutated info type'''
+        if self.gate_infolist.empty():
+            return
+        self.copydata.clear()
+        cdef int i=0,j=0,n
+        cdef vector[int] hash_map,in_degree,hidden,serial
+        cdef Profile* profile, *end
+        cdef int degree=0,index=0,active_gates=0
+        cdef CPP_Gate* info
+        cdef vector[CPP_Gate] new_gate_infolist
+        cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
+        cdef deque[int] backup,queue
+        n=self.gate_infolist.size()
+        serial.resize(n)
+        hash_map.resize(n)
+        in_degree.resize(n)
+        active_gates=n
+        for i in range(n):
+            info=&gate_infolist[i]
+            if info.type<0:
+                in_degree[i]=-1
+                active_gates-=1
+                hidden.push_back(i)
+                continue
+            profile=info.hitlist.data()
+            end=profile+info.hitlist.size()
+            while profile<end:
+                '''count of how many gates point to the target gate'''
+                in_degree[profile.target]+=1
+                profile+=1
+        i=0
+        for index in range(n):
+            if in_degree[index]==0:
+                backup.push_back(index)
+        cdef int node
+        while not backup.empty():
+            node=backup.front()
+            backup.pop_front()
+            queue.push_back(node)
+            while not queue.empty():
+                node=queue.front()
+                queue.pop_front()
+                info=&gate_infolist[node]
+                hash_map[node]=j
+                serial[j]=node
+                j+=1
+                profile=info.hitlist.data()
+                end=profile+info.hitlist.size()
+                while profile<end:
+                    '''if the target's dependencies are already in to the list push it to the list now'''
+                    if in_degree[profile.target]>0:
+                        in_degree[profile.target]-=1
+                        if in_degree[profile.target]==0:
+                            queue.push_back(profile.target)
+                    profile+=1
+        for index in range(n):
+            if in_degree[index]>0:
+                backup.push_back(index)
+        while not backup.empty():
+            node=backup.front()
+            backup.pop_front()
+            if in_degree[node]==1:
+                queue.push_back(node)
+                in_degree[node]-=1
+                while not queue.empty():
+                    node=queue.front()
+                    queue.pop_front()
+                    info=&gate_infolist[node]
+                    hash_map[node]=j
+                    serial[j]=node
+                    j+=1
+                    profile=info.hitlist.data()
+                    end=profile+info.hitlist.size()
+                    while profile<end:
+                        '''if the target's dependencies are already in to the list push it to the list now'''
+                        if in_degree[profile.target]>0:
+                            in_degree[profile.target]-=1
+                            if in_degree[profile.target]==0:
+                                queue.push_back(profile.target)
+                        profile+=1
+            elif in_degree[node]>1:
+                backup.push_back(node)
+        
+        # i is location of each hidden gate, it will be pushed to the end of queue
+        for i in hidden:
+            hash_map[i]=j
+            serial[j]=i    # FIX: was 'node' (last active gate) — must be 'i' (this hidden gate's old index)
+            j+=1
+        # create new info_list
+        new_gate_infolist.resize(n)
+        for i in range(n):
+            new_gate_infolist[i]=gate_infolist[serial[i]]
+            profile=new_gate_infolist[i].hitlist.data()
+            end=profile+new_gate_infolist[i].hitlist.size()
+            while profile<end:
+                '''update the target location'''
+                profile.target=hash_map[profile.target]
+                profile+=1
+            if new_gate_infolist[i].hitlist.size()>3:
+                sort(new_gate_infolist[i].hitlist.begin(), new_gate_infolist[i].hitlist.end())
+                
+        self.gate_infolist.swap(new_gate_infolist)
+        cdef list new_gate_verse = []
+        cdef Gate gate
+        cdef list sources
+        for i in range(n):
+            gate=<Gate>PyList_GET_ITEM(self.gate_verse, serial[i])
+            gate.location=i
+            sources = gate._sources
+            for index in range(len(sources)):
+                if sources[index] != -1:
+                    '''update the source location'''
+                    sources[index] = hash_map[sources[index]]
+            new_gate_verse.append(gate)
+        self.gate_verse[:] = new_gate_verse
 
     cpdef void generate(self, list circuit):
         '''generate the circuit from the list of info'''
