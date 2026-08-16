@@ -753,6 +753,7 @@ cdef class Circuit:
                         if in_degree[profile.target]==0:
                             queue.push_back(profile.target)
                     profile+=1
+                    
         for index in range(n):
             if in_degree[index]>0:
                 backup.push_back(index)
@@ -1468,54 +1469,60 @@ cdef class Circuit:
                 continue
             elif self_info.type==VARIABLE_ID:
                 self_info.output=bool(self_info.flags & FLAG_VALUE)
-            new_output = self_info.output
-            if not (self_info.flags & FLAG_UPDATE):
-                self.visual_queue.push_back(index)   # target changed — mark dirty
-                self_info.flags |= FLAG_UPDATE
-            profile = self_info.hitlist.data()
-            end = profile + self_info.hitlist.size()
-            eval += self_info.hitlist.size()
-            while profile != end:
-                profile_output = profile.output
-                if profile_output != new_output:
-                    target_info = &gate_infolist[profile.target]
-                    gate_type = target_info.type
-                    limit = target_info.inputlimit
-                    
-                    if gate_type >= NOT_ID:
-                        if new_output != UNKNOWN:
-                            target_output = new_output ^ (gate_type == NOT_ID)
-                        else:
-                            target_output = UNKNOWN
-                    else:
-                        # update target
-                        book = target_info.book
-                        book[profile_output] -= 1
-                        book[new_output] += 1
+                self_info.flags |= FLAG_MARK
+            
+            if self_info.flags& FLAG_MARK:
+                self_info.flags &= ~FLAG_MARK   
+                new_output = self_info.output
+                if not (self_info.flags & FLAG_UPDATE):
+                    self.visual_queue.push_back(index)   # target changed — mark dirty
+                    self_info.flags |= FLAG_UPDATE
+                profile = self_info.hitlist.data()
+                end = profile + self_info.hitlist.size()
+                eval += self_info.hitlist.size()
+                while profile != end:
+                    profile_output = profile.output
+                    if profile_output != new_output:
+                        target_info = &gate_infolist[profile.target]
+                        gate_type = target_info.type
+                        limit = target_info.inputlimit
                         
-                        if new_output != UNKNOWN:
-                            high = book[HIGH]
-                            low  = book[LOW]
-                            realsource = high + low
-                            if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
-                                if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                                elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                                else:                    target_output = (high & 1) ^ (gate_type & 1)
+                        if gate_type >= NOT_ID:
+                            if new_output != UNKNOWN:
+                                target_output = new_output ^ (gate_type == NOT_ID)
                             else:
                                 target_output = UNKNOWN
                         else:
-                            target_output = UNKNOWN
-                    if target_output != target_info.output:
-                        target_info.output = target_output
-                        if profile.target<=index:
-                            # target_info.flags |= FLAG_SCHEDULED
-                            self.queue[0][end_point] = profile.target
-                            end_point += 1
-                    profile.output = new_output
-                profile += 1
+                            # update target
+                            book = target_info.book
+                            book[profile_output] -= 1
+                            book[new_output] += 1
+                            
+                            if new_output != UNKNOWN:
+                                high = book[HIGH]
+                                low  = book[LOW]
+                                realsource = high + low
+                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
+                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
+                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
+                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
+                                else:
+                                    target_output = UNKNOWN
+                            else:
+                                target_output = UNKNOWN
+                        if target_output != target_info.output:
+                            target_info.output = target_output
+                            if not (target_info.flags& FLAG_MARK) and target_info.hitlist.size():
+                                target_info.flags |= FLAG_MARK
+                                if profile.target<=index:
+                                    self.queue[0][end_point] = profile.target
+                                    end_point += 1
+                        profile.output = new_output
+                    profile += 1
         # size is actually the growing size of write_queue
         self.eval_count += eval
-        self.batch_propagate(end_point)
+        if end_point:
+            self.batch_propagate(end_point)
     cpdef list geometry(self):
         '''
         Extracts the raw memory jump distance for every single connection in the circuit.

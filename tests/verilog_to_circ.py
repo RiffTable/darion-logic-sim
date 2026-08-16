@@ -141,8 +141,6 @@ class CircBuilder:
     def __init__(self, parser: VerilogParser):
         self.p = parser
         self._comps = []
-        self._wires = []
-        self._src: dict[str, tuple[int,int]] = {}  # wire → output port (x,y)
 
     def _comp(self, lib, x, y, name, **attrs):
         parts = [f'    <comp lib="{lib}" loc="({x},{y})" name="{name}">']
@@ -154,26 +152,14 @@ class CircBuilder:
             parts = [f'    <comp lib="{lib}" loc="({x},{y})" name="{name}"/>']
         self._comps.append('\n'.join(parts))
 
-    def _wire(self, x1, y1, x2, y2):
-        if (x1, y1) != (x2, y2):
-            self._wires.append(f'    <wire from="({x1},{y1})" to="({x2},{y2})"/>')
-
-    def _route(self, src, dst):
-        """L-shaped route: horizontal then vertical."""
-        sx, sy = src
-        dx, dy = dst
-        if sx != dx:
-            self._wire(sx, sy, dx, sy)
-        if sy != dy:
-            self._wire(dx, sy, dx, dy)
+    def _tunnel(self, x, y, facing, label):
+        self._comp('0', x, y, 'Tunnel', facing=facing, label=label)
 
     def _input_pins(self):
         for i, name in enumerate(self.p.inputs):
             py = BUS_Y_START + i * ROW_STEP
-            self._comp('0', PIN_X, py, 'Pin',
-                       appearance='NewPins', label=name, output='false')
-            # Output port of an input pin faces east: (PIN_X + 30, py)
-            self._src[name] = (PIN_X + 30, py)
+            self._comp('0', PIN_X, py, 'Pin', appearance='NewPins', label=name, output='false')
+            self._tunnel(PIN_X + 20, py, 'west', name)
 
     def _gates(self):
         gate_positions = []
@@ -190,86 +176,34 @@ class CircBuilder:
             n = len(in_ws)
 
             if gt == 'dff':
-                # Logisim D Flip-Flop: Memory library (lib="4")
-                # Default east-facing layout:
-                #   Q  output: east at (gx + 30, gy)
-                #   Q' output: east at (gx + 30, gy + 20)   [ignored]
-                #   D  input : west at (gx - 30, gy)
-                #   CK input : south at (gx, gy + 30)       [south side, triangle]
                 self._comp('4', gx, gy, 'D Flip-Flop')
-
-                # Register Q as the output source for downstream gates
-                self._src[out_w] = (gx + 30, gy)
-
-                # Wire CK (in_ws[0]) to south clock port
+                # Q output (Logisim loc is the Q pin)
+                self._tunnel(gx, gy, 'west', out_w)
+                # CK input (bottom/south)
                 if len(in_ws) > 0:
-                    ck_src = self._src.get(in_ws[0])
-                    if ck_src:
-                        self._route(ck_src, (gx, gy + 30))
-
-                # Wire D (in_ws[1]) to west data port
+                    self._tunnel(gx - 20, gy + 20, 'north', in_ws[0])
+                # D input (west)
                 if len(in_ws) > 1:
-                    d_src = self._src.get(in_ws[1])
-                    if d_src is None:
-                        # Undriven data: tie to GND
-                        cx, cy = gx - 120, gy
-                        self._comp('0', cx, cy, 'Constant', value='0x0')
-                        d_src = (cx + 30, cy)
-                        self._src[in_ws[1]] = d_src
-                    self._route(d_src, (gx - 30, gy))
+                    self._tunnel(gx - 40, gy, 'east', in_ws[1])
 
             elif gt in ('not', 'buf'):
                 self._comp('1', gx, gy, ln)
-
-                # Gate output port: east side at (gx + 30, gy)
-                self._src[out_w] = (gx + 30, gy)
-
-                # Wire single input
+                self._tunnel(gx, gy, 'west', out_w)
                 for i, iw in enumerate(in_ws):
-                    port = (gx - 30, gy)
-                    src = self._src.get(iw)
-                    if src is None:
-                        cx, cy = gx - 120, gy
-                        self._comp('0', cx, cy, 'Constant', value='0x0')
-                        src = (cx + 30, cy)
-                        self._src[iw] = src
-                    self._route(src, port)
+                    self._tunnel(gx - 30, gy, 'east', iw)
 
             else:
                 self._comp('1', gx, gy, ln, inputs=str(n))
-
-                # Gate output port: east side at (gx + 30, gy)
-                self._src[out_w] = (gx + 30, gy)
-
-                # Input port offsets for N-input east-facing gate:
-                # port i is at (gx - 30, gy - 10*(n-1) + 20*i)
+                self._tunnel(gx, gy, 'west', out_w)
                 for i, iw in enumerate(in_ws):
-                    if n == 1:
-                        port_y = gy
-                    else:
-                        port_y = gy - 10 * (n - 1) + 20 * i
-                    port = (gx - 30, port_y)
-
-                    src = self._src.get(iw)
-                    if src is None:
-                        # Undriven: tie to GND
-                        cx, cy = gx - 120, port_y
-                        self._comp('0', cx, cy, 'Constant', value='0x0')
-                        src = (cx + 30, cy)
-                        self._src[iw] = src
-
-                    self._route(src, port)
+                    port_y = gy if n == 1 else gy - 10 * (n - 1) + 20 * i
+                    self._tunnel(gx - 50, port_y, 'east', iw)
 
     def _output_pins(self):
         for i, name in enumerate(self.p.outputs):
             oy = BUS_Y_START + i * ROW_STEP
-            self._comp('0', OUT_X, oy, 'Pin',
-                       appearance='NewPins', facing='west',
-                       label=f'OUT_{name}', output='true')
-            src = self._src.get(name)
-            if src:
-                # Pin input port faces west: (OUT_X - 30, oy)
-                self._route(src, (OUT_X - 30, oy))
+            self._comp('0', OUT_X, oy, 'Pin', appearance='NewPins', facing='west', label=f'OUT_{name}', output='true')
+            self._tunnel(OUT_X - 20, oy, 'east', name)
 
     def build(self) -> str:
         self._input_pins()
@@ -278,7 +212,7 @@ class CircBuilder:
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
-            '<project source="2.13.8" version="1.0">',
+            '<project source="3.8.0" version="1.0">',
             '  <lib desc="#Wiring" name="0"/>',
             '  <lib desc="#Gates" name="1"/>',
             '  <lib desc="#Plexers" name="2"/>',
@@ -286,13 +220,9 @@ class CircBuilder:
             '  <lib desc="#Memory" name="4"/>',
             '  <lib desc="#I/O" name="5"/>',
             '  <main name="main"/>',
-            '  <options/>',
-            '  <mappings/>',
-            '  <toolbar/>',
             '  <circuit name="main">',
         ]
         lines += self._comps
-        lines += self._wires
         lines += ['  </circuit>', '</project>']
         return '\n'.join(lines)
 
