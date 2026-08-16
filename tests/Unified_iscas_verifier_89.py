@@ -27,7 +27,7 @@ import asyncio  # CRITICAL: Required for task_manager resolution
 try:
     import orjson
     def dump_json_file(filepath, obj, indent=True):
-        opts = orjson.OPT_INDENT_2 if indent else 0
+        opts = 0
         with open(filepath, 'wb') as f:
             f.write(orjson.dumps(obj, option=opts))
 
@@ -39,7 +39,7 @@ except ImportError:
     def dump_json_file(filepath, obj, indent=True):
         with open(filepath, 'w', encoding='utf-8') as f:
             if indent:
-                json.dump(obj, f, indent=2)
+                json.dump(obj, f, indent=0)
             else:
                 json.dump(obj, f)
 
@@ -361,10 +361,6 @@ class VerilogStateRunner:
         for b in batches:
             self.circuit.batch_toggle(b)
             
-            # CRITICAL: Wait for task_manager to resolve time_queue sequentially
-            if getattr(self.circuit, 'runner', None) and not self.circuit.runner.done():
-                await self.circuit.runner
-                
             results.append(self._get_current_state())
 
         self.const.set_MODE(self.const.SIMULATE)

@@ -172,24 +172,36 @@ class Circuit:
                 if gate is not None and getattr(gate, 'inputlimit', None) == 0:
                     gate.scheduled = False
 
-    def batch_toggle(self, batch: list):
+    def batch_toggle(self, batch: list, batch_size: int = 0) -> float:
         """toggles multiple variables for performance"""
         if getattr(self, '_loc_map_counter', -1) != self.counter:
             self._location_map = {g.location: g for g in self.objlist[VARIABLE_ID] if g is not None}
             self._loc_map_counter = self.counter
 
         mode = get_MODE()
-        changed_gates = []
-        for location, value in batch:
-            gate = self._location_map.get(location)
-            if gate and value != gate.output:
-                gate.value = value
-                gate.output = value if mode != DESIGN else UNKNOWN
-                changed_gates.append(gate)
+        n = len(batch)
+        if batch_size <= 0:
+            batch_size = n
+            
+        start = time.perf_counter_ns()
+        for i in range(0, n, batch_size):
+            changed_gates = []
+            for j in range(batch_size):
+                if i + j >= n:
+                    break
+                location, value = batch[i + j]
+                gate = self._location_map.get(location)
+                if gate and value != gate.output:
+                    gate.value = value
+                    gate.output = value if mode != DESIGN else UNKNOWN
+                    changed_gates.append(gate)
 
-        if mode != COMPILE:
-            for gate in changed_gates:
-                self.propagate(gate)
+            if mode != COMPILE:
+                for gate in changed_gates:
+                    self.propagate(gate)
+                    
+        end = time.perf_counter_ns()
+        return (end - start) / 1000000.0
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""

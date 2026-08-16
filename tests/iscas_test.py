@@ -305,9 +305,10 @@ class VerilogRunner:
             
         fast_batch_toggle = self.circuit.batch_toggle 
         batched_instructions = []
+        batch_size = len(self.master_vars)
         for _ in range(vectors):
-            current_vector = [(m.location, self.const.HIGH if random.random() > 0.5 else self.const.LOW) for m in self.master_vars]
-            batched_instructions.append(current_vector)
+            for m in self.master_vars:
+                batched_instructions.append((m.location, self.const.HIGH if random.random() > 0.5 else self.const.LOW))
                 
         burst_data = [] 
         prev_evals = self.circuit.eval_count
@@ -315,21 +316,18 @@ class VerilogRunner:
         gc.disable()
         active_start = time.perf_counter_ns()
         
-        for vector_batch in batched_instructions:
-            t0 = time.perf_counter_ns()
-            fast_batch_toggle(vector_batch)
-            t1 = time.perf_counter_ns()
-            
-            curr_evals = self.circuit.eval_count
-            evals_diff = curr_evals - prev_evals
-            prev_evals = curr_evals
-            
-            delta_ns = t1 - t0
-            if delta_ns > 0 and evals_diff > 0:
-                burst_m_s = (evals_diff / delta_ns) * 1000.0
-                burst_data.append((burst_m_s, evals_diff))
+        duration_ms = fast_batch_toggle(batched_instructions, batch_size)
                 
         active_end = time.perf_counter_ns()
+        gc.enable()
+        
+        curr_evals = self.circuit.eval_count
+        evals_diff = curr_evals - prev_evals
+        delta_ns = active_end - active_start
+        
+        if duration_ms > 0 and evals_diff > 0:
+            burst_m_s = (evals_diff / (duration_ms * 1_000_000.0)) * 1000.0
+            burst_data.append((burst_m_s, evals_diff))
         gc.enable()
         
         pure_execution_ns = active_end - active_start

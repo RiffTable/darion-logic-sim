@@ -455,24 +455,23 @@ class VerilogRunner:
         warmup_batches   = all_instructions[:warmup]
         measured_batches = all_instructions[warmup:]
 
+        flat_warmup_batches = [item for sublist in warmup_batches for item in sublist]
+        flat_measured_batches = [item for sublist in measured_batches for item in sublist]
+        batch_size = len(self.input_vars)
+
         # ── PASS 1: propagate (SIMULATE / BFS wavefront) ─────────────────────
         self.circuit.simulate(self.const.SIMULATE)
 
-        for vector_batch in warmup_batches:
-            self.circuit.batch_toggle(vector_batch)
+        if flat_warmup_batches:
+            self.circuit.batch_toggle(flat_warmup_batches, batch_size)
 
         gc.collect()
         self.circuit.eval_count = 0
         gc.disable()
-        t0 = time.perf_counter_ns()
 
-        for vector_batch in measured_batches:
-            self.circuit.batch_toggle(vector_batch)
+        propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
 
-        t1 = time.perf_counter_ns()
         gc.enable()
-
-        propagate_ms = (t1 - t0) / 1_000_000.0
         propagate_evals = getattr(self.circuit, 'eval_count', measured * len(self.nodes))
         propagate_meps  = (
             (propagate_evals / (propagate_ms / 1000.0)) / 1_000_000.0
@@ -513,24 +512,19 @@ class VerilogRunner:
                 # Switch to COMPILE so batch_toggle() calls sweep() not propagate().
                 self.const.set_MODE(self.const.COMPILE)
 
-                for vector_batch in warmup_batches:
-                    self.circuit.batch_toggle(vector_batch)
+                if flat_warmup_batches:
+                    self.circuit.batch_toggle(flat_warmup_batches, batch_size)
 
                 gc.collect()
                 self.circuit.eval_count = 0
                 gc.disable()
-                s0 = time.perf_counter_ns()
+                
+                sweep_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
 
-                for vector_batch in measured_batches:
-                    self.circuit.batch_toggle(vector_batch)
-
-                s1 = time.perf_counter_ns()
                 gc.enable()
 
                 # Restore SIMULATE mode so the circuit is in a sane state.
                 self.const.set_MODE(self.const.SIMULATE)
-
-                sweep_ms    = (s1 - s0) / 1_000_000.0
                 sweep_evals = getattr(self.circuit, 'eval_count', measured * len(self.nodes))
                 sweep_meps  = (
                     (sweep_evals / (sweep_ms / 1000.0)) / 1_000_000.0
@@ -615,6 +609,9 @@ def main():
     parser.add_argument('--output',  type=str, default="iscas_results", help="Base path for output files")
     parser.add_argument('--dump', action='store_true', help='Dump output to time-stamped txt in test_results')
     parser.add_argument('--plot', action='store_true', help='Generate plots in test_results')
+    parser.add_argument('--no-logisim', dest='logisim', action='store_false',
+                        help='Skip the Logisim-Evolution benchmark engine')
+    parser.set_defaults(logisim=True)
 
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--mode',    type=str, choices=['engine', 'reactor'], help=argparse.SUPPRESS)
@@ -682,7 +679,10 @@ def main():
 
         e_res = run_python_backend_process(filepath, 'engine',  args.vectors, args.warmup, args.optimize)
         r_res = run_python_backend_process(filepath, 'reactor', args.vectors, args.warmup, args.optimize)
-        l_res = run_logisim_harness(filepath, harness_cp, args.vectors, args.warmup)
+        if args.logisim:
+            l_res = run_logisim_harness(filepath, harness_cp, args.vectors, args.warmup)
+        else:
+            l_res = {"engine": "Logisim", "file": filename, "error": "disabled"}
         i_res = run_icarus_harness(filepath, args.vectors, args.warmup)
 
         e_str      = f"{e_res['time_ms']:.1f}"       if 'error' not in e_res else "ERR"
@@ -718,76 +718,138 @@ def _print_speedup_report(all_results: list):
 
     W = 175
     print()
-    print("=" * W)
-    print("  SPEEDUP vs LOGISIM BASELINE  (Logisim timed-only window = 1x)")
-    print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
-    print("=" * W)
-    hdr = (
-        f"{'Circuit':<16} | "
-        f"{'Logisim(ms)':<11} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-        f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10} | "
-        f"{'Icarus-sim(ms)':<14} | {'Icar-spd':<8}"
-    )
-    print(hdr)
-    print("-" * W)
 
-    engine_speedups       = []
-    reactor_prop_speedups = []
-    reactor_sweep_speedups= []
-    icarus_speedups       = []
+    # Auto-select baseline: Logisim when available, Icarus when --no-logisim
+    logisim_available = any('error' not in l for _, _, _, l, _ in all_results)
 
-    for filename, e_res, r_res, l_res, i_res in all_results:
-        if any('error' in res for res in (e_res, r_res, l_res)):
-            continue
-
-        l_ms   = l_res['time_ms']
-        e_ms   = e_res['time_ms']
-        r_ms   = r_res['time_ms']
-        rs_ms  = r_res.get('sweep_ms', None)
-        i_ms   = i_res.get('time_ms', 0) if 'error' not in i_res else None
-
-        e_spd  = l_ms / e_ms  if e_ms  > 0 else float('inf')
-        r_spd  = l_ms / r_ms  if r_ms  > 0 else float('inf')
-        rs_spd = l_ms / rs_ms if rs_ms and rs_ms > 0 else None
-        i_spd  = l_ms / i_ms  if i_ms  and i_ms > 0 else None
-
-        engine_speedups.append(e_spd)
-        reactor_prop_speedups.append(r_spd)
-        if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
-        if i_spd:              icarus_speedups.append(i_spd)
-
-        rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
-        rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
-        i_ms_str   = f"{i_ms:.1f}"    if i_ms   is not None else "N/A"
-        i_spd_str  = f"{i_spd:.1f}x"  if i_spd  is not None else "N/A"
-
-        print(
-            f"{filename:<16} | "
-            f"{l_ms:>11.1f} | "
-            f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
-            f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10} | "
-            f"{i_ms_str:>14} | {i_spd_str:>8}"
-        )
-
-    if engine_speedups:
-        geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
-
-        g_e  = geo_mean(engine_speedups)
-        g_r  = geo_mean(reactor_prop_speedups)
-        g_rs = geo_mean(reactor_sweep_speedups)  if reactor_sweep_speedups  else None
-        g_i  = geo_mean(icarus_speedups)         if icarus_speedups         else None
-
-        print("-" * W)
-        g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
-        g_i_str  = f"{g_i:.1f}x"  if g_i  is not None else "N/A"
-        print(
-            f"{'Geo-mean speedup':<16} | {'(baseline)':<11} | "
-            f"{'':<10} | {g_e:>7.1f}x | "
-            f"{'':<11} | {g_r:>10.1f}x | {'':>12} | {g_rs_str:>10} | "
-            f"{'':>14} | {g_i_str:>8}"
-        )
+    if logisim_available:
+        # ── Logisim baseline (normal mode) ─────────────────────────────────────
         print("=" * W)
+        print("  SPEEDUP vs LOGISIM BASELINE  (Logisim timed-only window = 1x)")
+        print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
+        print("=" * W)
+        hdr = (
+            f"{'Circuit':<16} | "
+            f"{'Logisim(ms)':<11} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
+            f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10} | "
+            f"{'Icarus-sim(ms)':<14} | {'Icar-spd':<8}"
+        )
+        print(hdr)
+        print("-" * W)
 
+        engine_speedups        = []
+        reactor_prop_speedups  = []
+        reactor_sweep_speedups = []
+        icarus_speedups        = []
+
+        for filename, e_res, r_res, l_res, i_res in all_results:
+            if any('error' in res for res in (e_res, r_res, l_res)):
+                continue
+
+            l_ms  = l_res['time_ms']
+            e_ms  = e_res['time_ms']
+            r_ms  = r_res['time_ms']
+            rs_ms = r_res.get('sweep_ms', None)
+            i_ms  = i_res.get('time_ms', 0) if 'error' not in i_res else None
+
+            e_spd  = l_ms / e_ms  if e_ms  > 0 else float('inf')
+            r_spd  = l_ms / r_ms  if r_ms  > 0 else float('inf')
+            rs_spd = l_ms / rs_ms if rs_ms and rs_ms > 0 else None
+            i_spd  = l_ms / i_ms  if i_ms  and i_ms  > 0 else None
+
+            engine_speedups.append(e_spd)
+            reactor_prop_speedups.append(r_spd)
+            if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
+            if i_spd:              icarus_speedups.append(i_spd)
+
+            rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
+            rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
+            i_ms_str   = f"{i_ms:.1f}"    if i_ms   is not None else "N/A"
+            i_spd_str  = f"{i_spd:.1f}x"  if i_spd  is not None else "N/A"
+
+            print(
+                f"{filename:<16} | "
+                f"{l_ms:>11.1f} | "
+                f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
+                f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10} | "
+                f"{i_ms_str:>14} | {i_spd_str:>8}"
+            )
+
+        if engine_speedups:
+            geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
+            g_e  = geo_mean(engine_speedups)
+            g_r  = geo_mean(reactor_prop_speedups)
+            g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
+            g_i  = geo_mean(icarus_speedups)        if icarus_speedups        else None
+            print("-" * W)
+            g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
+            g_i_str  = f"{g_i:.1f}x"  if g_i  is not None else "N/A"
+            print(
+                f"{'Geo-mean speedup':<16} | {'(baseline)':<11} | "
+                f"{'':<10} | {g_e:>7.1f}x | "
+                f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10} | "
+                f"{'':<14} | {g_i_str:>8}"
+            )
+            print("=" * W)
+
+    else:
+        # ── Icarus fallback baseline (--no-logisim mode) ───────────────────────
+        print("=" * W)
+        print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)  [Logisim disabled]")
+        print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
+        print("=" * W)
+        hdr = (
+            f"{'Circuit':<16} | "
+            f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
+            f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+        )
+        print(hdr)
+        print("-" * W)
+
+        engine_speedups        = []
+        reactor_prop_speedups  = []
+        reactor_sweep_speedups = []
+
+        for filename, e_res, r_res, l_res, i_res in all_results:
+            if any('error' in res for res in (e_res, r_res, i_res)):
+                continue
+
+            i_ms  = i_res['time_ms']
+            e_ms  = e_res['time_ms']
+            r_ms  = r_res['time_ms']
+            rs_ms = r_res.get('sweep_ms', None)
+
+            e_spd  = i_ms / e_ms  if e_ms  > 0 else float('inf')
+            r_spd  = i_ms / r_ms  if r_ms  > 0 else float('inf')
+            rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
+
+            engine_speedups.append(e_spd)
+            reactor_prop_speedups.append(r_spd)
+            if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
+
+            rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
+            rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
+
+            print(
+                f"{filename:<16} | "
+                f"{i_ms:>14.2f} | "
+                f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
+                f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10}"
+            )
+
+        if engine_speedups:
+            geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
+            g_e  = geo_mean(engine_speedups)
+            g_r  = geo_mean(reactor_prop_speedups)
+            g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
+            print("-" * W)
+            g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
+            print(
+                f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
+                f"{'':<10} | {g_e:>7.1f}x | "
+                f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10}"
+            )
+            print("=" * W)
 
 def _save_results(all_results: list, args):
     import math

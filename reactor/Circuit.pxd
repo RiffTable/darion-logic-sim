@@ -79,9 +79,9 @@ cdef class Circuit:
     cdef void complete_task(self, Task task) nogil
     cdef void propagate(self, int origin) nogil
     cdef void sweep(self, int origin) nogil
-    cpdef void batch_toggle(self, list batch)
+    cpdef double batch_toggle(self, list batch, int batch_size=*)
     cpdef list geometry(self)
-    cdef void batch_propagate(self, vector[int] origins) nogil
+    cdef void batch_propagate(self, Py_ssize_t end_point) nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)
     cpdef int pop_visual_queue(self)
