@@ -1128,7 +1128,7 @@ cdef class Circuit:
         '''simulate the circuit'''
         cdef Gate variable
         cdef CPP_Gate* info
-        set_MODE(SIMULATE)
+        set_MODE(Mod)
         self.visual_queue_clear()
         self.eval_count = 0
         if self.runner is not None and not self.runner.done():

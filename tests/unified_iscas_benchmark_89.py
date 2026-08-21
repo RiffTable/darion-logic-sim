@@ -96,7 +96,9 @@ def run_logisim_harness_89(v_file: str, harness_cp: str,
     vec_file  = vector_file_path(circ_file)
 
     try:
+        t_start_conv = time.perf_counter_ns()
         gate_count = convert_file(v_file, circ_file, max_ticks=vectors)
+        convert_ms = (time.perf_counter_ns() - t_start_conv) / 1_000_000.0
 
         if not os.path.exists(vec_file):
             return {"engine": "Logisim", "file": filename,
@@ -131,9 +133,7 @@ def run_logisim_harness_89(v_file: str, harness_cp: str,
 
         net_ms           = float(parts[0])
         measured_vectors = int(parts[1])
-        t_end = time.perf_counter_ns()
-        total_ms = (t_end - t_start) / 1_000_000.0
-        load_ms = max(total_ms - net_ms, 0.0)
+        load_ms = convert_ms
 
         total_evals      = gate_count * measured_vectors
         meps = (total_evals / (net_ms / 1000.0)) / 1_000_000.0 if net_ms > 0 else 0.0
@@ -177,6 +177,7 @@ class SequentialVerilogRunner:
         self.Circuit = circuit_cls
         self.const   = const_mod
         self.circuit = self.Circuit()
+        self.circuit.simulate(self.const.DESIGN)
         self.is_reactor = is_reactor
 
         self.nodes = {}
@@ -325,6 +326,8 @@ class SequentialVerilogRunner:
                 d_gate = self.nodes.get(d_wire)
                 if d_gate and len(dff_inst.inputs) > 1:
                     self.circuit.connect(dff_inst.inputs[1], d_gate, 0)
+
+        self.circuit.simulate(self.const.SIMULATE)
 
     def _get_current_state(self) -> list:
         return [g.output for g in self.output_objects]
@@ -498,10 +501,7 @@ def run_python_backend_process_89(filepath: str, mode: str,
 
         if res.returncode == 0:
             data = json.loads(res.stdout)
-            sim_ms = data.get("propagate_ms", 0.0)
-            if "sweep_ms" in data:
-                sim_ms += data["sweep_ms"]
-            data["load_ms"] = max(total_ms - sim_ms, 0.0)
+            data["load_ms"] = data.get("parse_ms", 0.0)
             return data
         else:
             return {"error": res.stderr.strip() or "Worker process failed"}
@@ -524,12 +524,15 @@ def internal_worker_main(filepath: str, mode: str, vectors: int,
 
     is_reactor = (mode == 'reactor')
     try:
+        t0 = time.perf_counter_ns()
         runner = SequentialVerilogRunner(
             filepath, Circuit.Circuit, Const, is_reactor=is_reactor
         )
+        t1 = time.perf_counter_ns()
         stats = runner.run_benchmark(
             vectors=vectors, warmup=warmup, use_optimize=optimize
         )
+        stats['parse_ms'] = (t1 - t0) / 1_000_000.0
         print(json.dumps(stats))
     except Exception as e:
         print(json.dumps({"error": str(e)}))

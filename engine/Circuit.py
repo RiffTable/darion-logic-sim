@@ -184,20 +184,12 @@ class Circuit:
             batch_size = n
             
         start = time.perf_counter_ns()
-        for i in range(0, n, batch_size):
-            changed_gates = []
-            for j in range(batch_size):
-                if i + j >= n:
-                    break
-                location, value = batch[i + j]
+        for i in range(0, n):
+                location, value = batch[i]
                 gate = self._location_map.get(location)
                 if gate and value != gate.output:
                     gate.value = value
-                    gate.output = value if mode != DESIGN else UNKNOWN
-                    changed_gates.append(gate)
-
-            if mode != COMPILE:
-                for gate in changed_gates:
+                    gate.output = value 
                     self.propagate(gate)
                     
         end = time.perf_counter_ns()

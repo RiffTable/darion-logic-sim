@@ -372,7 +372,14 @@ async def diagnose():
 
 def start_simulation():
     circuit.simulate(Const.SIMULATE)
-    set_status("Simulation Started.")
+    set_status("Simulation Started (BFS Wavefront).")
+
+def optimize_and_sweep():
+    if not hasattr(circuit, 'optimize'):
+        return set_status("Optimize/Sweep is Reactor-only. Run without --engine.")
+    circuit.optimize()
+    circuit.simulate(Const.COMPILE)
+    set_status("Optimize & Sweep complete (Linear FWD-Pass / COMPILE mode).")
 
 def reset_simulation():
     circuit.reset()
@@ -380,7 +387,7 @@ def reset_simulation():
 
 
 # ─────────────────────────────────────────────────────────────── Canvas ──────
-_MODE_NAME = {Const.DESIGN: 'DESIGN', Const.SIMULATE: 'SIMULATE'}
+_MODE_NAME = {Const.DESIGN: 'DESIGN', Const.SIMULATE: 'SIMULATE', Const.COMPILE: 'COMPILE'}
 _OUT_COLOR  = {'T': '\033[92mT\033[0m', 'F': '\033[94mF\033[0m',
                'E': '\033[91mE\033[0m', 'X': '\033[97mX\033[0m'}
 
@@ -569,9 +576,10 @@ async def submenu_simulation():
         '2': ("Show Output", show_output),
         '3': ("Show Truth Table", show_truth_table),
         '4': ("Diagnose", diagnose),
-        '5': ("Start Simulation (Combinational)", start_simulation),
-        '6': ("Reset Simulation", reset_simulation),
-        '7': ("Canvas (Live Circuit View)", canvas),
+        '5': ("Start Simulation (BFS Wavefront - SIMULATE)", start_simulation),
+        '6': ("Optimize & Sweep (Linear FWD-Pass - COMPILE)", optimize_and_sweep),
+        '7': ("Reset Simulation", reset_simulation),
+        '8': ("Canvas (Live Circuit View)", canvas),
         'B': ("Back", None)
     })
 

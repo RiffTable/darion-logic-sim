@@ -62,9 +62,10 @@ static PLI_INT32 stop_timer_calltf(PLI_BYTE8 *user_data)
     LARGE_INTEGER t_end;
     QueryPerformanceCounter(&t_end);
 
-    /* Compute elapsed nanoseconds via QPC frequency */
+    /* Compute elapsed nanoseconds via QPC frequency using double to prevent overflow */
     long long elapsed_counts = t_end.QuadPart - _t_start.QuadPart;
-    long long elapsed_ns = (elapsed_counts * 1000000000LL) / _t_freq.QuadPart;
+    double seconds = (double)elapsed_counts / (double)_t_freq.QuadPart;
+    long long elapsed_ns = (long long)(seconds * 1000000000.0);
 
     /* Print in a machine-parseable format so Python can extract it */
     vpi_printf("$ELAPSED_NS:%lld\n", elapsed_ns);

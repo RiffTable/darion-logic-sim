@@ -40,6 +40,7 @@ class UniversalLoader:
         self.Circuit = circuit_cls
         self.const = const_mod
         self.circuit = self.Circuit()
+        self.circuit.simulate(self.const.DESIGN)
         self.nodes = {}
         self.dff_connections = []
         self.dff_crct = None
@@ -141,6 +142,7 @@ class UniversalLoader:
                 self.circuit.connect(dff_inst.inputs[1], self.nodes[d_wire], 0)
 
 
+
 def internal_worker_main(filepath: str, mode: str):
     import gc
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -174,6 +176,7 @@ def internal_worker_main(filepath: str, mode: str):
         
         # Extract pure circuit and destroy the parser/loader state
         pure_circuit = loader.circuit
+        gates = len(loader.nodes)
         del loader
         gc.collect()
         
@@ -184,7 +187,7 @@ def internal_worker_main(filepath: str, mode: str):
         # Clean up the loaded circuit
         pure_circuit.clearcircuit()
             
-        print(json.dumps({"prog_mb": base_mb, "circ_mb": delta_mb}))
+        print(json.dumps({"prog_mb": base_mb, "circ_mb": delta_mb, "gates": gates}))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
 
@@ -317,8 +320,8 @@ def main():
     print("  UNIVERSAL CIRCUIT RAM / MEMORY FOOTPRINT BENCHMARK (Combo & Sequential)")
     print("  All Engines: Reporting Program Memory / Circuit Memory in MB.")
     print("=" * W)
-    print(f"{'Circuit':<16} | {'Engine (P/C MB)':<17} | {'Reactor (P/C MB)':<17} | {'Logisim (P/C MB)':<17} | {'Icarus (P/C MB)':<17}")
-    print("-" * W)
+    print(f"{'Circuit':<16} | {'Gates':<10} | {'Engine (P/C MB)':<17} | {'Reactor (P/C MB)':<17} | {'Logisim (P/C MB)':<17} | {'Icarus (P/C MB)':<17}")
+    print("-" * (W + 13))
 
     for vf in v_files:
         fn = os.path.basename(vf)
@@ -340,8 +343,10 @@ def main():
         r_str = fmt_dict(r_dict)
         l_str = fmt_dict(l_dict)
         i_str = fmt_dict(i_dict)
+        
+        gates_str = f"{r_dict.get('gates', e_dict.get('gates', 0)):,}" if "gates" in r_dict or "gates" in e_dict else "N/A"
 
-        print(f"{fn:<16} | {e_str:>17} | {r_str:>17} | {l_str:>17} | {i_str:>17}")
+        print(f"{fn:<16} | {gates_str:>10} | {e_str:>17} | {r_str:>17} | {l_str:>17} | {i_str:>17}")
 
 
 

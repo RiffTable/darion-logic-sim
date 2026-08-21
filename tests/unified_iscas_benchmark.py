@@ -278,7 +278,7 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
             # Fallback: vvp wall time (includes spawn + $readmemb overhead)
             result["time_ms"] = run_ms
             
-        result["load_ms"] = max(total_ms_overall - result["time_ms"], 0.0)
+        result["load_ms"] = compile_ms
 
         return result
 
@@ -304,7 +304,9 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
     vec_file  = vector_file_path(circ_file)
 
     try:
+        t_start_conv = time.perf_counter_ns()
         gate_count = convert_file(v_file, circ_file, max_ticks=vectors)
+        convert_ms = (time.perf_counter_ns() - t_start_conv) / 1_000_000.0
 
         if not os.path.exists(vec_file):
             return {"engine": "Logisim", "file": filename,
@@ -336,9 +338,7 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
 
         net_ms           = float(parts[0])
         measured_vectors = int(parts[1])
-        t_end = time.perf_counter_ns()
-        total_ms = (t_end - t_start) / 1_000_000.0
-        load_ms = max(total_ms - net_ms, 0.0)
+        load_ms          = convert_ms
 
         total_evals      = gate_count * measured_vectors
         meps             = (total_evals / (net_ms / 1000.0)) / 1_000_000.0 if net_ms > 0 else 0.0
@@ -369,10 +369,12 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
 # ===========================================================================
 
 class VerilogRunner:
-    def __init__(self, v_file_path, circuit_cls, const_mod, is_reactor=True):
+    def __init__(self, v_file_path, circuit_cls, const_mod, is_reactor=True, use_optimize=True):
         self.Circuit = circuit_cls
         self.const = const_mod
+        self.use_optimize = use_optimize
         self.circuit = self.Circuit()
+        self.circuit.simulate(self.const.DESIGN)
         self.is_reactor = is_reactor
         self.nodes = {}
         self.outputs = []
@@ -387,6 +389,51 @@ class VerilogRunner:
         self._parse_verilog(v_file_path)
 
     def _parse_verilog(self, filepath):
+        json_path = filepath.replace('.v', '.json')
+        if os.path.exists(json_path) and hasattr(self.circuit, 'readfromjson'):
+            self.circuit.readfromjson(json_path)
+            _, inputs, _ = parse_verilog_ports(filepath)
+            var_list = self.circuit.get_variables()
+            var_dict = {}
+            for v in var_list:
+                name_str = getattr(v, 'custom_name', None) or getattr(v, 'codename', None) or str(v)
+                var_dict[name_str] = v
+                
+            for inp in inputs:
+                port_name = inp.split()[-1]
+                expected_name = f"IN_{port_name}"
+                if expected_name in var_dict:
+                    self.input_vars.append(var_dict[expected_name])
+                else:
+                    found = False
+                    for k, v in var_dict.items():
+                        if port_name in k:
+                            self.input_vars.append(v)
+                            found = True
+                            break
+                    if not found:
+                        print(f"Warning: Could not map pin {port_name} from JSON.")
+            
+            for gate in self.circuit.get_components():
+                name_str = getattr(gate, 'custom_name', None) or getattr(gate, 'codename', None) or str(gate)
+                if name_str.startswith("G_"):
+                    self.nodes[name_str[2:]] = gate
+                elif name_str.startswith("IN_"):
+                    self.nodes[name_str[3:]] = gate
+                elif name_str == "CONST_1":
+                    self.const_1_node = gate
+                    self.nodes["1'b1"] = gate
+                elif name_str == "CONST_0":
+                    self.const_0_node = gate
+                    self.nodes["1'b0"] = gate
+                else:
+                    self.nodes[name_str] = gate
+            if not self.is_reactor:
+                if self.use_optimize:
+                    self.circuit.optimize()
+                self.circuit.simulate(self.const.COMPILE)
+            return
+
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
@@ -394,6 +441,24 @@ class VerilogRunner:
         content = re.sub(r'//.*', '', content)
         statements = [s.strip() for s in content.split(';') if s.strip()]
         connections = []
+
+        self.const_1_node = None
+        self.const_0_node = None
+
+        def get_const_node(val_str):
+            if val_str == "1'b1":
+                if not getattr(self, 'const_1_node', None):
+                    self.const_1_node = self.circuit.getcomponent(self.const.VARIABLE_ID)
+                    self.const_1_node.rename("CONST_1")
+                    self.nodes["1'b1"] = self.const_1_node
+                return self.const_1_node
+            elif val_str == "1'b0":
+                if not getattr(self, 'const_0_node', None):
+                    self.const_0_node = self.circuit.getcomponent(self.const.VARIABLE_ID)
+                    self.const_0_node.rename("CONST_0")
+                    self.nodes["1'b0"] = self.const_0_node
+                return self.const_0_node
+            return None
 
         for stmt in statements:
             if stmt.startswith('input '):
@@ -423,6 +488,10 @@ class VerilogRunner:
                         gate_id = self.VERILOG_GATE_MAP[gate_type]
                         gate = self.circuit.getcomponent(gate_id)
                         gate.rename(f"G_{out_wire}")
+                        
+                        for w in in_wires:
+                            get_const_node(w)
+
                         if gate_id != self.const.NOT_ID and hasattr(self.circuit, 'setlimits'):
                             self.circuit.setlimits(gate, len(in_wires))
                         self.nodes[out_wire] = gate
@@ -435,8 +504,11 @@ class VerilogRunner:
                 source_gate = self.nodes.get(source_id)
                 if source_gate:
                     self.circuit.connect(target_gate, source_gate, pin_index)
+        if self.use_optimize:
+            self.circuit.optimize()
+        self.circuit.simulate(self.const.COMPILE)
 
-    def run_benchmark(self, vectors=10000, warmup=5000, use_optimize=True):
+    def run_benchmark(self, vectors=10000, warmup=5000, use_optimize=True, rx_prop=True):
         """Run the simulation benchmark with symmetric warmup.
 
         Measures two paths for reactor, one for engine:
@@ -463,41 +535,57 @@ class VerilogRunner:
             for var_node in self.input_vars:
                 val = self.const.HIGH if _rng.randint(0, 1) else self.const.LOW
                 batch.append((var_node.location, val))
+            
+            if getattr(self, 'const_1_node', None):
+                batch.append((self.const_1_node.location, self.const.HIGH))
+            if getattr(self, 'const_0_node', None):
+                batch.append((self.const_0_node.location, self.const.LOW))
+                
             all_instructions.append(batch)
         warmup_batches   = all_instructions[:warmup]
         measured_batches = all_instructions[warmup:]
 
         flat_warmup_batches = [item for sublist in warmup_batches for item in sublist]
         flat_measured_batches = [item for sublist in measured_batches for item in sublist]
-        batch_size = len(self.input_vars)
+        batch_size = len(self.input_vars) + (1 if getattr(self, 'const_1_node', None) else 0) + (1 if getattr(self, 'const_0_node', None) else 0)
 
-        # ── PASS 1: propagate (SIMULATE / BFS wavefront) ─────────────────────
-        self.circuit.simulate(self.const.SIMULATE)
+        if rx_prop:
+            # ── PASS 1: propagate (SIMULATE / BFS wavefront) ─────────────────────
+            self.circuit.simulate(self.const.SIMULATE)
 
-        if flat_warmup_batches:
-            self.circuit.batch_toggle(flat_warmup_batches, batch_size)
+            if flat_warmup_batches:
+                self.circuit.batch_toggle(flat_warmup_batches, batch_size)
 
-        gc.collect()
-        self.circuit.eval_count = 0
-        gc.disable()
+            gc.collect()
+            self.circuit.eval_count = 0
+            gc.disable()
 
-        propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
+            propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
 
-        gc.enable()
-        propagate_evals = getattr(self.circuit, 'eval_count', measured * len(self.nodes))
-        propagate_meps  = (
-            (propagate_evals / (propagate_ms / 1000.0)) / 1_000_000.0
-            if propagate_ms > 0 else 0.0
-        )
+            gc.enable()
+            propagate_evals = getattr(self.circuit, 'eval_count', measured * len(self.nodes))
+            propagate_meps  = (
+                (propagate_evals / (propagate_ms / 1000.0)) / 1_000_000.0
+                if propagate_ms > 0 else 0.0
+            )
 
-        result = {
-            "nodes":            len(self.nodes),
-            "time_ms":          propagate_ms,   # canonical field (backward-compat)
-            "propagate_ms":     propagate_ms,
-            "measured_vectors": measured,
-            "total_evals":      propagate_evals,
-            "meps":             propagate_meps,
-        }
+            result = {
+                "nodes":            len(self.nodes),
+                "time_ms":          propagate_ms,   # canonical field (backward-compat)
+                "propagate_ms":     propagate_ms,
+                "measured_vectors": measured,
+                "total_evals":      propagate_evals,
+                "meps":             propagate_meps,
+            }
+        else:
+            result = {
+                "nodes":            len(self.nodes),
+                "time_ms":          0.0,
+                "propagate_ms":     0.0,
+                "measured_vectors": measured,
+                "total_evals":      0,
+                "meps":             0.0,
+            }
 
         # ── PASS 2: sweep (COMPILE mode / linear forward-pass) ───────────────
         # sweep() exists only on the reactor (cdef nogil method on Circuit.pyx).
@@ -551,7 +639,7 @@ class VerilogRunner:
         return result
 
 
-def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool) -> dict:
+def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool) -> dict:
     cmd = [
         sys.executable, os.path.abspath(__file__),
         "--internal-worker", filepath,
@@ -561,6 +649,8 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
     ]
     if optimize:
         cmd.append("--optimize")
+    if not rx_prop:
+        cmd.append("--no-rx-prop")
 
     try:
         t0 = time.perf_counter_ns()
@@ -570,10 +660,7 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
 
         if res.returncode == 0:
             data = json.loads(res.stdout)
-            sim_ms = data.get("propagate_ms", 0.0)
-            if "sweep_ms" in data:
-                sim_ms += data["sweep_ms"]
-            data["load_ms"] = max(total_ms - sim_ms, 0.0)
+            data["load_ms"] = data.get("parse_ms", 0.0)
             return data
         else:
             return {"error": res.stderr.strip() or "Worker process failed"}
@@ -581,7 +668,7 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
         return {"error": str(e)}
 
 
-def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool):
+def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     target_path = os.path.join(script_dir, mode)
@@ -595,8 +682,12 @@ def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, op
 
     is_reactor = (mode == 'reactor')
     try:
-        runner = VerilogRunner(filepath, Circuit.Circuit, Const, is_reactor=is_reactor)
-        stats = runner.run_benchmark(vectors=vectors, warmup=warmup, use_optimize=optimize)
+        t0 = time.perf_counter_ns()
+        runner = VerilogRunner(filepath, Circuit.Circuit, Const, is_reactor=is_reactor, use_optimize=optimize)
+        t1 = time.perf_counter_ns()
+        
+        stats = runner.run_benchmark(vectors=vectors, warmup=warmup, use_optimize=optimize, rx_prop=rx_prop)
+        stats['parse_ms'] = (t1 - t0) / 1_000_000.0
         print(json.dumps(stats))
     except Exception as e:
         print(json.dumps({"error": str(e)}))
@@ -633,6 +724,12 @@ def main():
     parser.add_argument('--no-logisim', dest='logisim', action='store_false',
                         help='Skip the Logisim-Evolution benchmark engine')
     parser.set_defaults(logisim=True)
+    parser.add_argument('--no-engine', dest='engine', action='store_false',
+                        help='Skip the pure Python Engine benchmark')
+    parser.set_defaults(engine=True)
+    parser.add_argument('--no-rx-prop', dest='rx_prop', action='store_false',
+                        help='Skip Reactor BFS propagate (SIMULATE mode) benchmark')
+    parser.set_defaults(rx_prop=True)
 
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--mode',    type=str, choices=['engine', 'reactor'], help=argparse.SUPPRESS)
@@ -640,7 +737,7 @@ def main():
     args = parser.parse_args()
 
     if args.internal_worker:
-        internal_worker_main(args.target, args.mode, args.vectors, args.warmup, args.optimize)
+        internal_worker_main(args.target, args.mode, args.vectors, args.warmup, args.optimize, args.rx_prop)
         sys.exit(0)
 
     if not args.target:
@@ -698,8 +795,11 @@ def main():
     for filepath in v_files:
         filename = os.path.basename(filepath)
 
-        e_res = run_python_backend_process(filepath, 'engine',  args.vectors, args.warmup, args.optimize)
-        r_res = run_python_backend_process(filepath, 'reactor', args.vectors, args.warmup, args.optimize)
+        if args.engine:
+            e_res = run_python_backend_process(filepath, 'engine',  args.vectors, args.warmup, args.optimize, args.rx_prop)
+        else:
+            e_res = {"engine": "Engine", "file": filename, "error": "disabled"}
+        r_res = run_python_backend_process(filepath, 'reactor', args.vectors, args.warmup, args.optimize, args.rx_prop)
         if args.logisim:
             l_res = run_logisim_harness(filepath, harness_cp, args.vectors, args.warmup)
         else:

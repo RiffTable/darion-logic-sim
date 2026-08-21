@@ -189,6 +189,7 @@ class VerilogStateRunner:
         self.Circuit = circuit_cls
         self.const = const_mod
         self.circuit = self.Circuit()
+        self.circuit.simulate(self.const.DESIGN)
         self.is_reactor = is_reactor
         self.nodes = {}
         self.outputs = []
@@ -206,12 +207,80 @@ class VerilogStateRunner:
         self.output_objects = [self.nodes[p] for p in self.outputs]
 
     def _parse_verilog(self, filepath):
+        json_path = filepath.replace('.v', '.json')
+        if os.path.exists(json_path) and hasattr(self.circuit, 'readfromjson'):
+            self.circuit.readfromjson(json_path)
+            _, inputs, outputs = parse_verilog_ports(filepath)
+            
+            var_list = self.circuit.get_variables()
+            var_dict = {}
+            for v in var_list:
+                name_str = getattr(v, 'custom_name', None) or getattr(v, 'codename', None) or str(v)
+                var_dict[name_str] = v
+                
+            for inp in inputs:
+                port_name = inp.split()[-1]
+                expected_name = f"IN_{port_name}"
+                if expected_name in var_dict:
+                    self.input_vars.append(var_dict[expected_name])
+                else:
+                    found = False
+                    for k, v in var_dict.items():
+                        if port_name in k:
+                            self.input_vars.append(v)
+                            found = True
+                            break
+                    if not found:
+                        print(f"Warning: Could not map pin {port_name} from JSON.")
+            
+            for outp in outputs:
+                port_name = outp.split()[-1]
+                self.outputs.append(port_name)
+
+            for gate in self.circuit.get_components():
+                name_str = getattr(gate, 'custom_name', None) or getattr(gate, 'codename', None) or str(gate)
+                if name_str.startswith("G_"):
+                    self.nodes[name_str[2:]] = gate
+                elif name_str.startswith("IN_"):
+                    self.nodes[name_str[3:]] = gate
+                elif name_str == "CONST_1":
+                    self.const_1_node = gate
+                    self.nodes["1'b1"] = gate
+                elif name_str == "CONST_0":
+                    self.const_0_node = gate
+                    self.nodes["1'b0"] = gate
+                else:
+                    self.nodes[name_str] = gate
+
+            if not self.is_reactor:
+                self.circuit.simulate(self.const.COMPILE)
+            return
+
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
         content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
         content = re.sub(r'//.*', '', content)
         statements = [s.strip() for s in content.split(';') if s.strip()]
+        connections = []
+
+        self.const_1_node = None
+        self.const_0_node = None
+
+        def get_const_node(val_str):
+            if val_str == "1'b1":
+                if not getattr(self, 'const_1_node', None):
+                    self.const_1_node = self.circuit.getcomponent(self.const.VARIABLE_ID)
+                    self.const_1_node.rename("CONST_1")
+                    self.nodes["1'b1"] = self.const_1_node
+                return self.const_1_node
+            elif val_str == "1'b0":
+                if not getattr(self, 'const_0_node', None):
+                    self.const_0_node = self.circuit.getcomponent(self.const.VARIABLE_ID)
+                    self.const_0_node.rename("CONST_0")
+                    self.nodes["1'b0"] = self.const_0_node
+                return self.const_0_node
+            return None
         connections = []
 
         for stmt in statements:
@@ -244,7 +313,11 @@ class VerilogStateRunner:
                         gate_id = self.VERILOG_GATE_MAP[gate_type]
                         gate = self.circuit.getcomponent(gate_id)
                         gate.rename(f"G_{out_wire}")
-                        if gate_id < self.const.VARIABLE_ID and hasattr(self.circuit, 'setlimits'):
+                        
+                        for w in in_wires:
+                            get_const_node(w)
+
+                        if gate_id < getattr(self.const, 'VARIABLE_ID', 99) and hasattr(self.circuit, 'setlimits'):
                             self.circuit.setlimits(gate, len(in_wires))
                         self.nodes[out_wire] = gate
                         connections.append((out_wire, in_wires))
@@ -256,6 +329,8 @@ class VerilogStateRunner:
                 source_gate = self.nodes.get(source_id)
                 if source_gate:
                     self.circuit.connect(target_gate, source_gate, pin_index)
+
+        self.circuit.simulate(self.const.COMPILE)
 
     def _get_current_state(self) -> list:
         """Extracts the state by calling output directly on the python Gate objects."""
@@ -276,6 +351,12 @@ class VerilogStateRunner:
             for var_node, val in zip(self.input_vars, vec):
                 c_val = self.const.HIGH if val == 1 else self.const.LOW
                 batch.append((var_node.location, c_val))
+            
+            if getattr(self, 'const_1_node', None):
+                batch.append((self.const_1_node.location, self.const.HIGH))
+            if getattr(self, 'const_0_node', None):
+                batch.append((self.const_0_node.location, self.const.LOW))
+                
             batches.append(batch)
 
         results = []
@@ -346,7 +427,7 @@ def internal_worker_main(filepath: str, exec_mode: str, in_file: str, out_file: 
 # 4. EQUIVALENCE VERIFIER & COMPARATOR
 # ===========================================================================
 
-def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dict:
+def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42, use_engine: bool = True, use_rx_prop: bool = True, use_rx_sweep: bool = True) -> dict:
     filename = os.path.basename(v_file)
     _, inputs, outputs = parse_verilog_ports(v_file)
 
@@ -360,13 +441,13 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
     icarus_states = run_icarus_base(v_file, raw_vectors)
 
     # 2. Python Engine
-    engine_states = run_worker_process(v_file, 'engine', raw_vectors)
+    engine_states = run_worker_process(v_file, 'engine', raw_vectors) if use_engine else [None] * vector_count
 
     # 3. Cython Reactor (SIMULATE mode)
-    rx_prop_states = run_worker_process(v_file, 'reactor_prop', raw_vectors)
+    rx_prop_states = run_worker_process(v_file, 'reactor_prop', raw_vectors) if use_rx_prop else [None] * vector_count
 
     # 4. Cython Reactor (COMPILE mode)
-    rx_sweep_states = run_worker_process(v_file, 'reactor_sweep', raw_vectors)
+    rx_sweep_states = run_worker_process(v_file, 'reactor_sweep', raw_vectors) if use_rx_sweep else [None] * vector_count
 
     mismatches = []
     vector_logs = []
@@ -377,18 +458,18 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
         rp_out = rx_prop_states[i]
         rs_out = rx_sweep_states[i]
 
-        match_engine = (e_out == g_out)
-        match_rx_prop = (rp_out == g_out)
-        match_rx_sweep = (rs_out == g_out)
+        match_engine = (e_out == g_out) if use_engine else True
+        match_rx_prop = (rp_out == g_out) if use_rx_prop else True
+        match_rx_sweep = (rs_out == g_out) if use_rx_sweep else True
         all_match = match_engine and match_rx_prop and match_rx_sweep
 
         vector_logs.append({
             "vector_id": i,
             "inputs": raw_vectors[i],
             "base_icarus": g_out,
-            "engine": e_out,
-            "rx_prop": rp_out,
-            "rx_sweep": rs_out,
+            "engine": e_out if use_engine else "SKIPPED",
+            "rx_prop": rp_out if use_rx_prop else "SKIPPED",
+            "rx_sweep": rs_out if use_rx_sweep else "SKIPPED",
             "pass": all_match,
         })
 
@@ -397,9 +478,9 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42) -> dic
                 "vector_id": i,
                 "inputs": raw_vectors[i],
                 "expected": g_out,
-                "engine_actual": e_out if not match_engine else "MATCH",
-                "rx_prop_actual": rp_out if not match_rx_prop else "MATCH",
-                "rx_sweep_actual": rs_out if not match_rx_sweep else "MATCH",
+                "engine_actual": e_out if not match_engine else "MATCH" if use_engine else "SKIPPED",
+                "rx_prop_actual": rp_out if not match_rx_prop else "MATCH" if use_rx_prop else "SKIPPED",
+                "rx_sweep_actual": rs_out if not match_rx_sweep else "MATCH" if use_rx_sweep else "SKIPPED",
             })
 
     return {
@@ -441,6 +522,13 @@ def main():
     parser.add_argument('--vectors', type=int, default=1000, help="Number of test vectors per circuit")
     parser.add_argument('--seed', type=int, default=42, help="PRNG Seed")
     parser.add_argument('--output', type=str, default="verification_report", help="JSON output file prefix")
+    
+    parser.add_argument('--no-engine', dest='engine', action='store_false', help='Skip the Python Engine backend')
+    parser.set_defaults(engine=True)
+    parser.add_argument('--no-rx-prop', dest='rx_prop', action='store_false', help='Skip Reactor BFS propagate (SIMULATE mode)')
+    parser.set_defaults(rx_prop=True)
+    parser.add_argument('--no-rx-sweep', dest='rx_sweep', action='store_false', help='Skip Reactor linear fwd-pass (COMPILE mode)')
+    parser.set_defaults(rx_sweep=True)
 
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--exec-mode', type=str, help=argparse.SUPPRESS)
@@ -473,7 +561,7 @@ def main():
     overall_pass = True
 
     for v_file in v_files:
-        res = verify_circuit(v_file, vector_count=args.vectors, seed=args.seed)
+        res = verify_circuit(v_file, vector_count=args.vectors, seed=args.seed, use_engine=args.engine, use_rx_prop=args.rx_prop, use_rx_sweep=args.rx_sweep)
         all_reports.append(res)
 
         status_str = "\033[92mPASS\033[0m" if res["status"] == "PASS" else "\033[91mFAIL\033[0m"

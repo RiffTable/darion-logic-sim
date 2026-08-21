@@ -363,7 +363,7 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
         else:
             result["time_ms"] = run_ms
             
-        result["load_ms"] = max(total_ms_overall - result["time_ms"], 0.0)
+        result["load_ms"] = compile_ms
 
         return result
 
