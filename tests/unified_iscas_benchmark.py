@@ -202,6 +202,7 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
     use_vpi = build_vpi_timer()
 
     try:
+        t_start_total = time.perf_counter_ns()
         module_name, inputs, outputs = parse_verilog_ports(v_file)
         measured = max(vectors - warmup, 1)
 
@@ -243,6 +244,9 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
         t_run_end = time.perf_counter_ns()
         run_ms = (t_run_end - t_run_start) / 1_000_000.0
 
+        t_end_total = time.perf_counter_ns()
+        total_ms_overall = (t_end_total - t_start_total) / 1_000_000.0
+
         if run_res.returncode != 0:
             return {"engine": "Icarus", "file": filename,
                     "error": f"Run failure: {run_res.stderr.strip()}"}
@@ -273,6 +277,8 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
         else:
             # Fallback: vvp wall time (includes spawn + $readmemb overhead)
             result["time_ms"] = run_ms
+            
+        result["load_ms"] = max(total_ms_overall - result["time_ms"], 0.0)
 
         return result
 
@@ -311,6 +317,7 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
             "java", "-cp", harness_cp, "LogisimBenchmarkHarness",
             circ_file, vec_file, str(vectors), str(warmup)
         ]
+        t_start = time.perf_counter_ns()
         try:
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=1200)
         except subprocess.TimeoutExpired:
@@ -329,6 +336,10 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
 
         net_ms           = float(parts[0])
         measured_vectors = int(parts[1])
+        t_end = time.perf_counter_ns()
+        total_ms = (t_end - t_start) / 1_000_000.0
+        load_ms = max(total_ms - net_ms, 0.0)
+
         total_evals      = gate_count * measured_vectors
         meps             = (total_evals / (net_ms / 1000.0)) / 1_000_000.0 if net_ms > 0 else 0.0
 
@@ -337,6 +348,7 @@ def run_logisim_harness(v_file: str, harness_cp: str, vectors: int, warmup: int)
             "file":             filename,
             "gates":            gate_count,
             "time_ms":          net_ms,
+            "load_ms":          load_ms,
             "measured_vectors": measured_vectors,
             "total_evals":      total_evals,
             "meps":             meps,
@@ -551,9 +563,18 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
         cmd.append("--optimize")
 
     try:
+        t0 = time.perf_counter_ns()
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        t1 = time.perf_counter_ns()
+        total_ms = (t1 - t0) / 1_000_000.0
+
         if res.returncode == 0:
-            return json.loads(res.stdout)
+            data = json.loads(res.stdout)
+            sim_ms = data.get("propagate_ms", 0.0)
+            if "sweep_ms" in data:
+                sim_ms += data["sweep_ms"]
+            data["load_ms"] = max(total_ms - sim_ms, 0.0)
+            return data
         else:
             return {"error": res.stderr.strip() or "Worker process failed"}
     except Exception as e:
@@ -699,12 +720,19 @@ def main():
         rs_ev  = (f"{r_res['sweep_evals']:>12,}"        if 'sweep_evals' in r_res
                   else (f"{'ERR':>12}" if 'sweep_error' in r_res else f"{'N/A':>12}"))
 
+        e_ld  = f"{e_res.get('load_ms', 0):>10.1f}" if 'error' not in e_res else f"{'ERR':>10}"
+        r_ld  = f"{r_res.get('load_ms', 0):>11.1f}" if 'error' not in r_res else f"{'ERR':>11}"
+        rs_ld = f"{'N/A':>12}"
+        l_ld  = f"{l_res.get('load_ms', 0):>11.1f}" if 'error' not in l_res else f"{'ERR':>11}"
+        i_ld  = f"{i_res.get('load_ms', 0):>14.1f}" if 'error' not in i_res else f"{'ERR':>14}"
+
         print(
             f"{filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
             f"{l_str:>11} | {i_sim_str:>14}"
         )
         print(f"  {'evals':<14} | {e_ev} | {r_ev} | {rs_ev}")
+        print(f"  {'load (ms)':<14} | {e_ld} | {r_ld} | {rs_ld} | {l_ld} | {i_ld}")
         sys.stdout.flush()
         all_results.append((filename, e_res, r_res, l_res, i_res))
 

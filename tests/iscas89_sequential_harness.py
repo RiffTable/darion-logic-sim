@@ -267,6 +267,7 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
     use_vpi = build_vpi_timer()
 
     try:
+        t_start_total = time.perf_counter_ns()
         module_name, inputs, outputs = parse_verilog_ports_89(v_file)
         clock_idx = _find_clock_idx(inputs)
 
@@ -328,6 +329,9 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
         t_run_end = time.perf_counter_ns()
         run_ms = (t_run_end - t_run_start) / 1_000_000.0
 
+        t_end_total = time.perf_counter_ns()
+        total_ms_overall = (t_end_total - t_start_total) / 1_000_000.0
+
         if run_res.returncode != 0:
             return {"engine": "Icarus", "file": filename,
                     "error": f"Run failure: {run_res.stderr.strip()}"}
@@ -358,6 +362,8 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
             result["time_ms"] = sim_ms
         else:
             result["time_ms"] = run_ms
+            
+        result["load_ms"] = max(total_ms_overall - result["time_ms"], 0.0)
 
         return result
 
