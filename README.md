@@ -113,7 +113,7 @@ Every gate adds its own propagation delay relative to its input. This accurately
 
 **Oscillations**
 
-Handling oscillations was one of the most complex challenges. While simulators like Logisim simply count up to a static limit before throwing a warning (which is inefficient), this simulator uses a dynamic counter to detect oscillations much earlier. It propagates the simulation in batches so the system can display the oscillation to the user without hanging or crashing.
+Handling oscillations was one of the most complex challenges. While traditional simulators simply count up to a static limit before throwing a warning (which is inefficient), this simulator uses a dynamic counter to detect oscillations much earlier. It propagates the simulation in batches so the system can display the oscillation to the user without hanging or crashing.
 The dynamic counter works on the theory of maximum depth, propagation occurs in waves so the maximum amount of wave(depth) is the total number of gates + 1, which can be understood by imagining a chain of not gates and then also a xor-gate connected to itself(the +1 comes from this).
 
 ## IV. System Architecture and Integration

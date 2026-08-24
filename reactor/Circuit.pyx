@@ -1351,7 +1351,7 @@ cdef class Circuit:
                                 target_output = UNKNOWN
                         if target_output != target_info.output:
                             target_info.output = target_output
-                            if not (target_info.flags & FLAG_MARK) and not target_info.hitlist.empty():
+                            if not (target_info.flags & FLAG_MARK):
                                 target_info.flags |= FLAG_MARK
                                 write_queue[size] = profile.target
                                 size += 1
@@ -1437,7 +1437,7 @@ cdef class Circuit:
                                 target_output = UNKNOWN
                         if target_output != target_info.output:
                             target_info.output = target_output
-                            if not (target_info.flags & FLAG_MARK) and not target_info.hitlist.empty():
+                            if not (target_info.flags & FLAG_MARK):
                                 target_info.flags |= FLAG_MARK
                                 write_queue[size] = profile.target
                                 size += 1
@@ -1512,7 +1512,7 @@ cdef class Circuit:
                                 target_output = UNKNOWN
                         if target_output != target_info.output:
                             target_info.output = target_output
-                            if not (target_info.flags& FLAG_MARK) and target_info.hitlist.size():
+                            if not (target_info.flags& FLAG_MARK):
                                 target_info.flags |= FLAG_MARK
                                 if profile.target<=index:
                                     self.queue[0][end_point] = profile.target

@@ -45,8 +45,11 @@ except ImportError:
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+
+sys.path.insert(0, _SCRIPT_DIR)
+_HARNESS_DIR  = os.path.join(_PROJECT_ROOT, 'harness_build')
 
 
 # ===========================================================================
@@ -61,12 +64,17 @@ def parse_verilog_ports(v_file: str):
     content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
     content = re.sub(r'//.*', '', content)
 
-    mod_match = re.search(r'\bmodule\s+([a-zA-Z0-9_]+)', content)
-    module_name = mod_match.group(1) if mod_match else "circuit"
+    module_body = content
+    module_name = "circuit"
+    for m in re.finditer(r'\bmodule\s+([a-zA-Z0-9_]+)(.*?)\bendmodule\b', content, flags=re.DOTALL):
+        if m.group(1).lower() != 'dff':
+            module_name = m.group(1)
+            module_body = m.group(0)
+            break
 
     def extract_ports(keyword):
         ports = []
-        for m in re.finditer(r'\b' + keyword + r'\s+([^;]+);', content):
+        for m in re.finditer(r'\b' + keyword + r'\s+([^;]+);', module_body):
             decl = m.group(1).strip()
             cleaned = re.sub(
                 r'(\[[^\]]+\]|\bwire\b|\breg\b|\blogic\b|\bsigned\b|\bunsigned\b)',
@@ -203,8 +211,19 @@ class VerilogStateRunner:
 
         self._parse_verilog(v_file_path)
         
-        # Maintain references to python Gate objects ordered strictly by the verilog outputs list
-        self.output_objects = [self.nodes[p] for p in self.outputs]
+        # Maintain references to python Gate objects ordered strictly by the verilog outputs list.
+        # Some circuits declare output ports that share a name with an input wire (passthroughs)
+        # or alias an internal wire not directly keyed in self.nodes — skip with a warning.
+        self.output_objects = []
+        for p in self.outputs:
+            node = self.nodes.get(p + "_OUTPIN")
+            if not node:
+                node = self.nodes.get(p)
+            
+            if node is None:
+                print(f"[VerilogStateRunner] Warning: output port '{p}' not found in nodes dict — skipped.")
+            else:
+                self.output_objects.append(node)
 
     def _parse_verilog(self, filepath):
         json_path = filepath.replace('.v', '.json')
@@ -243,6 +262,8 @@ class VerilogStateRunner:
                     self.nodes[name_str[2:]] = gate
                 elif name_str.startswith("IN_"):
                     self.nodes[name_str[3:]] = gate
+                elif name_str.startswith("OUT_"):
+                    self.nodes[name_str[4:] + "_OUTPIN"] = gate
                 elif name_str == "CONST_1":
                     self.const_1_node = gate
                     self.nodes["1'b1"] = gate
@@ -298,7 +319,11 @@ class VerilogStateRunner:
                 for p in ports:
                     p = p.strip()
                     if p:
+                        out_node = self.circuit.getcomponent(self.const.OUTPUT_PIN_ID)
+                        out_node.rename(f"OUT_{p}")
+                        self.nodes[p + "_OUTPIN"] = out_node
                         self.outputs.append(p)
+                        connections.append((p + "_OUTPIN", [p]))
             elif stmt.startswith(('wire ', 'module ', 'endmodule', 'reg ')):
                 continue
             else:
@@ -423,6 +448,7 @@ def internal_worker_main(filepath: str, exec_mode: str, in_file: str, out_file: 
     dump_json_file(out_file, results, indent=False)
 
 
+
 # ===========================================================================
 # 4. EQUIVALENCE VERIFIER & COMPARATOR
 # ===========================================================================
@@ -449,6 +475,8 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42, use_en
     # 4. Cython Reactor (COMPILE mode)
     rx_sweep_states = run_worker_process(v_file, 'reactor_sweep', raw_vectors) if use_rx_sweep else [None] * vector_count
 
+
+
     mismatches = []
     vector_logs = []
 
@@ -458,9 +486,9 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42, use_en
         rp_out = rx_prop_states[i]
         rs_out = rx_sweep_states[i]
 
-        match_engine = (e_out == g_out) if use_engine else True
-        match_rx_prop = (rp_out == g_out) if use_rx_prop else True
-        match_rx_sweep = (rs_out == g_out) if use_rx_sweep else True
+        match_engine    = (e_out == g_out)  if use_engine   else True
+        match_rx_prop   = (rp_out == g_out) if use_rx_prop  else True
+        match_rx_sweep  = (rs_out == g_out) if use_rx_sweep else True
         all_match = match_engine and match_rx_prop and match_rx_sweep
 
         vector_logs.append({
@@ -478,8 +506,8 @@ def verify_circuit(v_file: str, vector_count: int = 1000, seed: int = 42, use_en
                 "vector_id": i,
                 "inputs": raw_vectors[i],
                 "expected": g_out,
-                "engine_actual": e_out if not match_engine else "MATCH" if use_engine else "SKIPPED",
-                "rx_prop_actual": rp_out if not match_rx_prop else "MATCH" if use_rx_prop else "SKIPPED",
+                "engine_actual":   e_out  if not match_engine   else "MATCH" if use_engine   else "SKIPPED",
+                "rx_prop_actual":  rp_out if not match_rx_prop  else "MATCH" if use_rx_prop  else "SKIPPED",
                 "rx_sweep_actual": rs_out if not match_rx_sweep else "MATCH" if use_rx_sweep else "SKIPPED",
             })
 
@@ -522,12 +550,15 @@ def main():
     parser.add_argument('--vectors', type=int, default=1000, help="Number of test vectors per circuit")
     parser.add_argument('--seed', type=int, default=42, help="PRNG Seed")
     parser.add_argument('--output', type=str, default="verification_report", help="JSON output file prefix")
+    parser.add_argument('--dump', action='store_true', help='Only generate final data to stdout')
+    parser.add_argument('--json', action='store_true', help='Only generate JSON to stdout')
     
     parser.add_argument('--no-engine', dest='engine', action='store_false', help='Skip the Python Engine backend')
     parser.set_defaults(engine=True)
     parser.add_argument('--no-rx-prop', dest='rx_prop', action='store_false', help='Skip Reactor BFS propagate (SIMULATE mode)')
     parser.set_defaults(rx_prop=True)
     parser.add_argument('--no-rx-sweep', dest='rx_sweep', action='store_false', help='Skip Reactor linear fwd-pass (COMPILE mode)')
+    parser.set_defaults(rx_sweep=True)
     parser.set_defaults(rx_sweep=True)
 
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
@@ -550,48 +581,79 @@ def main():
         print("[-] Error: No .v files found.")
         sys.exit(1)
 
-    print("=" * 105)
-    print("  UNIFIED ISCAS COMBINATIONAL STATE VERIFICATION SUITE")
-    print(f"  Vectors/Circuit : {args.vectors:,} | Seed: {args.seed} | base Model: Icarus Verilog")
-    print("=" * 105)
-    print(f"{'Circuit':<18} | {'Inputs':<8} | {'Outputs':<8} | {'Vectors':<10} | {'Passed':<10} | {'Failed':<8} | {'Status':<8}")
-    print("-" * 105)
+    if not getattr(args, 'json', False):
+        print("=" * 105)
+        print("  UNIFIED ISCAS COMBINATIONAL STATE VERIFICATION SUITE")
+        print(f"  Vectors/Circuit : {args.vectors:,} | Seed: {args.seed} | base Model: Icarus Verilog")
+        print("=" * 105)
+        print(f"| {'Circuit':<18} | {'Inputs':<8} | {'Outputs':<8} | {'Vectors':<10} | {'Passed':<10} | {'Failed':<8} | {'Status':<8} |")
+        print(f"|{'-'*20}|{'-'*10}|{'-'*10}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*10}|")
 
     all_reports = []
+    md_lines = []
+    md_lines.append("# Unified ISCAS Combinational State Verification")
+    md_lines.append("")
+    md_lines.append(f"- **Vectors/Circuit**: {args.vectors:,}")
+    md_lines.append(f"- **Seed**: {args.seed}")
+    md_lines.append("")
+    md_lines.append(f"| {'Circuit':<18} | {'Inputs':<8} | {'Outputs':<8} | {'Vectors':<10} | {'Passed':<10} | {'Failed':<8} | {'Status':<8} |")
+    md_lines.append(f"|{'-'*20}|{'-'*10}|{'-'*10}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*10}|")
     overall_pass = True
 
     for v_file in v_files:
-        res = verify_circuit(v_file, vector_count=args.vectors, seed=args.seed, use_engine=args.engine, use_rx_prop=args.rx_prop, use_rx_sweep=args.rx_sweep)
+        res = verify_circuit(v_file, vector_count=args.vectors, seed=args.seed,
+                             use_engine=args.engine, use_rx_prop=args.rx_prop,
+                             use_rx_sweep=args.rx_sweep)
         all_reports.append(res)
 
         status_str = "\033[92mPASS\033[0m" if res["status"] == "PASS" else "\033[91mFAIL\033[0m"
         if res["status"] != "PASS":
             overall_pass = False
 
-        print(
-            f"{res['circuit']:<18} | "
+        row_str = (
+            f"| {res['circuit']:<18} | "
             f"{res['inputs_count']:<8} | "
             f"{res['outputs_count']:<8} | "
             f"{res['total_vectors']:<10,}| "
             f"{res['pass_count']:<10,}| "
             f"{res['fail_count']:<8} | "
-            f"{status_str:<8}"
+            f"{status_str:<8} |"
         )
+        md_lines.append(row_str)
 
-        if res["fail_count"] > 0:
-            print(f"  └─> First mismatch at vector #{res['mismatches'][0]['vector_id']}:")
-            print(f"      Inputs applied: {res['mismatches'][0]['inputs']}")
-            print(f"      Expected (Icarus): {res['mismatches'][0]['expected']}")
-            print(f"      Engine : {res['mismatches'][0]['engine_actual']}")
-            print(f"      Rx-Prop: {res['mismatches'][0]['rx_prop_actual']}")
-            print(f"      Rx-Sweep: {res['mismatches'][0]['rx_sweep_actual']}")
+        if not getattr(args, 'json', False):
+            print(row_str)
 
-    print("=" * 105)
+            if res["fail_count"] > 0:
+                mm = res['mismatches'][0]
+                print(f"  └─> First mismatch at vector #{mm['vector_id']}:")
+                print(f"      Inputs applied: {mm['inputs']}")
+                print(f"      Expected (Icarus): {mm['expected']}")
+                print(f"      Engine   : {mm['engine_actual']}")
+                print(f"      Rx-Prop  : {mm['rx_prop_actual']}")
+                print(f"      Rx-Sweep : {mm['rx_sweep_actual']}")
 
-    json_path = args.output if args.output.endswith('.json') else args.output + '.json'
-    dump_json_file(json_path, all_reports, indent=True)
+    if getattr(args, 'json', False):
+        import json as sys_json
+        print(sys_json.dumps(all_reports, indent=4), file=sys.__stdout__)
+        
+    if getattr(args, 'dump', False):
+        import datetime, os
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dump_dir = os.path.join(script_dir, 'test_results', 'unified_iscas_verifier')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        dump_path = os.path.join(dump_dir, f"unified_iscas_verifier_{timestamp}.md")
+        with open(dump_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(md_lines) + "\n")
+        print(f"\n[+] Markdown dump saved to -> {dump_path}")
 
-    print(f"\n[+] Full JSON verification artifact generated -> {json_path}")
+    if not getattr(args, 'json', False):
+        print("=" * 105)
+        json_path = args.output if args.output.endswith('.json') else args.output + '.json'
+        dump_json_file(json_path, all_reports, indent=True)
+        print(f"\n[+] Full JSON verification artifact generated -> {json_path}")
+        
     sys.exit(0 if overall_pass else 1)
 
 

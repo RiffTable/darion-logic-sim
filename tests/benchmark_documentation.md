@@ -181,15 +181,13 @@ python tests/iscas_test.py tests/ISCAS85 --engine --no-optimize --vectors 200
 ## 6. `unified_iscas_benchmark.py`
 
 ### 6.1 Purpose & Special Requirements
-**Purpose:** A unified benchmark runner comparing four simulation engines on identical ISCAS datasets: Pure Python Engine, Cython Reactor, Logisim-Evolution, and Icarus Verilog.
+**Purpose:** A unified benchmark runner comparing three simulation engines on identical ISCAS datasets: Pure Python Engine, Cython Reactor, and Icarus Verilog.
 **Special Requirements:**
 - ISCAS `.v` files.
-- **Logisim-Evolution:** Requires Java and the `logisim-evolution.jar` file. It uses a custom Java harness (`LogisimBenchmarkHarness.java`) to embed Logisim as a library.
 - **Icarus Verilog:** Requires `iverilog` and `vvp` installed on your system. It compiles a custom VPI timer (`vpi_timer.c`) to isolate raw simulation throughput (excluding disk I/O and process teardown).
 
 ### 6.2 How It Works
-- **Vector Generation:** The script uses a fixed Python PRNG seed (42) to generate identical input vectors for all four engines, ensuring fairness.
-- **Logisim:** Calls the Java harness, runs JIT untimed warmups, performs garbage collection, and logs timed evaluations via `System.nanoTime()`.
+- **Vector Generation:** The script uses a fixed Python PRNG seed (42) to generate identical input vectors for all engines, ensuring fairness.
 - **Icarus Verilog:** Transpiles identical test vectors and loads them via `$readmemb`. The VPI timer wraps the inner evaluation loop directly inside the `vvp` process.
 - **Engine/Reactor:** Executes batch toggles and evaluates via `SIMULATE` (BFS propagate) or `COMPILE` (Linear Sweep) modes.
 - Generates a side-by-side speedup ratio comparison report.
@@ -197,8 +195,7 @@ python tests/iscas_test.py tests/ISCAS85 --engine --no-optimize --vectors 200
 ### 6.3 Execution Instructions
 **Flags:**
 - `target` (positional): Path to `.v` file or directory.
-- `--jar`: Path to Logisim-Evolution JAR (default: `logisim-evolution.jar`).
-- `--harness`: Directory containing `LogisimBenchmarkHarness.class` (default: `harness_build`).
+
 - `--vectors`: Total vectors per circuit (default: `50000`).
 - `--warmup`: Untimed warmup vectors (default: `5000`).
 - `--optimize`: Enable topological optimization in Engine/Reactor.
@@ -270,7 +267,7 @@ python tests/integrity_test.py
 | `Complexity_scale.py` | Which circuit shapes are cheaper/harder to simulate? | None |
 | `ic_circuit_benchmark.py` | Do IC packaging + JSON serialization work at scale? | None |
 | `iscas_test.py` | How fast is the engine on real-world industry netlists? | ISCAS `.v` files |
-| `unified_iscas_benchmark.py`| Apples-to-apples comparison of Python/Cython/Java/Icarus? | Java, Icarus, ISCAS |
+| `unified_iscas_benchmark.py`| Apples-to-apples comparison of Python/Cython/Icarus? | Icarus, ISCAS |
 | `defragmentation_test.py` | How much does memory fragmentation hurt vs `optimize()`? | None |
 | `integrity_test.py` | Is every single feature correct and stable under stress? | None |
 

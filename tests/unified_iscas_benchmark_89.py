@@ -1,12 +1,11 @@
 """
-unified_iscas_benchmark_89.py  (v1 — 4-Engine Comparison: Python, Cython, Logisim, Icarus)
+unified_iscas_benchmark_89.py  (v1 — 3-Engine Comparison: Python, Cython, Icarus)
 ===========================================================================================
-Unified benchmark runner comparing four simulation engines on ISCAS89 sequential datasets:
+Unified benchmark runner comparing three simulation engines on ISCAS89 sequential datasets:
   1. Pure Python Engine  (SIMULATE mode)
   2. Cython Reactor Propagate  (SIMULATE mode / BFS Wavefront)
   3. Cython Reactor Sweep      (COMPILE  mode / Topological Forward-Pass)
-  4. Logisim-Evolution  (Java harness, uses updated D Flip-Flop support in verilog_to_circ)
-  5. Icarus Verilog     (iverilog + vvp + optional VPI inner-loop timer)
+  4. Icarus Verilog     (iverilog + vvp + optional VPI inner-loop timer)
 
 Sequential circuit methodology
 -------------------------------
@@ -18,14 +17,14 @@ Sequential circuit methodology
   window to flush DFF states from an unknown reset condition.
 - Sweep mode uses asyncio.run() to drain the task_manager time_queue after
   each batch_toggle() — required for correct DFF feedback resolution.
-- Speedup baseline: Icarus Verilog VPI sim time (consistent with how the
-  combinational benchmark uses Logisim as the external reference).
+- Speedup baseline: Icarus Verilog VPI sim time.
 """
 
 import os
 import re
 import sys
 import time
+import datetime
 import json
 import random
 import argparse
@@ -40,14 +39,6 @@ _SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 
 sys.path.insert(0, _SCRIPT_DIR)
-try:
-    from verilog_to_circ import convert_file, vector_file_path
-except ImportError:
-    try:
-        from tests.verilog_to_circ import convert_file, vector_file_path
-    except ImportError:
-        convert_file = None
-        vector_file_path = None
 
 try:
     from iscas89_sequential_harness import (
@@ -72,91 +63,6 @@ except ImportError:
         _find_clock_idx        = None
         _VPI_DIR               = ""
         _VPI_TIMER_VPI         = ""
-
-
-# ===========================================================================
-# 1. LOGISIM HARNESS RUNNER (sequential — uses updated verilog_to_circ)
-# ===========================================================================
-
-def run_logisim_harness_89(v_file: str, harness_cp: str,
-                            vectors: int, warmup: int) -> dict:
-    """
-    Run the custom Java benchmark harness for Logisim-Evolution on an ISCAS89
-    sequential circuit.
-
-    The updated verilog_to_circ.py now maps DFF instances to Logisim's built-in
-    D Flip-Flop component (Memory library) and generates clock-paired vectors.
-    """
-    if convert_file is None or vector_file_path is None:
-        return {"engine": "Logisim", "file": os.path.basename(v_file),
-                "error": "verilog_to_circ not available"}
-
-    filename  = os.path.basename(v_file)
-    circ_file = os.path.splitext(v_file)[0] + "_89bench_converted.circ"
-    vec_file  = vector_file_path(circ_file)
-
-    try:
-        t_start_conv = time.perf_counter_ns()
-        gate_count = convert_file(v_file, circ_file, max_ticks=vectors)
-        convert_ms = (time.perf_counter_ns() - t_start_conv) / 1_000_000.0
-
-        if not os.path.exists(vec_file):
-            return {"engine": "Logisim", "file": filename,
-                    "error": f"Vector file missing: {vec_file}"}
-        if not os.path.exists(circ_file):
-            return {"engine": "Logisim", "file": filename,
-                    "error": f"Circuit file missing: {circ_file}"}
-
-        cmd = [
-            "java", "-cp", harness_cp, "LogisimBenchmarkHarness",
-            circ_file, vec_file, str(vectors), str(warmup)
-        ]
-        t_start = time.perf_counter_ns()
-        try:
-            res = subprocess.run(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, timeout=1200
-            )
-        except subprocess.TimeoutExpired:
-            return {"engine": "Logisim", "file": filename,
-                    "error": "Logisim benchmark timed out (limit: 1200s)"}
-
-        if res.returncode != 0:
-            err = (res.stderr or res.stdout).strip()
-            return {"engine": "Logisim", "file": filename,
-                    "error": err or f"Exit code {res.returncode}"}
-
-        parts = res.stdout.strip().split("\t")
-        if len(parts) < 2:
-            return {"engine": "Logisim", "file": filename,
-                    "error": f"Unexpected harness output: {res.stdout.strip()!r}"}
-
-        net_ms           = float(parts[0])
-        measured_vectors = int(parts[1])
-        load_ms = convert_ms
-
-        total_evals      = gate_count * measured_vectors
-        meps = (total_evals / (net_ms / 1000.0)) / 1_000_000.0 if net_ms > 0 else 0.0
-
-        return {
-            "engine":           "Logisim",
-            "file":             filename,
-            "gates":            gate_count,
-            "time_ms":          net_ms,
-            "load_ms":          load_ms,
-            "measured_vectors": measured_vectors,
-            "total_evals":      total_evals,
-            "meps":             meps,
-        }
-    except Exception as e:
-        return {"engine": "Logisim", "file": filename, "error": str(e)}
-    finally:
-        for path in (circ_file, vec_file):
-            if path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
 
 
 # ===========================================================================
@@ -214,6 +120,52 @@ class SequentialVerilogRunner:
         self.output_objects = [self.nodes[p] for p in self.outputs if p in self.nodes]
 
     def _parse_verilog(self, filepath):
+        json_path = filepath.replace('.v', '.json')
+        
+        if os.path.exists(json_path) and hasattr(self.circuit, 'readfromjson'):
+            self.circuit.readfromjson(json_path)
+            _, inputs, outputs = parse_verilog_ports_89(filepath)
+            var_list = self.circuit.get_variables() if hasattr(self.circuit, 'get_variables') else self.circuit.get_components()
+            var_dict = {}
+            for v in var_list:
+                name_str = getattr(v, 'custom_name', None) or getattr(v, 'codename', None) or str(v)
+                var_dict[name_str] = v
+                
+            for inp in inputs:
+                port_name = inp.split()[-1]
+                expected_name = f"IN_{port_name}"
+                if expected_name in var_dict:
+                    self.input_vars.append(var_dict[expected_name])
+                else:
+                    found = False
+                    for k, v in var_dict.items():
+                        if port_name in k:
+                            self.input_vars.append(v)
+                            found = True
+                            break
+                    if not found:
+                        print(f"Warning: Could not map pin {port_name} from JSON.")
+            
+            for outp in outputs:
+                port_name = outp.split()[-1]
+                self.outputs.append(port_name)
+
+            for gate in self.circuit.get_components() if hasattr(self.circuit, 'get_components') else self.circuit.components:
+                name_str = getattr(gate, 'custom_name', None) or getattr(gate, 'codename', None) or str(gate)
+                if name_str.startswith("G_"):
+                    self.nodes[name_str[2:]] = gate
+                elif name_str.startswith("IN_"):
+                    self.nodes[name_str[3:]] = gate
+                elif name_str == "CONST_1":
+                    self.nodes["1'b1"] = gate
+                elif name_str == "CONST_0":
+                    self.nodes["1'b0"] = gate
+                else:
+                    self.nodes[name_str] = gate
+            if not self.is_reactor:
+                self.circuit.simulate(self.const.COMPILE)
+            return
+
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
@@ -500,9 +452,12 @@ def run_python_backend_process_89(filepath: str, mode: str,
         total_ms = (t1 - t0) / 1_000_000.0
 
         if res.returncode == 0:
-            data = json.loads(res.stdout)
-            data["load_ms"] = data.get("parse_ms", 0.0)
-            return data
+            for line in reversed(res.stdout.strip().split('\n')):
+                if line.startswith('{'):
+                    data = json.loads(line)
+                    data["load_ms"] = data.get("parse_ms", 0.0)
+                    return data
+            return {"error": "No JSON found in worker stdout: " + res.stdout.strip()[:100]}
         else:
             return {"error": res.stderr.strip() or "Worker process failed"}
     except Exception as e:
@@ -560,86 +515,71 @@ def get_v_files(target):
 def _print_speedup_report(all_results: list):
     import math
 
-    W = 175
+    W = 150
     print()
 
-    # Auto-select baseline: Logisim when available, Icarus when --no-logisim
-    logisim_available = any('error' not in l for _, _, _, l, _ in all_results)
+    # ── Icarus fallback baseline ───────────────────────
+    print("=" * W)
+    print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)")
+    print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
+    print("=" * W)
+    hdr = (
+        f"{'Circuit':<16} | "
+        f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
+        f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+    )
+    print(hdr)
+    print("-" * W)
 
-    if logisim_available:
-        # ── Logisim baseline (normal mode) ─────────────────────────────────────
-        print("=" * W)
-        print("  SPEEDUP vs LOGISIM BASELINE  (Logisim timed-only window = 1x)")
-        print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
-        print("=" * W)
-        hdr = (
-            f"{'Circuit':<16} | "
-            f"{'Logisim(ms)':<11} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-            f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10} | "
-            f"{'Icarus-sim(ms)':<14} | {'Icar-spd':<8}"
+    engine_speedups        = []
+    reactor_prop_speedups  = []
+    reactor_sweep_speedups = []
+
+    for filename, e_res, r_res, i_res in all_results:
+        if any('error' in res for res in (e_res, r_res, i_res)):
+            continue
+
+        i_ms  = i_res['time_ms']
+        e_ms  = e_res['time_ms']
+        r_ms  = r_res['time_ms']
+        rs_ms = r_res.get('sweep_ms', None)
+
+        e_spd  = i_ms / e_ms  if e_ms  > 0 else float('inf')
+        r_spd  = i_ms / r_ms  if r_ms  > 0 else float('inf')
+        rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
+
+        engine_speedups.append(e_spd)
+        reactor_prop_speedups.append(r_spd)
+        if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
+
+        rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
+        rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
+
+        print(
+            f"{filename:<16} | "
+            f"{i_ms:>14.2f} | "
+            f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
+            f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10}"
         )
-        print(hdr)
+
+    if engine_speedups:
+        geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
+        g_e  = geo_mean(engine_speedups)
+        g_r  = geo_mean(reactor_prop_speedups)
+        g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
         print("-" * W)
-
-        engine_speedups        = []
-        reactor_prop_speedups  = []
-        reactor_sweep_speedups = []
-        icarus_speedups        = []
-
-        for filename, e_res, r_res, l_res, i_res in all_results:
-            if any('error' in res for res in (e_res, r_res, l_res)):
-                continue
-
-            l_ms  = l_res['time_ms']
-            e_ms  = e_res['time_ms']
-            r_ms  = r_res['time_ms']
-            rs_ms = r_res.get('sweep_ms', None)
-            i_ms  = i_res.get('time_ms', 0) if 'error' not in i_res else None
-
-            e_spd  = l_ms / e_ms  if e_ms  > 0 else float('inf')
-            r_spd  = l_ms / r_ms  if r_ms  > 0 else float('inf')
-            rs_spd = l_ms / rs_ms if rs_ms and rs_ms > 0 else None
-            i_spd  = l_ms / i_ms  if i_ms  and i_ms  > 0 else None
-
-            engine_speedups.append(e_spd)
-            reactor_prop_speedups.append(r_spd)
-            if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
-            if i_spd:              icarus_speedups.append(i_spd)
-
-            rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
-            rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
-            i_ms_str   = f"{i_ms:.1f}"    if i_ms   is not None else "N/A"
-            i_spd_str  = f"{i_spd:.1f}x"  if i_spd  is not None else "N/A"
-
-            print(
-                f"{filename:<16} | "
-                f"{l_ms:>11.1f} | "
-                f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
-                f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10} | "
-                f"{i_ms_str:>14} | {i_spd_str:>8}"
-            )
-
-        if engine_speedups:
-            geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
-            g_e  = geo_mean(engine_speedups)
-            g_r  = geo_mean(reactor_prop_speedups)
-            g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
-            g_i  = geo_mean(icarus_speedups)        if icarus_speedups        else None
-            print("-" * W)
-            g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
-            g_i_str  = f"{g_i:.1f}x"  if g_i  is not None else "N/A"
-            print(
-                f"{'Geo-mean speedup':<16} | {'(baseline)':<11} | "
-                f"{'':<10} | {g_e:>7.1f}x | "
-                f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10} | "
-                f"{'':<14} | {g_i_str:>8}"
-            )
-            print("=" * W)
+        g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
+        print(
+            f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
+            f"{'':<10} | {g_e:>7.1f}x | "
+            f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10}"
+        )
+        print("=" * W)
 
     else:
-        # ── Icarus fallback baseline (--no-logisim mode) ───────────────────────
+        # ── Icarus fallback baseline ───────────────────────
         print("=" * W)
-        print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)  [Logisim disabled]")
+        print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)")
         print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
         print("=" * W)
         hdr = (
@@ -654,46 +594,7 @@ def _print_speedup_report(all_results: list):
         reactor_prop_speedups  = []
         reactor_sweep_speedups = []
 
-        for filename, e_res, r_res, l_res, i_res in all_results:
-            if any('error' in res for res in (e_res, r_res, i_res)):
-                continue
 
-            i_ms  = i_res['time_ms']
-            e_ms  = e_res['time_ms']
-            r_ms  = r_res['time_ms']
-            rs_ms = r_res.get('sweep_ms', None)
-
-            e_spd  = i_ms / e_ms  if e_ms  > 0 else float('inf')
-            r_spd  = i_ms / r_ms  if r_ms  > 0 else float('inf')
-            rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
-
-            engine_speedups.append(e_spd)
-            reactor_prop_speedups.append(r_spd)
-            if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
-
-            rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
-            rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
-
-            print(
-                f"{filename:<16} | "
-                f"{i_ms:>14.2f} | "
-                f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
-                f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10}"
-            )
-
-        if engine_speedups:
-            geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
-            g_e  = geo_mean(engine_speedups)
-            g_r  = geo_mean(reactor_prop_speedups)
-            g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
-            print("-" * W)
-            g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
-            print(
-                f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
-                f"{'':<10} | {g_e:>7.1f}x | "
-                f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10}"
-            )
-            print("=" * W)
 
 
 def _save_results_89(all_results: list, args):
@@ -710,66 +611,36 @@ def _save_results_89(all_results: list, args):
     ts       = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     circuits_data = []
-    for filename, e_res, r_res, l_res, i_res in all_results:
+    for filename, e_res, r_res, i_res in all_results:
         circuits_data.append({
             "circuit": filename,
             "engine":  e_res,
             "reactor": r_res,
-            "logisim": l_res,
             "icarus":  i_res,
         })
 
-    # Speedup summary vs Logisim baseline (or Icarus if Logisim unavailable)
-    logisim_available = any('error' not in l for _, _, _, l, _ in all_results)
     speedup_summary = None
-
     geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
+    valid_i = [
+        (fn, e, r, i) for fn, e, r, i in all_results
+        if 'error' not in i and i.get('time_ms', 0) > 0
+    ]
+    if valid_i:
+        e_spds  = [i['time_ms'] / e['time_ms']  for _, e, _, i in valid_i
+                    if 'error' not in e and e.get('time_ms', 0) > 0]
+        r_spds  = [i['time_ms'] / r['time_ms']  for _, _, r, i in valid_i
+                    if 'error' not in r and r.get('time_ms', 0) > 0]
+        rs_spds = [i['time_ms'] / r.get('sweep_ms', 0)
+                    for _, _, r, i in valid_i
+                    if 'error' not in r and r.get('sweep_ms', 0) > 0]
 
-    if logisim_available:
-        valid_l = [
-            (fn, e, r, l, i) for fn, e, r, l, i in all_results
-            if 'error' not in l and l.get('time_ms', 0) > 0
-        ]
-        if valid_l:
-            e_spds  = [l['time_ms'] / e['time_ms']  for _, e, _, l, _ in valid_l
-                       if 'error' not in e and e.get('time_ms', 0) > 0]
-            r_spds  = [l['time_ms'] / r['time_ms']  for _, _, r, l, _ in valid_l
-                       if 'error' not in r and r.get('time_ms', 0) > 0]
-            rs_spds = [l['time_ms'] / r.get('sweep_ms', 0)
-                       for _, _, r, l, _ in valid_l
-                       if 'error' not in r and r.get('sweep_ms', 0) > 0]
-            i_spds  = [l['time_ms'] / i['time_ms']  for _, _, _, l, i in valid_l
-                       if 'error' not in i and i.get('time_ms', 0) > 0]
-
-            speedup_summary = {
-                "baseline":                           "Logisim",
-                "valid_circuits":                     len(valid_l),
-                "engine_geo_mean_speedup":            round(geo_mean(e_spds),  3) if e_spds  else None,
-                "reactor_propagate_geo_mean_speedup": round(geo_mean(r_spds),  3) if r_spds  else None,
-                "reactor_sweep_geo_mean_speedup":     round(geo_mean(rs_spds), 3) if rs_spds else None,
-                "icarus_geo_mean_speedup":            round(geo_mean(i_spds),  3) if i_spds  else None,
-            }
-    else:
-        valid_i = [
-            (fn, e, r, l, i) for fn, e, r, l, i in all_results
-            if 'error' not in i and i.get('time_ms', 0) > 0
-        ]
-        if valid_i:
-            e_spds  = [i['time_ms'] / e['time_ms']  for _, e, _, _, i in valid_i
-                       if 'error' not in e and e.get('time_ms', 0) > 0]
-            r_spds  = [i['time_ms'] / r['time_ms']  for _, _, r, _, i in valid_i
-                       if 'error' not in r and r.get('time_ms', 0) > 0]
-            rs_spds = [i['time_ms'] / r.get('sweep_ms', 0)
-                       for _, _, r, _, i in valid_i
-                       if 'error' not in r and r.get('sweep_ms', 0) > 0]
-
-            speedup_summary = {
-                "baseline":                           "Icarus Verilog VPI sim time",
-                "valid_circuits":                     len(valid_i),
-                "engine_geo_mean_speedup":            round(geo_mean(e_spds),  3) if e_spds  else None,
-                "reactor_propagate_geo_mean_speedup": round(geo_mean(r_spds),  3) if r_spds  else None,
-                "reactor_sweep_geo_mean_speedup":     round(geo_mean(rs_spds), 3) if rs_spds else None,
-            }
+        speedup_summary = {
+            "baseline":                           "Icarus Verilog VPI sim time",
+            "valid_circuits":                     len(valid_i),
+            "engine_geo_mean_speedup":            round(geo_mean(e_spds),  3) if e_spds  else None,
+            "reactor_propagate_geo_mean_speedup": round(geo_mean(r_spds),  3) if r_spds  else None,
+            "reactor_sweep_geo_mean_speedup":     round(geo_mean(rs_spds), 3) if rs_spds else None,
+        }
 
     payload = {
         "meta": {
@@ -795,7 +666,7 @@ def _save_results_89(all_results: list, args):
     W = 180
     txt_lines = []
     txt_lines.append("=" * W)
-    txt_lines.append("  UNIFIED 4-ENGINE ISCAS89 SEQUENTIAL LOGIC SIMULATOR BENCHMARK")
+    txt_lines.append("  UNIFIED ISCAS89 SEQUENTIAL LOGIC SIMULATOR BENCHMARK")
     txt_lines.append(f"  Timestamp      : {ts}")
     txt_lines.append(f"  Target         : {args.target}")
     txt_lines.append(f"  Total vectors  : {args.vectors:,}  |  Warmup: {args.warmup:,}  |  Measured: {measured:,}")
@@ -803,164 +674,94 @@ def _save_results_89(all_results: list, args):
     txt_lines.append(f"  Optimize       : {args.optimize}")
     txt_lines.append("  Reactor modes  : propagate = BFS wavefront (SIMULATE mode)")
     txt_lines.append("                   sweep     = linear fwd-pass (COMPILE mode, requires optimize())")
-    txt_lines.append("  Speedup baseline: Logisim timed-only window (Fallback: Icarus Verilog VPI)")
+    txt_lines.append("  Speedup baseline: Icarus Verilog VPI")
     txt_lines.append("=" * W)
 
     hdr = (
         f"{'Circuit':<16} | "
         f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | "
-        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14}"
+        f"{'Icarus-sim(ms)':<14}"
     )
     txt_lines.append(hdr)
     txt_lines.append("-" * W)
 
-    for filename, e_res, r_res, l_res, i_res in all_results:
+    for filename, e_res, r_res, i_res in all_results:
         e_str    = f"{e_res['time_ms']:.1f}"   if 'error' not in e_res else "ERR"
         r_str    = f"{r_res['time_ms']:.1f}"   if 'error' not in r_res else "ERR"
         rs_str   = (f"{r_res['sweep_ms']:.1f}" if 'sweep_ms'    in r_res
                     else ("ERR" if 'sweep_error' in r_res else "N/A"))
-        l_str    = f"{l_res['time_ms']:.1f}"   if 'error' not in l_res else "ERR"
         i_s_str  = f"{i_res['time_ms']:.2f}"   if 'error' not in i_res else "ERR"
         txt_lines.append(
             f"{filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
-            f"{l_str:>11} | {i_s_str:>14}"
+            f"{i_s_str:>14}"
         )
     txt_lines.append("=" * W)
 
+
     # Speedup table vs baseline
-    if logisim_available:
-        valid_l_txt = [
-            (fn, e, r, l, i) for fn, e, r, l, i in all_results
-            if 'error' not in l and l.get('time_ms', 0) > 0
-        ]
-        if valid_l_txt:
-            txt_lines.append("")
-            txt_lines.append("=" * W)
-            txt_lines.append("  SPEEDUP ANALYSIS vs LOGISIM BASELINE  (Logisim = 1.00x)")
-            txt_lines.append("=" * W)
-            spd_hdr = (
-                f"{'Circuit':<16} | "
-                f"{'Logisim(ms)':<11} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-                f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | "
-                f"{'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10} | "
-                f"{'Icarus(ms)':<11} | {'Icarus-spd':<10}"
-            )
-            txt_lines.append(spd_hdr)
-            txt_lines.append("-" * W)
+    valid_i_txt = [
+        (fn, e, r, i) for fn, e, r, i in all_results
+        if 'error' not in i and i.get('time_ms', 0) > 0
+    ]
+    if valid_i_txt:
+        txt_lines.append("")
+        txt_lines.append("=" * W)
+        txt_lines.append("  SPEEDUP ANALYSIS vs ICARUS VERILOG BASELINE  (Icarus = 1.00x)")
+        txt_lines.append("=" * W)
+        spd_hdr = (
+            f"{'Circuit':<16} | "
+            f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
+            f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | "
+            f"{'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+        )
+        txt_lines.append(spd_hdr)
+        txt_lines.append("-" * W)
 
-            g_e_spds  = []
-            g_r_spds  = []
-            g_rs_spds = []
-            g_i_spds  = []
+        g_e_spds  = []
+        g_r_spds  = []
+        g_rs_spds = []
 
-            for fn, e, r, l, i in valid_l_txt:
-                l_ms  = l['time_ms']
-                e_ms  = e.get('time_ms') if 'error' not in e else None
-                r_ms  = r.get('time_ms') if 'error' not in r else None
-                rs_ms = r.get('sweep_ms')if 'error' not in r else None
-                i_ms  = i.get('time_ms') if 'error' not in i else None
+        for fn, e, r, i in valid_i_txt:
+            i_ms  = i['time_ms']
+            e_ms  = e.get('time_ms') if 'error' not in e else None
+            r_ms  = r.get('time_ms') if 'error' not in r else None
+            rs_ms = r.get('sweep_ms')if 'error' not in r else None
 
-                e_spd  = l_ms / e_ms  if e_ms  and e_ms  > 0 else None
-                r_spd  = l_ms / r_ms  if r_ms  and r_ms  > 0 else None
-                rs_spd = l_ms / rs_ms if rs_ms and rs_ms > 0 else None
-                i_spd  = l_ms / i_ms  if i_ms  and i_ms  > 0 else None
+            e_spd  = i_ms / e_ms  if e_ms  and e_ms  > 0 else None
+            r_spd  = i_ms / r_ms  if r_ms  and r_ms  > 0 else None
+            rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
 
-                if e_spd  is not None: g_e_spds.append(e_spd)
-                if r_spd  is not None: g_r_spds.append(r_spd)
-                if rs_spd is not None: g_rs_spds.append(rs_spd)
-                if i_spd  is not None: g_i_spds.append(i_spd)
+            if e_spd  is not None: g_e_spds.append(e_spd)
+            if r_spd  is not None: g_r_spds.append(r_spd)
+            if rs_spd is not None: g_rs_spds.append(rs_spd)
 
-                def _fmt_ms(v):  return f"{v:.1f}"  if v is not None else "N/A"
-                def _fmt_spd(v): return f"{v:.1f}x" if v is not None else "N/A"
-
-                txt_lines.append(
-                    f"{fn:<16} | "
-                    f"{l_ms:>11.1f} | {_fmt_ms(e_ms):>10} | {_fmt_spd(e_spd):>8} | "
-                    f"{_fmt_ms(r_ms):>11} | {_fmt_spd(r_spd):>11} | "
-                    f"{_fmt_ms(rs_ms):>12} | {_fmt_spd(rs_spd):>10} | "
-                    f"{_fmt_ms(i_ms):>11} | {_fmt_spd(i_spd):>10}"
-                )
-
-            g_e  = geo_mean(g_e_spds)  if g_e_spds  else None
-            g_r  = geo_mean(g_r_spds)  if g_r_spds  else None
-            g_rs = geo_mean(g_rs_spds) if g_rs_spds else None
-            g_i  = geo_mean(g_i_spds)  if g_i_spds  else None
-
+            def _fmt_ms(v):  return f"{v:.1f}"  if v is not None else "N/A"
             def _fmt_spd(v): return f"{v:.1f}x" if v is not None else "N/A"
 
-            txt_lines.append("-" * W)
             txt_lines.append(
-                f"{'Geo-mean speedup':<16} | {'(baseline)':<11} | "
-                f"{'':<10} | {_fmt_spd(g_e):>8} | "
-                f"{'':<11} | {_fmt_spd(g_r):>11} | {'':<12} | {_fmt_spd(g_rs):>10} | "
-                f"{'':<11} | {_fmt_spd(g_i):>10}"
+                f"{fn:<16} | "
+                f"{i_ms:>14.2f} | {_fmt_ms(e_ms):>10} | {_fmt_spd(e_spd):>8} | "
+                f"{_fmt_ms(r_ms):>11} | {_fmt_spd(r_spd):>11} | "
+                f"{_fmt_ms(rs_ms):>12} | {_fmt_spd(rs_spd):>10}"
             )
-            txt_lines.append("=" * W)
 
-    else:
-        valid_i_txt = [
-            (fn, e, r, l, i) for fn, e, r, l, i in all_results
-            if 'error' not in i and i.get('time_ms', 0) > 0
-        ]
-        if valid_i_txt:
-            txt_lines.append("")
-            txt_lines.append("=" * W)
-            txt_lines.append("  SPEEDUP ANALYSIS vs ICARUS VERILOG BASELINE  (Icarus = 1.00x)")
-            txt_lines.append("=" * W)
-            spd_hdr = (
-                f"{'Circuit':<16} | "
-                f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-                f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | "
-                f"{'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
-            )
-            txt_lines.append(spd_hdr)
-            txt_lines.append("-" * W)
+        g_e  = geo_mean(g_e_spds)  if g_e_spds  else None
+        g_r  = geo_mean(g_r_spds)  if g_r_spds  else None
+        g_rs = geo_mean(g_rs_spds) if g_rs_spds else None
 
-            g_e_spds  = []
-            g_r_spds  = []
-            g_rs_spds = []
+        def _fmt_spd(v): return f"{v:.1f}x" if v is not None else "N/A"
 
-            for fn, e, r, l, i in valid_i_txt:
-                i_ms  = i['time_ms']
-                e_ms  = e.get('time_ms') if 'error' not in e else None
-                r_ms  = r.get('time_ms') if 'error' not in r else None
-                rs_ms = r.get('sweep_ms')if 'error' not in r else None
-
-                e_spd  = i_ms / e_ms  if e_ms  and e_ms  > 0 else None
-                r_spd  = i_ms / r_ms  if r_ms  and r_ms  > 0 else None
-                rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
-
-                if e_spd  is not None: g_e_spds.append(e_spd)
-                if r_spd  is not None: g_r_spds.append(r_spd)
-                if rs_spd is not None: g_rs_spds.append(rs_spd)
-
-                def _fmt_ms(v):  return f"{v:.1f}"  if v is not None else "N/A"
-                def _fmt_spd(v): return f"{v:.1f}x" if v is not None else "N/A"
-
-                txt_lines.append(
-                    f"{fn:<16} | "
-                    f"{i_ms:>14.2f} | {_fmt_ms(e_ms):>10} | {_fmt_spd(e_spd):>8} | "
-                    f"{_fmt_ms(r_ms):>11} | {_fmt_spd(r_spd):>11} | "
-                    f"{_fmt_ms(rs_ms):>12} | {_fmt_spd(rs_spd):>10}"
-                )
-
-            g_e  = geo_mean(g_e_spds)  if g_e_spds  else None
-            g_r  = geo_mean(g_r_spds)  if g_r_spds  else None
-            g_rs = geo_mean(g_rs_spds) if g_rs_spds else None
-
-            def _fmt_spd(v): return f"{v:.1f}x" if v is not None else "N/A"
-
-            txt_lines.append("-" * W)
-            txt_lines.append(
-                f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
-                f"{'':<10} | {_fmt_spd(g_e):>8} | "
-                f"{'':<11} | {_fmt_spd(g_r):>11} | {'':<12} | {_fmt_spd(g_rs):>10}"
-            )
-            txt_lines.append("=" * W)
+        txt_lines.append("-" * W)
+        txt_lines.append(
+            f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
+            f"{'':<10} | {_fmt_spd(g_e):>8} | "
+            f"{'':<11} | {_fmt_spd(g_r):>11} | {'':<12} | {_fmt_spd(g_rs):>10}"
+        )
+        txt_lines.append("=" * W)
 
         # MEPS table
-    meps_valid = [(fn, e, r, l, i) for fn, e, r, l, i in all_results
+    meps_valid = [(fn, e, r, i) for fn, e, r, i in all_results
                   if 'error' not in e and 'error' not in r]
     if meps_valid:
         txt_lines.append("")
@@ -971,12 +772,11 @@ def _save_results_89(all_results: list, args):
             f"{'Circuit':<16} | "
             f"{'Eng-evals':<16} | {'Eng-MEPS':<9} | "
             f"{'Rx-prop-evals':<16} | {'Rx-p-MEPS':<9} | "
-            f"{'Rx-swp-evals':<16} | {'Rx-s-MEPS':<9} | "
-            f"{'Lsim-evals':<14} | {'Lsim-MEPS':<9}"
+            f"{'Rx-swp-evals':<16} | {'Rx-s-MEPS':<9}"
         )
         txt_lines.append(meps_hdr)
         txt_lines.append("-" * W)
-        for fn, e, r, l, i in meps_valid:
+        for fn, e, r, i in meps_valid:
             e_ev    = f"{e.get('total_evals', 0):,}"   if 'error' not in e else "ERR"
             e_meps  = f"{e.get('meps', 0):.2f}"        if 'error' not in e else "ERR"
             r_ev    = f"{r.get('total_evals', 0):,}"   if 'error' not in r else "ERR"
@@ -985,14 +785,11 @@ def _save_results_89(all_results: list, args):
                        else ("ERR" if 'sweep_error' in r else "N/A"))
             rs_meps = (f"{r.get('sweep_meps', 0):.2f}" if 'sweep_meps'   in r
                        else ("ERR" if 'sweep_error' in r else "N/A"))
-            l_ev    = f"{l.get('total_evals', 0):,}"   if 'error' not in l else "ERR"
-            l_meps  = f"{l.get('meps', 0):.2f}"        if 'error' not in l else "ERR"
             txt_lines.append(
                 f"{fn:<16} | "
                 f"{e_ev:>16} | {e_meps:>9} | "
                 f"{r_ev:>16} | {r_meps:>9} | "
-                f"{rs_ev:>16} | {rs_meps:>9} | "
-                f"{l_ev:>14} | {l_meps:>9}"
+                f"{rs_ev:>16} | {rs_meps:>9}"
             )
         txt_lines.append("=" * W)
 
@@ -1002,16 +799,14 @@ def _save_results_89(all_results: list, args):
     txt_lines.append("  BENCHMARK SUMMARY")
     txt_lines.append("=" * W)
     total_circuits = len(all_results)
-    ok_e  = sum(1 for _, e, r, l, i in all_results if 'error' not in e)
-    ok_r  = sum(1 for _, e, r, l, i in all_results if 'error' not in r)
-    ok_rs = sum(1 for _, e, r, l, i in all_results if 'sweep_ms' in r)
-    ok_l  = sum(1 for _, e, r, l, i in all_results if 'error' not in l)
-    ok_i  = sum(1 for _, e, r, l, i in all_results if 'error' not in i)
+    ok_e  = sum(1 for _, e, r, i in all_results if 'error' not in e)
+    ok_r  = sum(1 for _, e, r, i in all_results if 'error' not in r)
+    ok_rs = sum(1 for _, e, r, i in all_results if 'sweep_ms' in r)
+    ok_i  = sum(1 for _, e, r, i in all_results if 'error' not in i)
     txt_lines.append(f"  Circuits tested       : {total_circuits}")
     txt_lines.append(f"  Engine results OK     : {ok_e}/{total_circuits}")
     txt_lines.append(f"  Reactor (prop) OK     : {ok_r}/{total_circuits}")
     txt_lines.append(f"  Reactor (sweep) OK    : {ok_rs}/{total_circuits}")
-    txt_lines.append(f"  Logisim results OK    : {ok_l}/{total_circuits}")
     txt_lines.append(f"  Icarus results OK     : {ok_i}/{total_circuits}")
     txt_lines.append("")
     if speedup_summary:
@@ -1019,12 +814,10 @@ def _save_results_89(all_results: list, args):
         e_geo  = ss.get('engine_geo_mean_speedup')
         rp_geo = ss.get('reactor_propagate_geo_mean_speedup')
         rs_geo = ss.get('reactor_sweep_geo_mean_speedup')
-        l_geo  = ss.get('logisim_geo_mean_speedup')
         txt_lines.append("  Geo-mean speedup over Icarus Verilog baseline:")
         txt_lines.append(f"    Engine (propagate)   : {e_geo:.2f}x"  if e_geo  else "    Engine              : N/A")
         txt_lines.append(f"    Reactor (propagate)  : {rp_geo:.2f}x" if rp_geo else "    Reactor (propagate) : N/A")
         txt_lines.append(f"    Reactor (sweep)      : {rs_geo:.2f}x" if rs_geo else "    Reactor (sweep)     : N/A")
-        txt_lines.append(f"    Logisim              : {l_geo:.2f}x"  if l_geo  else "    Logisim             : N/A")
         txt_lines.append("")
         if rp_geo and rs_geo:
             ratio = rs_geo / rp_geo
@@ -1037,7 +830,6 @@ def _save_results_89(all_results: list, args):
     txt_lines.append("    - 50 warmup cycles (inputs=0, clock alternates) flush DFF initial state.")
     txt_lines.append("    - Engine/Reactor: warmup run untimed; GC disabled during measurement.")
     txt_lines.append("    - Sweep mode: asyncio.run() drains task_manager time_queue after each toggle.")
-    txt_lines.append("    - Logisim: Java harness with D Flip-Flop components (Memory library).")
     txt_lines.append("    - Icarus: VPI inner-loop timer excludes warmup, $readmemb, and teardown.")
     txt_lines.append("    - Speedup baseline: Icarus Verilog VPI sim time (external reference).")
     txt_lines.append("=" * W)
@@ -1047,16 +839,14 @@ def _save_results_89(all_results: list, args):
     txt_lines.append("  BENCHMARK SUMMARY")
     txt_lines.append("=" * W)
     total_circuits = len(all_results)
-    ok_e  = sum(1 for _, e, r, l, i in all_results if 'error' not in e)
-    ok_r  = sum(1 for _, e, r, l, i in all_results if 'error' not in r)
-    ok_rs = sum(1 for _, e, r, l, i in all_results if 'sweep_ms' in r)
-    ok_l  = sum(1 for _, e, r, l, i in all_results if 'error' not in l)
-    ok_i  = sum(1 for _, e, r, l, i in all_results if 'error' not in i)
+    ok_e  = sum(1 for _, e, r, i in all_results if 'error' not in e)
+    ok_r  = sum(1 for _, e, r, i in all_results if 'error' not in r)
+    ok_rs = sum(1 for _, e, r, i in all_results if 'sweep_ms' in r)
+    ok_i  = sum(1 for _, e, r, i in all_results if 'error' not in i)
     txt_lines.append(f"  Circuits tested       : {total_circuits}")
     txt_lines.append(f"  Engine results OK     : {ok_e}/{total_circuits}")
     txt_lines.append(f"  Reactor (prop) OK     : {ok_r}/{total_circuits}")
     txt_lines.append(f"  Reactor (sweep) OK    : {ok_rs}/{total_circuits}")
-    txt_lines.append(f"  Logisim results OK    : {ok_l}/{total_circuits}")
     txt_lines.append(f"  Icarus results OK     : {ok_i}/{total_circuits}")
     txt_lines.append("=" * W)
 
@@ -1081,10 +871,6 @@ def main():
     )
     parser.add_argument('target', nargs='?', type=str,
                         help="Path to .v file or directory of ISCAS89 circuits")
-    parser.add_argument('--jar',     type=str, default="logisim-evolution.jar",
-                        help="Path to logisim-evolution JAR")
-    parser.add_argument('--harness', type=str, default="harness_build",
-                        help="Directory containing LogisimBenchmarkHarness.class")
     parser.add_argument('--vectors', type=int, default=50000,
                         help="Total logical vectors per circuit (warmup + measured)")
     parser.add_argument('--warmup',  type=int, default=5000,
@@ -1094,10 +880,9 @@ def main():
     parser.add_argument('--output',  type=str, default="iscas89_results",
                         help="Base path for output files")
     parser.add_argument('--dump', action='store_true',
-                        help='Dump output to time-stamped file in test_results')
-    parser.add_argument('--no-logisim', dest='logisim', action='store_false',
-                        help='Skip the Logisim-Evolution benchmark engine')
-    parser.set_defaults(logisim=True)
+                        help='Only generate final data to stdout')
+    parser.add_argument('--json', action='store_true',
+                        help='Only generate JSON to stdout')
     parser.add_argument('--plot', action='store_true',
                         help='Generate plots (future feature)')
 
@@ -1119,7 +904,6 @@ def main():
         sys.exit(1)
 
     if getattr(args, 'dump', False):
-        import datetime
         dump_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             'test_results', 'unified_iscas_benchmark_89', 'datas'
@@ -1130,21 +914,6 @@ def main():
             dump_dir, f"unified_iscas_benchmark_89_{timestamp}"
         )
 
-    harness_dir = os.path.abspath(args.harness)
-    if not os.path.exists(harness_dir) and not os.path.isabs(args.harness):
-        alt = os.path.join(_PROJECT_ROOT, args.harness)
-        if os.path.exists(alt):
-            harness_dir = alt
-
-    jar_path = os.path.abspath(args.jar)
-    if not os.path.exists(jar_path) and not os.path.isabs(args.jar):
-        for _search in (_SCRIPT_DIR, _PROJECT_ROOT):
-            alt = os.path.join(_search, args.jar)
-            if os.path.exists(alt):
-                jar_path = alt
-                break
-
-    harness_cp = jar_path + os.pathsep + harness_dir
     measured   = args.vectors - args.warmup
     if measured <= 0:
         print(f"[-] Error: --warmup ({args.warmup}) must be < --vectors ({args.vectors})")
@@ -1162,27 +931,47 @@ def main():
         else "disabled (fallback to vvp wall time)"
     )
 
-    W = 180
+    W = 150
     print("=" * W)
-    print("  UNIFIED 4-ENGINE ISCAS89 SEQUENTIAL LOGIC SIMULATOR BENCHMARK")
+    print("  UNIFIED ISCAS89 SEQUENTIAL LOGIC SIMULATOR BENCHMARK")
     print(f"  Total vectors  : {args.vectors:,}  |  Warmup (untimed): {args.warmup:,}  |  Measured: {measured:,}")
     print(f"  Circuits       : {len(v_files)}")
-    print(f"  Harness class  : {os.path.join(harness_dir, 'LogisimBenchmarkHarness.class')}")
     print(f"  Icarus VPI     : {vpi_status}")
     print("  Reactor modes  : propagate (BFS wavefront, SIMULATE) | sweep (linear fwd-pass, COMPILE)")
-    print("  DFF support    : DFF.json IC + Logisim D Flip-Flop (Memory lib)")
-    print("  Speedup base   : Icarus Verilog VPI sim time")
-    print("=" * W)
-
-    header = (
-        f"{'Circuit':<16} | "
-        f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | "
-        f"{'Logisim(ms)':<11} | {'Icarus-sim(ms)':<14}"
+    print("  DFF support    : DFF.json IC")
+    cols1 = (
+        f"| {'Circuit':<16} "
+        f"| {'Engine':^10} "
+        f"| {'Reactor':^11} | {'':<12} "
+        f"| {'Icarus':^14} |"
     )
-    print(header)
-    print("-" * W)
+    sep = (
+        f"|{'-'*18}"
+        f"|{'-'*12}"
+        f"|{'-'*13}|{'-'*14}"
+        f"|{'-'*16}|"
+    )
+    cols2 = (
+        f"| {'':<16} "
+        f"| {'Time(ms)':>10} "
+        f"| {'prop(ms)':>11} | {'sweep(ms)':>12} "
+        f"| {'sim(ms)':>14} |"
+    )
+    print(cols1)
+    print(sep)
+    print(cols2)
 
     all_results = []
+    md_lines = []
+    md_lines.append("# Unified ISCAS89 Logic Simulator Benchmark")
+    md_lines.append("")
+    md_lines.append(f"- **Total vectors**: {args.vectors:,} (Warmup: {args.warmup:,}, Measured: {measured:,})")
+    md_lines.append(f"- **Circuits**: {len(v_files)}")
+    md_lines.append(f"- **Icarus VPI**: {vpi_status}")
+    md_lines.append("")
+    md_lines.append(cols1)
+    md_lines.append(sep)
+    md_lines.append(cols2)
 
     for filepath in v_files:
         filename = os.path.basename(filepath)
@@ -1194,11 +983,6 @@ def main():
         r_res = run_python_backend_process_89(
             filepath, 'reactor', args.vectors, args.warmup, args.optimize
         )
-        # Run Logisim harness (can be skipped with --no-logisim)
-        if args.logisim:
-            l_res = run_logisim_harness_89(filepath, harness_cp, args.vectors, args.warmup)
-        else:
-            l_res = {"engine": "Logisim", "file": filename, "error": "disabled"}
         # Run Icarus harness
         i_res = run_icarus_harness_89(filepath, args.vectors, args.warmup)
 
@@ -1206,7 +990,6 @@ def main():
         r_str    = f"{r_res['time_ms']:.1f}"   if 'error' not in r_res else "ERR"
         rs_str   = (f"{r_res['sweep_ms']:.1f}" if 'sweep_ms'   in r_res
                     else ("ERR" if 'sweep_error' in r_res else "N/A"))
-        l_str    = f"{l_res['time_ms']:.1f}"   if 'error' not in l_res else "ERR"
         i_sim_str= f"{i_res['time_ms']:.2f}"   if 'error' not in i_res else "ERR"
 
         # Eval sub-lines
@@ -1215,63 +998,60 @@ def main():
         rs_ev = (f"{r_res['sweep_evals']:>12,}"        if 'sweep_evals' in r_res
                  else (f"{'ERR':>12}" if 'sweep_error' in r_res else f"{'N/A':>12}"))
 
-        e_ld  = f"{e_res.get('load_ms', 0):>10.1f}" if 'error' not in e_res else f"{'ERR':>10}"
-        r_ld  = f"{r_res.get('load_ms', 0):>11.1f}" if 'error' not in r_res else f"{'ERR':>11}"
-        rs_ld = f"{'N/A':>12}"
-        l_ld  = f"{l_res.get('load_ms', 0):>11.1f}" if 'error' not in l_res else f"{'ERR':>11}"
-        i_ld  = f"{i_res.get('load_ms', 0):>14.1f}" if 'error' not in i_res else f"{'ERR':>14}"
-
-        print(
-            f"{filename:<16} | "
+        row_str = (
+            f"| {filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
-            f"{l_str:>11} | {i_sim_str:>14}"
+            f"{i_sim_str:>14} |"
         )
-        print(f"  {'evals':<14} | {e_ev} | {r_ev} | {rs_ev}")
-        print(f"  {'load (ms)':<14} | {e_ld} | {r_ld} | {rs_ld} | {l_ld} | {i_ld}")
-        sys.stdout.flush()
+        md_lines.append(row_str)
 
-        all_results.append((filename, e_res, r_res, l_res, i_res))
+        if not getattr(args, 'json', False):
+            print(row_str)
+            print(f"| {'evals':<16} | {e_ev} | {r_ev} | {rs_ev} | {'-':>14} |")
+            sys.stdout.flush()
 
-    print("=" * W)
-    _print_speedup_report(all_results)
-    _save_results_89(all_results, args)
+        all_results.append((filename, e_res, r_res, i_res))
+
+    if getattr(args, 'json', False):
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        circuits_data = [{"circuit": fn, "engine": e, "reactor": r, "icarus": i} for fn, e, r, i in all_results]
+        payload = {
+            "meta": {"timestamp": ts, "target": args.target, "total_vectors": args.vectors, "warmup_vectors": args.warmup, "measured_vectors": measured, "optimize": args.optimize},
+            "circuits": circuits_data
+        }
+        print(json.dumps(payload, indent=4), file=sys.__stdout__)
+        
+    if getattr(args, 'dump', False):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dump_dir = os.path.join(script_dir, 'test_results', 'unified_iscas_benchmark_89')
+        os.makedirs(dump_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        dump_path = os.path.join(dump_dir, f"unified_iscas_benchmark_89_{timestamp}.md")
+        with open(dump_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(md_lines) + "\n")
+        print(f"\n[+] Markdown dump saved to -> {dump_path}")
+
+    if not getattr(args, 'json', False):
+        print("=" * W)
+        _print_speedup_report(all_results)
+        _save_results_89(all_results, args)
 
 
 # ===========================================================================
-# OUTPUT TEE (--dump flag)
+# OUTPUT REDIRECTION
 # ===========================================================================
-
-class _Tee:
-    def __init__(self, *streams):
-        self.streams = streams
-    def write(self, data):
-        for s in self.streams:
-            s.write(data)
-    def flush(self):
-        for s in self.streams:
-            s.flush()
-
 
 if __name__ == '__main__':
     _orig = sys.stdout
-    _lf   = None
 
-    if '--dump' in sys.argv:
-        import datetime
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        dump_dir = os.path.join(
-            script_dir, 'test_results', 'unified_iscas_benchmark_89', 'datas'
-        )
-        os.makedirs(dump_dir, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        _LOG = os.path.join(dump_dir, f"unified_iscas_benchmark_89_stdout_{timestamp}.txt")
-        _lf  = open(_LOG, "a", encoding="utf-8")
-        sys.stdout = _Tee(_orig, _lf)
+    if '--json' in sys.argv:
+        import os
+        sys.stdout = open(os.devnull, 'w')
 
     try:
         main()
     finally:
+        if sys.stdout is not _orig:
+            sys.stdout.close()
         sys.stdout = _orig
-        if _lf:
-            _lf.close()
 
