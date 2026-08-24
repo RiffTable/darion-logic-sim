@@ -51,28 +51,31 @@ class Gate:
     __slots__ = [
         'sources', 'hitlist', 'inputlimit', 'book',
         'output', 'scheduled', 'mark', 'id', 'code', 'codename', 'custom_name',
-        'value', 'location','update'
+        'value', 'location','update', 'target_time'
     ]
 
-    def __init__(self,id:int,name:str):
-        self.id=id
-        self.codename=name
+    def __init__(self, id: int, name: str):
+        self.id = id
+        self.codename = name
         self.hitlist: list[Profile] = []
-        if id>=VARIABLE_ID:
-            self.inputlimit=1
-            self.sources=[None]
+        if id >= VARIABLE_ID:
+            self.inputlimit = 1
+            self.sources = [None]
         else:
-            self.inputlimit=2
+            self.inputlimit = 2
             self.sources: list[Gate | None] = [None, None]
         self.book: list[int] = [0, 0, 0]  # [LOW, HIGH, UNKNOWN]
         self.output: int = UNKNOWN
-        self.value=0
+        self.value = 0
         self.scheduled: bool = False
         self.mark: bool = False
         self.code: tuple = ()
         self.custom_name: str = ''
         self.location: int = -1   # flat index assigned by Circuit at registration
         self.update: bool = False
+        
+        # --- Independent Timing Variables ---
+        self.target_time: float = -1.0      
 
     def __repr__(self) -> str:
         return self.codename if self.custom_name == '' else self.custom_name
@@ -157,6 +160,7 @@ class Gate:
         for profile in self.hitlist:
             profile.output = UNKNOWN
         self.scheduled = False
+        self.target_time = -1.0
 
     def hide(self):
         """Soft-disconnect from all targets and sources."""

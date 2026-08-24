@@ -30,6 +30,8 @@ cdef class Circuit:
     cdef public object runner      # asyncio.Task or None (FLIPFLOP async runner)
     cdef public unsigned int Global_Clock
     cdef unsigned int[12] Global_delay
+    cdef unsigned int[12] FanIn_delay
+    cdef unsigned int[12] FanOut_delay
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
     cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
@@ -65,7 +67,7 @@ cdef class Circuit:
     cpdef void reorder(self, object gate, int index)
     cpdef void generate(self, list circuit)
     cdef bytearray table(self,vector[int] &var,vector[int] &gate)
-    cpdef str truthTable(self)
+    cpdef str truthTable(self, list variables=*, list outputs=*)
     cpdef void rank_reset(self)
     cpdef void clearcircuit(self)
     cpdef void simulate(self, int Mode)
@@ -77,9 +79,9 @@ cdef class Circuit:
     cdef void complete_task(self, Task task) nogil
     cdef void propagate(self, int origin) nogil
     cdef void sweep(self, int origin) nogil
-    cpdef void batch_toggle(self, list batch)
+    cpdef double batch_toggle(self, list batch, int batch_size=*)
     cpdef list geometry(self)
-    cdef void batch_propagate(self, vector[int] origins) nogil
+    cdef void batch_propagate(self, Py_ssize_t end_point) nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)
     cpdef int pop_visual_queue(self)

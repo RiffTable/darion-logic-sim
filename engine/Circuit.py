@@ -19,7 +19,9 @@ except ImportError:
     _sys.path.insert(0, _os.path.join(_os.getcwd(), "editor", "tools"))
     from timing_tracer import tracer as _tracer  # type: ignore
 
-Global_delay=[2,0,3,1,4,5,0,0,0,0,0]
+Global_delay = [1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0]
+FanIn_delay  = [1, 1, 1, 1, 2, 2, 0, 0, 0, 0, 0, 0]
+FanOut_delay = [1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0]
 
 # ─── Circuit ──────────────────────────────────────────────────────
 class Task:
@@ -159,7 +161,9 @@ class Circuit:
             for gate in self.objlist[VARIABLE_ID]:
                 if gate is not None and getattr(gate, 'inputlimit', None) == 0:
                     if not gate.scheduled:
-                        heapq.heappush(self.time_queue, Task(gate, self.Global_Clock + gate.book[PRIMARY], gate.location))
+                        next_time = self.Global_Clock + gate.book[PRIMARY]
+                        gate.target_time = next_time
+                        heapq.heappush(self.time_queue, Task(gate, next_time, gate.location))
                         gate.scheduled = True
             if self.runner is None or self.runner.done():
                 self.runner = asyncio.create_task(self.task_manager())
@@ -168,24 +172,28 @@ class Circuit:
                 if gate is not None and getattr(gate, 'inputlimit', None) == 0:
                     gate.scheduled = False
 
-    def batch_toggle(self, batch: list):
+    def batch_toggle(self, batch: list, batch_size: int = 0) -> float:
         """toggles multiple variables for performance"""
         if getattr(self, '_loc_map_counter', -1) != self.counter:
             self._location_map = {g.location: g for g in self.objlist[VARIABLE_ID] if g is not None}
             self._loc_map_counter = self.counter
 
         mode = get_MODE()
-        changed_gates = []
-        for location, value in batch:
-            gate = self._location_map.get(location)
-            if gate and value != gate.output:
-                gate.value = value
-                gate.output = value if mode != DESIGN else UNKNOWN
-                changed_gates.append(gate)
-
-        if mode != COMPILE:
-            for gate in changed_gates:
-                self.propagate(gate)
+        n = len(batch)
+        if batch_size <= 0:
+            batch_size = n
+            
+        start = time.perf_counter_ns()
+        for i in range(0, n):
+                location, value = batch[i]
+                gate = self._location_map.get(location)
+                if gate and value != gate.output:
+                    gate.value = value
+                    gate.output = value 
+                    self.propagate(gate)
+                    
+        end = time.perf_counter_ns()
+        return (end - start) / 1000000.0
 
     def disconnect(self, target: Gate, index: int):
         """Disconnect at pin index."""
@@ -197,6 +205,7 @@ class Circuit:
     def hide(self, gatelist: list):
         """Soft delete — disconnect and remove from view."""
         for gate in gatelist:
+            gate.hide()
             self.delobj(gate)
 
         for gate in gatelist:
@@ -213,8 +222,8 @@ class Circuit:
             if gate.id == IC_ID:
                 gate.reveal()
             else:
-                gate.reveal()
                 self.renewobj(gate)
+                gate.reveal()
 
         for gate in reversed(gatelist):
             if gate.id == IC_ID:
@@ -325,7 +334,7 @@ class Circuit:
         return "\n".join(final_table_lines)
 
     def diagnose(self) -> str:
-        """Return a detailed report of the circuit."""
+        """Print and return a detailed report of the circuit."""
         out = []
         out.append("=" * 90)
         out.append(" " * 35 + "CIRCUIT DIAGNOSIS")
@@ -397,7 +406,9 @@ class Circuit:
                         out.append(f"    {str(pin)}: out={pin.getoutput()}, from={', '.join(ch) if ch else 'None'}, to={', '.join(targets) if targets else 'None'}")
 
         out.append("\n" + "=" * 90)
-        return "\n".join(out)
+        result = "\n".join(out)
+        print(result)
+        return result
 
 
 
@@ -706,37 +717,54 @@ class Circuit:
             await asyncio.sleep(Const.DELAY)
 
     def complete_task(self, task: Task):
-        gate = task.gate
-        if not gate.scheduled:
-            return
+        gate:Gate = task.gate
         self.Global_Clock = task.time
-        if gate.inputlimit==0:
-            gate.value^=1
-            gate.output=gate.value
-            # ── Timing tracer: record clock toggle ────────────────────────
-            if self.recording:
+        
+        # --- 1. TIMESTAMP VALIDATION ---
+        
+        if gate.id != VARIABLE_ID:
+            # print(f' {gate.codename} is scheduled:{gate.scheduled} output={gate.output}, time={task.time} orig={gate.target_time}')
+
+            if task.time < gate.target_time:return # absorb glitch
+            if self.recording and gate.id == PROBE_ID:
                 _tracer.record(gate, self.Global_Clock)
+        # Root variables/clocks
+        else:
+            if not gate.scheduled:
+                return
+            if gate.inputlimit == 0:
+                gate.value ^= 1
+                gate.output = gate.value
+                if self.recording:
+                    _tracer.record(gate, self.Global_Clock)
+        # Snapshot for glitch-accurate UI
         if not gate.update:
-            self.visual_queue.append(gate)
             gate.update = True
+            self.visual_queue.append(gate)
+            
         gate.scheduled = False
         new_output = gate.output
+        
         for profile in gate.hitlist:
             self.eval_count += 1
             profile_output = profile.output
+            
             if profile_output != new_output:
                 target = profile.target
                 gate_type = target.id
-                if gate_type<0:
+                if gate_type < 0:
                     continue
                 limit = target.inputlimit
+                
+                # Logic resolution
                 if gate_type > VARIABLE_ID:
                     target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
                 else:
                     book = target.book
                     book[profile_output] -= 1
                     book[new_output] += 1
-                    if new_output > HIGH: target_output = new_output
+                    if new_output > HIGH: 
+                        target_output = new_output
                     else:
                         high = book[HIGH]
                         low = book[LOW]
@@ -745,35 +773,40 @@ class Circuit:
                             if gate_type <= NAND_ID: target_output = int(low == 0) ^ (gate_type & 1)
                             elif gate_type <= NOR_ID: target_output = int(high > 0) ^ (gate_type & 1)
                             else: target_output = (high & 1) ^ (gate_type & 1)
-                        else: target_output = UNKNOWN
+                        else: 
+                            target_output = UNKNOWN
+                            
+                # --- 2. TRAJECTORY CHECK & DYNAMIC DELAY CALCULATION ---
                 if target_output != target.output:
-                    target.output = target_output
-                    if not target.update:
-                        target.update = True
-                        self.visual_queue.append(target)
-                    if not target.scheduled:
-                        heapq.heappush(
-                            self.time_queue,
-                            Task(target, self.Global_Clock + Global_delay[target.id] + target.inputlimit, target.location)
-                        )
-                        target.scheduled = True
-                    # ── Timing tracer: record probe/variable state change ──
-                    if self.recording and gate_type==PROBE_ID:
-                        _tracer.record(target, self.Global_Clock)
+                    target.output = target_output              
+                    calc_delay = (
+                        Global_delay[target.id] + 
+                        (FanIn_delay[target.id] * target.inputlimit) + 
+                        (FanOut_delay[target.id] * len(target.hitlist))
+                    )                    
+                    target.target_time = self.Global_Clock + calc_delay                    
+                    heapq.heappush(
+                        self.time_queue,
+                        Task(target, target.target_time, target.location)
+                    )
                 profile.output = new_output
-        if gate.inputlimit==0:
+
+        if gate.inputlimit == 0:
+            next_time = self.Global_Clock + gate.book[gate.output]
+            gate.target_time = next_time
             heapq.heappush(
                 self.time_queue,
-                Task(gate, self.Global_Clock + gate.book[gate.output], gate.location)
+                Task(gate, next_time, gate.location)
             )
-            heapq.heappush(self.time_limit,self.Global_Clock + gate.book[gate.output])
+            
+            heapq.heappush(
+                self.time_limit, 
+                next_time + (FanOut_delay[gate.id] * len(gate.hitlist))
+            )
             gate.scheduled = True
 
     def propagate(self, origin: Gate):
         """Double-buffer, fixed-size queue — mirrors reactor's queue[2][LIMIT] pattern."""
-        if not origin.update:
-            origin.update=True
-            self.visual_queue.append(origin)     
         read_buf: list = self.queue[0]
         write_buf: list = self.queue[1]
         read_end: int = 1
@@ -787,8 +820,14 @@ class Circuit:
                     gate = read_buf[i]
                     gate.mark=False
                     if not gate.scheduled:
-                        heapq.heappush(self.time_queue,Task(gate,self.Global_Clock+Global_delay[gate.id]+gate.inputlimit,gate.location))
-                        gate.scheduled=True
+                        calc_delay = self.Global_Clock+(
+                            Global_delay[gate.id] + 
+                            (FanIn_delay[gate.id] * gate.inputlimit) + 
+                            (FanOut_delay[gate.id] * len(gate.hitlist))
+                        )
+                        gate.target_time=calc_delay
+                        heapq.heappush(self.time_queue, Task(gate, calc_delay, gate.location))
+                        gate.scheduled = True
                 if self.runner is None or self.runner.done():
                     self.runner=asyncio.create_task(self.task_manager())
                 return
@@ -797,6 +836,9 @@ class Circuit:
             for i in range(read_end):
                 gate = read_buf[i]
                 gate.mark = False
+                if not gate.update:
+                    gate.update = True
+                    self.visual_queue.append(gate)
                 new_output = gate.output
                 for profile in gate.hitlist:
                     self.eval_count += 1
@@ -827,11 +869,7 @@ class Circuit:
 
                         if target_output != target.output:
                             target.output = target_output
-                            if not target.update:
-                                target.update = True
-                                if target.location<0:
-                                    print('Error in propagation')
-                                self.visual_queue.append(target)
+
                             if not target.mark:
                                 target.mark = True
                                 write_buf[write_end] = target

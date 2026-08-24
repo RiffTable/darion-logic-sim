@@ -51,15 +51,19 @@ cdef extern from "Profile.h":
     cdef cppclass CPP_Gate:
         int8_t type
         uint8_t output
-        uint8_t value
-        uint8_t scheduled
-        uint8_t mark
-        uint8_t update
         uint8_t inputlimit
-        uint8_t book[4]
+        uint8_t flags
+        uint8_t book[3]
+        unsigned int target_time
         vector[Profile] hitlist
         CPP_Gate()
         CPP_Gate(uint8_t t, uint8_t lim)
+
+cdef enum GateFlags:
+    FLAG_VALUE     = 1 << 0
+    FLAG_SCHEDULED = 1 << 1
+    FLAG_MARK      = 1 << 2
+    FLAG_UPDATE    = 1 << 3
 
 cdef void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse)
 cdef void reveal(Profile& profile, Gate source, list gate_verse)
@@ -76,6 +80,7 @@ cdef class Gate:
     cdef public tuple code
     cdef public str codename
     cdef public str custom_name
+    cdef public list delay_book
 
     cdef void process(self)
     cpdef void rename(self, str name)

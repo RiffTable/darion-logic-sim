@@ -12,6 +12,12 @@ cpdef enum:
     
     LIMIT = 250_000
 
+    # Gate Flags
+    FLAG_VALUE = 1
+    FLAG_SCHEDULED = 2
+    FLAG_MARK = 4
+    FLAG_UPDATE = 8
+
 
     DEAD_ID=255
     AND_ID = 0
