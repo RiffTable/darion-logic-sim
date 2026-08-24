@@ -169,7 +169,7 @@ cdef class Circuit:
         if info.flags & FLAG_SCHEDULED:
             return
         if value != info.output:
-
+            info.flags |= FLAG_MARK
             info.flags = (info.flags&~FLAG_VALUE)|value
             info.output = value if MODE != DESIGN else UNKNOWN
             if MODE!=COMPILE:
@@ -239,6 +239,7 @@ cdef class Circuit:
                     value = values[i+j]
                     info = &self.gate_infolist[target]
                     if value != info.output:
+                        info.flags|=FLAG_MARK
                         info.flags = (info.flags & ~FLAG_VALUE) | value
                         info.output = value if MODE != DESIGN else UNKNOWN
                         if origin > target:
@@ -1135,6 +1136,11 @@ cdef class Circuit:
             self.runner.cancel()
         self.runner=None
         if Mod==COMPILE:
+            for variable in self.objlist[VARIABLE_ID]:
+                if variable is not None:
+                    info = &self.gate_infolist[variable.location]
+                    info.output = bool(info.flags & FLAG_VALUE)
+                    info.flags |= FLAG_MARK
             self.sweep(0)
         else:
             for variable in self.objlist[VARIABLE_ID]:
@@ -1467,9 +1473,6 @@ cdef class Circuit:
             self_info = &gate_infolist[index]
             if self_info.type < 0:
                 continue
-            elif self_info.type==VARIABLE_ID:
-                self_info.output=bool(self_info.flags & FLAG_VALUE)
-                self_info.flags |= FLAG_MARK
             
             if self_info.flags& FLAG_MARK:
                 self_info.flags &= ~FLAG_MARK   

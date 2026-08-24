@@ -204,11 +204,15 @@ def get_ram_mb():
         return process.memory_info().rss / (1024 * 1024)
     return 0.0
 
-def benchmark_pass(c, start_node, size, iterations):
+def benchmark_pass(c, start_node, size, iterations, is_sweep=False, const=None):
     """Runs a benchmark pass on the current circuit state."""
-    for _ in range(3):
-        c.toggle(start_node, Const.HIGH)
-        c.toggle(start_node, Const.LOW)
+    if is_sweep and hasattr(c, 'batch_toggle'):
+        batch = [(start_node.location, const.HIGH), (start_node.location, const.LOW)] * 3
+        c.batch_toggle(batch, 1)
+    else:
+        for _ in range(3):
+            c.toggle(start_node, const.HIGH)
+            c.toggle(start_node, const.LOW)
 
     best_time_ns = float('inf')
     best_evals = 0
@@ -217,9 +221,15 @@ def benchmark_pass(c, start_node, size, iterations):
     for _ in range(num_passes):
         start_evals = c.eval_count if hasattr(c, 'eval_count') else 0
         start_time = time.perf_counter_ns()
-        for _ in range(iterations):
-            c.toggle(start_node, Const.HIGH)
-            c.toggle(start_node, Const.LOW)
+        
+        if is_sweep and hasattr(c, 'batch_toggle'):
+            batch = [(start_node.location, const.HIGH), (start_node.location, const.LOW)] * iterations
+            c.batch_toggle(batch, 1)
+        else:
+            for _ in range(iterations):
+                c.toggle(start_node, const.HIGH)
+                c.toggle(start_node, const.LOW)
+                
         end_time = time.perf_counter_ns()
         end_evals = c.eval_count if hasattr(c, 'eval_count') else 0
 
@@ -228,8 +238,8 @@ def benchmark_pass(c, start_node, size, iterations):
             best_evals = end_evals - start_evals
 
     total_evaluations = best_evals if hasattr(c, 'eval_count') else size * iterations * 2
-    ns_per_eval = best_time_ns / total_evaluations if best_time_ns > 0 else 0.0
-    return ns_per_eval
+    best_time_ms = best_time_ns / 1_000_000.0
+    return best_time_ms, total_evaluations
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +248,9 @@ def benchmark_pass(c, start_node, size, iterations):
 
 async def run_profiler_suite(mode_name):
     """Mixed-gate chaotic/realistic fragmentation profiler (Unopt BFS vs Opt BFS)."""
-    print(f"\n[{mode_name.upper()} FRAGMENTATION — MIXED GATE CHAIN]")
+    print("=" * 145)
+    print(f"  [{mode_name.upper()} FRAGMENTATION — MIXED GATE CHAIN]")
+    print("=" * 145)
 
     test_sizes = []
     current_size = 100
@@ -252,8 +264,14 @@ async def run_profiler_suite(mode_name):
 
     plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": []}
 
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Mean Jump':>9} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
-    print("-" * 115)
+    hdr = (
+        f"| {'Active Gates':<12} | {'RAM (MB)':>8} | "
+        f"{'Unopt(ms)':>10} | {'Opt(ms)':>10} | {'Sweep(ms)':>10} | "
+        f"{'Unopt-ev':>11} | {'Opt-ev':>11} | {'Sweep-ev':>11} | "
+        f"{'Opt-spd':>8} | {'Swp-spd':>8} | {'Mean Jump':>9} | {'Bounds'}"
+    )
+    print(hdr)
+    print("-" * len(hdr))
 
     gc.disable()
 
@@ -270,28 +288,51 @@ async def run_profiler_suite(mode_name):
 
         # PASS 1: UNOPTIMIZED (BFS)
         c.simulate(Const.SIMULATE)
-        unopt_ns = benchmark_pass(c, start_node, size, iterations)
-        unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
+        unopt_ms, unopt_ev = benchmark_pass(c, start_node, size, iterations, const=Const)
 
         jumps = c.geometry()
         mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
 
         # PASS 2: OPTIMIZED (BFS)
         c.optimize()
-        opt_bfs_ns = benchmark_pass(c, start_node, size, iterations)
-        opt_bfs_me = 1000.0 / opt_bfs_ns if opt_bfs_ns > 0 else 0.0
+        opt_ms, opt_ev = benchmark_pass(c, start_node, size, iterations, const=Const)
+
+        # PASS 3: OPTIMIZED (SWEEP)
+        sweep_ms, sweep_ev = None, None
+        has_sweep = (
+            hasattr(Const, 'COMPILE')
+            and hasattr(Const, 'set_MODE')
+            and hasattr(c, 'simulate')
+        )
+        if has_sweep:
+            c.simulate(Const.COMPILE)
+            Const.set_MODE(Const.COMPILE)
+            sweep_ms, sweep_ev = benchmark_pass(c, start_node, size, iterations, is_sweep=True, const=Const)
+            Const.set_MODE(Const.SIMULATE)
 
         plot_data["sizes"].append(size)
-        plot_data["unopt_me"].append(unopt_me)
-        plot_data["opt_bfs_me"].append(opt_bfs_me)
+        plot_data["unopt_me"].append(unopt_ms)
+        plot_data["opt_bfs_me"].append(opt_ms)
 
-        speedup = f"{unopt_ns / opt_bfs_ns:.1f}x" if opt_bfs_ns > 0 else "N/A"
+        opt_spd = unopt_ms / opt_ms if opt_ms > 0 else 0.0
+        swp_spd = unopt_ms / sweep_ms if sweep_ms and sweep_ms > 0 else 0.0
+
+        unopt_ms_str = f"{unopt_ms:.1f}"
+        opt_ms_str = f"{opt_ms:.1f}"
+        sweep_ms_str = f"{sweep_ms:.1f}" if sweep_ms is not None else "N/A"
+
+        unopt_ev_str = f"{unopt_ev:,}"
+        opt_ev_str = f"{opt_ev:,}"
+        sweep_ev_str = f"{sweep_ev:,}" if sweep_ev is not None else "N/A"
+
+        opt_spd_str = f"{opt_spd:.1f}x"
+        swp_spd_str = f"{swp_spd:.1f}x" if sweep_ms is not None else "N/A"
 
         tag = ""
-        results.append(unopt_ns)
+        results.append(unopt_ms)
         if len(results) >= 2:
-            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results) - 1)
-            local_jump_pct = ((unopt_ns - rolling_avg_ns) / rolling_avg_ns) * 100
+            rolling_avg_ms = sum(results[-3:-1]) / min(2, len(results) - 1)
+            local_jump_pct = ((unopt_ms - rolling_avg_ms) / rolling_avg_ms) * 100 if rolling_avg_ms > 0 else 0.0
 
             if local_jump_pct > 15.0 and size > 1000:
                 if current_zone == 1:
@@ -300,11 +341,17 @@ async def run_profiler_suite(mode_name):
                 elif current_zone == 2 and local_jump_pct > 20.0:
                     tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
                     current_zone = 3
-            elif unopt_ns > (results[1] * 2.5 if len(results) > 1 else 50) and current_zone < 3:
+            elif unopt_ms > (results[1] * 2.5 if len(results) > 1 else 0.05) and current_zone < 3:
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {mean_jump:>9.1f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
+        row = (
+            f"| {size:<12,} | {current_ram:>8.1f} | "
+            f"{unopt_ms_str:>10} | {opt_ms_str:>10} | {sweep_ms_str:>10} | "
+            f"{unopt_ev_str:>11} | {opt_ev_str:>11} | {sweep_ev_str:>11} | "
+            f"{opt_spd_str:>8} | {swp_spd_str:>8} | {mean_jump:>9.1f} | {tag}"
+        )
+        print(row)
 
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
@@ -314,14 +361,16 @@ async def run_profiler_suite(mode_name):
         gc.collect()
 
     gc.enable()
-    print("-" * 115)
+    print("=" * len(hdr))
     return plot_data
 
 
 async def run_homogeneous_suite(gate_type):
     """Chaotic chain made of a single gate type — Unopt BFS vs Opt BFS."""
     gate_name = GATE_NAMES[gate_type]
-    print(f"\n[HOMOGENEOUS CHAOTIC — {gate_name} GATE CHAIN]")
+    print("=" * 145)
+    print(f"  [HOMOGENEOUS CHAOTIC — {gate_name} GATE CHAIN]")
+    print("=" * 145)
 
     test_sizes = []
     current_size = 100
@@ -335,8 +384,14 @@ async def run_homogeneous_suite(gate_type):
 
     plot_data = {"sizes": [], "unopt_me": [], "opt_bfs_me": [], "gate": gate_name}
 
-    print(f"{'Active Gates':>12} | {'RAM (MB)':>8} | {'Unopt (ME/s)':>12} | {'Mean Jump':>9} | {'Opt BFS (ME/s)':>14} | {'Speedup':>10} | {'Hardware Bounds'}")
-    print("-" * 115)
+    hdr = (
+        f"| {'Active Gates':<12} | {'RAM (MB)':>8} | "
+        f"{'Unopt(ms)':>10} | {'Opt(ms)':>10} | {'Sweep(ms)':>10} | "
+        f"{'Unopt-ev':>11} | {'Opt-ev':>11} | {'Sweep-ev':>11} | "
+        f"{'Opt-spd':>8} | {'Swp-spd':>8} | {'Mean Jump':>9} | {'Bounds'}"
+    )
+    print(hdr)
+    print("-" * len(hdr))
 
     gc.disable()
 
@@ -353,28 +408,51 @@ async def run_homogeneous_suite(gate_type):
 
         # PASS 1: UNOPTIMIZED (BFS)
         c.simulate(Const.SIMULATE)
-        unopt_ns = benchmark_pass(c, start_node, size, iterations)
-        unopt_me = 1000.0 / unopt_ns if unopt_ns > 0 else 0.0
+        unopt_ms, unopt_ev = benchmark_pass(c, start_node, size, iterations, const=Const)
 
         jumps = c.geometry()
         mean_jump = sum(jumps) / len(jumps) if jumps else 0.0
 
         # PASS 2: OPTIMIZED (BFS)
         c.optimize()
-        opt_bfs_ns = benchmark_pass(c, start_node, size, iterations)
-        opt_bfs_me = 1000.0 / opt_bfs_ns if opt_bfs_ns > 0 else 0.0
+        opt_ms, opt_ev = benchmark_pass(c, start_node, size, iterations, const=Const)
+
+        # PASS 3: OPTIMIZED (SWEEP)
+        sweep_ms, sweep_ev = None, None
+        has_sweep = (
+            hasattr(Const, 'COMPILE')
+            and hasattr(Const, 'set_MODE')
+            and hasattr(c, 'simulate')
+        )
+        if has_sweep:
+            c.simulate(Const.COMPILE)
+            Const.set_MODE(Const.COMPILE)
+            sweep_ms, sweep_ev = benchmark_pass(c, start_node, size, iterations, is_sweep=True, const=Const)
+            Const.set_MODE(Const.SIMULATE)
 
         plot_data["sizes"].append(size)
-        plot_data["unopt_me"].append(unopt_me)
-        plot_data["opt_bfs_me"].append(opt_bfs_me)
+        plot_data["unopt_me"].append(unopt_ms)
+        plot_data["opt_bfs_me"].append(opt_ms)
 
-        speedup = f"{unopt_ns / opt_bfs_ns:.1f}x" if opt_bfs_ns > 0 else "N/A"
+        opt_spd = unopt_ms / opt_ms if opt_ms > 0 else 0.0
+        swp_spd = unopt_ms / sweep_ms if sweep_ms and sweep_ms > 0 else 0.0
+
+        unopt_ms_str = f"{unopt_ms:.1f}"
+        opt_ms_str = f"{opt_ms:.1f}"
+        sweep_ms_str = f"{sweep_ms:.1f}" if sweep_ms is not None else "N/A"
+
+        unopt_ev_str = f"{unopt_ev:,}"
+        opt_ev_str = f"{opt_ev:,}"
+        sweep_ev_str = f"{sweep_ev:,}" if sweep_ev is not None else "N/A"
+
+        opt_spd_str = f"{opt_spd:.1f}x"
+        swp_spd_str = f"{swp_spd:.1f}x" if sweep_ms is not None else "N/A"
 
         tag = ""
-        results.append(unopt_ns)
+        results.append(unopt_ms)
         if len(results) >= 2:
-            rolling_avg_ns = sum(results[-3:-1]) / min(2, len(results) - 1)
-            local_jump_pct = ((unopt_ns - rolling_avg_ns) / rolling_avg_ns) * 100
+            rolling_avg_ms = sum(results[-3:-1]) / min(2, len(results) - 1)
+            local_jump_pct = ((unopt_ms - rolling_avg_ms) / rolling_avg_ms) * 100 if rolling_avg_ms > 0 else 0.0
 
             if local_jump_pct > 15.0 and size > 1000:
                 if current_zone == 1:
@@ -383,11 +461,17 @@ async def run_homogeneous_suite(gate_type):
                 elif current_zone == 2 and local_jump_pct > 20.0:
                     tag = f"<-- MAIN RAM WALL (+{local_jump_pct:.0f}%)"
                     current_zone = 3
-            elif unopt_ns > (results[1] * 2.5 if len(results) > 1 else 50) and current_zone < 3:
+            elif unopt_ms > (results[1] * 2.5 if len(results) > 1 else 0.05) and current_zone < 3:
                 current_zone = 3
                 tag = "(RAM BOUND)"
 
-        print(f"{size:>12,} | {current_ram:>8.1f} | {unopt_me:>12.2f} | {mean_jump:>9.1f} | {opt_bfs_me:>14.2f} | {speedup:>10} | {tag}")
+        row = (
+            f"| {size:<12,} | {current_ram:>8.1f} | "
+            f"{unopt_ms_str:>10} | {opt_ms_str:>10} | {sweep_ms_str:>10} | "
+            f"{unopt_ev_str:>11} | {opt_ev_str:>11} | {sweep_ev_str:>11} | "
+            f"{opt_spd_str:>8} | {swp_spd_str:>8} | {mean_jump:>9.1f} | {tag}"
+        )
+        print(row)
 
         if getattr(c, 'runner', None) is not None and not c.runner.done():
             c.runner.cancel()
@@ -397,7 +481,7 @@ async def run_homogeneous_suite(gate_type):
         gc.collect()
 
     gc.enable()
-    print("-" * 115)
+    print("=" * len(hdr))
     return plot_data
 
 
@@ -410,7 +494,7 @@ def _base_ax(fig, ax, title, cpu_name):
     ax.set_xscale('log')
     ax.set_title(f"{title}\nCPU: {cpu_name}", fontsize=14, fontweight='bold', color='#FFFFFF', pad=15)
     ax.set_xlabel("Circuit Size (Number of Active Logic Gates) — Log Scale", fontsize=11, color='#E0E0E0', labelpad=10)
-    ax.set_ylabel("Throughput (Million Evaluations / Sec)", fontsize=11, color='#E0E0E0', labelpad=10)
+    ax.set_ylabel("Execution Time (ms)", fontsize=11, color='#E0E0E0', labelpad=10)
     ax.grid(True, color='#333333', linestyle=':', linewidth=1, alpha=0.8)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)

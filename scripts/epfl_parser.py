@@ -24,7 +24,7 @@ class VerilogRunner:
         self.VERILOG_GATE_MAP = {
             'and': self.const.AND_ID, 'nand': self.const.NAND_ID, 'or': self.const.OR_ID,
             'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID,
-            'not': self.const.NOT_ID, 'buf': getattr(self.const, 'INPUT_PIN_ID', self.const.NOT_ID)
+            'not': self.const.NOT_ID, 'buf': self.const.PROBE_ID
         }
 
         self._parse_verilog(v_file_path)
@@ -250,16 +250,24 @@ def process_file(in_path, out_path):
         print(f"Failed to dump {json_path}: {e}")
 
 def main():
-    source_dir = os.path.join(_PROJECT_ROOT, 'tests', 'EPFL')
-    target_dir = os.path.join(_PROJECT_ROOT, 'tests', 'EPFL_parsed')
+    dirs_to_process = [
+        ('EPFL', 'EPFL_parsed'),
+        ('EPFL_large', 'EPFL_large_parsed'),
+        ('EPFL_mammoth', 'EPFL_mammoth_parsed')
+    ]
     
-    os.makedirs(target_dir, exist_ok=True)
-    
-    files = glob.glob(os.path.join(source_dir, '*.v'))
-    for f in files:
-        out_name = os.path.basename(f)
-        out_path = os.path.join(target_dir, out_name)
-        process_file(f, out_path)
+    for src_name, tgt_name in dirs_to_process:
+        source_dir = os.path.join(_PROJECT_ROOT, 'tests', src_name)
+        target_dir = os.path.join(_PROJECT_ROOT, 'tests', tgt_name)
+        
+        if os.path.exists(source_dir):
+            os.makedirs(target_dir, exist_ok=True)
+            files = glob.glob(os.path.join(source_dir, '*.v'))
+            for f in files:
+                out_name = os.path.basename(f)
+                out_path = os.path.join(target_dir, out_name)
+                process_file(f, out_path)
+                
     print("Done parsing and dumping EPFL benchmarks.")
 
 if __name__ == '__main__':

@@ -301,7 +301,7 @@ class VerilogRunner:
 
         self.VERILOG_GATE_MAP = {
             'and': self.const.AND_ID, 'nand': self.const.NAND_ID, 'or': self.const.OR_ID,
-            'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID, 'not': self.const.NOT_ID
+            'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID, 'not': self.const.NOT_ID,
         }
 
         self.input_vars = []
@@ -394,7 +394,13 @@ class VerilogRunner:
             elif stmt.startswith('output '):
                 ports = stmt.replace('output', '').strip().split(',')
                 for p in ports:
-                    if p.strip(): self.outputs.append(p.strip())
+                    p = p.strip()
+                    if p:
+                        out_node = self.circuit.getcomponent(self.const.OUTPUT_PIN_ID)
+                        out_node.rename(f"OUT_{p}")
+                        self.nodes[p + "_OUTPIN"] = out_node
+                        self.outputs.append(p)
+                        connections.append((p + "_OUTPIN", [p]))
             elif stmt.startswith(('wire ', 'module ', 'endmodule', 'reg ')):
                 continue
             else:
@@ -752,22 +758,34 @@ def main():
             f"{i_sim_str:>14} |"
         )
         md_lines.append(row_str)
+        evals_str = f"| {'evals':<16} | {e_ev} | {r_ev} | {rs_ev} | {'-':>14} |"
+        md_lines.append(evals_str)
 
         if not getattr(args, 'json', False):
             print(row_str)
-            print(f"| {'evals':<16} | {e_ev} | {r_ev} | {rs_ev} | {'-':>14} |")
+            print(evals_str)
             sys.stdout.flush()
         all_results.append((filename, e_res, r_res, i_res))
 
     if getattr(args, 'json', False):
         ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        circuits_data = [{"circuit": fn, "engine": e, "reactor": r, "icarus": i} for fn, e, r, l, i in all_results]
+        circuits_data = [{"circuit": fn, "engine": e, "reactor": r, "icarus": i} for fn, e, r, i in all_results]
         payload = {
-            "meta": {"timestamp": ts, "target": args.target, "total_vectors": args.vectors, "warmup_vectors": args.warmup, "measured_vectors": measured, "optimize": args.optimize, "harness": args.harness, "jar": args.jar},
+            "meta": {"timestamp": ts, "target": args.target, "total_vectors": args.vectors, "warmup_vectors": args.warmup, "measured_vectors": measured, "optimize": args.optimize, "harness": getattr(args, 'harness', None), "jar": getattr(args, 'jar', None)},
             "circuits": circuits_data
         }
         print(json.dumps(payload, indent=4), file=sys.__stdout__)
         
+    if not getattr(args, 'json', False):
+        print("=" * W)
+        md_lines = [
+            "# Unified 3-Engine Logic Simulator Benchmark", "",
+            f"- **Total vectors**: {args.vectors:,} (Warmup: {args.warmup:,}, Measured: {measured:,})",
+            f"- **Circuits**: {len(v_files)}",
+            f"- **Icarus VPI**: {'enabled' if os.path.exists(_VPI_TIMER_VPI) else 'disabled'}", ""
+        ]
+        _print_speedup_report(all_results, md_lines)
+
     if getattr(args, 'dump', False):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         dump_dir = os.path.join(script_dir, 'test_results', 'unified_iscas_benchmark')
@@ -779,74 +797,108 @@ def main():
         print(f"\n[+] Markdown dump saved to -> {dump_path}")
 
     if not getattr(args, 'json', False):
-        print("=" * W)
-        _print_speedup_report(all_results)
         _save_results(all_results, args)
 
 
-def _print_speedup_report(all_results: list):
+def _print_speedup_report(all_results: list, md_lines: list = None):
     import math
 
     W = 150
     print()
+    if md_lines is not None:
+        md_lines.append("")
 
     # ── Icarus fallback baseline ───────────────────────
     print("=" * W)
     print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)")
     print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
     print("=" * W)
+    if md_lines is not None:
+        md_lines.append("## Speedup vs Icarus Verilog Baseline")
+        md_lines.append("*Icarus VPI sim time = 1x*")
+        md_lines.append("*Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)*")
+        md_lines.append("")
+
     hdr = (
         f"{'Circuit':<16} | "
-        f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-        f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+        f"{'Icarus(ms)':<10} | "
+        f"{'Engine(ms)':<10} | {'Eng-eval':<10} | {'Eng-spd':<8} | "
+        f"{'Rx-prop(ms)':<11} | {'Rx-p-eval':<10} | {'Rx-prop-spd':<11} | "
+        f"{'Rx-sweep(ms)':<12} | {'Rx-s-eval':<10} | {'Rx-swp-spd':<10}"
     )
     print(hdr)
     print("-" * W)
+    if md_lines is not None:
+        md_lines.append(f"| {hdr} |")
+        md_lines.append(f"|{'-'*18}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*13}|{'-'*12}|{'-'*13}|{'-'*14}|{'-'*12}|{'-'*12}|")
 
     engine_speedups        = []
     reactor_prop_speedups  = []
     reactor_sweep_speedups = []
 
-    for filename, e_res, r_res, l_res, i_res in all_results:
-        if any('error' in res for res in (e_res, r_res, i_res)):
-            continue
-
-        i_ms  = i_res['time_ms']
-        e_ms  = e_res['time_ms']
-        r_ms  = r_res['time_ms']
+    for filename, e_res, r_res, i_res in all_results:
+        i_ms  = i_res.get('time_ms', None)
+        e_ms  = e_res.get('time_ms', None)
+        r_ms  = r_res.get('time_ms', None)
         rs_ms = r_res.get('sweep_ms', None)
 
-        e_spd  = i_ms / e_ms  if e_ms  > 0 else float('inf')
-        r_spd  = i_ms / r_ms  if r_ms  > 0 else float('inf')
-        rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
+        e_spd  = i_ms / e_ms  if i_ms is not None and e_ms is not None and e_ms > 0 else None
+        r_spd  = i_ms / r_ms  if i_ms is not None and r_ms is not None and r_ms > 0 else None
+        rs_spd = i_ms / rs_ms if i_ms is not None and rs_ms is not None and rs_ms > 0 else None
 
-        engine_speedups.append(e_spd)
-        reactor_prop_speedups.append(r_spd)
+        if e_spd is not None: engine_speedups.append(e_spd)
+        if r_spd is not None: reactor_prop_speedups.append(r_spd)
         if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
 
-        rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
+        i_ms_str   = f"{i_ms:.2f}" if i_ms is not None else "N/A"
+        e_ms_str   = f"{e_ms:.1f}" if e_ms is not None else "N/A"
+        e_spd_str  = f"{e_spd:.1f}x" if e_spd is not None else "N/A"
+        r_ms_str   = f"{r_ms:.1f}" if r_ms is not None else "N/A"
+        r_spd_str  = f"{r_spd:.1f}x" if r_spd is not None else "N/A"
+        rs_ms_str  = f"{rs_ms:.1f}" if rs_ms is not None else "N/A"
         rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
 
-        print(
-            f"{filename:<16} | "
-            f"{i_ms:>14.2f} | "
-            f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
-            f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10}"
-        )
+        e_ev_str   = f"{e_res.get('total_evals', 0):,}" if 'error' not in e_res else "N/A"
+        r_ev_str   = f"{r_res.get('total_evals', 0):,}" if 'error' not in r_res else "N/A"
+        rs_ev_str  = (f"{r_res['sweep_evals']:,}"       if 'sweep_evals' in r_res
+                      else ("N/A" if 'sweep_error' in r_res else "N/A"))
 
-    if engine_speedups:
+        row = (
+            f"{filename:<16} | "
+            f"{i_ms_str:>10} | "
+            f"{e_ms_str:>10} | {e_ev_str:>10} | {e_spd_str:>8} | "
+            f"{r_ms_str:>11} | {r_ev_str:>10} | {r_spd_str:>11} | "
+            f"{rs_ms_str:>12} | {rs_ev_str:>10} | {rs_spd_str:>10}"
+        )
+        print(row)
+        if md_lines is not None:
+            md_lines.append(f"| {row} |")
+
+    if True:
         geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
-        g_e  = geo_mean(engine_speedups)
-        g_r  = geo_mean(reactor_prop_speedups)
+        g_e  = geo_mean(engine_speedups) if engine_speedups else None
+        g_r  = geo_mean(reactor_prop_speedups) if reactor_prop_speedups else None
         g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
         print("-" * W)
+        g_e_str  = f"{g_e:.1f}x" if g_e is not None else "N/A"
+        g_r_str  = f"{g_r:.1f}x" if g_r is not None else "N/A"
         g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
-        print(
-            f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
-            f"{'':<10} | {g_e:>7.1f}x | "
-            f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10}"
+        summary = (
+            f"{'Geo-mean speedup':<16} | {'(baseline)':<10} | "
+            f"{'':<10} | {'':<10} | {g_e_str:>8} | "
+            f"{'':<11} | {'':<10} | {g_r_str:>11} | "
+            f"{'':<12} | {'':<10} | {g_rs_str:>10}"
         )
+        print(summary)
         print("=" * W)
+        if md_lines is not None:
+            md_summary = (
+                f"| **Geo-mean speedup** | **(baseline)** | "
+                f"{'':<10} | {'':<10} | {g_e_str:>8} | "
+                f"{'':<11} | {'':<10} | {g_r_str:>11} | "
+                f"{'':<12} | {'':<10} | {g_rs_str:>10} |"
+            )
+            md_lines.append(md_summary)
 
 def _save_results(all_results: list, args):
     import math
@@ -860,7 +912,7 @@ def _save_results(all_results: list, args):
     ts       = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     circuits_data = []
-    for filename, e_res, r_res, l_res, i_res in all_results:
+    for filename, e_res, r_res, i_res in all_results:
         circuits_data.append({
             "circuit":  filename,
             "engine":   e_res,
@@ -868,20 +920,13 @@ def _save_results(all_results: list, args):
             "icarus":   i_res,
         })
 
-    valid = [
-        (fn, e, r, l, i) for fn, e, r, l, i in all_results
-        if 'error' not in e and 'error' not in r and 'error' not in i
-    ]
+    valid = all_results
     speedup_summary = None
     if valid:
         geo_mean   = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
-        e_spds  = [i['time_ms'] / e['time_ms']  for _, e, r, l, i in valid if e['time_ms']  > 0]
-        r_spds  = [i['time_ms'] / r['time_ms']  for _, e, r, l, i in valid if r['time_ms']  > 0]
-        rs_spds = [i['time_ms'] / r.get('sweep_ms', 0)
-                   for _, e, r, l, i in valid if r.get('sweep_ms', 0) > 0]
-        i_spds  = [l['time_ms'] / i['time_ms']
-                   for _, e, r, l, i in valid
-                   if 'error' not in i and i.get('time_ms', 0) > 0]
+        e_spds  = [i.get('time_ms') / e.get('time_ms')  for _, e, r, i in valid if i.get('time_ms') and e.get('time_ms') and e.get('time_ms') > 0]
+        r_spds  = [i.get('time_ms') / r.get('time_ms')  for _, e, r, i in valid if i.get('time_ms') and r.get('time_ms') and r.get('time_ms') > 0]
+        rs_spds = [i.get('time_ms') / r.get('sweep_ms') for _, e, r, i in valid if i.get('time_ms') and r.get('sweep_ms') and r.get('sweep_ms') > 0]
 
         speedup_summary = {
             "valid_circuits":                    len(valid),
@@ -899,16 +944,15 @@ def _save_results(all_results: list, args):
             "warmup_vectors":   args.warmup,
             "measured_vectors": measured,
             "optimize":         args.optimize,
-            "harness":          args.harness,
-            "jar":              args.jar,
+
         },
         "circuits":        circuits_data,
         "speedup_summary": speedup_summary,
     }
 
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, indent=2)
-    print(f"\n[+] Full results saved -> {json_path}")
+    # with open(json_path, 'w', encoding='utf-8') as f:
+    #     json.dump(payload, f, indent=2)
+    # print(f"\n[+] Full results saved -> {json_path}")
 
     W = 150
     lines = []
@@ -930,7 +974,7 @@ def _save_results(all_results: list, args):
     )
     lines.append(hdr)
     lines.append("-" * W)
-    for filename, e_res, r_res, l_res, i_res in all_results:
+    for filename, e_res, r_res, i_res in all_results:
         e_str   = f"{e_res['time_ms']:.1f}"     if 'error' not in e_res else "N/A"
         r_str   = f"{r_res['time_ms']:.1f}"     if 'error' not in r_res else "N/A"
         rs_str  = (f"{r_res['sweep_ms']:.1f}"   if 'sweep_ms' in r_res
@@ -943,7 +987,7 @@ def _save_results(all_results: list, args):
         )
     lines.append("=" * W)
 
-    if valid:
+    if True:
         lines.append("")
         lines.append("=" * W)
         lines.append("  SPEEDUP ANALYSIS vs ICARUS BASELINE  (Icarus = 1.00x)")
@@ -961,27 +1005,32 @@ def _save_results(all_results: list, args):
         g_r_spds  = []
         g_rs_spds = []
 
-        for fn, e, r, l, i in valid:
-            i_ms  = i['time_ms']
-            e_ms  = e['time_ms']
-            r_ms  = r['time_ms']
+        for fn, e, r, i in valid:
+            i_ms  = i.get('time_ms', None)
+            e_ms  = e.get('time_ms', None)
+            r_ms  = r.get('time_ms', None)
             rs_ms = r.get('sweep_ms', None)
 
-            e_spd  = i_ms / e_ms  if e_ms  > 0 else 0.0
-            r_spd  = i_ms / r_ms  if r_ms  > 0 else 0.0
-            rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
+            e_spd  = i_ms / e_ms  if i_ms is not None and e_ms is not None and e_ms > 0 else None
+            r_spd  = i_ms / r_ms  if i_ms is not None and r_ms is not None and r_ms > 0 else None
+            rs_spd = i_ms / rs_ms if i_ms is not None and rs_ms is not None and rs_ms > 0 else None
 
-            g_e_spds.append(e_spd)
-            g_r_spds.append(r_spd)
+            if e_spd is not None: g_e_spds.append(e_spd)
+            if r_spd is not None: g_r_spds.append(r_spd)
             if rs_spd is not None: g_rs_spds.append(rs_spd)
 
-            rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
+            i_ms_str   = f"{i_ms:.1f}" if i_ms is not None else "N/A"
+            e_ms_str   = f"{e_ms:.1f}" if e_ms is not None else "N/A"
+            e_spd_str  = f"{e_spd:.1f}x" if e_spd is not None else "N/A"
+            r_ms_str   = f"{r_ms:.1f}" if r_ms is not None else "N/A"
+            r_spd_str  = f"{r_spd:.1f}x" if r_spd is not None else "N/A"
+            rs_ms_str  = f"{rs_ms:.1f}" if rs_ms is not None else "N/A"
             rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
 
             lines.append(
                 f"{fn:<16} | "
-                f"{i_ms:>11.1f} | {e_ms:>10.1f} | {e_spd:>7.1f}x | "
-                f"{r_ms:>11.1f} | {r_spd:>10.1f}x | "
+                f"{i_ms_str:>11} | {e_ms_str:>10} | {e_spd_str:>8} | "
+                f"{r_ms_str:>11} | {r_spd_str:>11} | "
                 f"{rs_ms_str:>12} | {rs_spd_str:>10}"
             )
 
@@ -1002,7 +1051,7 @@ def _save_results(all_results: list, args):
         )
         lines.append("=" * W)
 
-    meps_valid = [(fn, e, r, l, i) for fn, e, r, l, i in all_results if 'error' not in e and 'error' not in r]
+    meps_valid = [(fn, e, r, i) for fn, e, r, i in all_results if 'error' not in e and 'error' not in r]
     if meps_valid:
         lines.append("")
         lines.append("=" * W)
@@ -1017,7 +1066,7 @@ def _save_results(all_results: list, args):
         )
         lines.append(meps_hdr)
         lines.append("-" * W)
-        for fn, e, r, l, i in meps_valid:
+        for fn, e, r, i in meps_valid:
             e_ev    = f"{e.get('total_evals', 0):,}"        if 'error' not in e else "N/A"
             e_meps  = f"{e.get('meps', 0):.2f}"             if 'error' not in e else "N/A"
             r_ev    = f"{r.get('total_evals', 0):,}"        if 'error' not in r else "N/A"
@@ -1039,10 +1088,10 @@ def _save_results(all_results: list, args):
     lines.append("  BENCHMARK SUMMARY")
     lines.append("=" * W)
     total_circuits = len(all_results)
-    ok_e  = sum(1 for _, e, r, l, i in all_results if 'error' not in e)
-    ok_r  = sum(1 for _, e, r, l, i in all_results if 'error' not in r)
-    ok_i  = sum(1 for _, e, r, l, i in all_results if 'error' not in i)
-    ok_rs = sum(1 for _, e, r, l, i in all_results if 'sweep_ms' in r)
+    ok_e  = sum(1 for _, e, r, i in all_results if 'error' not in e)
+    ok_r  = sum(1 for _, e, r, i in all_results if 'error' not in r)
+    ok_i  = sum(1 for _, e, r, i in all_results if 'error' not in i)
+    ok_rs = sum(1 for _, e, r, i in all_results if 'sweep_ms' in r)
     lines.append(f"  Circuits tested       : {total_circuits}")
     lines.append(f"  Engine results OK     : {ok_e}/{total_circuits}")
     lines.append(f"  Reactor (prop) OK     : {ok_r}/{total_circuits}")
@@ -1078,9 +1127,9 @@ def _save_results(all_results: list, args):
     lines.append("      sweep() requires optimize() to have run first (topological order).")
     lines.append("    - Icarus: VPI inner-loop timer (QueryPerformanceCounter) excludes $readmemb.")
     lines.append("=" * W)
-    with open(txt_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(lines) + '\n')
-    print(f"[+] Human-readable results saved -> {txt_path}")
+    # with open(txt_path, 'w', encoding='utf-8') as f:
+    #     f.write('\n'.join(lines) + '\n')
+    # print(f"[+] Human-readable results saved -> {txt_path}")
 
 
 class _Tee:

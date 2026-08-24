@@ -113,7 +113,7 @@ class SequentialVerilogRunner:
             'xor':  self.const.XOR_ID,
             'xnor': self.const.XNOR_ID,
             'not':  self.const.NOT_ID,
-            'buf':  self.const.INPUT_PIN_ID,
+            'buf':  self.const.PROBE_ID,
         }
 
         self._parse_verilog(v_file_path)
@@ -197,7 +197,11 @@ class SequentialVerilogRunner:
                 for p in ports:
                     p = p.strip()
                     if p:
+                        out_node = self.circuit.getcomponent(self.const.OUTPUT_PIN_ID)
+                        out_node.rename(f"OUT_{p}")
+                        self.nodes[p + "_OUTPIN"] = out_node
                         self.outputs.append(p)
+                        connections.append((p + "_OUTPIN", [p]))
             elif stmt.startswith(('wire ', 'module ', 'endmodule', 'reg ')):
                 continue
             else:
@@ -512,7 +516,7 @@ def get_v_files(target):
 # 5. REPORTING — Console, JSON, TXT
 # ===========================================================================
 
-def _print_speedup_report(all_results: list):
+def _print_speedup_report(all_results: list, md_lines: list = None):
     import math
 
     W = 150
@@ -523,13 +527,24 @@ def _print_speedup_report(all_results: list):
     print("  SPEEDUP vs ICARUS VERILOG BASELINE  (Icarus VPI sim time = 1x)")
     print("  Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)")
     print("=" * W)
+    if md_lines is not None:
+        md_lines.append("## Speedup vs Icarus Verilog Baseline")
+        md_lines.append("*Icarus VPI sim time = 1x*")
+        md_lines.append("*Reactor modes: prop = BFS wavefront (SIMULATE)  |  sweep = linear fwd-pass (COMPILE)*")
+        md_lines.append("")
+
     hdr = (
         f"{'Circuit':<16} | "
-        f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
-        f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | {'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+        f"{'Icarus(ms)':<10} | "
+        f"{'Engine(ms)':<10} | {'Eng-eval':<10} | {'Eng-spd':<8} | "
+        f"{'Rx-prop(ms)':<11} | {'Rx-p-eval':<10} | {'Rx-prop-spd':<11} | "
+        f"{'Rx-sweep(ms)':<12} | {'Rx-s-eval':<10} | {'Rx-swp-spd':<10}"
     )
     print(hdr)
     print("-" * W)
+    if md_lines is not None:
+        md_lines.append(f"| {hdr} |")
+        md_lines.append(f"|{'-'*18}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*13}|{'-'*12}|{'-'*13}|{'-'*14}|{'-'*12}|{'-'*12}|")
 
     engine_speedups        = []
     reactor_prop_speedups  = []
@@ -555,12 +570,21 @@ def _print_speedup_report(all_results: list):
         rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
         rs_spd_str = f"{rs_spd:.1f}x" if rs_spd is not None else "N/A"
 
-        print(
+        e_ev_str   = f"{e_res.get('total_evals', 0):,}" if 'error' not in e_res else "N/A"
+        r_ev_str   = f"{r_res.get('total_evals', 0):,}" if 'error' not in r_res else "N/A"
+        rs_ev_str  = (f"{r_res['sweep_evals']:,}"       if 'sweep_evals' in r_res
+                      else ("N/A" if 'sweep_error' in r_res else "N/A"))
+
+        row = (
             f"{filename:<16} | "
-            f"{i_ms:>14.2f} | "
-            f"{e_ms:>10.1f} | {e_spd:>7.1f}x | "
-            f"{r_ms:>11.1f} | {r_spd:>10.1f}x | {rs_ms_str:>12} | {rs_spd_str:>10}"
+            f"{i_ms:>10.2f} | "
+            f"{e_ms:>10.1f} | {e_ev_str:>10} | {e_spd:>7.1f}x | "
+            f"{r_ms:>11.1f} | {r_ev_str:>10} | {r_spd:>10.1f}x | "
+            f"{rs_ms_str:>12} | {rs_ev_str:>10} | {rs_spd_str:>10}"
         )
+        print(row)
+        if md_lines is not None:
+            md_lines.append(f"| {row} |")
 
     if engine_speedups:
         geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
@@ -569,12 +593,22 @@ def _print_speedup_report(all_results: list):
         g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
         print("-" * W)
         g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
-        print(
-            f"{'Geo-mean speedup':<16} | {'(baseline)':<14} | "
-            f"{'':<10} | {g_e:>7.1f}x | "
-            f"{'':<11} | {g_r:>10.1f}x | {'':<12} | {g_rs_str:>10}"
+        summary = (
+            f"{'Geo-mean speedup':<16} | {'(baseline)':<10} | "
+            f"{'':<10} | {'':<10} | {g_e:>7.1f}x | "
+            f"{'':<11} | {'':<10} | {g_r:>10.1f}x | "
+            f"{'':<12} | {'':<10} | {g_rs_str:>10}"
         )
+        print(summary)
         print("=" * W)
+        if md_lines is not None:
+            md_summary = (
+                f"| **Geo-mean speedup** | **(baseline)** | "
+                f"{'':<10} | {'':<10} | {g_e:>7.1f}x | "
+                f"{'':<11} | {'':<10} | {g_r:>10.1f}x | "
+                f"{'':<12} | {'':<10} | {g_rs_str:>10} |"
+            )
+            md_lines.append(md_summary)
 
     else:
         # ── Icarus fallback baseline ───────────────────────
@@ -650,17 +684,15 @@ def _save_results_89(all_results: list, args):
             "warmup_vectors":   args.warmup,
             "measured_vectors": measured,
             "optimize":         args.optimize,
-            "harness":          args.harness,
-            "jar":              args.jar,
             "benchmark_type":   "ISCAS89_sequential",
         },
         "circuits":        circuits_data,
         "speedup_summary": speedup_summary,
     }
 
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, indent=2)
-    print(f"\n[+] Full results saved -> {json_path}")
+    # with open(json_path, 'w', encoding='utf-8') as f:
+    #     json.dump(payload, f, indent=2)
+    # print(f"\n[+] Full results saved -> {json_path}")
 
     # ── Human-readable TXT ────────────────────────────────────────────────────
     W = 180
@@ -850,9 +882,9 @@ def _save_results_89(all_results: list, args):
     txt_lines.append(f"  Icarus results OK     : {ok_i}/{total_circuits}")
     txt_lines.append("=" * W)
 
-    with open(txt_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(txt_lines) + '\n')
-    print(f"[+] Human-readable results saved -> {txt_path}")
+    # with open(txt_path, 'w', encoding='utf-8') as f:
+    #     f.write('\n'.join(txt_lines) + '\n')
+    # print(f"[+] Human-readable results saved -> {txt_path}")
 
 
 # ===========================================================================
@@ -1021,6 +1053,17 @@ def main():
         }
         print(json.dumps(payload, indent=4), file=sys.__stdout__)
         
+    if not getattr(args, 'json', False):
+        print("=" * W)
+        md_lines = [
+            "# Unified ISCAS89 Logic Simulator Benchmark", "",
+            f"- **Total vectors**: {args.vectors:,} (Warmup: {args.warmup:,}, Measured: {measured:,})",
+            f"- **Circuits**: {len(v_files)}",
+            f"- **Icarus VPI**: {vpi_status}", ""
+        ]
+        _print_speedup_report(all_results, md_lines)
+        _save_results_89(all_results, args)
+
     if getattr(args, 'dump', False):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         dump_dir = os.path.join(script_dir, 'test_results', 'unified_iscas_benchmark_89')
@@ -1030,11 +1073,6 @@ def main():
         with open(dump_path, 'w', encoding='utf-8') as f:
             f.write("\n".join(md_lines) + "\n")
         print(f"\n[+] Markdown dump saved to -> {dump_path}")
-
-    if not getattr(args, 'json', False):
-        print("=" * W)
-        _print_speedup_report(all_results)
-        _save_results_89(all_results, args)
 
 
 # ===========================================================================

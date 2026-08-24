@@ -20,11 +20,23 @@ class IscasVerilogRunner:
         self.nodes = {}
         self.outputs = []
         self.input_vars = []
+        self.dff_connections = []
+        
+        # Load DFF.json from common locations
+        self.dff_crct = None
+        for p in [
+            os.path.join(_SCRIPT_DIR, "DFF.json"),
+            os.path.join(_PROJECT_ROOT, "DFF.json"),
+            "DFF.json",
+        ]:
+            if os.path.exists(p):
+                self.dff_crct = self.circuit.get_ic(p)
+                break
 
         self.VERILOG_GATE_MAP = {
             'and': self.const.AND_ID, 'nand': self.const.NAND_ID, 'or': self.const.OR_ID,
             'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID,
-            'not': self.const.NOT_ID, 'buf': getattr(self.const, 'INPUT_PIN_ID', self.const.NOT_ID)
+            'not': self.const.NOT_ID, 'buf': self.const.PROBE_ID
         }
 
         self._parse_verilog(v_file_path)
@@ -105,16 +117,34 @@ class IscasVerilogRunner:
                         self.nodes[out_wire] = gate
                         connections.append((out_wire, in_wires))
                     elif gate_type == 'dff':
-                        # ISCAS89 DFF parsing: dff DFF_0(CK, Q, D);
-                        ports = [p.strip() for p in ports_str.split(',')]
-                        clk_wire = ports[0]
-                        q_wire = ports[1]
-                        d_wire = ports[2]
-                        
-                        # In Cython Reactor, DFF is an IC. To load it, we use an IC component.
-                        # Wait, we can't easily load it. Since tests are combinational state equivalence,
-                        # let's just make the DFF pass-through or warning for now.
-                        pass
+                        if not self.dff_crct:
+                            raise RuntimeError("DFF.json is required for ISCAS89 sequential circuits but was not found.")
+
+                        wires = {}
+                        if '.' in ports_str:
+                            for pm in re.finditer(r'\.\s*([a-zA-Z0-9_]+)\s*\(\s*([a-zA-Z0-9_]+)\s*\)', ports_str):
+                                wires[pm.group(1).upper()] = pm.group(2)
+                            d_wire   = wires.get('D')
+                            clk_wire = wires.get('CK', wires.get('CLK', wires.get('C')))
+                            q_wire   = wires.get('Q')
+                        else:
+                            pts = [p.strip() for p in ports_str.split(',')]
+                            clk_wire = pts[0] if len(pts) > 0 else None
+                            q_wire   = pts[1] if len(pts) > 1 else None
+                            d_wire   = pts[2] if len(pts) > 2 else None
+
+                        dff_inst = self.circuit.load_ic(self.dff_crct)
+                        inst_name = match.group(2) or f"inst_{len(self.dff_connections)}"
+                        if hasattr(dff_inst, 'rename'):
+                            dff_inst.rename(f"DFF_{inst_name}")
+                        else:
+                            dff_inst.custom_name = f"DFF_{inst_name}"
+
+                        if q_wire:
+                            self.nodes[q_wire] = dff_inst.outputs[0]
+
+                        self.dff_connections.append((dff_inst, d_wire, clk_wire))
+                        continue
 
         for target_id, source_ids in connections:
             target_gate = self.nodes.get(target_id)
@@ -124,7 +154,17 @@ class IscasVerilogRunner:
                 source_gate = self.nodes.get(source_id)
                 if source_gate:
                     self.circuit.connect(target_gate, source_gate, pin_index)
-        self.circuit.simulate(self.const.COMPILE)
+        for dff_inst, d_wire, clk_wire in self.dff_connections:
+            # pin 0 = CLK, pin 1 = D
+            if clk_wire:
+                clk_src = self.nodes.get(clk_wire)
+                if clk_src and len(dff_inst.inputs) > 0:
+                    self.circuit.connect(dff_inst.inputs[0], clk_src, 0)
+            if d_wire:
+                d_src = self.nodes.get(d_wire)
+                if d_src and len(dff_inst.inputs) > 1:
+                    self.circuit.connect(dff_inst.inputs[1], d_src, 0)
+
 
 
 def process_iscas_file(v_path, json_path):
