@@ -48,8 +48,7 @@ bash scripts/build.sh
 scripts\build.bat
 ```
 
-
-#### Usage
+## Usage
 
 **Run the Simulator with GUI:**
 
@@ -67,7 +66,7 @@ python interface/CLI.py
 
 ## Structure
 
-## I. Language and Backend Choice
+### I. Language and Backend Choice
 
 **Python vs. Cython**
 
@@ -75,54 +74,53 @@ Python is a very easy language to work with and has versatile library support. H
 
 Cython, on the other hand, allows the use of compiled code alongside the interpreter. To run at native C++ speeds, the code must be "Python-proof"—written with C/C++ style and data types. Properly written code is crucial for Cython to reach its full potential; it must be completely free from Pythonic objects. Using Pythonic objects in the backend triggers the Global Interpreter Lock (GIL), which entirely negates the performance benefits of the compiled code.
 
-## II. Core Optimizations and Data-Oriented Design
+### II. Core Optimizations and Data-Oriented Design
 
 **Array of Structures (AOS) & Memory Management**
 
-To achieve maximum performance, the reactor backend utilizes Data-Oriented Design through an Array of Structures (AOS) approach. A special C++ struct was created to hold data related to propagation and connections, acting as an addition to the standard Python gate.
+To achieve high performance, the cython backend utilizes Data-Oriented Design through an Array of Structures (AOS) approach. A special C++ struct is designed to hold data related to propagation and connections, acting as an extension to the standard Python gate.
 
 This approach provides three major structural advantages:
 
-1. **Memory Locality:** Retrieving data from specific, contiguous places in memory (arrays and structs) is significantly faster than fetching it from random locations. The CPU actively tries to keep this array in its cache, aggressively boosting simulation speeds at high scales.
-    
-2. **Topological Compilation:** By topologically sorting the array using a modified Kahn's algorithm, the memory locations of the gates' data chunks can be manipulated. Gates are aligned in memory such that high speeds are maintained even if the circuit's size far exceeds the CPU's cache limit.
-    
-3. **Unique Identification:** The array naturally creates a unique ID (the array index) for every gate. This ID is used directly to dictate gates across UI updates, serialization, and propagation.
-    
+- **Memory Locality:** Retrieving data from specific, contiguous places in memory (arrays and structs) is significantly faster than fetching it from random locations. The CPU actively tries to keep this array in its cache, improving performance over standard OOP.
 
-This backend is designed to compete with the simulation speeds of Verilog. It can handle multiple input toggles and simulate an entire circuit in a single array traversal. (Note: The UX aspect of this feature is still under construction and is currently only used to transition from design mode to simulate mode effectively optimizing it without disturbing the user).
+- **Topological Compilation:** By topologically sorting the array using a modified Kahn's algorithm, the memory locations of the gates' data chunks can be manipulated. Gates are aligned in a topological manner. This levelized contiguous array saves bandwidth for large circuits.
 
-## III. Circuit Evaluation and Simulation Engine
+- **Unique Identification:** The array naturally creates a unique ID (the array index) for every gate. This ID is used directly to dictate gates across UI updates, serialization, and propagation.
 
-**Memorization and Forward Evaluation**
+- **Linear sweep:** Levelized circuit is linear in nature, utilizing this we can handle multiple input toggles and simulate an entire circuit in a single array traversal. (Note: The UX aspect of this feature is still under construction and is currently only used to transition from design mode to simulate mode effectively optimizing it without disturbing the user).
 
-A special book array is used to store the states of inputs. If a gate changes its output, it directly modifies this array. Propositional and quantifier logic is heavily utilized to ensure **O(1) evaluation**, regardless of the input size, without needing to check the states of other gate inputs. Certain components, such as NOT gates and buffer gates, bypass the book array entirely and operate directly on the state of their inputs.
+### III. Circuit Evaluation and Simulation Engine
+
+**Memoization and Forward Evaluation**
+
+A three sized book-array is used to store the states of inputs. If a gate changes its output, it directly modifies this array. Propositional and quantifier logic is utilized to ensure O(1) evaluation, regardless of the input size, without needing to check the states of other gate inputs. Certain components, such as NOT gates and buffer gates, bypass the book array entirely and operate directly on the state of their inputs. The actual goal isn't to just lower the evaluation complexity to O(1) but also reduce Object overhead. For example if an OR gate-A has inputs gate-B & C. then it may seem gate-B | gate-C is O(1) complexity, it actually is for 2 inputs but we have to look back and fetch the input objects from memory, check their outputs and evaluate. This is one of the rare scenarios where time complexity doesn't tell the full story and the actual cost of the operation. We have used a struct and packed the array to it, so it is well within the reach of the CPU, without needing to fetch objects while maintaining the O(1) evaluation complexity even with n inputs.
 
 **Clocks and Discrete Event Simulation**
 
-Variables or inputs are converted into clocks, utilizing the book array to store and control delays. The simulator uses a dedicated `Task` object that wraps gates (or gate locations) into delayed tasks, which execute when their time is up.
+Variables or inputs are converted into clocks, utilizing the book-array to store and control delays. The simulator uses a dedicated Task object that wraps gates (or gate locations) into delayed tasks, which execute when their time is up.
 
-The entire system relies on a priority queue for artificial timing, mirroring real-world nanosecond delays. The discrete event simulation system allows users to tweak timing at precise values, modifying clock pulses to solve race conditions.
+The entire system relies on a priority queue for artificial timing, trying to navigate real-world nanosecond delays. The discrete event simulation system allows users to tweak timings at precise values, modifying clock pulses to see how pulse width solves race conditions.
 
 **Real-World Glitches & Delays**
 
-Every gate adds its own propagation delay relative to its input. This accurately showcases real-world glitches, helping users design circuits while remaining fully aware of the hardware consequences of their design choices.
+Every gate adds its own propagation delay relative to its input. This helps showcase real-world glitches, motivating users to design circuits remaining fully aware of the real-world hardware consequences of their design choices.
 
-- _Example (CSE-2104 Project):_ When building an asynchronous mod-10 counter with reset pins, a known physical glitch causes the circuit to reset to 4 instead of 0. Another glitch briefly displays the intermediate value of 10—or (1010)2—which shouldn't visually persist. Our simulator is the only one capable of showcasing these specific hardware issues beforehand. Users can fix these simulated race conditions natively by adding buffer gates to introduce extra propagation delay.
-    
+**Example:** When building an asynchronous mod-10 counter with reset pins, we may observe some glitches, specially when we load the timing diagram, we can see signals racing against the reset pin, a small pulse right before everything turns to 0.
 
 **Oscillations**
 
-Handling oscillations was one of the most complex challenges. While traditional simulators simply count up to a static limit before throwing a warning (which is inefficient), this simulator uses a dynamic counter to detect oscillations much earlier. It propagates the simulation in batches so the system can display the oscillation to the user without hanging or crashing.
-The dynamic counter works on the theory of maximum depth, propagation occurs in waves so the maximum amount of wave(depth) is the total number of gates + 1, which can be understood by imagining a chain of not gates and then also a xor-gate connected to itself(the +1 comes from this).
+Handling oscillations was one of the most complex challenges of the project. While traditional simulators simply count up to a static limit before throwing a warning (which is inefficient), this simulator uses a dynamic counter to detect oscillations much earlier. It propagates the simulation in batches so the system can display the oscillation to the user without hanging or crashing.
 
-## IV. System Architecture and Integration
+The dynamic counter works on the theory of pigeon hole principal, propagation occurs in waves so the maximum amount of wave(depth) is the total number of gates + 1, which can be understood by imagining a chain of not gates and then also a xor-gate connected to itself(the +1 comes from this).
+
+### IV. System Architecture and Integration
 
 **UI Decoupling**
 
-The UI is built entirely in Python, while the propagation function is strictly built in Cython (and must remain free of Python objects). To bridge this, a parallel array of UI elements is created, referencing the `location` attribute (the array index). These act as currencies between the frontend and backend.
+The UI is built entirely in Python, while the propagation function is strictly built in Cython (and must remain free of Python objects). To bridge this, a parallel array of UI elements is created, referencing the location attribute (the array index). These act as currencies between the frontend and backend.
 
-During simulation, UI updates occur in between clock pulses. After propagation, indices are loaded into a deque accessed by the UI, which updates the elements asynchronously. This decoupling is achieved using parallel location integers and special intermediate functions that act as an API for the UI. _(Note: Updating the UI only between clock pulses may swallow some unstable signals or oscillations if a gate changes state multiple times between two pulses)._
+During simulation, UI updates occur in between clock pulses. After propagation, indices are loaded into a deque accessed by the UI, which updates the elements asynchronously. This decoupling is achieved using parallel location integers and special intermediate functions that act as an API for the UI.
 
 **IC Deserialization**
 
