@@ -1324,44 +1324,29 @@ cdef class Circuit:
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
                 while profile != end:
+                    while profile!=end and profile.output==new_output:
+                        profile+=1
+                    if profile ==end:break
                     profile_output = profile.output
-                    if profile_output != new_output:
-                        target_info = &gate_infolist[profile.target]
-                        gate_type = target_info.type
-                        limit = target_info.inputlimit
-                        if gate_type < 0:
-                            profile+=1
-                            continue
-                        if gate_type >= NOT_ID:
-                            if new_output != UNKNOWN:
-                                target_output = new_output ^ (gate_type == NOT_ID)
-                            else:
-                                target_output = UNKNOWN
-                        else:
-                            # update target
-                            book = target_info.book
-                            book[profile_output] -= 1
-                            book[new_output] += 1
-                           
-                            if new_output != UNKNOWN:
-                                high = book[HIGH]
-                                low  = book[LOW]
-                                realsource = high + low
-                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
-                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
-                                else:
-                                    target_output = UNKNOWN
-                            else:
-                                target_output = UNKNOWN
-                        if target_output != target_info.output:
-                            target_info.output = target_output
-                            if not (target_info.flags & FLAG_MARK):
-                                target_info.flags |= FLAG_MARK
-                                write_queue[size] = profile.target
-                                size += 1
-                        profile.output = new_output
+                    target_info = &gate_infolist[profile.target]
+                    gate_type = target_info.type
+                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
+                    else:
+                        book = target_info.book
+                        book[profile_output] -= 1
+                        book[new_output] += 1
+                        high = book[HIGH]
+                        low  = book[LOW]
+
+                        if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                        else: target_output= (high&1)^(gate_type&1)
+                    write_queue[size] = profile.target
+                    size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
+                    target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
+                    target_info.output = target_output
+                    profile.output = new_output
                     profile += 1
             # size is actually the growing size of write_queue
             end_point, size = size, 0
@@ -1484,43 +1469,30 @@ cdef class Circuit:
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
                 while profile != end:
+                    while profile!=end and profile.output==new_output:
+                        profile+=1
+                    if profile ==end:break
                     profile_output = profile.output
-                    if profile_output != new_output:
-                        target_info = &gate_infolist[profile.target]
-                        gate_type = target_info.type
-                        limit = target_info.inputlimit
+                    target_info = &gate_infolist[profile.target]
+                    gate_type = target_info.type
+                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
+                    else:
+                        book = target_info.book
+                        book[profile_output] -= 1
+                        book[new_output] += 1
+                        high = book[HIGH]
+                        low  = book[LOW]
                         
-                        if gate_type >= NOT_ID:
-                            if new_output != UNKNOWN:
-                                target_output = new_output ^ (gate_type == NOT_ID)
-                            else:
-                                target_output = UNKNOWN
-                        else:
-                            # update target
-                            book = target_info.book
-                            book[profile_output] -= 1
-                            book[new_output] += 1
-                            
-                            if new_output != UNKNOWN:
-                                high = book[HIGH]
-                                low  = book[LOW]
-                                realsource = high + low
-                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
-                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
-                                else:
-                                    target_output = UNKNOWN
-                            else:
-                                target_output = UNKNOWN
-                        if target_output != target_info.output:
-                            target_info.output = target_output
-                            if not (target_info.flags& FLAG_MARK):
-                                target_info.flags |= FLAG_MARK
-                                if profile.target<=index:
-                                    self.queue[0][end_point] = profile.target
-                                    end_point += 1
-                        profile.output = new_output
+                        if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
+                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                        else: target_output= (high&1)^(gate_type&1)
+
+                    self.queue[0][end_point] = profile.target
+                    end_point += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output) & (profile.target<=index))
+                    target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
+                    target_info.output = target_output
+                    profile.output = new_output
                     profile += 1
         # size is actually the growing size of write_queue
         self.eval_count += eval

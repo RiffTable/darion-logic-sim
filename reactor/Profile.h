@@ -3,6 +3,7 @@
 #define PROFILE_H
 #include <vector>
 #include <stdint.h>
+#include <cstddef>   // offsetof
 
 struct Profile {
     int target;
@@ -38,22 +39,40 @@ enum GateFlags : uint8_t {
 };
 
 struct CPP_Gate {
-    int8_t type;
-    uint8_t output;
-    uint8_t inputlimit;
-    uint8_t flags;
-    uint8_t book[3];
-    std::vector<Profile> hitlist;
-    unsigned int target_time;
+    // ── HOT SCALARS (12 B, all read in the inner propagate/sweep loop) ────────
+    // Packed into bytes 0–11 so a single 64-B cache-line fetch covers every
+    // field needed before touching hitlist.
+    //
+    //   offset  0: type         (int8_t,  1 B)
+    //   offset  1: output       (uint8_t, 1 B)
+    //   offset  2: inputlimit   (uint8_t, 1 B)
+    //   offset  3: flags        (uint8_t, 1 B)
+    //   offset  4: book[3]      (uint8_t, 3 B)
+    //   offset  7: invalid (uint8_t, 1 B)
+    //   offset  8: target_time  (uint32_t, 4 B)
+    //   offset 12: [4 B natural padding to align 8-B hitlist pointer]
+    // ── COLD / LARGE (offset 16) ──────────────────────────────────────────────
+    //   offset 16: hitlist      (std::vector<Profile>, 24 B: ptr+size+capacity)
+    //   → hitlist.data() lives on the heap; prefetch it explicitly.
+    int8_t       type;
+    uint8_t      output;
+    uint8_t      inputlimit;
+    uint8_t      flags;
+    uint8_t      book[3];
+    uint8_t      invalid;
+    unsigned int target_time;    // moved before hitlist — stays in hot cacheline
+    std::vector<Profile> hitlist; // 24 B; out-of-line data prefetched separately
 
-    // FIXED: output and inputlimit now come before flags in the init list
-    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), hitlist(), target_time(0) {
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), invalid(2), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
-
-    // FIXED: output and inputlimit now come before flags in the init list
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), hitlist(), target_time(0) {
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), invalid(lim), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
 };
+
+// Compile-time assertion: hot scalars must all fit before the hitlist pointer.
+// If the struct layout ever drifts, this will fail at compile time.
+static_assert(offsetof(CPP_Gate, hitlist) >= 12,
+    "CPP_Gate: hot scalars overflowed into hitlist — check field order");
 #endif

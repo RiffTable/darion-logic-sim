@@ -171,6 +171,7 @@ class CircuitScene(QGraphicsScene):
             self.organize_components()
             logic.simulate(Const.COMPILE)
             self.simulationMode=Const.SIMULATE
+            logic.simulate(Const.SIMULATE)
         else:
             logic.reset()
             self.simulationMode=Const.DESIGN

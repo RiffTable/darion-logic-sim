@@ -55,9 +55,11 @@ if ! "$PY_CMD" -c "import Cython" 2>/dev/null; then
 fi
 
 # ── 4. Build ──────────────────────────────────────────────────
-echo ""
 echo "[*] Starting build..."
 echo ""
+
+export CFLAGS="-O3 -g -fno-omit-frame-pointer"
+export CXXFLAGS="-O3 -g -fno-omit-frame-pointer"
 
 "$PY_CMD" setup.py build_ext --inplace $COMPILER_FLAG
 

@@ -18,10 +18,12 @@ __pycache__
 
 file.json/
 temp.json/
-
+cython_debug/
 
 reactor/*.pyd
 reactor/*.so
+reactor/*.c*
+reactor/*.html
 build/
 */blazing_build
 dist/
@@ -31,8 +33,9 @@ blazing_builds/
 reactor/*.html
 reactor/*c
 
+*.data
+*.data.old
 
 !tests/test_results/*/*/*
 
-tests/*plots/
-tests/*/.png
+tests/

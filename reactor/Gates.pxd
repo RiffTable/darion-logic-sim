@@ -54,6 +54,7 @@ cdef extern from "Profile.h":
         uint8_t inputlimit
         uint8_t flags
         uint8_t book[3]
+        uint8_t invalid
         unsigned int target_time
         vector[Profile] hitlist
         CPP_Gate()

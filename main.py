@@ -149,7 +149,7 @@ class AppWindow(QMainWindow):
         Actions.addSettingsCheckable(self, "invert_scroll", "Invert Scroll", False, self.setScrollInverted)
         Actions.addSettingsCheckable(self, "disable_peeking", "Disable Pins Peeking", False, self.setPeekingDisabled)
         Actions.addSettingsCheckable(self, "dark_theme", "Dark Theme", True, theme.set_theme)
-        Actions.addCheckable(self, "enable_ticking", "Enable ticking", False, logic.enable_all_clocks)
+        Actions.addCheckable(self, "enable_ticking", "Enable ticking", False, lambda checked: logic.enable_all_clocks(checked))
         # this turns on all CURRENT clocks together. nothing else can turn on clocks anymore.
         # we had an issue where we couldn't set primary outputs of clocks before turning them on 
         # now we can customize multiple clocks together. 
