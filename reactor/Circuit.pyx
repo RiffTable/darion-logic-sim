@@ -755,33 +755,66 @@ cdef class Circuit:
                         if in_degree[profile.target]==0:
                             queue.push_back(profile.target)
                     profile+=1
-                    
-        for index in range(n):
-            if in_degree[index]>0:
-                backup.push_back(index)
-        while not backup.empty():
-            node=backup.front()
-            backup.pop_front()
-            if in_degree[node]>=1:
-                queue.push_back(node)
-                in_degree[node]=0
-                while not queue.empty():
-                    node=queue.front()
-                    queue.pop_front()
-                    info=&gate_infolist[node]
-                    hash_map[node]=j
-                    serial[j]=node
-                    j+=1
-                    profile=info.hitlist.data()
-                    end=profile+info.hitlist.size()
-                    while profile<end:
-                        '''if the target's dependencies are already in to the list push it to the list now'''
-                        if in_degree[profile.target]>0:
-                            in_degree[profile.target]-=1
-                            if in_degree[profile.target]==0:
-                                queue.push_back(profile.target)
-                        profile+=1
-
+        cdef int start=0
+        while j<active_gates:
+            for index in range(start,j):
+                info=&gate_infolist[serial[index]]
+                profile=info.hitlist.data()
+                end=profile+info.hitlist.size()
+                while profile<end:
+                    '''if the target's dependencies are already in to the list push it to the list now'''
+                    if in_degree[profile.target]>0:
+                        backup.push_back(profile.target)
+                    profile+=1
+            if backup.empty():break
+            start=j
+            while not backup.empty():
+                node=backup.front()
+                backup.pop_front()
+                if in_degree[node]>=1:
+                    queue.push_back(node)
+                    in_degree[node]=0
+                    while not queue.empty():
+                        node=queue.front()
+                        queue.pop_front()
+                        info=&gate_infolist[node]
+                        hash_map[node]=j
+                        serial[j]=node
+                        j+=1
+                        profile=info.hitlist.data()
+                        end=profile+info.hitlist.size()
+                        while profile<end:
+                            '''if the target's dependencies are already in to the list push it to the list now'''
+                            if in_degree[profile.target]>0:
+                                in_degree[profile.target]-=1
+                                if in_degree[profile.target]==0:
+                                    queue.push_back(profile.target)
+                            profile+=1
+        if j<active_gates:
+            for index in range(n):
+                if in_degree[index]>0:backup.push_back(index)
+            while not backup.empty():
+                node=backup.front()
+                backup.pop_front()
+                if in_degree[node]>=1:
+                    queue.push_back(node)
+                    in_degree[node]=0
+                    while not queue.empty():
+                        node=queue.front()
+                        queue.pop_front()
+                        info=&gate_infolist[node]
+                        hash_map[node]=j
+                        serial[j]=node
+                        j+=1
+                        profile=info.hitlist.data()
+                        end=profile+info.hitlist.size()
+                        while profile<end:
+                            '''if the target's dependencies are already in to the list push it to the list now'''
+                            if in_degree[profile.target]>0:
+                                in_degree[profile.target]-=1
+                                if in_degree[profile.target]==0:
+                                    queue.push_back(profile.target)
+                            profile+=1
         
         # i is location of each hidden gate, it will be pushed to the end of queue
         for i in hidden:
