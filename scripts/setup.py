@@ -5,9 +5,25 @@ from setuptools import setup, Extension
 from Cython.Build import cythonize
 import sysconfig
 
+# --- ARGUMENT PARSING ---
+# Consume --source-dir <name> before setuptools sees sys.argv.
+# build.sh passes either "reactor" or "reactor_oop".
+_source_target = "reactor"   # default
+_i = 0
+while _i < len(sys.argv):
+    if sys.argv[_i] == "--source-dir":
+        if _i + 1 >= len(sys.argv):
+            print("[ERROR] --source-dir requires a value (reactor | reactor_oop)")
+            sys.exit(1)
+        _source_target = sys.argv[_i + 1]
+        del sys.argv[_i:_i + 2]   # strip both flag and value so setuptools ignores them
+    else:
+        _i += 1
+
 # --- CONFIGURATION ---
 # Adjusted for running from scripts/ directory
-source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reactor"))
+source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), f"../{_source_target}"))
+print(f"\n[setup.py] Building source target: '{_source_target}' ({source_dir})\n")
 source_files = glob.glob(os.path.join(source_dir, "*.pyx"))
 
 extensions = []
@@ -51,7 +67,7 @@ setup(
 print("\n--- Cleaning up ---")
 generated_suffix = sysconfig.get_config_var("EXT_SUFFIX") or (".pyd" if sys.platform == "win32" else ".so")
 target_suffix = ".pyd" if sys.platform == "win32" else ".so"
-target_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "../reactor"))  # Keep compiled binaries in reactor folder
+target_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), f"../{_source_target}"))  # Keep compiled binaries in the target folder
 
 # Move the built files into reactor/
 # They might be built in the current directory (scripts/) due to inplace build

@@ -34,8 +34,8 @@ cdef class Circuit:
     cdef unsigned int[12] FanOut_delay
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
-    cdef deque[int] visual_queue   # C++ deque of dirty gate locations for UI consumer
-    cdef int queue[2][LIMIT]
+    cdef deque[CPP_Gate*] visual_queue   # C++ deque of dirty gate locations for UI consumer
+    cdef CPP_Gate* queue[2][LIMIT]
     cdef vector[CPP_Gate] gate_infolist
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)

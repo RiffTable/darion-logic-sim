@@ -5,12 +5,14 @@
 #include <stdint.h>
 #include <cstddef>   // offsetof
 
+struct CPP_Gate;
+
 struct Profile {
-    int target;
+    CPP_Gate* target;
     uint8_t index;
     uint8_t output;
-    Profile() : target(-1), index(0), output(0){}
-    Profile(int t, uint8_t i, uint8_t o) : target(t),index(i), output(o){}
+    Profile() : target(nullptr), index(0), output(0){}
+    Profile(CPP_Gate* t, uint8_t i, uint8_t o) : target(t),index(i), output(o){}
     bool operator<(const Profile& other) const {
         return target < other.target;
     }
@@ -63,10 +65,10 @@ struct CPP_Gate {
     unsigned int target_time;    // moved before hitlist — stays in hot cacheline
     std::vector<Profile> hitlist; // 24 B; out-of-line data prefetched separately
 
-    CPP_Gate() : type(0), output(2), inputlimit(2), flags(0), invalid(2), target_time(0), hitlist() {
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(8), invalid(2), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(0), invalid(lim), target_time(0), hitlist() {
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(8), invalid(lim), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
 };

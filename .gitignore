@@ -30,8 +30,11 @@ dist/
 *dist
 .nuitka*
 blazing_builds/
-reactor/*.html
-reactor/*c
+
+reactor_oop/*.html
+reactor_oop/*.c*
+reactor_oop/*.pyd
+reactor_oop/*.so
 
 *.data
 *.data.old

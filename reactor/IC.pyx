@@ -169,7 +169,7 @@ cdef class IC:
             for index, source_loc in enumerate(<list>pin_in._sources):
                 if source_loc != -1:
                     src_info = &gate_infolist[source_loc]
-                    pop(src_info.hitlist,gate_infolist, pin_in.location, index)
+                    pop(src_info.hitlist,gate_infolist, &gate_infolist[pin_in.location], index)
 
     cpdef void reveal(self):
         '''Plug the IC back into the live graph — re-registers inputs and reconnects output targets'''
@@ -188,7 +188,7 @@ cdef class IC:
             source_loc = pin_in._sources[0]
             if source_loc != -1:
                 src_info = &gate_infolist[source_loc]
-                src_info.hitlist.emplace_back(pin_in.location, 0, src_info.output)
+                src_info.hitlist.emplace_back(&gate_infolist[pin_in.location], 0, src_info.output)
             pin_in.process()
 
         # Reconnect output targets via hitlist
@@ -237,7 +237,7 @@ cdef class IC:
                 p = pin_info.hitlist.data()
                 pend = p + pin_info.hitlist.size()
                 while p < pend:
-                    targets.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
+                    targets.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target - gate_infolist)))
                     p += 1
                 print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
 
@@ -254,7 +254,7 @@ cdef class IC:
                 p = pin_info.hitlist.data()
                 pend = p + pin_info.hitlist.size()
                 while p < pend:
-                    tgt.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target)))
+                    tgt.append(str(<Gate>PyList_GET_ITEM(gate_verse, p.target - gate_infolist)))
                     p += 1
                 tgt_str = ", ".join(tgt) if tgt else "None"
                 print(f"    {pin.codename}: out={pin.getoutput()}, sources={ch_str}, targets={tgt_str}")

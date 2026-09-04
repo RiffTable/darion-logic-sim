@@ -8,8 +8,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# ── 0. Parse arguments ────────────────────────────────────────
+SOURCE_TARGET="reactor"   # default
+
+for arg in "$@"; do
+    case "$arg" in
+        --reactor)     SOURCE_TARGET="reactor" ;;
+        --reactor_oop) SOURCE_TARGET="reactor_oop" ;;
+        *)
+            echo "[ERROR] Unknown argument: $arg"
+            echo "  Usage: $0 [--reactor | --reactor_oop]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "============================================================"
-echo "  DARION LOGIC SIM - CYTHON REACTOR BUILD"
+echo "  DARION LOGIC SIM - CYTHON BUILD  (target: $SOURCE_TARGET)"
 echo "============================================================"
 echo ""
 
@@ -55,18 +70,22 @@ if ! "$PY_CMD" -c "import Cython" 2>/dev/null; then
 fi
 
 # ── 4. Build ──────────────────────────────────────────────────
-echo "[*] Starting build..."
+echo "[*] Building '$SOURCE_TARGET'..."
 echo ""
 
 export CFLAGS="-O3 -g -fno-omit-frame-pointer"
 export CXXFLAGS="-O3 -g -fno-omit-frame-pointer"
 
-"$PY_CMD" setup.py build_ext --inplace $COMPILER_FLAG
+echo "[*] Cleaning previous build cache..."
+rm -rf build/
+rm -rf *.so *.pyd
+
+"$PY_CMD" setup.py build_ext --inplace $COMPILER_FLAG --source-dir "$SOURCE_TARGET"
 
 STATUS=$?
 echo ""
 if [[ $STATUS -eq 0 ]]; then
-    echo "[SUCCESS] Build complete. .so files are in reactor/"
+    echo "[SUCCESS] Build complete. .so files are in $SOURCE_TARGET/"
 else
     echo "[FAILED] Build encountered errors (see above)."
     exit $STATUS

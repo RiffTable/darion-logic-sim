@@ -1,0 +1,241 @@
+# distutils: language = c++
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: initializedcheck=False
+# cython: cdivision=True
+# cython: nonecheck=False
+from Gates cimport Gate, Probe, Profile, hide, reveal, pop
+from Store cimport get,decode
+from Const cimport *
+
+cdef class IC:
+    def __cinit__(self):
+        self.id = IC_ID
+        self.counter = 0
+    def __init__(self, int id, str name):
+        self.inputs = []
+        self.internal = []
+        self.outputs = []
+
+        self.codename = name
+        self.custom_name = ''
+        self.code = ()
+        self.map = []
+        self.tag = ''
+        self.description = ''
+
+    def __repr__(self):
+        return self.codename if self.custom_name == '' else self.custom_name
+
+    def __str__(self):
+        return self.codename if self.custom_name == '' else self.custom_name
+
+    cpdef object getcomponent(self, int choice):
+        cdef object gt = get(choice)
+        if gt:
+            self.counter+=1
+            if gt.id==INPUT_PIN_ID:
+                rank = len(self.inputs)
+                self.inputs.append(gt)
+            elif gt.id==OUTPUT_PIN_ID:
+                rank = len(self.outputs)
+                self.outputs.append(gt)
+            else:
+                rank = len(self.internal)
+                self.internal.append(gt)
+            gt.codename = gt.codename+'-'+str(rank)
+            gt.code = (choice, rank, self.code)
+        return gt
+
+    cpdef void addgate(self, object source):
+        if source.id==INPUT_PIN_ID:
+            rank = len(self.inputs)
+            self.inputs.append(source)
+        elif source.id==OUTPUT_PIN_ID:
+            rank = len(self.outputs)
+            self.outputs.append(source)
+        else:
+            rank = len(self.internal)
+            self.internal.append(source)
+        source.codename = source.codename+'-'+str(rank)
+        source.code = (source.code[0], rank, self.code)
+
+    cpdef void configure(self, list dictionary):
+        cdef dict pseudo = {}
+        pseudo[-1] = None
+        self.custom_name = dictionary[CUSTOM_NAME]
+        self.map = dictionary[MAP]
+        if len(dictionary) > TAG:
+            self.tag = dictionary[TAG]
+        if len(dictionary) > DESCRIPTION:
+            self.description = dictionary[DESCRIPTION]
+        self.load_components(dictionary, pseudo)
+        self.clone(pseudo)
+
+    cpdef void load_components(self, list dictionary, dict pseudo):
+        cdef object gate
+        for comp_info in dictionary[MAP]:
+            gate = self.getcomponent(comp_info[ID])
+            pseudo[comp_info[LOCATION]] = gate
+
+
+
+    cpdef void clone(self, dict pseudo):
+        cdef object gate
+        cdef object code
+
+        for i in self.map:
+            code = i[LOCATION]
+            gate = pseudo[code]
+            gate.clone(i, pseudo)
+
+    cpdef void load_to_cluster(self, list cluster):
+        cdef Gate i
+        for i in self.outputs+self.inputs+self.internal:
+            cluster.append(i)
+            i.scheduled=True
+ 
+    cpdef list full_data(self):
+        cdef Gate i
+        cdef list comp_list = []
+        cdef list map_list = []
+        cdef list dictionary = [            
+            self.custom_name,
+            self.id,
+            self.code,
+            comp_list,   # placeholder for LOCATION slot (list of component infos)
+            map_list,
+            self.tag,
+            self.description
+        ]
+        for i in self.inputs+self.outputs+self.internal:
+            comp_list.append(i.full_data())
+            map_list.append(i.full_data())
+        return dictionary
+
+    cpdef list partial_data(self):
+        cdef Gate i
+        cdef list comp_list = []
+        cdef list map_list = []
+        cdef list dictionary = [            
+            self.custom_name,
+            self.id,
+            self.code,
+            comp_list,
+            map_list,
+            self.tag,
+            self.description
+        ]
+        for i in self.inputs+self.outputs+self.internal:
+            comp_list.append(i.partial_data())
+            map_list.append(i.partial_data())
+        return dictionary
+
+
+    cpdef void implement(self, dict pseudo):
+        cdef object gate
+        cdef object code
+        for i in self.map:
+            code = i[LOCATION]
+            gate = pseudo[code]
+            gate.clone(i, pseudo)
+
+    cpdef void hide(self):
+        cdef Gate pin_out
+        cdef Gate pin_in
+        cdef Profile* hitlist
+        cdef int index
+        cdef int loc
+        cdef size_t i
+        cdef size_t size
+        cdef Gate src
+        cdef Gate target
+        for pin_out in self.outputs:
+            hitlist = pin_out.info.hitlist.data()
+            size = pin_out.info.hitlist.size()
+            for i in range(size):
+                hide(hitlist[i])
+        for pin_in in self.inputs:
+            for index, source in enumerate(pin_in.sources):
+                if source is not None:
+                    src = <Gate>source
+                    pop(src.info.hitlist, <void*>pin_in.info, index)
+
+    cpdef void reveal(self):
+        cdef Gate pin_in
+        cdef Gate pin_out
+        cdef int index
+        cdef int loc
+        cdef Profile* hitlist
+        cdef size_t i
+        cdef size_t size
+        cdef Gate src
+        for pin_in in self.inputs:
+            source=<Gate>pin_in.sources[0]
+            if source is not None:
+                source.info.hitlist.emplace_back(<void*>pin_in.info, 0, source.info.output)
+            pin_in.process()
+
+            pin_in.process()
+        for pin_out in self.outputs:
+            hitlist = pin_out.info.hitlist.data()
+            size = pin_out.info.hitlist.size()
+            for i in range(size):
+                reveal(hitlist[i], pin_out)      
+
+    cpdef void reset(self):
+        for i in self.inputs+self.internal+self.outputs:
+            if i.id!=IC_ID:
+                (<Gate>i).reset()
+            else:
+                (<IC>i).reset()
+
+    cpdef void showinputpins(self):
+        for i, gate in enumerate(self.inputs):
+            print(f'{i}. {gate}')
+
+    cpdef void showoutputpins(self):
+        for i, gate in enumerate(self.outputs):
+            print(f'{i}. {gate}')
+    # cdef purge(self):
+    #     for i in self.inputs+self.internal+self.outputs:
+    #         i.purge()
+    cpdef void info(self):
+        """Show all IC components in an organized way."""
+        print(f"\n  IC: {self.codename} (Code: {self.code})")
+        print("  " + "-" * 40)
+
+        if self.inputs:
+            print("  INPUTS:")
+            print("  INPUTS:")
+            for pin in self.inputs:
+                targets = [str(target) for target in pin.hitlist]
+                print(f"    {pin.codename}: out={pin.getoutput()}, to={', '.join(targets) if targets else 'None'}")
+
+        if self.internal:
+            print("  INTERNAL:")
+            for comp in self.internal:
+                if comp.id==IC_ID:
+                    (<IC>comp).info()
+                else:
+                    if isinstance(comp.sources, list):
+                        ch = [f"[{i}]:{c}" for i, c in enumerate(comp.sources) if c is not None]
+                        ch_str = ", ".join(ch) if ch else "None"
+                    else:
+                        ch_str = f"val:{comp.sources}"
+                    # Targets
+                    tgt = [str(target) for target in comp.hitlist]
+                    tgt_str = ", ".join(tgt) if tgt else "None"
+                    print(f"    {comp.codename}: out={comp.getoutput()}, sources={ch_str}, targets={tgt_str}")
+
+        if self.outputs:
+            print("  OUTPUTS:")
+            for pin in self.outputs:
+                if isinstance(pin.sources, list):
+                    ch = [f"{c}" for c in pin.sources if c is not None]
+                    ch_str = ", ".join(ch) if ch else "None"
+                else:
+                    ch_str = "None"
+                print(f"    {pin.codename}: out={pin.getoutput()}, from={ch_str}")
+
+        print("  " + "-" * 40)
