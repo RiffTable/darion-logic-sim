@@ -81,7 +81,8 @@ cdef class Circuit:
 
     cpdef object getobj(self, tuple code):
         return self.objlist[code[0]][code[1]]
-
+    def set_mode(self, int mode):
+        set_MODE(mode)
     cpdef void delobj(self, object obj):
         '''Delete object from objlist and mutate info id for removal'''
         cdef CPP_Gate* gate_info=self.gate_infolist.data()
@@ -1215,66 +1216,40 @@ cdef class Circuit:
         if not (self_info.flags & FLAG_UPDATE):
             self.visual_queue.push_back(origin)
             self_info.flags |= FLAG_UPDATE
-        # self_info.flags &= ~FLAG_SCHEDULED
         new_output = self_info.output
         profile = self_info.hitlist.data()
         end = profile + self_info.hitlist.size()
         while profile != end:
-            self.eval_count += 1
+            while profile!=end and profile.output==new_output:
+                profile+=1
+            if profile ==end:break
             profile_output = profile.output
-            if profile_output != new_output:
-                target_info = &gate_infolist[profile.target]
-                gate_type = target_info.type
-                limit = target_info.inputlimit
-                if gate_type < 0:
-                    profile+=1
-                    continue
-                if gate_type >= NOT_ID:
-                    if new_output != UNKNOWN:
-                        target_output = new_output ^ (gate_type == NOT_ID)
-                    else:
-                        target_output = UNKNOWN
-                else:
-                    # update target
-                    book = target_info.book
-                    book[profile_output] -= 1
-                    book[new_output] += 1
-                    
-                    if new_output != UNKNOWN:
-                        high = book[HIGH]
-                        low  = book[LOW]
-                        realsource = high + low
-                        if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
-                            if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                            elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                            else:                    target_output = (high & 1) ^ (gate_type & 1)
-                        else:
-                            target_output = UNKNOWN
-                    else:
-                        target_output = UNKNOWN
-                if target_output != target_info.output:
-                    target_info.output = target_output
-                    if not (target_info.flags & FLAG_UPDATE):
-                        self.visual_queue.push_back(profile.target)   # target changed — mark dirty
-                        target_info.flags |= FLAG_UPDATE
-                    # if not (target_info.flags & FLAG_SCHEDULED):
-                    #     target_info.flags |= FLAG_SCHEDULED
-                    target_info.target_time = self.Global_Clock + self.Global_delay[target_info.type] + (self.FanIn_delay[target_info.type] * limit) + (self.FanOut_delay[target_info.type] * target_info.hitlist.size())
-                    self.time_queue.push(Task(profile.target, target_info.target_time, profile.target))
-                    if self.recording and gate_type == PROBE_ID:
-                        with gil:
-                            _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, profile.target), self.Global_Clock)
-                profile.output = new_output
+            target_info = &gate_infolist[profile.target]
+            gate_type = target_info.type
+            if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
+            else:
+                book = target_info.book
+                book[profile_output] -= 1
+                book[new_output] += 1
+                high = book[HIGH]
+                low  = book[LOW]
+                if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+                elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                else: target_output= (high&1)^(gate_type&1)
+            if target_output != target_info.output:
+                target_info.output = target_output
+                target_info.target_time = self.Global_Clock + self.Global_delay[target_info.type] + (self.FanIn_delay[target_info.type] * limit) + (self.FanOut_delay[target_info.type] * target_info.hitlist.size())
+                self.time_queue.push(Task(profile.target, target_info.target_time, profile.target))
+            profile.output = new_output
             profile += 1
 
         if self_info.inputlimit == 0:
-            # Re-schedule the oscillator for its next half-period.
             with gil:
                 next_time = self.Global_Clock + (<Gate>PyList_GET_ITEM(self.gate_verse, origin)).delay_book[self_info.output]
             self_info.target_time = next_time
             self.time_queue.push(Task(origin, next_time, origin))
             self.time_limit.push(next_time + (self.FanOut_delay[self_info.type] * self_info.hitlist.size()))
-            # self_info.flags |= FLAG_SCHEDULED
 
     cdef void propagate(self, int origin) nogil:
         '''propagate the output of a gate to its targets'''
@@ -1337,7 +1312,6 @@ cdef class Circuit:
                         book[new_output] += 1
                         high = book[HIGH]
                         low  = book[LOW]
-
                         if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
                         elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
                         elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
@@ -1376,7 +1350,6 @@ cdef class Circuit:
                 for i in range(end_point):
                     self_info = &gate_infolist[read_queue[i]]
                     self_info.flags &= ~FLAG_MARK
-                    # self_info.flags |= FLAG_SCHEDULED
                     self_info.target_time = self.Global_Clock + self.Global_delay[self_info.type] + (self.FanIn_delay[self_info.type] * self_info.inputlimit) + (self.FanOut_delay[self_info.type] * self_info.hitlist.size())
                     self.time_queue.push(Task(read_queue[i], self_info.target_time, read_queue[i]))
                 with gil:
@@ -1395,44 +1368,28 @@ cdef class Circuit:
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
                 while profile != end:
+                    while profile!=end and profile.output==new_output:
+                        profile+=1
+                    if profile ==end:break
                     profile_output = profile.output
-                    if profile_output != new_output:
-                        target_info = &gate_infolist[profile.target]
-                        gate_type = target_info.type
-                        limit = target_info.inputlimit
-                        if gate_type < 0:
-                            profile+=1
-                            continue
-                        if gate_type >= NOT_ID:
-                            if new_output != UNKNOWN:
-                                target_output = new_output ^ (gate_type == NOT_ID)
-                            else:
-                                target_output = UNKNOWN
-                        else:
-                            # update target
-                            book = target_info.book
-                            book[profile_output] -= 1
-                            book[new_output] += 1
-                           
-                            if new_output != UNKNOWN:
-                                high = book[HIGH]
-                                low  = book[LOW]
-                                realsource = high + low
-                                if likely(realsource == limit) or unlikely(realsource and realsource + book[UNKNOWN] == limit):
-                                    if gate_type < OR_ID:    target_output = (low == 0) ^ (gate_type & 1)
-                                    elif gate_type < XOR_ID: target_output = (high > 0) ^ (gate_type & 1)
-                                    else:                    target_output = (high & 1) ^ (gate_type & 1)
-                                else:
-                                    target_output = UNKNOWN
-                            else:
-                                target_output = UNKNOWN
-                        if target_output != target_info.output:
-                            target_info.output = target_output
-                            if not (target_info.flags & FLAG_MARK):
-                                target_info.flags |= FLAG_MARK
-                                write_queue[size] = profile.target
-                                size += 1
-                        profile.output = new_output
+                    target_info = &gate_infolist[profile.target]
+                    gate_type = target_info.type
+                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
+                    else:
+                        book = target_info.book
+                        book[profile_output] -= 1
+                        book[new_output] += 1
+                        high = book[HIGH]
+                        low  = book[LOW]
+                        if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                        else: target_output= (high&1)^(gate_type&1)
+                    write_queue[size] = profile.target
+                    size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
+                    target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
+                    target_info.output = target_output
+                    profile.output = new_output
                     profile += 1
             # size is actually the growing size of write_queue
             end_point, size = size, 0
@@ -1453,12 +1410,10 @@ cdef class Circuit:
         cdef uint8_t *book
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
-
         for index in range(origin,size):
             self_info = &gate_infolist[index]
             if self_info.type < 0:
-                continue
-            
+                break                
             if self_info.flags& FLAG_MARK:
                 self_info.flags &= ~FLAG_MARK   
                 new_output = self_info.output
@@ -1468,6 +1423,7 @@ cdef class Circuit:
                 profile = self_info.hitlist.data()
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
+
                 while profile != end:
                     while profile!=end and profile.output==new_output:
                         profile+=1
@@ -1481,8 +1437,7 @@ cdef class Circuit:
                         book[profile_output] -= 1
                         book[new_output] += 1
                         high = book[HIGH]
-                        low  = book[LOW]
-                        
+                        low  = book[LOW]                        
                         if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
                         elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
                         elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
@@ -1498,6 +1453,7 @@ cdef class Circuit:
         self.eval_count += eval
         if end_point:
             self.batch_propagate(end_point)
+
     cpdef list geometry(self):
         '''
         Extracts the raw memory jump distance for every single connection in the circuit.

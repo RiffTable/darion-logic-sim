@@ -36,6 +36,5 @@ reactor/*c
 *.data
 *.data.old
 
-!tests/test_results/*/*/*
-
+harness_build/
 tests/

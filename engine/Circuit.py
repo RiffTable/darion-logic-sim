@@ -65,7 +65,8 @@ class Circuit:
 
     def __repr__(self):
         return 'Circuit'
-
+    def set_mode(self, mode: int):
+        set_MODE(mode)
     def getcomponent(self, choice: int):
         """Create and register a new component."""
         gt = get(choice)

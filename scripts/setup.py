@@ -32,17 +32,21 @@ for source in source_files:
         sources=[source],
         language=language,
         include_dirs=[source_dir], # Make sure it finds headers in reactor/
-        extra_compile_args=["-O3"] if sys.platform == "darwin" else ["-O3", "-march=native"], # Building with "-march=native" while targeting multiple architectures fails on Darwin.
+        extra_compile_args=(
+            ["-O3", "-g", "-fno-omit-frame-pointer"] 
+            if sys.platform == "darwin" 
+            else ["-O3", "-march=native", "-g", "-fno-omit-frame-pointer"]
+        ),
         extra_link_args=link_args, 
     )
     extensions.append(ext)
 
 # --- BUILD ---
+# --- BUILD ---
 setup(
     name="Logic Sim Compiled",
     ext_modules=cythonize(extensions, compiler_directives={'language_level': "3"}, annotate=True),
 )
-
 # --- CLEANUP & MOVE ---
 print("\n--- Cleaning up ---")
 generated_suffix = sysconfig.get_config_var("EXT_SUFFIX") or (".pyd" if sys.platform == "win32" else ".so")
@@ -85,10 +89,12 @@ for html_file in html_files:
         print(f"Error removing {html_file}: {e}")
 
 for c_file in c_files:
-    try:
-        os.remove(c_file)
-        print(f"Removed Source: {c_file}")
-    except OSError as e:
-        print(f"Error removing {c_file}: {e}")
+    pass
+    # try:
+    #     os.remove(c_file)
+    #     print(f"Removed Source: {c_file}")
+    # except OSError as e:
+    #     print(f"Error removing {c_file}: {e}")
 
 print("--- Cleanup Done ---")
+
