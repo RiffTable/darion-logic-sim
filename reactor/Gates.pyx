@@ -18,7 +18,7 @@ cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* gate_infolist, CPP_Gate*
     cdef Profile* end = profile + hitlist.size()
     while profile < end:
         if profile.target == target and profile.index == pin_index:
-            if target.type < VARIABLE_ID:
+            if target.type != VARIABLE_ID:
                 target.book[profile.output] -= 1
             profile[0] = (end-1)[0] # swap and pop
             hitlist.pop_back()
@@ -28,7 +28,7 @@ cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* gate_infolist, CPP_Gate*
 cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse):
     '''Sever one outgoing connection and zero out the target's source slot'''
     cdef CPP_Gate* target_info = profile.target
-    if target_info.type < VARIABLE_ID:
+    if target_info.type != VARIABLE_ID:
         target_info.book[profile.output] -= 1
     target_info.invalid += 1
     cdef int target_loc = target_info - gate_infolist
@@ -40,7 +40,7 @@ cdef inline void reveal(Profile& profile, Gate source, list gate_verse):
     '''Restore one outgoing connection and re-register the source in the target's book'''
     cdef CPP_Gate* gate_infolist=(source.info - source.location)
     cdef CPP_Gate* target_info = profile.target
-    if target_info.type < VARIABLE_ID:
+    if target_info.type != VARIABLE_ID:
         target_info.book[UNKNOWN] += 1
     target_info.invalid -= 1
     cdef int target_loc = target_info - gate_infolist
@@ -53,7 +53,7 @@ cdef class Gate:
         self.codename = name
         self.location = -1
         self.id = id
-        if id >= VARIABLE_ID:
+        if id >= BUFFER_ID:
             self._sources = [-1]
         else:
             self._sources = [-1, -1]
@@ -183,19 +183,8 @@ cdef class Gate:
             info.output = UNKNOWN
             return
 
-        if gate_type >= VARIABLE_ID:
-            if gate_type == VARIABLE_ID:
-                info.output = info.flags& FLAG_VALUE
-            else:
-                source_loc = self._sources[0]
-                if source_loc == -1:
-                    info.output = UNKNOWN
-                else:
-                    src_info = &gate_infolist[source_loc]
-                    if src_info.output == UNKNOWN:
-                        info.output = UNKNOWN
-                    else:
-                        info.output = src_info.output ^ (gate_type == NOT_ID)
+        if gate_type == VARIABLE_ID:
+            info.output = info.flags & FLAG_VALUE
         else:
             book = info.book
             high = book[HIGH]
@@ -231,7 +220,7 @@ cdef class Gate:
         src_info.hitlist.emplace_back(&gate_infolist[self.location], index, src_info.output)
         self._sources[index] = source
         self_info.invalid -= 1
-        if self.id<VARIABLE_ID:
+        if self.id!=VARIABLE_ID:
             self_info.book[src_info.output] += 1
         self.process()
 
@@ -252,7 +241,7 @@ cdef class Gate:
         '''Move all counted inputs back to unknown and set output to unknown'''
         cdef CPP_Gate* info = self.info
         cdef uint8_t* book
-        if info.type < VARIABLE_ID:
+        if info.type != VARIABLE_ID:
             book = info.book
             book[2] += book[0] + book[1]
             book[0] = book[1] =  0
@@ -294,7 +283,7 @@ cdef class Gate:
 
         # 3. Zero out own state
         info.output = UNKNOWN
-        if info.type < VARIABLE_ID:
+        if info.type != VARIABLE_ID:
             book = info.book
             book[0] = book[1] = book[2] = 0
 
@@ -327,7 +316,7 @@ cdef class Gate:
         cdef CPP_Gate* info = self.info
         cdef int i
         cdef int current
-        if size < 2 or info.type >= VARIABLE_ID:
+        if size < 2 or info.type >= BUFFER_ID:
             return False
         current = info.inputlimit
 

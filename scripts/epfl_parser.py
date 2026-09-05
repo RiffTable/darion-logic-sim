@@ -24,7 +24,7 @@ class VerilogRunner:
         self.VERILOG_GATE_MAP = {
             'and': self.const.AND_ID, 'nand': self.const.NAND_ID, 'or': self.const.OR_ID,
             'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID,
-            'not': self.const.NOT_ID, 'buf': self.const.PROBE_ID
+            'not': self.const.NOT_ID, 'buf': self.const.BUFFER_ID
         }
 
         self._parse_verilog(v_file_path)
@@ -71,7 +71,7 @@ class VerilogRunner:
                 for p in ports:
                     p = p.strip()
                     if p:
-                        out_node = self.circuit.getcomponent(self.const.OUTPUT_PIN_ID)
+                        out_node = self.circuit.getcomponent(self.const.IC_OUTPUT_PIN_ID)
                         out_node.rename(f"OUT_{p}")
                         self.nodes[p + "_OUTPIN"] = out_node
                         self.outputs.append(p)

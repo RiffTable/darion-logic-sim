@@ -89,17 +89,17 @@ def load_backend(use_reactor):
     from Circuit import Circuit
     from IC import IC
     from Const import (
-        IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID,
+        IC_ID, IC_INPUT_PIN_ID, IC_OUTPUT_PIN_ID,
         NOT_ID, AND_ID, NAND_ID, OR_ID, NOR_ID, XOR_ID, XNOR_ID,
-        VARIABLE_ID, PROBE_ID,
+        VARIABLE_ID, BUFFER_ID,
         HIGH, LOW, UNKNOWN, ERROR, SIMULATE, set_MODE,
     )
     return dict(
         Circuit=Circuit, IC=IC,
-        IC_ID=IC_ID, INPUT_PIN_ID=INPUT_PIN_ID, OUTPUT_PIN_ID=OUTPUT_PIN_ID,
+        IC_ID=IC_ID, IC_INPUT_PIN_ID=IC_INPUT_PIN_ID, IC_OUTPUT_PIN_ID=IC_OUTPUT_PIN_ID,
         NOT_ID=NOT_ID, AND_ID=AND_ID, NAND_ID=NAND_ID,
         OR_ID=OR_ID, NOR_ID=NOR_ID, XOR_ID=XOR_ID, XNOR_ID=XNOR_ID,
-        VARIABLE_ID=VARIABLE_ID, PROBE_ID=PROBE_ID,
+        VARIABLE_ID=VARIABLE_ID, BUFFER_ID=BUFFER_ID,
         HIGH=HIGH, LOW=LOW, UNKNOWN=UNKNOWN, ERROR=ERROR,
         SIMULATE=SIMULATE, set_MODE=set_MODE,
     )
@@ -358,9 +358,9 @@ def run_integrity(backend, label):
     tmp_adder = os.path.join(tempfile.gettempdir(), "_bench_adder4.json")
     # Build 4-bit adder as standalone circuit, save as IC
     c_adder = new_sim(backend)
-    in_pins_a = [c_adder.getcomponent(backend['INPUT_PIN_ID']) for _ in range(4)]
-    in_pins_b = [c_adder.getcomponent(backend['INPUT_PIN_ID']) for _ in range(4)]
-    out_pins  = [c_adder.getcomponent(backend['OUTPUT_PIN_ID']) for _ in range(5)]  # 4 sum + 1 carry
+    in_pins_a = [c_adder.getcomponent(backend['IC_INPUT_PIN_ID']) for _ in range(4)]
+    in_pins_b = [c_adder.getcomponent(backend['IC_INPUT_PIN_ID']) for _ in range(4)]
+    out_pins  = [c_adder.getcomponent(backend['IC_OUTPUT_PIN_ID']) for _ in range(5)]  # 4 sum + 1 carry
     # half adder for bit 0
     s0, carry_g = build_half_adder(c_adder, backend, in_pins_a[0], in_pins_b[0])
     c_adder.connect(out_pins[0], s0, 0)
@@ -412,16 +412,16 @@ def run_integrity(backend, label):
 
     # Inner IC: NOT gate
     c_inner = new_sim(backend)
-    ip = c_inner.getcomponent(backend['INPUT_PIN_ID'])
-    op = c_inner.getcomponent(backend['OUTPUT_PIN_ID'])
+    ip = c_inner.getcomponent(backend['IC_INPUT_PIN_ID'])
+    op = c_inner.getcomponent(backend['IC_OUTPUT_PIN_ID'])
     ng = c_inner.getcomponent(backend['NOT_ID'])
     c_inner.connect(ng, ip, 0); c_inner.connect(op, ng, 0)
     c_inner.save_as_ic(tmp_inner, "InnerNOT", "", "")
 
     # Outer circuit wraps two inner ICs in series: NOT(NOT(x)) = x
     c_outer = new_sim(backend)
-    i_pin  = c_outer.getcomponent(backend['INPUT_PIN_ID'])
-    o_pin  = c_outer.getcomponent(backend['OUTPUT_PIN_ID'])
+    i_pin  = c_outer.getcomponent(backend['IC_INPUT_PIN_ID'])
+    o_pin  = c_outer.getcomponent(backend['IC_OUTPUT_PIN_ID'])
     ic_a   = c_outer.getIC(tmp_inner)
     ic_b   = c_outer.getIC(tmp_inner)
     c_outer.connect(ic_a.inputs[0], i_pin, 0)
@@ -446,8 +446,8 @@ def run_integrity(backend, label):
     # ── 11. Error/Oscillation propagation through IC ──────────────────
     tmp_err = os.path.join(tempfile.gettempdir(), "_bench_err.json")
     c_err = new_sim(backend)
-    ip_e = c_err.getcomponent(backend['INPUT_PIN_ID'])
-    op_e = c_err.getcomponent(backend['OUTPUT_PIN_ID'])
+    ip_e = c_err.getcomponent(backend['IC_INPUT_PIN_ID'])
+    op_e = c_err.getcomponent(backend['IC_OUTPUT_PIN_ID'])
     c_err.connect(op_e, ip_e, 0)
     c_err.save_as_ic(tmp_err, "Passthrough", "", "")
 
@@ -497,8 +497,8 @@ def run_integrity(backend, label):
 def bench_ic_create(backend, gate_count, pin_count):
     def create():
         c = new_sim(backend)
-        in_pins  = [c.getcomponent(backend['INPUT_PIN_ID'])  for _ in range(pin_count)]
-        out_pins = [c.getcomponent(backend['OUTPUT_PIN_ID']) for _ in range(pin_count)]
+        in_pins  = [c.getcomponent(backend['IC_INPUT_PIN_ID'])  for _ in range(pin_count)]
+        out_pins = [c.getcomponent(backend['IC_OUTPUT_PIN_ID']) for _ in range(pin_count)]
         gpc = max(1, gate_count // pin_count)
         for p in range(pin_count):
             prev = in_pins[p]
@@ -520,8 +520,8 @@ def bench_complex_ic(backend, gate_count, tmp_path):
         pins = max(2, gate_count // 50)
         pins = min(pins, 32)   # cap at 32 pins
 
-        in_pins  = [c.getcomponent(backend['INPUT_PIN_ID'])  for _ in range(pins)]
-        out_pins = [c.getcomponent(backend['OUTPUT_PIN_ID']) for _ in range(pins)]
+        in_pins  = [c.getcomponent(backend['IC_INPUT_PIN_ID'])  for _ in range(pins)]
+        out_pins = [c.getcomponent(backend['IC_OUTPUT_PIN_ID']) for _ in range(pins)]
 
         remaining = gate_count
         for p in range(pins):
@@ -740,8 +740,8 @@ def run_single_backend(label, use_reactor):
         # Level 0: simple passthrough NOT
         fp0 = os.path.join(tmp_dir, "nest_0.json")
         cn = new_sim(backend)
-        ip0 = cn.getcomponent(backend['INPUT_PIN_ID'])
-        op0 = cn.getcomponent(backend['OUTPUT_PIN_ID'])
+        ip0 = cn.getcomponent(backend['IC_INPUT_PIN_ID'])
+        op0 = cn.getcomponent(backend['IC_OUTPUT_PIN_ID'])
         ng0 = cn.getcomponent(backend['NOT_ID'])
         cn.connect(ng0, ip0, 0); cn.connect(op0, ng0, 0)
         cn.save_as_ic(fp0, "Nest0", "", "")
@@ -752,8 +752,8 @@ def run_single_backend(label, use_reactor):
             prev_fp = nest_files[-1]
             new_fp  = os.path.join(tmp_dir, f"nest_{level}.json")
             cw = new_sim(backend)
-            wi = cw.getcomponent(backend['INPUT_PIN_ID'])
-            wo = cw.getcomponent(backend['OUTPUT_PIN_ID'])
+            wi = cw.getcomponent(backend['IC_INPUT_PIN_ID'])
+            wo = cw.getcomponent(backend['IC_OUTPUT_PIN_ID'])
             inner = cw.getIC(prev_fp)
             cw.connect(inner.inputs[0], wi, 0)
             cw.connect(wo, inner.outputs[0], 0)

@@ -41,9 +41,9 @@ cdef class Gate:
         self.id = id
         self.codename = name
         self.location = -1
-        cdef uint8_t limit = 1 if id >= VARIABLE_ID else 2
+        cdef uint8_t limit = 1 if id >= BUFFER_ID else 2
         self.info = new CPP_Gate(<void*>self, id, limit)
-        if id >= VARIABLE_ID:
+        if id >= BUFFER_ID:
             self.sources: list = [None]
         else:
             self.sources:list=[None,None]
@@ -136,7 +136,7 @@ cdef class Gate:
    
     cdef void reset(self):
         cdef uint8_t* book
-        if self.id<VARIABLE_ID:
+        if self.id!= VARIABLE_ID:
             book = self.info.book
             book[UNKNOWN] += book[LOW] + book[HIGH]
             book[LOW] = book[HIGH] = 0
@@ -166,7 +166,7 @@ cdef class Gate:
                     pop(source.info.hitlist, <CPP_Gate*>self.info, i)
         self.info.output=UNKNOWN
         cdef uint8_t* book
-        if self.id<VARIABLE_ID:
+        if self.id != VARIABLE_ID:
             book = self.info.book
             book[LOW] = book[HIGH] = book[UNKNOWN] = 0
             self.info.invalid = self.info.inputlimit
@@ -191,7 +191,7 @@ cdef class Gate:
         self.process()
 
     cpdef bint setlimits(self,int size):
-        if size<2 or self.id>=VARIABLE_ID:
+        if size<2 or self.id>=BUFFER_ID:
             return False
         cdef int i
         cdef int n

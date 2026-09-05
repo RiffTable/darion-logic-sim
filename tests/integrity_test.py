@@ -558,7 +558,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        probe = c.getcomponent(Const.PROBE_ID)
+        probe = c.getcomponent(Const.BUFFER_ID)
         c.connect(probe, v, 0)
         
         start = time.perf_counter_ns()
@@ -575,7 +575,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         v = c.getcomponent(Const.VARIABLE_ID)
-        probes = [c.getcomponent(Const.PROBE_ID) for _ in range(100)]
+        probes = [c.getcomponent(Const.BUFFER_ID) for _ in range(100)]
         for p in probes:
             c.connect(p, v, 0)
         
@@ -590,8 +590,8 @@ class AggressiveTestSuite:
         
         for _ in range(50):
             v = c.getcomponent(Const.VARIABLE_ID)
-            inp = c.getcomponent(Const.INPUT_PIN_ID)
-            out = c.getcomponent(Const.OUTPUT_PIN_ID)
+            inp = c.getcomponent(Const.IC_INPUT_PIN_ID)
+            out = c.getcomponent(Const.IC_OUTPUT_PIN_ID)
             g = c.getcomponent(Const.NOT_ID)
             c.connect(inp, v, 0)
             c.connect(g, inp, 0)
@@ -706,7 +706,7 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
-        p = c.getcomponent(Const.PROBE_ID)
+        p = c.getcomponent(Const.BUFFER_ID)
         c.connect(p, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(p.output == Const.HIGH, "Probe follows HIGH")
@@ -717,7 +717,7 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp = c.getcomponent(Const.INPUT_PIN_ID)
+        inp = c.getcomponent(Const.IC_INPUT_PIN_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
         self.assert_test(inp.output == Const.HIGH, "In follows HIGH")
@@ -726,9 +726,9 @@ class AggressiveTestSuite:
         c = Circuit()
         c.simulate(Const.SIMULATE)
         v = c.getcomponent(Const.VARIABLE_ID)
-        inp = c.getcomponent(Const.INPUT_PIN_ID)
+        inp = c.getcomponent(Const.IC_INPUT_PIN_ID)
         n = c.getcomponent(Const.NOT_ID)
-        out = c.getcomponent(Const.OUTPUT_PIN_ID)
+        out = c.getcomponent(Const.IC_OUTPUT_PIN_ID)
         c.connect(inp, v, 0)
         c.connect(n, inp, 0)
         c.connect(out, n, 0)
@@ -830,7 +830,7 @@ class AggressiveTestSuite:
 
         # Probe cannot expand
         c = Circuit()
-        p = c.getcomponent(Const.PROBE_ID)
+        p = c.getcomponent(Const.BUFFER_ID)
         result = c.setlimits(p, 4)
         self.assert_test(result == False, "Probe setlimits(4) returns False")
 
@@ -934,7 +934,7 @@ class AggressiveTestSuite:
         # --- Probe methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        p = c.getcomponent(Const.PROBE_ID)
+        p = c.getcomponent(Const.BUFFER_ID)
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(p, v, 0)
         c.toggle(v, Const.HIGH)
@@ -951,7 +951,7 @@ class AggressiveTestSuite:
         # --- In methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        inp = c.getcomponent(Const.INPUT_PIN_ID)
+        inp = c.getcomponent(Const.IC_INPUT_PIN_ID)
         v = c.getcomponent(Const.VARIABLE_ID)
         c.connect(inp, v, 0)
         c.toggle(v, Const.HIGH)
@@ -962,7 +962,7 @@ class AggressiveTestSuite:
         # --- Out methods ---
         c = Circuit()
         c.simulate(Const.SIMULATE)
-        out = c.getcomponent(Const.OUTPUT_PIN_ID)
+        out = c.getcomponent(Const.IC_OUTPUT_PIN_ID)
         v = c.getcomponent(Const.VARIABLE_ID)
         n = c.getcomponent(Const.NOT_ID)
         c.connect(n, v, 0)
@@ -1003,8 +1003,8 @@ class AggressiveTestSuite:
             (Const.NOT_ID, 'NOT'), (Const.AND_ID, 'AND'), (Const.NAND_ID, 'NAND'),
             (Const.OR_ID, 'OR'), (Const.NOR_ID, 'NOR'), (Const.XOR_ID, 'XOR'),
             (Const.XNOR_ID, 'XNOR'), (Const.VARIABLE_ID, 'Variable'),
-            (Const.PROBE_ID, 'Probe'), (Const.INPUT_PIN_ID, 'In'),
-            (Const.OUTPUT_PIN_ID, 'Out'),
+            (Const.BUFFER_ID, 'Probe'), (Const.IC_INPUT_PIN_ID, 'In'),
+            (Const.IC_OUTPUT_PIN_ID, 'Out'),
         ]
         components = {}
         for gtype, gname in all_types:
@@ -1065,7 +1065,7 @@ class AggressiveTestSuite:
         v1 = c2.getcomponent(Const.VARIABLE_ID)
         v2 = c2.getcomponent(Const.VARIABLE_ID)
         for gtype, gname in all_types:
-            if gtype in (Const.VARIABLE_ID, Const.PROBE_ID, Const.INPUT_PIN_ID, Const.OUTPUT_PIN_ID):
+            if gtype in (Const.VARIABLE_ID, Const.BUFFER_ID, Const.IC_INPUT_PIN_ID, Const.IC_OUTPUT_PIN_ID):
                 continue
             g = c2.getcomponent(gtype)
             if gtype == Const.NOT_ID:
@@ -1134,13 +1134,13 @@ class AggressiveTestSuite:
         gates['NOT'] = not_g
 
         # Probe from AND output
-        probe = c.getcomponent(Const.PROBE_ID)
+        probe = c.getcomponent(Const.BUFFER_ID)
         c.connect(probe, gates['AND'], 0)
 
         # In -> Out chain through XOR
-        inp_pin = c.getcomponent(Const.INPUT_PIN_ID)
+        inp_pin = c.getcomponent(Const.IC_INPUT_PIN_ID)
         c.connect(inp_pin, v1, 0)
-        out_pin = c.getcomponent(Const.OUTPUT_PIN_ID)
+        out_pin = c.getcomponent(Const.IC_OUTPUT_PIN_ID)
         c.connect(out_pin, gates['XOR'], 0)
 
         # Test with (1, 1)
@@ -1481,8 +1481,8 @@ class AggressiveTestSuite:
         
         # Create a simple inverter IC
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -1509,13 +1509,13 @@ class AggressiveTestSuite:
         
         # Create outer IC containing inner IC
         outer_ic = c.getcomponent(Const.IC_ID)
-        outer_inp = outer_ic.getcomponent(Const.INPUT_PIN_ID)
-        outer_out = outer_ic.getcomponent(Const.OUTPUT_PIN_ID)
+        outer_inp = outer_ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        outer_out = outer_ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         
         # Inner IC: double inverter (identity)
         inner_ic = outer_ic.getcomponent(Const.IC_ID)
-        inner_inp = inner_ic.getcomponent(Const.INPUT_PIN_ID)
-        inner_out = inner_ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inner_inp = inner_ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        inner_out = inner_ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not1 = inner_ic.getcomponent(Const.NOT_ID)
         not2 = inner_ic.getcomponent(Const.NOT_ID)
         c.connect(not1, inner_inp, 0)
@@ -1548,8 +1548,8 @@ class AggressiveTestSuite:
                 ic = parent.getcomponent(Const.IC_ID)
             else:
                 ic = parent.getcomponent(Const.IC_ID)
-            inp = ic.getcomponent(Const.INPUT_PIN_ID)
-            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+            out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
             if USE_COUNTER:
                 c.counter+=ic.counter
@@ -1607,8 +1607,8 @@ class AggressiveTestSuite:
         variables = []
         
         for i in range(32):
-            inp = ic.getcomponent(Const.INPUT_PIN_ID)
-            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+            out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
@@ -1646,13 +1646,13 @@ class AggressiveTestSuite:
         ic = c.getcomponent(Const.IC_ID)
         
         # Inputs: A, B, Cin
-        inp_a = ic.getcomponent(Const.INPUT_PIN_ID)
-        inp_b = ic.getcomponent(Const.INPUT_PIN_ID)
-        inp_cin = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp_a = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        inp_b = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        inp_cin = ic.getcomponent(Const.IC_INPUT_PIN_ID)
         
         # Outputs: Sum, Cout
-        out_sum = ic.getcomponent(Const.OUTPUT_PIN_ID)
-        out_cout = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        out_sum = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
+        out_cout = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         
         # Internal logic: Full Adder
         xor1 = ic.getcomponent(Const.XOR_ID)
@@ -1706,8 +1706,8 @@ class AggressiveTestSuite:
         # Create IC
         ic = c1.getcomponent(Const.IC_ID)
         ic.custom_name = "TestInverter"
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c1.connect(not_g, inp, 0)
         c1.connect(out, not_g, 0)
@@ -1738,8 +1738,8 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -1764,8 +1764,8 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -1789,8 +1789,8 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -1811,7 +1811,7 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
         
         # Chain of 100 NOT gates
         prev = inp
@@ -1820,7 +1820,7 @@ class AggressiveTestSuite:
             c.connect(not_g, prev, 0)
             prev = not_g
         
-        out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         c.connect(out, prev, 0)
         
         self.assert_test(len(ic.internal) == 100, "IC has 100 internal gates")
@@ -1844,8 +1844,8 @@ class AggressiveTestSuite:
         ics = []
         for _ in range(10):
             ic = c.getcomponent(Const.IC_ID)
-            inp = ic.getcomponent(Const.INPUT_PIN_ID)
-            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+            out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
@@ -1868,11 +1868,11 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
         
         ic = c.getcomponent(Const.IC_ID)
-        inp = ic.getcomponent(Const.INPUT_PIN_ID)
+        inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
         
         outputs = []
         for i in range(8):
-            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
             if i % 2 == 0:
                 # Direct connection
                 c.connect(out, inp, 0)
@@ -1904,8 +1904,8 @@ class AggressiveTestSuite:
         
         for _ in range(50):
             ic = c.getcomponent(Const.IC_ID)
-            inp = ic.getcomponent(Const.INPUT_PIN_ID)
-            out = ic.getcomponent(Const.OUTPUT_PIN_ID)
+            inp = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+            out = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
             not_g = ic.getcomponent(Const.NOT_ID)
             c.connect(not_g, inp, 0)
             c.connect(out, not_g, 0)
@@ -1938,23 +1938,23 @@ class AggressiveTestSuite:
         # Create variable and probe, plus some other gates
         v1 = c.getcomponent(Const.VARIABLE_ID)
         v2 = c.getcomponent(Const.VARIABLE_ID)
-        p1 = c.getcomponent(Const.PROBE_ID)
-        p2 = c.getcomponent(Const.PROBE_ID)
+        p1 = c.getcomponent(Const.BUFFER_ID)
+        p2 = c.getcomponent(Const.BUFFER_ID)
 
         c.ic_pin_change()
 
-        # Variables should be moved to INPUT_PIN_ID, and PROBE to OUTPUT_PIN_ID
+        # Variables should be moved to IC_INPUT_PIN_ID, and PROBE to IC_OUTPUT_PIN_ID
         self.assert_test(len(c.objlist[Const.VARIABLE_ID]) == 0, "Variables cleared")
-        self.assert_test(len(c.objlist[Const.PROBE_ID]) == 0, "Probes cleared")
-        self.assert_test(len(c.objlist[Const.INPUT_PIN_ID]) >= 2, "Inputs populated")
-        self.assert_test(len(c.objlist[Const.OUTPUT_PIN_ID]) >= 2, "Outputs populated")
+        self.assert_test(len(c.objlist[Const.BUFFER_ID]) == 0, "Probes cleared")
+        self.assert_test(len(c.objlist[Const.IC_INPUT_PIN_ID]) >= 2, "Inputs populated")
+        self.assert_test(len(c.objlist[Const.IC_OUTPUT_PIN_ID]) >= 2, "Outputs populated")
 
         # Reorder test
-        old_id1 = c.objlist[Const.INPUT_PIN_ID][0]
-        old_id2 = c.objlist[Const.INPUT_PIN_ID][1]
+        old_id1 = c.objlist[Const.IC_INPUT_PIN_ID][0]
+        old_id2 = c.objlist[Const.IC_INPUT_PIN_ID][1]
         c.reorder(old_id2, 0)
-        self.assert_test(c.objlist[Const.INPUT_PIN_ID][0] is old_id2, "Reorder successful (pos 0)")
-        self.assert_test(c.objlist[Const.INPUT_PIN_ID][1] is old_id1, "Reorder successful (pos 1)")
+        self.assert_test(c.objlist[Const.IC_INPUT_PIN_ID][0] is old_id2, "Reorder successful (pos 0)")
+        self.assert_test(c.objlist[Const.IC_INPUT_PIN_ID][1] is old_id1, "Reorder successful (pos 1)")
         
         # Test out of bounds reorder
         c.reorder(old_id2, -1)
@@ -3027,7 +3027,7 @@ class AggressiveTestSuite:
             n = c.getcomponent(Const.NOT_ID)
             c.connect(n, prev, 0)
             if i in probe_depths:
-                p = c.getcomponent(Const.PROBE_ID)
+                p = c.getcomponent(Const.BUFFER_ID)
                 c.connect(p, n, 0)
                 probes.append((i + 1, p))  # depth (1-indexed), probe
             prev = n
@@ -3516,8 +3516,8 @@ class AggressiveTestSuite:
         c.simulate(Const.SIMULATE)
 
         ic   = c.getcomponent(Const.IC_ID)
-        inp  = ic.getcomponent(Const.INPUT_PIN_ID)
-        out  = ic.getcomponent(Const.OUTPUT_PIN_ID)
+        inp  = ic.getcomponent(Const.IC_INPUT_PIN_ID)
+        out  = ic.getcomponent(Const.IC_OUTPUT_PIN_ID)
         not_g = ic.getcomponent(Const.NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -3795,8 +3795,8 @@ class ThoroughICTest:
     #     """Test IC pins that lead nowhere or come from nowhere."""
     #     c = self.setup_circuit()
     #     # Create pins but no internal connection
-    #     c.getcomponent(INPUT_PIN_ID)
-    #     c.getcomponent(OUTPUT_PIN_ID)
+    #     c.getcomponent(IC_INPUT_PIN_ID)
+    #     c.getcomponent(IC_OUTPUT_PIN_ID)
         
     #     fp = os.path.join(tempfile.gettempdir(), "unconnected_ic.json")
     #     c.save_as_ic(fp, "UnconnectedIC", "", "", None)
@@ -3815,8 +3815,8 @@ class ThoroughICTest:
     async def test_partial_connections(self):
         """Test broken internal chains."""
         c = self.setup_circuit()
-        inp = c.getcomponent(INPUT_PIN_ID)
-        out = c.getcomponent(OUTPUT_PIN_ID)
+        inp = c.getcomponent(IC_INPUT_PIN_ID)
+        out = c.getcomponent(IC_OUTPUT_PIN_ID)
         not_g = c.getcomponent(NOT_ID)
         
         # Connect input to not_g, but NOT to output.
@@ -3855,9 +3855,9 @@ class ThoroughICTest:
         results = {}
         for g_type, (in1, in2, expected) in gates.items():
             c = self.setup_circuit()
-            inp1 = c.getcomponent(INPUT_PIN_ID)
-            inp2 = c.getcomponent(INPUT_PIN_ID)
-            out = c.getcomponent(OUTPUT_PIN_ID)
+            inp1 = c.getcomponent(IC_INPUT_PIN_ID)
+            inp2 = c.getcomponent(IC_INPUT_PIN_ID)
+            out = c.getcomponent(IC_OUTPUT_PIN_ID)
             g = c.getcomponent(g_type)
             
             if g.inputlimit < 2:
@@ -3890,8 +3890,8 @@ class ThoroughICTest:
     async def test_error_propagation(self):
         """Test that ERROR state passes into and out of IC."""
         c = self.setup_circuit()
-        inp = c.getcomponent(INPUT_PIN_ID)
-        out = c.getcomponent(OUTPUT_PIN_ID)
+        inp = c.getcomponent(IC_INPUT_PIN_ID)
+        out = c.getcomponent(IC_OUTPUT_PIN_ID)
         c.connect(out, inp, 0)
         fp = os.path.join(tempfile.gettempdir(), "error_passthrough.json")
         c.save_as_ic(fp, "Passthrough", "", "")
@@ -3914,8 +3914,8 @@ class ThoroughICTest:
     async def test_unknown_propagation(self):
         """Test UNKNOWN state propagation."""
         c = self.setup_circuit()
-        inp = c.getcomponent(INPUT_PIN_ID)
-        out = c.getcomponent(OUTPUT_PIN_ID)
+        inp = c.getcomponent(IC_INPUT_PIN_ID)
+        out = c.getcomponent(IC_OUTPUT_PIN_ID)
         not_g = c.getcomponent(NOT_ID)
         c.connect(not_g, inp, 0)
         c.connect(out, not_g, 0)
@@ -3935,8 +3935,8 @@ class ThoroughICTest:
     async def test_floating_inputs(self):
         """Test IC input pin not connected to any external source defaults appropriately."""
         c = self.setup_circuit()
-        inp = c.getcomponent(INPUT_PIN_ID)
-        out = c.getcomponent(OUTPUT_PIN_ID)
+        inp = c.getcomponent(IC_INPUT_PIN_ID)
+        out = c.getcomponent(IC_OUTPUT_PIN_ID)
         c.connect(out, inp, 0)
         fp = os.path.join(tempfile.gettempdir(), "floating_test.json")
         c.save_as_ic(fp, "FloatingTest", "", "")
@@ -3950,8 +3950,8 @@ class ThoroughICTest:
     async def test_deep_nesting(self):
         """Test 10 levels of nesting through strict save & load IC creation."""
         c_base = self.setup_circuit()
-        p_in = c_base.getcomponent(INPUT_PIN_ID)
-        p_out = c_base.getcomponent(OUTPUT_PIN_ID)
+        p_in = c_base.getcomponent(IC_INPUT_PIN_ID)
+        p_out = c_base.getcomponent(IC_OUTPUT_PIN_ID)
         c_base.connect(p_out, p_in, 0)
         fp = os.path.join(tempfile.gettempdir(), "nest_0.json")
         c_base.save_as_ic(fp, "Level0", "", "")
@@ -3959,8 +3959,8 @@ class ThoroughICTest:
         
         for i in range(1, 10):
             c_wrap = self.setup_circuit()
-            w_in = c_wrap.getcomponent(INPUT_PIN_ID)
-            w_out = c_wrap.getcomponent(OUTPUT_PIN_ID)
+            w_in = c_wrap.getcomponent(IC_INPUT_PIN_ID)
+            w_out = c_wrap.getcomponent(IC_OUTPUT_PIN_ID)
             inner_ic = c_wrap.getIC(fps[-1])
             c_wrap.connect(inner_ic.inputs[0], w_in, 0)
             c_wrap.connect(w_out, inner_ic.outputs[0], 0)
@@ -4015,7 +4015,7 @@ class ThoroughICTest:
     async def test_deletion_cleanup(self):
         """Test strict cleanup when deleting IC."""
         c = self.setup_circuit()
-        inp = c.getcomponent(INPUT_PIN_ID)
+        inp = c.getcomponent(IC_INPUT_PIN_ID)
         fp = os.path.join(tempfile.gettempdir(), "delete_test.json")
         c.save_as_ic(fp, "DeleteTestIC", "", "")
 
@@ -4038,8 +4038,8 @@ class ThoroughICTest:
         # 1. Inner
         # Inner: In -> NOT -> Out (needs at least one gate so flatten produces internals)
         c_in = self.setup_circuit()
-        i_in = c_in.getcomponent(INPUT_PIN_ID)
-        i_out = c_in.getcomponent(OUTPUT_PIN_ID)
+        i_in = c_in.getcomponent(IC_INPUT_PIN_ID)
+        i_out = c_in.getcomponent(IC_OUTPUT_PIN_ID)
         not_g = c_in.getcomponent(NOT_ID)
         c_in.connect(not_g, i_in, 0)
         c_in.connect(i_out, not_g, 0)
@@ -4048,8 +4048,8 @@ class ThoroughICTest:
         
         # 2. Outer
         c_out = self.setup_circuit()
-        inp = c_out.getcomponent(INPUT_PIN_ID)
-        out = c_out.getcomponent(OUTPUT_PIN_ID)
+        inp = c_out.getcomponent(IC_INPUT_PIN_ID)
+        out = c_out.getcomponent(IC_OUTPUT_PIN_ID)
         inner_ic = c_out.getIC(fp_in)
         
         c_out.connect(inner_ic.inputs[0], inp, 0)
@@ -4083,11 +4083,11 @@ class ThoroughICTest:
         
         pins = []
         for i in range(TARGET_INPUTS):
-            p = c.getcomponent(INPUT_PIN_ID)
+            p = c.getcomponent(IC_INPUT_PIN_ID)
             c.connect(and_g, p, i)
             pins.append(p)
             
-        out_pin = c.getcomponent(OUTPUT_PIN_ID)
+        out_pin = c.getcomponent(IC_OUTPUT_PIN_ID)
         c.connect(out_pin, and_g, 0)
         
         fp = os.path.join(tempfile.gettempdir(), "limit_ic.json")
@@ -4201,8 +4201,8 @@ class IOTestSuite:
 
     async def test_save_get_ic(self):
         c = self.setup_circuit()
-        p_in = c.getcomponent(INPUT_PIN_ID)
-        p_out = c.getcomponent(OUTPUT_PIN_ID)
+        p_in = c.getcomponent(IC_INPUT_PIN_ID)
+        p_out = c.getcomponent(IC_OUTPUT_PIN_ID)
         not_g = c.getcomponent(NOT_ID)
         
         c.connect(not_g, p_in, 0)
@@ -4339,8 +4339,8 @@ class IOTestSuite:
 
     async def test_ic_save_load_complex(self):
         c_sub = self.setup_circuit()
-        sub_in = c_sub.getcomponent(INPUT_PIN_ID)
-        sub_out = c_sub.getcomponent(OUTPUT_PIN_ID)
+        sub_in = c_sub.getcomponent(IC_INPUT_PIN_ID)
+        sub_out = c_sub.getcomponent(IC_OUTPUT_PIN_ID)
         sub_not = c_sub.getcomponent(NOT_ID)
         c_sub.connect(sub_not, sub_in, 0)
         c_sub.connect(sub_out, sub_not, 0)
@@ -4350,8 +4350,8 @@ class IOTestSuite:
         c = self.setup_circuit()
         sub_ic = c.getIC(fp_sub)
         
-        main_in = c.getcomponent(INPUT_PIN_ID)
-        main_out = c.getcomponent(OUTPUT_PIN_ID)
+        main_in = c.getcomponent(IC_INPUT_PIN_ID)
+        main_out = c.getcomponent(IC_OUTPUT_PIN_ID)
         c.connect(sub_ic.inputs[0], main_in, 0)
         c.connect(main_out, sub_ic.outputs[0], 0)
         
@@ -4408,8 +4408,8 @@ class IOTestSuite:
 
     async def test_copy_paste_ic(self):
         c_sub = self.setup_circuit()
-        pin1 = c_sub.getcomponent(INPUT_PIN_ID)
-        pin2 = c_sub.getcomponent(OUTPUT_PIN_ID)
+        pin1 = c_sub.getcomponent(IC_INPUT_PIN_ID)
+        pin2 = c_sub.getcomponent(IC_OUTPUT_PIN_ID)
         not_g = c_sub.getcomponent(NOT_ID)
         c_sub.connect(not_g, pin1, 0)
         c_sub.connect(pin2, not_g, 0)
@@ -4715,7 +4715,7 @@ class EventManagerTestSuite:
         self.event_mgr.redolist.clear()
         
         actions_performed = 0
-        gate_types = [Const.AND_ID, Const.OR_ID, Const.NAND_ID, Const.NOR_ID, Const.XOR_ID, Const.VARIABLE_ID, Const.PROBE_ID]
+        gate_types = [Const.AND_ID, Const.OR_ID, Const.NAND_ID, Const.NOR_ID, Const.XOR_ID, Const.VARIABLE_ID, Const.BUFFER_ID]
         
         # 10,000 Random operations
         gates = []

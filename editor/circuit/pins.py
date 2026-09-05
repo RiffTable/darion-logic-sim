@@ -170,7 +170,7 @@ class InputPin(PinItem):
 
     def setLogical(self, input: Gate, index: int = 0) -> Self:
         # It's a builder function
-        if input.id==Const.INPUT_PIN_ID:
+        if input.id==Const.IC_INPUT_PIN_ID:
             self.logical = (input, 0)
         else:
             self.logical = (input, index)

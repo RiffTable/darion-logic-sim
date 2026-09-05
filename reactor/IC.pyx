@@ -37,10 +37,10 @@ cdef class IC:
         '''Get a gate from the store and register it under the right pin group'''
         cdef object gt = get(choice, self.gate_infolist_ptr[0],self.gate_verse)
         if gt:
-            if gt.id == INPUT_PIN_ID:
+            if gt.id == IC_INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-            elif gt.id == OUTPUT_PIN_ID:
+            elif gt.id == IC_OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
             else:
@@ -53,10 +53,10 @@ cdef class IC:
     cpdef void addgate(self, object source):
         '''Add an already-existing gate into the IC's pin groups
         this is for ic creation'''
-        if source.id == INPUT_PIN_ID:
+        if source.id == IC_INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-        elif source.id == OUTPUT_PIN_ID:
+        elif source.id == IC_OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
         else:

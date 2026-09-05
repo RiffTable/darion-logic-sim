@@ -34,10 +34,10 @@ cdef class IC:
         cdef object gt = get(choice)
         if gt:
             self.counter+=1
-            if gt.id==INPUT_PIN_ID:
+            if gt.id==IC_INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
-            elif gt.id==OUTPUT_PIN_ID:
+            elif gt.id==IC_OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
             else:
@@ -48,10 +48,10 @@ cdef class IC:
         return gt
 
     cpdef void addgate(self, object source):
-        if source.id==INPUT_PIN_ID:
+        if source.id==IC_INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
-        elif source.id==OUTPUT_PIN_ID:
+        elif source.id==IC_OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
         else:

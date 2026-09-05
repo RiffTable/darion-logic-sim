@@ -288,7 +288,7 @@ class Circuit:
         if outputs is not None:
             gate_list = outputs
         else:
-            gate_list = [item for item in self.objlist[PROBE_ID] if item is not None]
+            gate_list = [item for item in self.objlist[BUFFER_ID] if item is not None]
 
         raw_rows = self.table(variables, gate_list)
 
@@ -481,8 +481,8 @@ class Circuit:
         queue=[]
         index=0
         size=0
-        outputs=[i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
-        inputs=[i for i in self.objlist[INPUT_PIN_ID] if i is not None]
+        outputs=[i for i in self.objlist[IC_OUTPUT_PIN_ID] if i is not None]
+        inputs=[i for i in self.objlist[IC_INPUT_PIN_ID] if i is not None]
         for gate in outputs+inputs:
             gate.mark=True
             queue.append(gate)
@@ -490,11 +490,11 @@ class Circuit:
         index=len(outputs)
         while index<size:
             gate = queue[index]
-            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+            if gate.id == IC_INPUT_PIN_ID and gate.sources[0] is not None:
                 for profile in gate.hitlist:
                     target = profile.target
                     target.sources[profile.index] = gate.sources[0]
-            elif gate.id==OUTPUT_PIN_ID and gate.hitlist:
+            elif gate.id==IC_OUTPUT_PIN_ID and gate.hitlist:
                 for profile in gate.hitlist:
                     target = profile.target
                     target.sources[profile.index] = gate.sources[0]
@@ -512,7 +512,7 @@ class Circuit:
             my_ic.addgate(output_pin)
         for index in range(pins,size):
             gate = queue[index]
-            if gate.id >= INPUT_PIN_ID:
+            if gate.id >= IC_INPUT_PIN_ID:
                 continue
             my_ic.addgate(gate)
         my_ic.counter = size
@@ -528,16 +528,16 @@ class Circuit:
     def ic_pin_change(self):
         for var in self.objlist[VARIABLE_ID]:
             if var is not None:
-                var.code=(INPUT_PIN_ID,len(self.objlist[INPUT_PIN_ID]))
-                var.id=INPUT_PIN_ID
-                self.objlist[INPUT_PIN_ID].append(var)
+                var.code=(IC_INPUT_PIN_ID,len(self.objlist[IC_INPUT_PIN_ID]))
+                var.id=IC_INPUT_PIN_ID
+                self.objlist[IC_INPUT_PIN_ID].append(var)
         self.objlist[VARIABLE_ID].clear()
-        for probe in self.objlist[PROBE_ID]:
+        for probe in self.objlist[BUFFER_ID]:
             if probe is not None:
-                probe.code=(OUTPUT_PIN_ID,len(self.objlist[OUTPUT_PIN_ID]))
-                probe.id=OUTPUT_PIN_ID
-                self.objlist[OUTPUT_PIN_ID].append(probe)
-        self.objlist[PROBE_ID].clear()
+                probe.code=(IC_OUTPUT_PIN_ID,len(self.objlist[IC_OUTPUT_PIN_ID]))
+                probe.id=IC_OUTPUT_PIN_ID
+                self.objlist[IC_OUTPUT_PIN_ID].append(probe)
+        self.objlist[BUFFER_ID].clear()
 
     def reorder(self,gate:Gate|IC,index:int):
         lst=self.objlist[gate.id]
@@ -558,12 +558,12 @@ class Circuit:
             crct.save_as_ic(location, ic_name, tag, description, pin_orientations=pin_orientations)
             return
 
-        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
+        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[BUFFER_ID]):
             self.ic_pin_change()
-        for gate in self.objlist[INPUT_PIN_ID]:
+        for gate in self.objlist[IC_INPUT_PIN_ID]:
             if gate and gate.sources[0] is not None:
                 raise ValueError('Input Pin has extra sources')
-        for gate in self.objlist[OUTPUT_PIN_ID]:
+        for gate in self.objlist[IC_OUTPUT_PIN_ID]:
             if gate and gate.hitlist:
                 raise ValueError('Output Pin has extra targets')
 
@@ -727,7 +727,7 @@ class Circuit:
             # print(f' {gate.codename} is scheduled:{gate.scheduled} output={gate.output}, time={task.time} orig={gate.target_time}')
 
             if task.time < gate.target_time:return # absorb glitch
-            if self.recording and gate.id == PROBE_ID:
+            if self.recording and gate.id == BUFFER_ID:
                 _tracer.record(gate, self.Global_Clock)
         # Root variables/clocks
         else:
@@ -758,7 +758,7 @@ class Circuit:
                 limit = target.inputlimit
                 
                 # Logic resolution
-                if gate_type > VARIABLE_ID:
+                if gate_type >= BUFFER_ID:
                     target_output = new_output if new_output > HIGH else new_output ^ (gate_type == NOT_ID)
                 else:
                     book = target.book
@@ -907,7 +907,7 @@ class Circuit:
                         limit = target.inputlimit
                         if gate_type<0:
                             continue
-                        if gate_type>VARIABLE_ID:
+                        if gate_type>=BUFFER_ID:
                             if new_output>HIGH:target_output = new_output
                             else:target_output = new_output ^ (gate_type == NOT_ID)
                         else:

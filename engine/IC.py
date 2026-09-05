@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from Gates import Gate, Profile, pop, hide_profile, reveal_profile
-from Const import IC_ID, INPUT_PIN_ID, OUTPUT_PIN_ID, CUSTOM_NAME, ID, LOCATION, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE, TAG, DESCRIPTION, PIN_ORIENTATIONS
+from Const import IC_ID, IC_INPUT_PIN_ID, IC_OUTPUT_PIN_ID, CUSTOM_NAME, ID, LOCATION, COMPONENTS, MAP, INPUTLIMIT, SOURCES, VALUE, TAG, DESCRIPTION, PIN_ORIENTATIONS
 
 class IC:
     """Integrated Circuit: a custom chip made of other gates."""
@@ -38,11 +38,11 @@ class IC:
         gt = get(choice)
         if gt:
             self.counter += 1
-            if gt.id == INPUT_PIN_ID:
+            if gt.id == IC_INPUT_PIN_ID:
                 rank = len(self.inputs)
                 self.inputs.append(gt)
                 gt.codename = 'in-' + str(len(self.inputs))
-            elif gt.id == OUTPUT_PIN_ID:
+            elif gt.id == IC_OUTPUT_PIN_ID:
                 rank = len(self.outputs)
                 self.outputs.append(gt)
                 gt.codename = 'out-' + str(len(self.outputs))
@@ -55,11 +55,11 @@ class IC:
 
     def addgate(self, source):
         """Add an existing gate into this IC."""
-        if source.id == INPUT_PIN_ID:
+        if source.id == IC_INPUT_PIN_ID:
             rank = len(self.inputs)
             self.inputs.append(source)
             source.codename = 'in-' + str(len(self.inputs))
-        elif source.id == OUTPUT_PIN_ID:
+        elif source.id == IC_OUTPUT_PIN_ID:
             rank = len(self.outputs)
             self.outputs.append(source)
             source.codename = 'out-' + str(len(self.outputs))

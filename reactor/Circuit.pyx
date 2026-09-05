@@ -387,7 +387,7 @@ cdef class Circuit:
         
         if outputs is None:
             # Filter gatelist
-            for item in self.objlist[OUTPUT_PIN_ID]:
+            for item in self.objlist[IC_OUTPUT_PIN_ID]:
                 if item is not None:
                     gate_list.append(item)
         else:
@@ -703,6 +703,7 @@ cdef class Circuit:
         Also pushes back hidden gates with mutated info type'''
         if self.gate_infolist.empty():
             return
+        self.visual_queue_clear()
         self.copydata.clear()
         cdef int i=0,j=0,n
         cdef vector[int] hash_map,in_degree,hidden,serial
@@ -877,8 +878,8 @@ cdef class Circuit:
         cdef CPP_Gate* gate_infolist=self.gate_infolist.data()
         cdef list queue = []
         # distribute input and output pins
-        cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
-        cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
+        cdef list outputs = [i for i in self.objlist[IC_OUTPUT_PIN_ID] if i is not None]
+        cdef list inputs = [i for i in self.objlist[IC_INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
             gate_infolist[gate.location].flags |= FLAG_MARK
             queue.append(gate)
@@ -892,7 +893,7 @@ cdef class Circuit:
             end = profile + info.hitlist.size()
             '''if the gate is an input pin with a source or an output pin with a hitlist, connect it to the next gates. these are 
             pins of internal ics that will be removed, so no more nested ics'''
-            if (info.type == INPUT_PIN_ID and gate._sources[0] != -1) or (info.type == OUTPUT_PIN_ID and not info.hitlist.empty()):
+            if (info.type == IC_INPUT_PIN_ID and gate._sources[0] != -1) or (info.type == IC_OUTPUT_PIN_ID and not info.hitlist.empty()):
                 while profile != end:
                     target = <Gate>PyList_GET_ITEM(gate_verse, profile.target - gate_infolist)
                     target._sources[profile.index] = gate._sources[0]
@@ -919,7 +920,7 @@ cdef class Circuit:
         # load internal gates to ic
         for index in range(pins, size):
             gate = queue[index]
-            if gate.id >= INPUT_PIN_ID:
+            if gate.id >= IC_INPUT_PIN_ID:
                 continue
             my_ic.addgate(gate)
         
@@ -938,20 +939,20 @@ cdef class Circuit:
         for var in self.objlist[VARIABLE_ID]:
             if var is not None:
                 info = &self.gate_infolist[var.location]
-                var.code = (INPUT_PIN_ID, len(self.objlist[INPUT_PIN_ID]))
-                var.id = INPUT_PIN_ID
-                info.type = INPUT_PIN_ID
-                self.objlist[INPUT_PIN_ID].append(var)
+                var.code = (IC_INPUT_PIN_ID, len(self.objlist[IC_INPUT_PIN_ID]))
+                var.id = IC_INPUT_PIN_ID
+                info.type = IC_INPUT_PIN_ID
+                self.objlist[IC_INPUT_PIN_ID].append(var)
         self.objlist[VARIABLE_ID].clear()
 
-        for probe in self.objlist[PROBE_ID]:
+        for probe in self.objlist[BUFFER_ID]:
             if probe is not None:
                 info = &self.gate_infolist[probe.location]
-                probe.code = (OUTPUT_PIN_ID, len(self.objlist[OUTPUT_PIN_ID]))
-                probe.id = OUTPUT_PIN_ID
-                info.type = OUTPUT_PIN_ID
-                self.objlist[OUTPUT_PIN_ID].append(probe)
-        self.objlist[PROBE_ID].clear()
+                probe.code = (IC_OUTPUT_PIN_ID, len(self.objlist[IC_OUTPUT_PIN_ID]))
+                probe.id = IC_OUTPUT_PIN_ID
+                info.type = IC_OUTPUT_PIN_ID
+                self.objlist[IC_OUTPUT_PIN_ID].append(probe)
+        self.objlist[BUFFER_ID].clear()
 
     cpdef void transfer_info(self, Gate gate, int id):
         cdef CPP_Gate* info
@@ -962,7 +963,7 @@ cdef class Circuit:
         real_source = [source for source in gate._sources if source != -1]
         length = len(real_source)
         '''check for transferability'''
-        if not real_source or (length == 1 and id != VARIABLE_ID) or (length > 1 and id < VARIABLE_ID):
+        if not real_source or (length == 1 and id != VARIABLE_ID) or (length > 1 and id < BUFFER_ID):
             if gate._sources[0] == -1:
                 self.objlist[gate.code[0]][gate.code[1]] = None # remove from old list
                 gate.id = id # set new id
@@ -1007,12 +1008,12 @@ cdef class Circuit:
             crct.paste()
             crct.save_as_ic(location, ic_name, tag, description, None, pin_orientations)
             return
-        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
+        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[BUFFER_ID]):
             self.ic_pin_change()
-        for gate in self.objlist[INPUT_PIN_ID]:
+        for gate in self.objlist[IC_INPUT_PIN_ID]:
             if gate and gate._sources[0] != -1:
                 raise ValueError('Input Pin has extra sources')
-        for gate in self.objlist[OUTPUT_PIN_ID]:
+        for gate in self.objlist[IC_OUTPUT_PIN_ID]:
             if gate:
                 info = &self.gate_infolist[gate.location]
                 if info.hitlist.size() > 0:
@@ -1206,7 +1207,7 @@ cdef class Circuit:
         if self_info.type != VARIABLE_ID:
             if task.time < self_info.target_time:
                 return
-            if self.recording and self_info.type == PROBE_ID:
+            if self.recording and self_info.type == BUFFER_ID:
                 with gil:
                     _tracer.record(<Gate>PyList_GET_ITEM(self.gate_verse, origin), self.Global_Clock)
         else:
@@ -1231,17 +1232,15 @@ cdef class Circuit:
             profile_output = profile.output
             target_info = profile.target
             gate_type = target_info.type
-            if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
-            else:
-                book = target_info.book
-                book[profile_output] -= 1
-                book[new_output] += 1
-                high = book[HIGH]
-                low  = book[LOW]
-                if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
-                elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                else: target_output= (high&1)^(gate_type&1)
+            book = target_info.book
+            book[profile_output] -= 1
+            book[new_output] += 1
+            high = book[HIGH]
+            low  = book[LOW]
+            if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+            elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+            elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+            else: target_output= (high&1)^(gate_type&1)
             if target_output != target_info.output:
                 target_info.output = target_output
                 target_info.target_time = self.Global_Clock + self.Global_delay[target_info.type] + (self.FanIn_delay[target_info.type] * target_info.inputlimit) + (self.FanOut_delay[target_info.type] * target_info.hitlist.size())
@@ -1296,9 +1295,9 @@ cdef class Circuit:
             for index in range(end_point):
                 self_info = read_queue[index]
                 self_info.flags &= ~FLAG_MARK
-                # if not (self_info.flags & FLAG_UPDATE):
-                #     self.visual_queue.push_back(read_queue[index])   # target changed — mark dirty
-                #     self_info.flags |= FLAG_UPDATE
+                if not (self_info.flags & FLAG_UPDATE):
+                    self.visual_queue.push_back(read_queue[index])   # target changed — mark dirty
+                    self_info.flags |= FLAG_UPDATE
                 new_output = self_info.output
                 profile = self_info.hitlist.data()
                 end = profile + self_info.hitlist.size()
@@ -1307,17 +1306,15 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type
-                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
-                    else:
-                        book = target_info.book
-                        book[profile_output] -= 1
-                        book[new_output] += 1
-                        high = book[HIGH]
-                        low  = book[LOW]
-                        if (new_output==UNKNOWN) or target_info.invalid:target_output=UNKNOWN
-                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                        else: target_output= (high&1)^(gate_type&1)
+                    book = target_info.book
+                    book[profile_output] -= 1
+                    book[new_output] += 1
+                    high = book[HIGH]
+                    low  = book[LOW]
+                    if (new_output==UNKNOWN) or target_info.invalid:target_output=UNKNOWN
+                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                    else: target_output= (high&1)^(gate_type&1)
                     write_queue[size] = profile.target
                     size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
                     target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
@@ -1370,23 +1367,18 @@ cdef class Circuit:
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
                 while profile != end:
-                    while profile!=end and profile.output==new_output:
-                        profile+=1
-                    if profile ==end:break
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type
-                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
-                    else:
-                        book = target_info.book
-                        book[profile_output] -= 1
-                        book[new_output] += 1
-                        high = book[HIGH]
-                        low  = book[LOW]
-                        if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
-                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                        else: target_output= (high&1)^(gate_type&1)
+                    book = target_info.book
+                    book[profile_output] -= 1
+                    book[new_output] += 1
+                    high = book[HIGH]
+                    low  = book[LOW]
+                    if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                    else: target_output= (high&1)^(gate_type&1)
                     write_queue[size] = profile.target
                     size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
                     target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
@@ -1413,9 +1405,7 @@ cdef class Circuit:
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
         for index in range(origin,size):
-            self_info = &gate_infolist[index]
-            if self_info.type < 0:
-                break                
+            self_info = &gate_infolist[index]                   
             if self_info.flags& FLAG_MARK:
                 self_info.flags &= ~FLAG_MARK   
                 new_output = self_info.output
@@ -1430,17 +1420,15 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type
-                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) &(new_output!=UNKNOWN))
-                    else:
-                        book = target_info.book
-                        book[profile_output] -= 1
-                        book[new_output] += 1
-                        high = book[HIGH]
-                        low  = book[LOW]                        
-                        if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
-                        elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                        elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                        else: target_output= (high&1)^(gate_type&1)
+                    book = target_info.book
+                    book[profile_output] -= 1
+                    book[new_output] += 1
+                    high = book[HIGH]
+                    low  = book[LOW]                        
+                    if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
+                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
+                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
+                    else: target_output= (high&1)^(gate_type&1)
 
                     self.queue[0][end_point] = profile.target
                     end_point += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output) & ((profile.target - gate_infolist)<=index))
@@ -1520,12 +1508,15 @@ cdef class Circuit:
 
     cpdef void visual_queue_clear(self):
         '''Return True when there are no pending dirty gate locations.'''
-
         cdef CPP_Gate* ptr 
+        cdef int count = 0
         while not self.visual_queue.empty():
             ptr = self.visual_queue.front()
+            # print(f"visual_queue_clear: ptr={int(<uintptr_t>ptr)}")
             ptr.flags &= ~FLAG_UPDATE
             self.visual_queue.pop_front()
+            count += 1
+        # print(f"visual_queue_clear: cleared {count} elements")
 
 
     cpdef int pop_visual_queue(self):

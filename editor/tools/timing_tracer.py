@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 
 # ── Signal types we care about ────────────────────────────────────────────────
 try:
-    from Const import VARIABLE_ID, PROBE_ID, HIGH, LOW, UNKNOWN
+    from Const import VARIABLE_ID, BUFFER_ID, HIGH, LOW, UNKNOWN
 except ImportError:          # fallback when imported from outside `engine/`
     VARIABLE_ID = 6
-    PROBE_ID    = 8
+    BUFFER_ID    = 8
     HIGH        = 1
     LOW         = 0
     UNKNOWN     = 2
@@ -95,14 +95,14 @@ class TimingTracer:
         """
         Call this after every complete_task() for any gate whose output may
         have changed.  The gate must be a Variable/Clock (VARIABLE_ID) or
-        Probe (PROBE_ID) to be captured.
+        Probe (BUFFER_ID) to be captured.
 
         NOTE: the recording guard (self.recording check) is intentionally
         performed by the caller (Circuit.complete_task) before this method
         is invoked, so this method does not short-circuit on recording=False.
         """
         gate_id = gate.id
-        if gate_id not in (VARIABLE_ID, PROBE_ID):
+        if gate_id not in (VARIABLE_ID, BUFFER_ID):
             return
 
         loc      = gate.location

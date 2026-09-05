@@ -19,7 +19,7 @@ from .pins import PinItem, InputPin, OutputPin
 
 class OutputComp(CompItem):
     TAG   = "OUT"
-    LOGIC = Const.PROBE_ID
+    LOGIC = Const.BUFFER_ID
     NAME  = DESC = "LED"
 
     # ── Sizing ────────────────────────────────────────────────────────────────

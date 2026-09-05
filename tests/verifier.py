@@ -206,7 +206,7 @@ class VerilogStateRunner:
         self.VERILOG_GATE_MAP = {
             'and': self.const.AND_ID, 'nand': self.const.NAND_ID, 'or': self.const.OR_ID,
             'nor': self.const.NOR_ID, 'xor': self.const.XOR_ID, 'xnor': self.const.XNOR_ID,
-            'not': self.const.NOT_ID, 'buf': self.const.INPUT_PIN_ID
+            'not': self.const.NOT_ID, 'buf': self.const.BUFFER_ID
         }
 
         self._parse_verilog(v_file_path)
@@ -273,8 +273,9 @@ class VerilogStateRunner:
                 else:
                     self.nodes[name_str] = gate
 
-            if not self.is_reactor:
-                self.circuit.simulate(self.const.COMPILE)
+            if hasattr(self.circuit, 'optimize'):
+                self.circuit.optimize()
+            self.circuit.simulate(self.const.COMPILE)
             return
 
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -319,7 +320,7 @@ class VerilogStateRunner:
                 for p in ports:
                     p = p.strip()
                     if p:
-                        out_node = self.circuit.getcomponent(self.const.OUTPUT_PIN_ID)
+                        out_node = self.circuit.getcomponent(self.const.IC_OUTPUT_PIN_ID)
                         out_node.rename(f"OUT_{p}")
                         self.nodes[p + "_OUTPIN"] = out_node
                         self.outputs.append(p)
@@ -355,6 +356,8 @@ class VerilogStateRunner:
                 if source_gate:
                     self.circuit.connect(target_gate, source_gate, pin_index)
 
+        if hasattr(self.circuit, 'optimize'):
+            self.circuit.optimize()
         self.circuit.simulate(self.const.COMPILE)
 
     def _get_current_state(self) -> list:
@@ -363,9 +366,6 @@ class VerilogStateRunner:
 
     def run_vectors(self, raw_vectors: list, target_mode: int) -> list:
         """Simulates all vectors via batch toggle and captures output states."""
-        if hasattr(self.circuit, 'optimize'):
-            self.circuit.optimize()
-
         # Initialize the circuit into the targeted execution mode (SIMULATE vs COMPILE)
         self.circuit.simulate(target_mode)
         self.const.set_MODE(target_mode)
@@ -414,6 +414,7 @@ def run_worker_process(filepath: str, exec_mode: str, vectors: list) -> list:
     try:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode != 0:
+            print("RETURNCODE:", res.returncode)
             raise RuntimeError(f"Worker ({exec_mode}) failed: {res.stderr.strip() or res.stdout.strip()}")
 
         return load_json_file(temp_out_json)

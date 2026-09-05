@@ -17,8 +17,8 @@ ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 os.makedirs("tests/test_result/perf", exist_ok=True)
 REPORT_FILE = f"tests/test_result/perf/perf_report_{ts}.md"
 
-header = f"| {'Circuit':<10} | {'IPC':<5} | {'Branch':<8} | {'L1 Load':<8} | {'L1 Hit%':<8} | {'L2 Load':<8} | {'L2 Hit%':<8} | {'L3/RAM Load':<12} |"
-divider = f"|{'-'*12}|{'-'*7}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*14}|"
+header = f"| {'Circuit':<10} | {'IPC':<5} | {'Branch':<8} | {'Brn Miss':<8} | {'L1 Load':<8} | {'L1 Hit%':<8} | {'L2 Load':<8} | {'L2 Hit%':<8} | {'L3/RAM Load':<12} |"
+divider = f"|{'-'*12}|{'-'*7}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*14}|"
 
 print("Collecting full multi-engine hardware profiling... This will take a few minutes.\n")
 
@@ -157,7 +157,7 @@ for c_path in CIRCUITS:
         l2_hr = (l2_hit / l1_miss * 100) if l1_miss > 0 else 0
         l3_hr = (l3_hit / l2_miss * 100) if l2_miss > 0 else 0
         
-        row_str = f"| {c_name:<10} | {ipc:>5.2f} | {fmt(brn):<8} | {fmt(l1_load):<8} | {l1_hr:>7.2f}% | {fmt(l1_miss):<8} | {l2_hr:>7.2f}% | {fmt(l2_miss):<12} |"
+        row_str = f"| {c_name:<10} | {ipc:>5.2f} | {fmt(brn):<8} | {fmt(brn_miss):<8} | {fmt(l1_load):<8} | {l1_hr:>7.2f}% | {fmt(l1_miss):<8} | {l2_hr:>7.2f}% | {fmt(l2_miss):<12} |"
         results[engine].append(row_str)
 
 if os.path.exists("perf_tmp.data"): os.remove("perf_tmp.data")
@@ -168,7 +168,7 @@ with open(REPORT_FILE, "w") as f:
     f.write(f"**Test Parameters:**\n- **Vectors simulated:** {VECTORS:,}\n\n")
     f.write("Extracted purely from hardware counters (`perf`) to isolate the true computational core of each simulation engine, bypassing Python and Icarus VPI harness overhead.\n\n")
     
-    for engine, title in [("engine", "Pure Python Engine"), ("prop", "Reactor: `rx-prop` (Wavefront BFS)"), ("sweep", "Reactor: `rx-sweep` (Linear Compiled)"), ("oop", "Reactor OOP: (Wavefront BFS)"), ("icarus", "Icarus Verilog (`vvp`)")]:
+    for engine, title in [("icarus", "Icarus Verilog (`vvp`)"), ("engine", "Pure Python Engine"), ("prop", "Reactor: `rx-prop` (Wavefront BFS)"), ("oop", "Reactor OOP: (Wavefront BFS)"), ("sweep", "Reactor: `rx-sweep` (Linear Compiled)")]:
         f.write(f"## {title}\n\n")
         f.write(header + "\n")
         f.write(divider + "\n")

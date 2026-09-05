@@ -411,8 +411,8 @@ cdef class Circuit:
         cdef Profile* end
         cdef IC my_ic = self.getcomponent(IC_ID)
         cdef list queue = []
-        cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
-        cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
+        cdef list outputs = [i for i in self.objlist[IC_OUTPUT_PIN_ID] if i is not None]
+        cdef list inputs = [i for i in self.objlist[IC_INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
             gate.info.flags |= FLAG_SCHEDULED
             queue.append(gate)
@@ -420,14 +420,14 @@ cdef class Circuit:
         cdef Py_ssize_t index = len(outputs)
         while index < size:
             gate = queue[index]
-            if gate.id == INPUT_PIN_ID and gate.sources[0] is not None:
+            if gate.id == IC_INPUT_PIN_ID and gate.sources[0] is not None:
                 profile = gate.info.hitlist.data()
                 end = profile + gate.info.hitlist.size()
                 while profile != end:
                     target = <Gate>(<CPP_Gate*>profile.target).gate
                     target.sources[profile.index] = gate.sources[0]
                     profile += 1
-            elif gate.id == OUTPUT_PIN_ID and not gate.info.hitlist.empty():
+            elif gate.id == IC_OUTPUT_PIN_ID and not gate.info.hitlist.empty():
                 profile = gate.info.hitlist.data()
                 end = profile + gate.info.hitlist.size()
                 while profile != end:
@@ -451,7 +451,7 @@ cdef class Circuit:
             my_ic.addgate(output_pin)
         for index in range(pins, size):
             gate = queue[index]
-            if gate.id >= INPUT_PIN_ID:
+            if gate.id >= IC_INPUT_PIN_ID:
                 continue
             my_ic.addgate(gate)
         return my_ic
@@ -460,24 +460,24 @@ cdef class Circuit:
         cdef Gate var, probe
         for var in self.objlist[VARIABLE_ID]:
             if var is not None:
-                var.code = (INPUT_PIN_ID, len(self.objlist[INPUT_PIN_ID]))
-                var.id = INPUT_PIN_ID
-                self.objlist[INPUT_PIN_ID].append(var)
+                var.code = (IC_INPUT_PIN_ID, len(self.objlist[IC_INPUT_PIN_ID]))
+                var.id = IC_INPUT_PIN_ID
+                self.objlist[IC_INPUT_PIN_ID].append(var)
         self.objlist[VARIABLE_ID].clear()
 
-        for probe in self.objlist[PROBE_ID]:
+        for probe in self.objlist[BUFFER_ID]:
             if probe is not None:
-                probe.code = (OUTPUT_PIN_ID, len(self.objlist[OUTPUT_PIN_ID]))
-                probe.id = OUTPUT_PIN_ID
-                self.objlist[OUTPUT_PIN_ID].append(probe)
-        self.objlist[PROBE_ID].clear()
+                probe.code = (IC_OUTPUT_PIN_ID, len(self.objlist[IC_OUTPUT_PIN_ID]))
+                probe.id = IC_OUTPUT_PIN_ID
+                self.objlist[IC_OUTPUT_PIN_ID].append(probe)
+        self.objlist[BUFFER_ID].clear()
 
     cpdef void transfer_info(self, Gate gate, int id):
         if id >= IC_ID or id < 0:
             return
         cdef list real_source = [source for source in gate.sources if source is not None]
         cdef int length = len(real_source)
-        if not real_source or (length == 1 and id != VARIABLE_ID) or (length > 1 and id < VARIABLE_ID):
+        if not real_source or (length == 1 and id != VARIABLE_ID) or (length > 1 and id < BUFFER_ID):
             if gate.sources[0] is None:
                 self.objlist[gate.code[0]][gate.code[1]] = None
                 gate.id = id
@@ -506,12 +506,12 @@ cdef class Circuit:
             crct.paste()
             crct.save_as_ic(location, ic_name, tag, description, None)
             return
-        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[PROBE_ID]):
+        if len(self.objlist[VARIABLE_ID]) or len(self.objlist[BUFFER_ID]):
             self.ic_pin_change()
-        for gate in self.objlist[INPUT_PIN_ID]:
+        for gate in self.objlist[IC_INPUT_PIN_ID]:
             if gate and (<Gate>gate).sources[0] is not None:
                 raise ValueError('Input Pin has extra sources')
-        for gate in self.objlist[OUTPUT_PIN_ID]:
+        for gate in self.objlist[IC_OUTPUT_PIN_ID]:
             if gate and (<Gate>gate).hitlist.size() > 0:
                 raise ValueError('Output Pin has extra targets')
 
@@ -692,7 +692,7 @@ cdef class Circuit:
         cdef CPP_Gate** read_queue=self.queue[0]
         cdef CPP_Gate** write_queue=self.queue[1]
         read_queue[0]=<CPP_Gate*>origin.info
-        if unlikely(origin.info.output==UNKNOWN and origin.info.type >= VARIABLE_ID):
+        if unlikely(origin.info.output==UNKNOWN and origin.info.type >= BUFFER_ID):
             # UNKNOWN variable: turn off downstream
             self.burn(index, end_point, read_queue, write_queue)
             return
@@ -714,7 +714,7 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info=<CPP_Gate*>profile.target
                     gate_type = target_info.type
-                    if gate_type>=NOT_ID:target_output=new_output^((gate_type==NOT_ID) & (new_output!=UNKNOWN))
+                    if gate_type>=BUFFER_ID:target_output=new_output^((gate_type==NOT_ID) & (new_output!=UNKNOWN))
                     else:
                         target_info.book[profile_output]-=1
                         target_info.book[new_output]+=1
