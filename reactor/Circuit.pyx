@@ -1317,7 +1317,7 @@ cdef class Circuit:
                         book[new_output] += 1
                         high = book[HIGH]
                         low  = book[LOW]
-                        if (new_output==UNKNOWN) :target_output=UNKNOWN
+                        if (new_output==UNKNOWN) or target_info.invalid:target_output=UNKNOWN
                         elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
                         elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
                         else: target_output= (high&1)^(gate_type&1)

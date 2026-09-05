@@ -25,6 +25,7 @@ cdef inline void hide(Profile& profile):
     cdef CPP_Gate* target_info = <CPP_Gate*>profile.target
     cdef Gate target = <Gate>target_info.gate
     target_info.book[profile.output] -= 1
+    target_info.invalid += 1
     target.sources[profile.index] = None
     profile.output = UNKNOWN
 
@@ -32,6 +33,7 @@ cdef inline void reveal(Profile& profile,Gate source):
     cdef CPP_Gate* target_info = <CPP_Gate*>profile.target
     cdef Gate target = <Gate>target_info.gate
     target_info.book[UNKNOWN] += 1
+    target_info.invalid -= 1
     target.sources[profile.index] = source
 
 cdef class Gate:
@@ -69,7 +71,7 @@ cdef class Gate:
         return result
 
     cdef void process(self):
-        cdef uint16_t* book
+        cdef uint8_t* book
         cdef int gate_type
         cdef int limit
         cdef int low
@@ -116,6 +118,7 @@ cdef class Gate:
         source.info.hitlist.emplace_back(<void*>self.info, index, source.info.output)
         self.sources[index] = source
         self.info.book[source.info.output] += 1
+        self.info.invalid -= 1
         if source.info.output==UNKNOWN:
             self.info.output = UNKNOWN
         else:
@@ -128,10 +131,11 @@ cdef class Gate:
         pop(source.info.hitlist, <void*>self.info, index)
         self.sources[index] = None
         self.info.book[source.info.output] -= 1
+        self.info.invalid += 1
         self.info.output=UNKNOWN
    
     cdef void reset(self):
-        cdef uint16_t* book
+        cdef uint8_t* book
         if self.id<VARIABLE_ID:
             book = self.info.book
             book[UNKNOWN] += book[LOW] + book[HIGH]
@@ -161,10 +165,11 @@ cdef class Gate:
                 if source is not None:
                     pop(source.info.hitlist, <void*>self.info, i)
         self.info.output=UNKNOWN
-        cdef uint16_t* book
+        cdef uint8_t* book
         if self.id<VARIABLE_ID:
             book = self.info.book
             book[LOW] = book[HIGH] = book[UNKNOWN] = 0
+            self.info.invalid = self.info.inputlimit
 
     cdef void reveal(self):
         cdef Profile* hitlist = self.info.hitlist.data()
@@ -178,6 +183,7 @@ cdef class Gate:
                 if source is not None:
                     source.info.hitlist.emplace_back(<void*>self.info, i, source.info.output)
                     self.info.book[source.info.output]+=1
+                    self.info.invalid -= 1
         n=self.info.hitlist.size()
         # reconnect to targets via Python-side hitlist only
         for i in range(n):
@@ -193,6 +199,7 @@ cdef class Gate:
         if size>self.info.inputlimit:
             for _ in range(size-self.info.inputlimit):
                 self.sources.append(None)
+            self.info.invalid += (size - self.info.inputlimit)
             self.info.inputlimit=size
             return True
         elif size<self.info.inputlimit:
@@ -200,6 +207,7 @@ cdef class Gate:
                 if self.sources[i]:
                     return False
                 i+=1
+            self.info.invalid -= (self.info.inputlimit - size)
             self.sources = self.sources[:size]
             self.info.inputlimit=size
             return True
@@ -214,6 +222,18 @@ cdef class Gate:
     def output(self):
         '''Current output value of this gate'''
         return self.info.output
+
+    @property
+    def invalid(self):
+        return self.info.invalid
+        
+    @property
+    def inputlimit(self):
+        return self.info.inputlimit
+        
+    @property
+    def book(self):
+        return [self.info.book[0], self.info.book[1], self.info.book[2]]
 
     @property
     def value(self):

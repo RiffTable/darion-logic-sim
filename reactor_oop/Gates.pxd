@@ -40,6 +40,13 @@ cdef extern from "Profile.h":
         int output
         Profile()
         Profile(void* target, int pin_index, int output)
+    cdef cppclass Task:
+        int gate_loc
+        unsigned int time
+        int location
+        Task() nogil
+        Task(int gate_loc, unsigned int time, int location) nogil
+        bint operator>(const Task& other) nogil
     cdef cppclass CPP_Gate:
         void* gate
         uint8_t type
@@ -47,7 +54,10 @@ cdef extern from "Profile.h":
         uint8_t inputlimit
         uint8_t value
         uint8_t scheduled
-        uint16_t book[3]
+        uint8_t flags
+        uint8_t book[3]
+        uint8_t invalid
+        unsigned int target_time
         vector[Profile] hitlist
         CPP_Gate()
         CPP_Gate(void* g, uint8_t t, uint8_t lim)

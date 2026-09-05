@@ -463,9 +463,9 @@ class VerilogRunner:
         measured = max(vectors - warmup, 1)
 
         # temporarily turn off optimize for rx_prop
-        # if use_optimize:
-        #     if hasattr(self.circuit, 'optimize'):
-        #         self.circuit.optimize()
+        if use_optimize:
+            if hasattr(self.circuit, 'optimize'):
+                self.circuit.optimize()
 
         # ── Shared vector set (identical across both passes) ─────────────────
         total_needed = warmup + measured

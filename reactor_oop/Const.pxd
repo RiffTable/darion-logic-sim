@@ -61,3 +61,7 @@ cpdef Py_ssize_t get_MODE()
 
 cdef public bint DEBUG = False
 cpdef void set_DEBUG()
+
+cdef public double DELAY = 0.01
+cpdef void set_DELAY(double delay)
+cpdef double get_DELAY()

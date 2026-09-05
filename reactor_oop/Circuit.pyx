@@ -6,7 +6,8 @@
 # cython: nonecheck=False
 import orjson
 import time
-from Gates cimport Gate, Variable, Profile, vector, CPP_Gate
+import asyncio
+from Gates cimport Gate, Variable, Profile, vector, CPP_Gate, Task
 from Const cimport *
 from IC cimport IC
 from Store cimport get, decode
@@ -722,7 +723,7 @@ cdef class Circuit:
                         target_info.book[new_output]+=1
                         high=target_info.book[HIGH]
                         low=target_info.book[LOW]
-                        if new_output==UNKNOWN:target_output=UNKNOWN
+                        if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
                         elif gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
                         elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
                         else:target_output = (high&1)^(gate_type&1)
@@ -738,3 +739,24 @@ cdef class Circuit:
             read_queue,write_queue=write_queue,read_queue
             
         self.eval_count+=eval
+
+    cdef void complete_task(self, Task task) nogil:
+        self.Global_Clock = task.time
+        # TODO: Implement complete_task for reactor_oop
+        pass
+
+    async def task_manager(Circuit self):
+        cdef int size, i
+        cdef Task task
+        cdef unsigned int limit_time
+        while not self.time_queue.empty():
+            with nogil:
+                size = self.time_queue.size()
+                for i in range(size):
+                    if not self.time_queue.empty():
+                        task = self.time_queue.top()
+                        self.time_queue.pop()
+                        self.complete_task(task)
+                    else:
+                        break
+            await asyncio.sleep(DELAY)

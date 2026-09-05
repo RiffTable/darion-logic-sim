@@ -1,14 +1,32 @@
-from Gates cimport Gate, Variable, Profile, CPP_Gate, vector
-from libcpp.vector cimport vector
+from Gates cimport Gate, Variable, Profile, CPP_Gate, vector, Task
 from Const cimport LIMIT
 from IC cimport IC
-cdef class Circuit
+
+cdef extern from "<queue>" namespace "std" nogil:
+    cdef cppclass priority_queue[T, Container=*, Compare=*]:
+        priority_queue()
+        void push(T&)
+        void pop()
+        T top()
+        bint empty()
+        int size()
+        void swap(priority_queue& other)
+
+cdef extern from "<functional>" namespace "std" nogil:
+    cdef cppclass greater[T]:
+        pass
+
 cdef class Circuit:
     cdef public list objlist
     cdef public list copydata
     cdef public int counter
     cdef public unsigned long long eval_count
+    cdef public object runner
+    cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
+    cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
+    cdef unsigned int Global_Clock
     cdef void* queue[2][LIMIT]
+    cdef void complete_task(self, Task task) nogil
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
     cpdef list get_components(self)

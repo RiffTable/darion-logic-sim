@@ -3,8 +3,29 @@ setlocal EnableDelayedExpansion
 
 cd /d %~dp0
 
+:: ── 0. Parse arguments ───────────────────────────────────────────
+set "SOURCE_TARGET=reactor"
+
+:arg_loop
+if "%~1"=="" goto arg_done
+if "%~1"=="--reactor" (
+    set "SOURCE_TARGET=reactor"
+    shift
+    goto arg_loop
+)
+if "%~1"=="--reactor_oop" (
+    set "SOURCE_TARGET=reactor_oop"
+    shift
+    goto arg_loop
+)
+echo [ERROR] Unknown argument: %~1
+echo   Usage: %~nx0 [--reactor ^| --reactor_oop]
+exit /b 1
+
+:arg_done
+
 echo ============================================================
-echo   DARION LOGIC SIM - CYTHON REACTOR BUILD
+echo   DARION LOGIC SIM - CYTHON BUILD  (target: !SOURCE_TARGET!)
 echo ============================================================
 echo.
 
@@ -75,11 +96,11 @@ exit /b 1
 echo [*] Compiler: !COMPILER!
 echo.
 
-python setup.py build_ext --inplace !COMPILER_FLAG!
+python setup.py build_ext --inplace !COMPILER_FLAG! --source-dir "!SOURCE_TARGET!"
 
 if !errorlevel! == 0 (
     echo.
-    echo [SUCCESS] Build complete. .pyd files are in reactor\
+    echo [SUCCESS] Build complete. .pyd files are in !SOURCE_TARGET!\
 ) else (
     echo.
     echo [FAILED] Build encountered errors ^(see above^).
