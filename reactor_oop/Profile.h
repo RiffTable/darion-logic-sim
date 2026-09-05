@@ -5,12 +5,14 @@
 #include <stdint.h>
 #include <cstddef>
 
+struct CPP_Gate;
+
 struct Profile {
-    void* target; // this will hold CPP_Gate* instead of Python Gate object
+    CPP_Gate* target; // this will hold CPP_Gate* instead of Python Gate object
     int index;
     int output;
     Profile() : target(NULL), index(0), output(0){}
-    Profile(void* t, int i, int o) : target(t), index(i), output(o){}
+    Profile(CPP_Gate* t, int i, int o) : target(t), index(i), output(o){}
 };
 
 // ─── Task ─────────────────────────────────────────────────────────────────

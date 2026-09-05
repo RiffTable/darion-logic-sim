@@ -159,7 +159,7 @@ cdef class IC:
             for index, source in enumerate(pin_in.sources):
                 if source is not None:
                     src = <Gate>source
-                    pop(src.info.hitlist, <void*>pin_in.info, index)
+                    pop(src.info.hitlist, <CPP_Gate*>pin_in.info, index)
 
     cpdef void reveal(self):
         cdef Gate pin_in
@@ -173,7 +173,7 @@ cdef class IC:
         for pin_in in self.inputs:
             source=<Gate>pin_in.sources[0]
             if source is not None:
-                source.info.hitlist.emplace_back(<void*>pin_in.info, 0, source.info.output)
+                source.info.hitlist.emplace_back(<CPP_Gate*>pin_in.info, 0, source.info.output)
             pin_in.process()
 
             pin_in.process()

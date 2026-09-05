@@ -25,7 +25,7 @@ cdef class Circuit:
     cdef priority_queue[Task, vector[Task], greater[Task]] time_queue
     cdef priority_queue[unsigned int, vector[unsigned int], greater[unsigned int]] time_limit
     cdef unsigned int Global_Clock
-    cdef void* queue[2][LIMIT]
+    cdef CPP_Gate* queue[2][LIMIT]
     cdef void complete_task(self, Task task) nogil
     cpdef object getcomponent(self, int choice)
     cpdef object getobj(self, tuple code)
@@ -67,4 +67,4 @@ cdef class Circuit:
     cpdef list geometry(self)
     cdef void turnoff(self, Gate gate)
     cdef void propagate(self, Gate origin)
-    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, void** read_queue, void** write_queue)
+    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, CPP_Gate** read_queue, CPP_Gate** write_queue)

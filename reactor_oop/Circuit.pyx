@@ -644,7 +644,7 @@ cdef class Circuit:
                 self.propagate(<Gate>target_info.gate)
             profile+=1
 
-    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, void** read_queue, void** write_queue):
+    cdef void burn(self, Py_ssize_t index, Py_ssize_t size, CPP_Gate** read_queue, CPP_Gate** write_queue):
         cdef CPP_Gate* gate_info
         cdef CPP_Gate* target_info
         cdef Profile* profile
@@ -668,7 +668,7 @@ cdef class Circuit:
                             target_info.book[profile.output]-=1
                             target_info.book[UNKNOWN]+=1
                         if target_info.output!=UNKNOWN:
-                                write_queue[size]=<void*>target_info
+                                write_queue[size]=<CPP_Gate*>target_info
                                 size+=1
                         profile.output = UNKNOWN
                     profile+=1
@@ -689,9 +689,9 @@ cdef class Circuit:
         cdef Py_ssize_t index=0, end_point=1, size=0
         cdef unsigned long long counter=0
         cdef unsigned long long eval=0
-        cdef void** read_queue=self.queue[0]
-        cdef void** write_queue=self.queue[1]
-        read_queue[0]=<void*>origin.info
+        cdef CPP_Gate** read_queue=self.queue[0]
+        cdef CPP_Gate** write_queue=self.queue[1]
+        read_queue[0]=<CPP_Gate*>origin.info
         if unlikely(origin.info.output==UNKNOWN and origin.info.type >= VARIABLE_ID):
             # UNKNOWN variable: turn off downstream
             self.burn(index, end_point, read_queue, write_queue)
@@ -711,9 +711,6 @@ cdef class Circuit:
                 end = profile+gate_info.hitlist.size()
                 eval+=gate_info.hitlist.size()
                 while profile!=end:
-                    while profile!=end and profile.output==new_output:
-                        profile+=1
-                    if profile == end: break
                     profile_output = profile.output
                     target_info=<CPP_Gate*>profile.target
                     gate_type = target_info.type
@@ -728,7 +725,7 @@ cdef class Circuit:
                         elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
                         else:target_output = (high&1)^(gate_type&1)
                         
-                    write_queue[size]=<void*>target_info
+                    write_queue[size]=<CPP_Gate*>target_info
                     size += ( (target_info.scheduled==0) & (target_output!=target_info.output) )
                     target_info.scheduled |= (target_output!=target_info.output)
                     target_info.output = target_output

@@ -39,7 +39,7 @@ cdef extern from "Profile.h":
         int index
         int output
         Profile()
-        Profile(void* target, int pin_index, int output)
+        Profile(CPP_Gate* target, int pin_index, int output)
     cdef cppclass Task:
         int gate_loc
         unsigned int time
@@ -64,7 +64,7 @@ cdef extern from "Profile.h":
 
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)
-cdef void pop(vector[Profile]& hitlist, void* target, int pin_index)
+cdef void pop(vector[Profile]& hitlist, CPP_Gate* target, int pin_index)
 
 cdef class Gate:
 # --- 4-BYTE ALIGNED (HOT C-TYPES) ---

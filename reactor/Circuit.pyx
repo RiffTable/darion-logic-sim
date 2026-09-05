@@ -1304,9 +1304,6 @@ cdef class Circuit:
                 end = profile + self_info.hitlist.size()
                 eval += self_info.hitlist.size()
                 while profile != end:
-                    while profile!=end and profile.output==new_output:
-                        profile+=1
-                    if profile ==end:break
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type
@@ -1430,9 +1427,6 @@ cdef class Circuit:
                 eval += self_info.hitlist.size()
 
                 while profile != end:
-                    while profile!=end and profile.output==new_output:
-                        profile+=1
-                    if profile ==end:break
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type

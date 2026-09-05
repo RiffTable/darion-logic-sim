@@ -11,7 +11,7 @@ from libc.string cimport memmove
 from Store cimport decode
 from libc.stdint cimport uint16_t
             
-cdef inline void pop(vector[Profile]& hitlist,void* target, int pin_index):
+cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* target, int pin_index):
     cdef Profile* profile= hitlist.data()
     cdef Profile* end = profile+hitlist.size()
     while profile<end:
@@ -115,7 +115,7 @@ cdef class Gate:
     cdef void connect(self, Gate source,int index):
         if self.id==VARIABLE_ID or self.sources[index] is not None:
             return
-        source.info.hitlist.emplace_back(<void*>self.info, index, source.info.output)
+        source.info.hitlist.emplace_back(<CPP_Gate*>self.info, index, source.info.output)
         self.sources[index] = source
         self.info.book[source.info.output] += 1
         self.info.invalid -= 1
@@ -128,7 +128,7 @@ cdef class Gate:
         if self.id==VARIABLE_ID or self.sources[index] is None:
             return
         cdef Gate source = self.sources[index]
-        pop(source.info.hitlist, <void*>self.info, index)
+        pop(source.info.hitlist, <CPP_Gate*>self.info, index)
         self.sources[index] = None
         self.info.book[source.info.output] -= 1
         self.info.invalid += 1
@@ -163,7 +163,7 @@ cdef class Gate:
             for i in range(n):
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
-                    pop(source.info.hitlist, <void*>self.info, i)
+                    pop(source.info.hitlist, <CPP_Gate*>self.info, i)
         self.info.output=UNKNOWN
         cdef uint8_t* book
         if self.id<VARIABLE_ID:
@@ -181,7 +181,7 @@ cdef class Gate:
             for i in range(n):
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
-                    source.info.hitlist.emplace_back(<void*>self.info, i, source.info.output)
+                    source.info.hitlist.emplace_back(<CPP_Gate*>self.info, i, source.info.output)
                     self.info.book[source.info.output]+=1
                     self.info.invalid -= 1
         n=self.info.hitlist.size()
