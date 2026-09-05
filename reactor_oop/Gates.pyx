@@ -83,12 +83,12 @@ cdef class Gate:
             self.info.output = UNKNOWN
         else:
             if self.id==VARIABLE_ID:
-                self.info.output=self.info.value
+                self.info.output = self.info.flags & FLAG_VALUE
             limit=self.info.inputlimit
             gate_type=self.id
             if limit == 1:
                 if gate_type==VARIABLE_ID:
-                    self.info.output=self.info.value
+                    self.info.output = self.info.flags & FLAG_VALUE
                 else:
                     source=<Gate>PyList_GET_ITEM(self.sources, 0)
                     if source is None:
@@ -238,11 +238,21 @@ cdef class Gate:
     @property
     def value(self):
         '''Stored toggle value'''
-        return self.info.value
+        return bool(self.info.flags & FLAG_VALUE)
 
     @value.setter
     def value(self, val):
-        self.info.value = val
+        if val: self.info.flags |= FLAG_VALUE
+        else: self.info.flags &= ~FLAG_VALUE
+
+    @property
+    def scheduled(self):
+        return bool(self.info.flags & FLAG_SCHEDULED)
+
+    @scheduled.setter
+    def scheduled(self, val):
+        if val: self.info.flags |= FLAG_SCHEDULED
+        else: self.info.flags &= ~FLAG_SCHEDULED
 
     cpdef list full_data(self):
         cdef Gate source
@@ -251,7 +261,7 @@ cdef class Gate:
             self.id,
             self.location,
             self.info.inputlimit,
-            self.info.value if self.id==VARIABLE_ID else [source.location if source else -1 for source in self.sources],
+            bool(self.info.flags & FLAG_VALUE) if self.id==VARIABLE_ID else [source.location if source else -1 for source in self.sources],
             ]
         return dictionary
 
@@ -262,14 +272,15 @@ cdef class Gate:
             self.id,
             self.location,
             self.info.inputlimit,
-            self.info.value if self.id==VARIABLE_ID else [source.location if source and source.info.scheduled else -1 for source in self.sources],
+            bool(self.info.flags & FLAG_VALUE) if self.id==VARIABLE_ID else [source.location if source and (source.info.flags & FLAG_SCHEDULED) else -1 for source in self.sources],
             ]
         return dictionary
 
     cpdef void clone(self, list dictionary, dict pseudo):
         self.custom_name = dictionary[CUSTOM_NAME]
         if self.id==VARIABLE_ID:
-            self.info.value = dictionary[VALUE]
+            if dictionary[VALUE]: self.info.flags |= FLAG_VALUE
+            else: self.info.flags &= ~FLAG_VALUE
         else:
             self.setlimits(dictionary[INPUTLIMIT])
             for index,source_loc in enumerate(dictionary[SOURCES]):
@@ -278,7 +289,7 @@ cdef class Gate:
 
     cpdef void load_to_cluster(self,list cluster):
         cluster.append(self)
-        self.info.scheduled=True
+        self.info.flags |= FLAG_SCHEDULED
 
 cdef class Variable(Gate):
     pass

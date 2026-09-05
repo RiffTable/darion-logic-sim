@@ -94,7 +94,7 @@ cdef class Circuit:
 
     cpdef void toggle(self, Gate target, int value):
         if value != target.info.output:
-            target.info.value=value
+            target.info.flags = (target.info.flags & ~FLAG_VALUE) | value
             target.info.output=value if MODE==SIMULATE else UNKNOWN
             self.propagate(target)
 
@@ -110,7 +110,7 @@ cdef class Circuit:
             target = <Gate>pair[0]
             value = pair[1]
             if value != target.info.output:
-                target.info.value = value
+                target.info.flags = (target.info.flags & ~FLAG_VALUE) | value
                 target.info.output = value if MODE == SIMULATE else UNKNOWN
                 self.propagate(target)
         end = time.perf_counter_ns()
@@ -414,7 +414,7 @@ cdef class Circuit:
         cdef list outputs = [i for i in self.objlist[OUTPUT_PIN_ID] if i is not None]
         cdef list inputs = [i for i in self.objlist[INPUT_PIN_ID] if i is not None]
         for gate in outputs + inputs:
-            gate.scheduled = True
+            gate.info.flags |= FLAG_SCHEDULED
             queue.append(gate)
         cdef Py_ssize_t size = len(queue)
         cdef Py_ssize_t index = len(outputs)
@@ -438,8 +438,8 @@ cdef class Circuit:
             end = profile + gate.info.hitlist.size()
             while profile != end:
                 target = <Gate>(<CPP_Gate*>profile.target).gate
-                if not target.info.scheduled:
-                    target.info.scheduled = True
+                if not (target.info.flags & FLAG_SCHEDULED):
+                    target.info.flags |= FLAG_SCHEDULED
                     queue.append(target)
                     size += 1
                 profile += 1
@@ -564,7 +564,7 @@ cdef class Circuit:
         for i in components:
             self.copydata.append(i.partial_data())
         for i in cluster:
-            i.scheduled=False
+            i.info.flags &= ~FLAG_SCHEDULED
 
     cpdef list paste(self):
         cdef list circuit=self.copydata
@@ -608,14 +608,14 @@ cdef class Circuit:
         cdef Gate variable
         for variable in self.objlist[VARIABLE_ID]:
             if variable is not None:
-                variable.info.output=variable.info.value
+                variable.info.output = variable.info.flags & FLAG_VALUE
                 self.propagate(variable)
 
     cpdef void custom_simulate(self, list varlist):
         '''simulate from a pre-collected list of variable Gate objects'''
         cdef Gate variable
         for variable in varlist:
-            variable.info.output = variable.info.value
+            variable.info.output = variable.info.flags & FLAG_VALUE
             self.propagate(variable)
 
     cpdef void reset(self):
@@ -656,7 +656,7 @@ cdef class Circuit:
         while index<end_point:
             while index<end_point:
                 gate_info = <CPP_Gate*>read_queue[index]
-                gate_info.scheduled=False
+                gate_info.flags &= ~FLAG_MARK
                 profile = gate_info.hitlist.data()
                 end = profile+gate_info.hitlist.size()
                 gate_info.output = UNKNOWN
@@ -705,7 +705,7 @@ cdef class Circuit:
             counter+=1
             for index in range(end_point):
                 gate_info = <CPP_Gate*>read_queue[index]
-                gate_info.scheduled=False
+                gate_info.flags &= ~FLAG_MARK
                 new_output=gate_info.output
                 profile = gate_info.hitlist.data()
                 end = profile+gate_info.hitlist.size()
@@ -726,8 +726,8 @@ cdef class Circuit:
                         else:target_output = (high&1)^(gate_type&1)
                         
                     write_queue[size]=<CPP_Gate*>target_info
-                    size += ( (target_info.scheduled==0) & (target_output!=target_info.output) )
-                    target_info.scheduled |= (target_output!=target_info.output)
+                    size += ( ((target_info.flags & FLAG_MARK)==0) & (target_output!=target_info.output) )
+                    target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
                     target_info.output = target_output
                     profile.output = new_output
                     profile+=1

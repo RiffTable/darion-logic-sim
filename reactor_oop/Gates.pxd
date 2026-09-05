@@ -1,6 +1,6 @@
 # distutils: language = c++
 from Const cimport HIGH, LOW, UNKNOWN, DESIGN, SIMULATE, MODE
-from libc.stdint cimport uint16_t,uint8_t
+from libc.stdint cimport uint16_t, uint8_t, int8_t
 cdef extern from "<vector>" namespace "std" nogil:
     cdef cppclass vector[T, ALLOCATOR=*]:
         cppclass iterator:
@@ -36,10 +36,10 @@ cdef class Variable
 cdef extern from "Profile.h":
     cdef cppclass Profile:
         void* target
-        int index
-        int output
+        uint8_t index
+        uint8_t output
         Profile()
-        Profile(CPP_Gate* target, int pin_index, int output)
+        Profile(CPP_Gate* target, uint8_t pin_index, uint8_t output)
     cdef cppclass Task:
         int gate_loc
         unsigned int time
@@ -49,18 +49,16 @@ cdef extern from "Profile.h":
         bint operator>(const Task& other) nogil
     cdef cppclass CPP_Gate:
         void* gate
-        uint8_t type
+        int8_t type
         uint8_t output
         uint8_t inputlimit
-        uint8_t value
-        uint8_t scheduled
         uint8_t flags
         uint8_t book[3]
         uint8_t invalid
         unsigned int target_time
         vector[Profile] hitlist
         CPP_Gate()
-        CPP_Gate(void* g, uint8_t t, uint8_t lim)
+        CPP_Gate(void* g, int8_t t, uint8_t lim)
 
 cdef void hide(Profile& profile)
 cdef void reveal(Profile& profile,Gate source)

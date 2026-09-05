@@ -8,11 +8,14 @@
 struct CPP_Gate;
 
 struct Profile {
-    CPP_Gate* target; // this will hold CPP_Gate* instead of Python Gate object
-    int index;
-    int output;
-    Profile() : target(NULL), index(0), output(0){}
-    Profile(CPP_Gate* t, int i, int o) : target(t), index(i), output(o){}
+    CPP_Gate* target;
+    uint8_t index;
+    uint8_t output;
+    Profile() : target(nullptr), index(0), output(0){}
+    Profile(CPP_Gate* t, uint8_t i, uint8_t o) : target(t),index(i), output(o){}
+    bool operator<(const Profile& other) const {
+        return target < other.target;
+    }
 };
 
 // ─── Task ─────────────────────────────────────────────────────────────────
@@ -39,21 +42,19 @@ enum GateFlags : uint8_t {
 
 struct CPP_Gate {
     void*   gate;      // pointer back to python Gate
-    uint8_t type;
+    int8_t type;
     uint8_t output;
     uint8_t inputlimit;
-    uint8_t value;     // keeping for backwards compatibility
-    uint8_t scheduled; // keeping for backwards compatibility
     uint8_t flags;
     uint8_t book[3];
     uint8_t invalid;
     unsigned int target_time;
     std::vector<Profile> hitlist;
 
-    CPP_Gate() : gate(NULL), type(0), output(2), inputlimit(2), value(0), scheduled(0), flags(8), invalid(2), target_time(0), hitlist() {
+    CPP_Gate() : gate(NULL), type(0), output(2), inputlimit(2), flags(8), invalid(2), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
-    CPP_Gate(void* g, uint8_t t, uint8_t lim) : gate(g), type(t), output(2), inputlimit(lim), value(0), scheduled(0), flags(8), invalid(lim), target_time(0), hitlist() {
+    CPP_Gate(void* g, int8_t t, uint8_t lim) : gate(g), type(t), output(2), inputlimit(lim), flags(8), invalid(lim), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
 };
