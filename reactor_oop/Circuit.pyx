@@ -664,9 +664,8 @@ cdef class Circuit:
                     eval+=1
                     if profile.output!=UNKNOWN:
                         target_info=<CPP_Gate*>profile.target
-                        if target_info.inputlimit!=1:
-                            target_info.book[profile.output]-=1
-                            target_info.book[UNKNOWN]+=1
+                        target_info.book[profile.output]-=1
+                        target_info.book[UNKNOWN]+=1
                         if target_info.output!=UNKNOWN:
                                 write_queue[size]=<CPP_Gate*>target_info
                                 size+=1
@@ -714,16 +713,14 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info=<CPP_Gate*>profile.target
                     gate_type = target_info.type
-                    if gate_type>=BUFFER_ID:target_output=new_output^((gate_type==NOT_ID) & (new_output!=UNKNOWN))
-                    else:
-                        target_info.book[profile_output]-=1
-                        target_info.book[new_output]+=1
-                        high=target_info.book[HIGH]
-                        low=target_info.book[LOW]
-                        if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
-                        elif gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
-                        elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
-                        else:target_output = (high&1)^(gate_type&1)
+                    target_info.book[profile_output]-=1
+                    target_info.book[new_output]+=1
+                    high=target_info.book[HIGH]
+                    low=target_info.book[LOW]
+                    if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
+                    elif gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
+                    elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
+                    else:target_output = (high&1)^(gate_type&1)
                         
                     write_queue[size]=<CPP_Gate*>target_info
                     size += ( ((target_info.flags & FLAG_MARK)==0) & (target_output!=target_info.output) )

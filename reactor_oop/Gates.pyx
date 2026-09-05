@@ -77,27 +77,15 @@ cdef class Gate:
         cdef int low
         cdef int high
         cdef int realsource
-        cdef Gate source
         
         if MODE == DESIGN:
             self.info.output = UNKNOWN
         else:
             if self.id==VARIABLE_ID:
                 self.info.output = self.info.flags & FLAG_VALUE
-            limit=self.info.inputlimit
-            gate_type=self.id
-            if limit == 1:
-                if gate_type==VARIABLE_ID:
-                    self.info.output = self.info.flags & FLAG_VALUE
-                else:
-                    source=<Gate>PyList_GET_ITEM(self.sources, 0)
-                    if source is None:
-                        self.info.output=UNKNOWN
-                    elif source.info.output==UNKNOWN:
-                        self.info.output=UNKNOWN
-                    else:
-                        self.info.output=source.info.output^(gate_type==NOT_ID)
             else:
+                limit=self.info.inputlimit
+                gate_type=self.id
                 book = self.info.book
                 high = book[HIGH]
                 low = book[LOW]
