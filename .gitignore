@@ -40,4 +40,4 @@ reactor_oop/*.so
 *.data.old
 
 harness_build/
-tests/
+tests/*/
