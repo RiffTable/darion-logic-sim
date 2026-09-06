@@ -175,7 +175,7 @@ def generate_icarus_tb(v_file: str, tb_file: str, vectors: int, warmup: int,
     return module_name
 
 
-def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
+def run_icarus_harness(v_file: str, vectors: int, warmup: int, use_perf: bool = False, perf_events: str = "") -> dict:
     """
     Compile and run a circuit with Icarus Verilog (iverilog + vvp).
 
@@ -242,6 +242,18 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
         else:
             run_cmd = ["vvp", vvp_file]
 
+        perf_data = f"perf_icarus_{filename}.data"
+        perf_txt = f"perf_icarus_{filename}.txt"
+        if use_perf and use_vpi:
+            fifo_path = "/tmp/rx_perf_ctrl"
+            if not os.path.exists(fifo_path):
+                try: os.mkfifo(fifo_path)
+                except Exception: pass
+            perf_cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-o", perf_data]
+            if perf_events:
+                perf_cmd.extend(["-e", perf_events])
+            run_cmd = perf_cmd + ["--"] + run_cmd
+
         t_run_start = time.perf_counter_ns()
         run_res = subprocess.run(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         t_run_end = time.perf_counter_ns()
@@ -249,6 +261,11 @@ def run_icarus_harness(v_file: str, vectors: int, warmup: int) -> dict:
 
         t_end_total = time.perf_counter_ns()
         total_ms_overall = (t_end_total - t_start_total) / 1_000_000.0
+
+        if use_perf and use_vpi and os.path.exists(perf_data):
+            with open(perf_txt, "w") as f:
+                subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+            os.remove(perf_data)
 
         if run_res.returncode != 0:
             return {"engine": "Icarus", "file": filename,
@@ -448,7 +465,7 @@ class VerilogRunner:
             self.circuit.optimize()
         self.circuit.simulate(self.const.COMPILE)
 
-    def run_benchmark(self, vectors=10000, warmup=5000, use_optimize=True, rx_prop=True, rx_sweep=True):
+    def run_benchmark(self, vectors=10000, warmup=5000, use_optimize=True, rx_prop=True, rx_sweep=True, use_perf=False, perf_events=""):
         """Run the simulation benchmark with symmetric warmup.
 
         Measures two paths for reactor, one for engine:
@@ -510,9 +527,32 @@ class VerilogRunner:
             self.circuit.eval_count = 0
             gc.disable()
             
+            perf_proc = None
+            perf_data = f"perf_{self.mode}_prop_{os.path.basename(getattr(self, 'filepath', 'unknown'))}.data"
+            perf_txt = f"perf_{self.mode}_prop_{os.path.basename(getattr(self, 'filepath', 'unknown'))}.txt"
+            
+            if use_perf:
+                fifo_path = "/tmp/rx_perf_ctrl"
+                if not os.path.exists(fifo_path):
+                    try: os.mkfifo(fifo_path)
+                    except Exception: pass
+                cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-p", str(os.getpid()), "-o", perf_data]
+                if perf_events:
+                    cmd.extend(["-e", perf_events])
+                perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(0.1)
+
             send_perf_ctrl("enable")
             propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
             send_perf_ctrl("disable")
+            
+            if use_perf and perf_proc:
+                perf_proc.terminate()
+                perf_proc.wait()
+                with open(perf_txt, "w") as f:
+                    subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+                if os.path.exists(perf_data):
+                    os.remove(perf_data)
 
             gc.enable()
             propagate_evals = getattr(self.circuit, 'eval_count', measured * len(self.nodes))
@@ -575,9 +615,32 @@ class VerilogRunner:
                 self.circuit.eval_count = 0
                 gc.disable()
                 
+                perf_proc = None
+                perf_data = f"perf_{self.mode}_sweep_{os.path.basename(getattr(self, 'filepath', 'unknown'))}.data"
+                perf_txt = f"perf_{self.mode}_sweep_{os.path.basename(getattr(self, 'filepath', 'unknown'))}.txt"
+                
+                if use_perf:
+                    fifo_path = "/tmp/rx_perf_ctrl"
+                    if not os.path.exists(fifo_path):
+                        try: os.mkfifo(fifo_path)
+                        except Exception: pass
+                    cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-p", str(os.getpid()), "-o", perf_data]
+                    if perf_events:
+                        cmd.extend(["-e", perf_events])
+                    perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    time.sleep(0.1)
+                
                 send_perf_ctrl("enable")
                 sweep_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
                 send_perf_ctrl("disable")
+                
+                if use_perf and perf_proc:
+                    perf_proc.terminate()
+                    perf_proc.wait()
+                    with open(perf_txt, "w") as f:
+                        subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+                    if os.path.exists(perf_data):
+                        os.remove(perf_data)
 
                 gc.enable()
 
@@ -597,7 +660,7 @@ class VerilogRunner:
         return result
 
 
-def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool, rx_sweep: bool) -> dict:
+def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool, rx_sweep: bool, use_perf: bool = False, perf_events: str = "") -> dict:
     cmd = [
         sys.executable, os.path.abspath(__file__),
         "--internal-worker", filepath,
@@ -612,6 +675,11 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
     if not rx_sweep:
         cmd.append("--no-rx-sweep")
 
+    if use_perf:
+        cmd.append("--perf")
+        if perf_events:
+            cmd.extend(["--perf-events", perf_events])
+
     try:
         t0 = time.perf_counter_ns()
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -619,7 +687,20 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
         total_ms = (t1 - t0) / 1_000_000.0
 
         if res.returncode == 0:
-            data = json.loads(res.stdout)
+            data = None
+            for line in res.stdout.splitlines():
+                if line.startswith("{"):
+                    try:
+                        data = json.loads(line)
+                        break
+                    except:
+                        pass
+            if data is None:
+                try:
+                    data = json.loads(res.stdout)
+                except Exception as e:
+                    return {"error": f"Failed to parse JSON: {e}\nstdout: {res.stdout}"}
+
             data["load_ms"] = data.get("parse_ms", 0.0)
             return data
         else:
@@ -627,8 +708,7 @@ def run_python_backend_process(filepath: str, mode: str, vectors: int, warmup: i
     except Exception as e:
         return {"error": str(e)}
 
-
-def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool, rx_sweep: bool):
+def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, optimize: bool, rx_prop: bool, rx_sweep: bool, use_perf: bool = False, perf_events: str = ""):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     target_path = os.path.join(script_dir, mode)
@@ -644,9 +724,10 @@ def internal_worker_main(filepath: str, mode: str, vectors: int, warmup: int, op
     try:
         t0 = time.perf_counter_ns()
         runner = VerilogRunner(filepath, Circuit.Circuit, Const, is_reactor=is_reactor, use_optimize=optimize, mode=mode)
+        runner.filepath = filepath
         t1 = time.perf_counter_ns()
         
-        stats = runner.run_benchmark(vectors=vectors, warmup=warmup, use_optimize=optimize, rx_prop=rx_prop, rx_sweep=rx_sweep)
+        stats = runner.run_benchmark(vectors=vectors, warmup=warmup, use_optimize=optimize, rx_prop=rx_prop, rx_sweep=rx_sweep, use_perf=use_perf, perf_events=perf_events)
         stats['parse_ms'] = (t1 - t0) / 1_000_000.0
         print(json.dumps(stats))
     except Exception as e:
@@ -680,6 +761,8 @@ def main():
     parser.add_argument('--dump', action='store_true', help='Only generate final data to stdout')
     parser.add_argument('--json', action='store_true', help='Only generate JSON to stdout')
     parser.add_argument('--plot', action='store_true', help='Generate plots in test_result')
+    parser.add_argument('--perf', action='store_true', help='Run perf for each python backend and generate individual reports')
+    parser.add_argument('--perf-events', type=str, default="", help='Comma separated list of perf events to trace')
     parser.add_argument('--no-engine', dest='engine', action='store_false',
                         help='Skip the pure Python Engine benchmark')
     parser.set_defaults(engine=True)
@@ -702,7 +785,7 @@ def main():
     args = parser.parse_args()
 
     if args.internal_worker:
-        internal_worker_main(args.target, args.mode, args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep)
+        internal_worker_main(args.target, args.mode, args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep, args.perf, args.perf_events)
         sys.exit(0)
 
     if not args.target:
@@ -767,19 +850,19 @@ def main():
         filename = os.path.basename(filepath)
 
         if args.engine:
-            e_res = run_python_backend_process(filepath, 'engine',  args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep)
+            e_res = run_python_backend_process(filepath, 'engine',  args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep, args.perf, args.perf_events)
         else:
             e_res = {"engine": "Engine", "file": filename, "error": "disabled"}
         if args.rx_prop or args.rx_sweep:
-            r_res = run_python_backend_process(filepath, 'reactor', args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep)
+            r_res = run_python_backend_process(filepath, 'reactor', args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep, args.perf, args.perf_events)
         else:
             r_res = {"engine": "Reactor", "file": filename, "error": "disabled"}
         if args.rx_oop:
-            ro_res = run_python_backend_process(filepath, 'reactor_oop', args.vectors, args.warmup, args.optimize, True, False)
+            ro_res = run_python_backend_process(filepath, 'reactor_oop', args.vectors, args.warmup, args.optimize, True, False, args.perf, args.perf_events)
         else:
             ro_res = {"engine": "ReactorOOP", "file": filename, "error": "disabled"}
         if args.icarus:
-            i_res = run_icarus_harness(filepath, args.vectors, args.warmup)
+            i_res = run_icarus_harness(filepath, args.vectors, args.warmup, args.perf, args.perf_events)
         else:
             i_res = {"engine": "Icarus", "file": filename, "error": "disabled"}
 

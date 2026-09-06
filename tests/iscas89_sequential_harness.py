@@ -225,7 +225,7 @@ def generate_icarus_tb_89(v_file: str, tb_file: str,
 # Main harness runner
 # ---------------------------------------------------------------------------
 
-def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
+def run_icarus_harness_89(v_file: str, vectors: int, warmup: int, use_perf: bool = False, perf_events: str = "") -> dict:
     """
     Compile and run an ISCAS89 sequential circuit with Icarus Verilog.
 
@@ -322,6 +322,18 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
         else:
             run_cmd = ["vvp", vvp_file]
 
+        perf_data = f"perf_icarus_{filename}.data"
+        perf_txt = f"perf_icarus_{filename}.txt"
+        if use_perf and use_vpi:
+            fifo_path = "/tmp/rx_perf_ctrl"
+            if not os.path.exists(fifo_path):
+                try: os.mkfifo(fifo_path)
+                except Exception: pass
+            perf_cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-o", perf_data]
+            if perf_events:
+                perf_cmd.extend(["-e", perf_events])
+            run_cmd = perf_cmd + ["--"] + run_cmd
+
         t_run_start = time.perf_counter_ns()
         run_res = subprocess.run(
             run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -331,6 +343,11 @@ def run_icarus_harness_89(v_file: str, vectors: int, warmup: int) -> dict:
 
         t_end_total = time.perf_counter_ns()
         total_ms_overall = (t_end_total - t_start_total) / 1_000_000.0
+
+        if use_perf and use_vpi and os.path.exists(perf_data):
+            with open(perf_txt, "w") as f:
+                subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+            os.remove(perf_data)
 
         if run_res.returncode != 0:
             return {"engine": "Icarus", "file": filename,

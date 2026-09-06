@@ -697,6 +697,7 @@ cdef class Circuit:
             return
         while end_point>0:
             if unlikely(counter>self.counter):
+                print(f"Burn triggered! counter={counter} self.counter={self.counter}")
                 self.eval_count+=eval
                 self.burn(index, end_point, read_queue, write_queue)
                 return

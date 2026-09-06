@@ -40,6 +40,18 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 
 sys.path.insert(0, _SCRIPT_DIR)
 
+def send_perf_ctrl(cmd):
+    try:
+        if os.path.exists("/tmp/rx_perf_ctrl"):
+            flags = os.O_WRONLY
+            if hasattr(os, 'O_NONBLOCK'):
+                flags |= os.O_NONBLOCK
+            fd = os.open("/tmp/rx_perf_ctrl", flags)
+            os.write(fd, (cmd + "\n").encode())
+            os.close(fd)
+    except Exception:
+        pass
+
 try:
     from iscas89_sequential_harness import (
         run_icarus_harness_89,
@@ -79,12 +91,15 @@ class SequentialVerilogRunner:
     generation ensures DFF capture semantics are correctly exercised.
     """
 
-    def __init__(self, v_file_path, circuit_cls, const_mod, is_reactor=True):
+    def __init__(self, v_file_path, circuit_cls, const_mod, is_reactor=True, is_oop=False, mode="engine"):
+        self.filepath = v_file_path
+        self.mode = mode
         self.Circuit = circuit_cls
         self.const   = const_mod
         self.circuit = self.Circuit()
         self.circuit.simulate(self.const.DESIGN)
         self.is_reactor = is_reactor
+        self.is_oop = is_oop
 
         self.nodes = {}
         self.outputs = []
@@ -289,7 +304,8 @@ class SequentialVerilogRunner:
         return [g.output for g in self.output_objects]
 
     async def _run_benchmark_async(self, vectors: int, warmup: int,
-                                   use_optimize: bool, rx_prop: bool = True, rx_sweep: bool = True):
+                                   use_optimize: bool, rx_prop: bool = True, rx_sweep: bool = True,
+                                   use_perf: bool = False, perf_events: str = ""):
         """
         Async benchmark core — required because DFF feedback loops are resolved
         via the task_manager time_queue, which is an asyncio-based mechanism.
@@ -301,7 +317,9 @@ class SequentialVerilogRunner:
         # ── Detect clock variable ──────────────────────────────────────────────
         clock_var = None
         for var in self.input_vars:
-            name = getattr(var, 'codename', '') or getattr(var, 'custom_name', '')
+            name = getattr(var, 'custom_name', '') or getattr(var, 'codename', '')
+            if isinstance(name, bytes):
+                name = name.decode('utf-8', errors='ignore')
             if any(c in name.lower() for c in ('ck', 'clk', 'clock', 'g0')):
                 clock_var = var
                 break
@@ -321,15 +339,18 @@ class SequentialVerilogRunner:
                 base = []
                 for var in self.input_vars:
                     val = self.const.HIGH if _rng.randint(0, 1) else self.const.LOW
-                    base.append((var.location, val))
+                    if self.is_oop:
+                        base.append((var, val))
+                    else:
+                        base.append((var.location, val))
 
                 if clock_var is not None:
                     # setup: clock = LOW
-                    setup = [(loc, self.const.LOW if loc == clock_var.location else val)
-                             for loc, val in base]
+                    setup = [(item, self.const.LOW if (item == clock_var if self.is_oop else item == clock_var.location) else val)
+                             for item, val in base]
                     # trigger: clock = HIGH
-                    trigger = [(loc, self.const.HIGH if loc == clock_var.location else val)
-                               for loc, val in base]
+                    trigger = [(item, self.const.HIGH if (item == clock_var if self.is_oop else item == clock_var.location) else val)
+                               for item, val in base]
                     batches.append(setup)
                     batches.append(trigger)
                 else:
@@ -358,7 +379,31 @@ class SequentialVerilogRunner:
             self.circuit.eval_count = 0
             gc.disable()
     
+            perf_proc = None
+            if use_perf:
+                fifo_path = "/tmp/rx_perf_ctrl"
+                if not os.path.exists(fifo_path):
+                    try: os.mkfifo(fifo_path)
+                    except Exception: pass
+                perf_data = f"perf_{self.mode}_prop_{os.path.basename(self.filepath)}.data"
+                perf_txt = f"perf_{self.mode}_prop_{os.path.basename(self.filepath)}.txt"
+                cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-p", str(os.getpid()), "-o", perf_data]
+                if perf_events:
+                    cmd.extend(["-e", perf_events])
+                perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                await asyncio.sleep(0.5)
+
+            send_perf_ctrl("enable")
             propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
+            send_perf_ctrl("disable")
+            
+            if use_perf and perf_proc:
+                perf_proc.terminate()
+                perf_proc.wait()
+                with open(perf_txt, "w") as f:
+                    subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+                if os.path.exists(perf_data):
+                    os.remove(perf_data)
     
             gc.enable()
             propagate_evals = getattr(self.circuit, 'eval_count',
@@ -411,7 +456,31 @@ class SequentialVerilogRunner:
                 self.circuit.eval_count = 0
                 gc.disable()
                 
+                perf_proc = None
+                if use_perf:
+                    fifo_path = "/tmp/rx_perf_ctrl"
+                    if not os.path.exists(fifo_path):
+                        try: os.mkfifo(fifo_path)
+                        except Exception: pass
+                    perf_data = f"perf_{self.mode}_sweep_{os.path.basename(self.filepath)}.data"
+                    perf_txt = f"perf_{self.mode}_sweep_{os.path.basename(self.filepath)}.txt"
+                    cmd = ["perf", "record", "-D", "-1", "--control=fifo:/tmp/rx_perf_ctrl", "-p", str(os.getpid()), "-o", perf_data]
+                    if perf_events:
+                        cmd.extend(["-e", perf_events])
+                    perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    await asyncio.sleep(0.5)
+
+                send_perf_ctrl("enable")
                 sweep_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
+                send_perf_ctrl("disable")
+
+                if use_perf and perf_proc:
+                    perf_proc.terminate()
+                    perf_proc.wait()
+                    with open(perf_txt, "w") as f:
+                        subprocess.run(["perf", "report", "-i", perf_data], stdout=f, stderr=subprocess.DEVNULL)
+                    if os.path.exists(perf_data):
+                        os.remove(perf_data)
 
                 gc.enable()
 
@@ -432,10 +501,11 @@ class SequentialVerilogRunner:
         return result
 
     def run_benchmark(self, vectors: int = 10000, warmup: int = 5000,
-                      use_optimize: bool = True, rx_prop: bool = True, rx_sweep: bool = True) -> dict:
+                      use_optimize: bool = True, rx_prop: bool = True, rx_sweep: bool = True,
+                      use_perf: bool = False, perf_events: str = "") -> dict:
         """Synchronous wrapper — instantiates the asyncio loop for DFF drain."""
         return asyncio.run(
-            self._run_benchmark_async(vectors, warmup, use_optimize, rx_prop, rx_sweep)
+            self._run_benchmark_async(vectors, warmup, use_optimize, rx_prop, rx_sweep, use_perf, perf_events)
         )
 
 
@@ -445,7 +515,8 @@ class SequentialVerilogRunner:
 
 def run_python_backend_process_89(filepath: str, mode: str,
                                    vectors: int, warmup: int,
-                                   optimize: bool, rx_prop: bool = True, rx_sweep: bool = True) -> dict:
+                                   optimize: bool, rx_prop: bool = True, rx_sweep: bool = True,
+                                   use_perf: bool = False, perf_events: str = "") -> dict:
     """
     Run SequentialVerilogRunner in an isolated subprocess to prevent module
     state pollution between Engine and Reactor passes.
@@ -463,6 +534,10 @@ def run_python_backend_process_89(filepath: str, mode: str,
         cmd.append("--no-rx-prop")
     if not rx_sweep:
         cmd.append("--no-rx-sweep")
+    if use_perf:
+        cmd.append("--perf")
+        if perf_events:
+            cmd.extend(["--perf-events", perf_events])
 
     try:
         t0 = time.perf_counter_ns()
@@ -486,7 +561,8 @@ def run_python_backend_process_89(filepath: str, mode: str,
 
 
 def internal_worker_main(filepath: str, mode: str, vectors: int,
-                          warmup: int, optimize: bool, rx_prop: bool = True, rx_sweep: bool = True):
+                          warmup: int, optimize: bool, rx_prop: bool = True, rx_sweep: bool = True,
+                          use_perf: bool = False, perf_events: str = ""):
     script_dir   = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     target_path  = os.path.join(script_dir, mode)
@@ -498,15 +574,17 @@ def internal_worker_main(filepath: str, mode: str, vectors: int,
     import Circuit
     import Const
 
-    is_reactor = (mode == 'reactor')
+    is_reactor = (mode in ('reactor', 'reactor_oop'))
+    is_oop = (mode == 'reactor_oop')
     try:
         t0 = time.perf_counter_ns()
         runner = SequentialVerilogRunner(
-            filepath, Circuit.Circuit, Const, is_reactor=is_reactor
+            filepath, Circuit.Circuit, Const, is_reactor=is_reactor, is_oop=is_oop, mode=mode
         )
         t1 = time.perf_counter_ns()
         stats = runner.run_benchmark(
-            vectors=vectors, warmup=warmup, use_optimize=optimize, rx_prop=rx_prop, rx_sweep=rx_sweep
+            vectors=vectors, warmup=warmup, use_optimize=optimize, rx_prop=rx_prop, rx_sweep=rx_sweep,
+            use_perf=use_perf, perf_events=perf_events
         )
         stats['parse_ms'] = (t1 - t0) / 1_000_000.0
         print(json.dumps(stats))
@@ -555,33 +633,39 @@ def _print_speedup_report(all_results: list, md_lines: list = None):
         f"{'Icarus(ms)':<10} | "
         f"{'Engine(ms)':<10} | {'Eng-eval':<10} | {'Eng-spd':<8} | "
         f"{'Rx-prop(ms)':<11} | {'Rx-p-eval':<10} | {'Rx-prop-spd':<11} | "
-        f"{'Rx-sweep(ms)':<12} | {'Rx-s-eval':<10} | {'Rx-swp-spd':<10}"
+        f"{'Rx-sweep(ms)':<12} | {'Rx-s-eval':<10} | {'Rx-swp-spd':<10} | "
+        f"{'Rx-oop(ms)':<10} | {'Rx-o-eval':<10} | {'Rx-o-spd':<8}"
     )
     print(hdr)
     print("-" * W)
     if md_lines is not None:
         md_lines.append(f"| {hdr} |")
-        md_lines.append(f"|{'-'*18}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*13}|{'-'*12}|{'-'*13}|{'-'*14}|{'-'*12}|{'-'*12}|")
+        md_lines.append(f"|{'-'*18}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*10}|{'-'*13}|{'-'*12}|{'-'*13}|{'-'*14}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*10}|")
 
     engine_speedups        = []
     reactor_prop_speedups  = []
     reactor_sweep_speedups = []
+    reactor_oop_speedups   = []
 
-    for filename, e_res, r_res, i_res in all_results:
-        if any('error' in res for res in (e_res, r_res, i_res)):
+    for filename, e_res, r_res, ro_res, i_res in all_results:
+        if any('error' in res for res in (e_res, r_res, ro_res, i_res)):
             continue
 
         i_ms  = i_res['time_ms']
         e_ms  = e_res['time_ms']
         r_ms  = r_res['time_ms']
         rs_ms = r_res.get('sweep_ms', None)
+        ro_ms = ro_res['time_ms']
 
         e_spd  = i_ms / e_ms  if e_ms  > 0 else float('inf')
         r_spd  = i_ms / r_ms  if r_ms  > 0 else float('inf')
         rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
 
+        ro_spd = i_ms / ro_ms if ro_ms > 0 else float('inf')
+
         engine_speedups.append(e_spd)
         reactor_prop_speedups.append(r_spd)
+        reactor_oop_speedups.append(ro_spd)
         if rs_spd is not None: reactor_sweep_speedups.append(rs_spd)
 
         rs_ms_str  = f"{rs_ms:.1f}"   if rs_ms  is not None else "N/A"
@@ -591,13 +675,15 @@ def _print_speedup_report(all_results: list, md_lines: list = None):
         r_ev_str   = f"{r_res.get('total_evals', 0):,}" if 'error' not in r_res else "N/A"
         rs_ev_str  = (f"{r_res['sweep_evals']:,}"       if 'sweep_evals' in r_res
                       else ("N/A" if 'sweep_error' in r_res else "N/A"))
+        ro_ev_str  = f"{ro_res.get('total_evals', 0):,}" if 'error' not in ro_res else "N/A"
 
         row = (
             f"{filename:<16} | "
             f"{i_ms:>10.2f} | "
             f"{e_ms:>10.1f} | {e_ev_str:>10} | {e_spd:>7.1f}x | "
             f"{r_ms:>11.1f} | {r_ev_str:>10} | {r_spd:>10.1f}x | "
-            f"{rs_ms_str:>12} | {rs_ev_str:>10} | {rs_spd_str:>10}"
+            f"{rs_ms_str:>12} | {rs_ev_str:>10} | {rs_spd_str:>10} | "
+            f"{ro_ms:>10.1f} | {ro_ev_str:>10} | {ro_spd:>8.1f}x"
         )
         print(row)
         if md_lines is not None:
@@ -608,13 +694,15 @@ def _print_speedup_report(all_results: list, md_lines: list = None):
         g_e  = geo_mean(engine_speedups)
         g_r  = geo_mean(reactor_prop_speedups)
         g_rs = geo_mean(reactor_sweep_speedups) if reactor_sweep_speedups else None
+        g_ro = geo_mean(reactor_oop_speedups)
         print("-" * W)
         g_rs_str = f"{g_rs:.1f}x" if g_rs is not None else "N/A"
         summary = (
             f"{'Geo-mean speedup':<16} | {'(baseline)':<10} | "
             f"{'':<10} | {'':<10} | {g_e:>7.1f}x | "
             f"{'':<11} | {'':<10} | {g_r:>10.1f}x | "
-            f"{'':<12} | {'':<10} | {g_rs_str:>10}"
+            f"{'':<12} | {'':<10} | {g_rs_str:>10} | "
+            f"{'':<10} | {'':<10} | {g_ro:>8.1f}x"
         )
         print(summary)
         print("=" * W)
@@ -623,7 +711,8 @@ def _print_speedup_report(all_results: list, md_lines: list = None):
                 f"| **Geo-mean speedup** | **(baseline)** | "
                 f"{'':<10} | {'':<10} | {g_e:>7.1f}x | "
                 f"{'':<11} | {'':<10} | {g_r:>10.1f}x | "
-                f"{'':<12} | {'':<10} | {g_rs_str:>10} |"
+                f"{'':<12} | {'':<10} | {g_rs_str:>10} | "
+                f"{'':<10} | {'':<10} | {g_ro:>8.1f}x |"
             )
             md_lines.append(md_summary)
 
@@ -662,28 +751,31 @@ def _save_results_89(all_results: list, args):
     ts       = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     circuits_data = []
-    for filename, e_res, r_res, i_res in all_results:
+    for filename, e_res, r_res, ro_res, i_res in all_results:
         circuits_data.append({
             "circuit": filename,
             "engine":  e_res,
             "reactor": r_res,
+            "reactor_oop": ro_res,
             "icarus":  i_res,
         })
 
     speedup_summary = None
     geo_mean = lambda xs: math.exp(sum(math.log(x) for x in xs) / len(xs))
     valid_i = [
-        (fn, e, r, i) for fn, e, r, i in all_results
+        (fn, e, r, ro, i) for fn, e, r, ro, i in all_results
         if 'error' not in i and i.get('time_ms', 0) > 0
     ]
     if valid_i:
-        e_spds  = [i['time_ms'] / e['time_ms']  for _, e, _, i in valid_i
+        e_spds  = [i['time_ms'] / e['time_ms']  for _, e, _, _, i in valid_i
                     if 'error' not in e and e.get('time_ms', 0) > 0]
-        r_spds  = [i['time_ms'] / r['time_ms']  for _, _, r, i in valid_i
+        r_spds  = [i['time_ms'] / r['time_ms']  for _, _, r, _, i in valid_i
                     if 'error' not in r and r.get('time_ms', 0) > 0]
         rs_spds = [i['time_ms'] / r.get('sweep_ms', 0)
-                    for _, _, r, i in valid_i
+                    for _, _, r, _, i in valid_i
                     if 'error' not in r and r.get('sweep_ms', 0) > 0]
+        ro_spds = [i['time_ms'] / ro['time_ms']  for _, _, _, ro, i in valid_i
+                    if 'error' not in ro and ro.get('time_ms', 0) > 0]
 
         speedup_summary = {
             "baseline":                           "Icarus Verilog VPI sim time",
@@ -691,6 +783,7 @@ def _save_results_89(all_results: list, args):
             "engine_geo_mean_speedup":            round(geo_mean(e_spds),  3) if e_spds  else None,
             "reactor_propagate_geo_mean_speedup": round(geo_mean(r_spds),  3) if r_spds  else None,
             "reactor_sweep_geo_mean_speedup":     round(geo_mean(rs_spds), 3) if rs_spds else None,
+            "reactor_oop_geo_mean_speedup":       round(geo_mean(ro_spds), 3) if ro_spds else None,
         }
 
     payload = {
@@ -728,21 +821,22 @@ def _save_results_89(all_results: list, args):
 
     hdr = (
         f"{'Circuit':<16} | "
-        f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | "
+        f"{'Engine(ms)':<10} | {'Rx-prop(ms)':<11} | {'Rx-sweep(ms)':<12} | {'Rx-oop(ms)':<10} | "
         f"{'Icarus-sim(ms)':<14}"
     )
     txt_lines.append(hdr)
     txt_lines.append("-" * W)
 
-    for filename, e_res, r_res, i_res in all_results:
+    for filename, e_res, r_res, ro_res, i_res in all_results:
         e_str    = f"{e_res['time_ms']:.1f}"   if 'error' not in e_res else "ERR"
         r_str    = f"{r_res['time_ms']:.1f}"   if 'error' not in r_res else "ERR"
         rs_str   = (f"{r_res['sweep_ms']:.1f}" if 'sweep_ms'    in r_res
                     else ("ERR" if 'sweep_error' in r_res else "N/A"))
+        ro_str   = f"{ro_res['time_ms']:.1f}"   if 'error' not in ro_res else "ERR"
         i_s_str  = f"{i_res['time_ms']:.2f}"   if 'error' not in i_res else "ERR"
         txt_lines.append(
             f"{filename:<16} | "
-            f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
+            f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | {ro_str:>10} | "
             f"{i_s_str:>14}"
         )
     txt_lines.append("=" * W)
@@ -750,7 +844,7 @@ def _save_results_89(all_results: list, args):
 
     # Speedup table vs baseline
     valid_i_txt = [
-        (fn, e, r, i) for fn, e, r, i in all_results
+        (fn, e, r, ro, i) for fn, e, r, ro, i in all_results
         if 'error' not in i and i.get('time_ms', 0) > 0
     ]
     if valid_i_txt:
@@ -762,7 +856,8 @@ def _save_results_89(all_results: list, args):
             f"{'Circuit':<16} | "
             f"{'Icarus-sim(ms)':<14} | {'Engine(ms)':<10} | {'Eng-spd':<8} | "
             f"{'Rx-prop(ms)':<11} | {'Rx-prop-spd':<11} | "
-            f"{'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10}"
+            f"{'Rx-sweep(ms)':<12} | {'Rx-swp-spd':<10} | "
+            f"{'Rx-oop(ms)':<10} | {'Rx-oop-spd':<10}"
         )
         txt_lines.append(spd_hdr)
         txt_lines.append("-" * W)
@@ -770,16 +865,19 @@ def _save_results_89(all_results: list, args):
         g_e_spds  = []
         g_r_spds  = []
         g_rs_spds = []
+        g_ro_spds = []
 
-        for fn, e, r, i in valid_i_txt:
+        for fn, e, r, ro, i in valid_i_txt:
             i_ms  = i['time_ms']
             e_ms  = e.get('time_ms') if 'error' not in e else None
             r_ms  = r.get('time_ms') if 'error' not in r else None
             rs_ms = r.get('sweep_ms')if 'error' not in r else None
+            ro_ms = ro.get('time_ms') if 'error' not in ro else None
 
             e_spd  = i_ms / e_ms  if e_ms  and e_ms  > 0 else None
             r_spd  = i_ms / r_ms  if r_ms  and r_ms  > 0 else None
             rs_spd = i_ms / rs_ms if rs_ms and rs_ms > 0 else None
+            ro_spd = i_ms / ro_ms if ro_ms and ro_ms > 0 else None
 
             if e_spd  is not None: g_e_spds.append(e_spd)
             if r_spd  is not None: g_r_spds.append(r_spd)
@@ -810,7 +908,7 @@ def _save_results_89(all_results: list, args):
         txt_lines.append("=" * W)
 
         # MEPS table
-    meps_valid = [(fn, e, r, i) for fn, e, r, i in all_results
+    meps_valid = [(fn, e, r, ro, i) for fn, e, r, ro, i in all_results
                   if 'error' not in e and 'error' not in r]
     if meps_valid:
         txt_lines.append("")
@@ -825,7 +923,7 @@ def _save_results_89(all_results: list, args):
         )
         txt_lines.append(meps_hdr)
         txt_lines.append("-" * W)
-        for fn, e, r, i in meps_valid:
+        for fn, e, r, ro, i in meps_valid:
             e_ev    = f"{e.get('total_evals', 0):,}"   if 'error' not in e else "ERR"
             e_meps  = f"{e.get('meps', 0):.2f}"        if 'error' not in e else "ERR"
             r_ev    = f"{r.get('total_evals', 0):,}"   if 'error' not in r else "ERR"
@@ -848,10 +946,10 @@ def _save_results_89(all_results: list, args):
     txt_lines.append("  BENCHMARK SUMMARY")
     txt_lines.append("=" * W)
     total_circuits = len(all_results)
-    ok_e  = sum(1 for _, e, r, i in all_results if 'error' not in e)
-    ok_r  = sum(1 for _, e, r, i in all_results if 'error' not in r)
-    ok_rs = sum(1 for _, e, r, i in all_results if 'sweep_ms' in r)
-    ok_i  = sum(1 for _, e, r, i in all_results if 'error' not in i)
+    ok_e  = sum(1 for _, e, r, ro, i in all_results if 'error' not in e)
+    ok_r  = sum(1 for _, e, r, ro, i in all_results if 'error' not in r)
+    ok_rs = sum(1 for _, e, r, ro, i in all_results if 'sweep_ms' in r)
+    ok_i  = sum(1 for _, e, r, ro, i in all_results if 'error' not in i)
     txt_lines.append(f"  Circuits tested       : {total_circuits}")
     txt_lines.append(f"  Engine results OK     : {ok_e}/{total_circuits}")
     txt_lines.append(f"  Reactor (prop) OK     : {ok_r}/{total_circuits}")
@@ -888,10 +986,10 @@ def _save_results_89(all_results: list, args):
     txt_lines.append("  BENCHMARK SUMMARY")
     txt_lines.append("=" * W)
     total_circuits = len(all_results)
-    ok_e  = sum(1 for _, e, r, i in all_results if 'error' not in e)
-    ok_r  = sum(1 for _, e, r, i in all_results if 'error' not in r)
-    ok_rs = sum(1 for _, e, r, i in all_results if 'sweep_ms' in r)
-    ok_i  = sum(1 for _, e, r, i in all_results if 'error' not in i)
+    ok_e  = sum(1 for _, e, r, ro, i in all_results if 'error' not in e)
+    ok_r  = sum(1 for _, e, r, ro, i in all_results if 'error' not in r)
+    ok_rs = sum(1 for _, e, r, ro, i in all_results if 'sweep_ms' in r)
+    ok_i  = sum(1 for _, e, r, ro, i in all_results if 'error' not in i)
     txt_lines.append(f"  Circuits tested       : {total_circuits}")
     txt_lines.append(f"  Engine results OK     : {ok_e}/{total_circuits}")
     txt_lines.append(f"  Reactor (prop) OK     : {ok_r}/{total_circuits}")
@@ -948,16 +1046,22 @@ def main():
                         help='Skip Icarus Verilog benchmark')
     parser.set_defaults(icarus=True)
 
+    parser.add_argument('--perf', action='store_true',
+                        help='Run perf for each python backend and generate individual reports')
+    parser.add_argument('--perf-events', type=str, default="",
+                        help='Comma separated list of perf events to trace')
+
     parser.add_argument('--internal-worker', action='store_true',
                         help=argparse.SUPPRESS)
-    parser.add_argument('--mode', type=str, choices=['engine', 'reactor'],
+    parser.add_argument('--mode', type=str, choices=['engine', 'reactor', 'reactor_oop'],
                         help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
     if args.internal_worker:
         internal_worker_main(
-            args.target, args.mode, args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep
+            args.target, args.mode, args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep,
+            getattr(args, 'perf', False), getattr(args, 'perf_events', '')
         )
         sys.exit(0)
 
@@ -1005,18 +1109,21 @@ def main():
         f"| {'Circuit':<16} "
         f"| {'Engine':^10} "
         f"| {'Reactor':^11} | {'':<12} "
+        f"| {'ReactorOOP':^12} "
         f"| {'Icarus':^14} |"
     )
     sep = (
         f"|{'-'*18}"
         f"|{'-'*12}"
         f"|{'-'*13}|{'-'*14}"
+        f"|{'-'*14}"
         f"|{'-'*16}|"
     )
     cols2 = (
         f"| {'':<16} "
         f"| {'Time(ms)':>10} "
         f"| {'prop(ms)':>11} | {'sweep(ms)':>12} "
+        f"| {'prop(ms)':>12} "
         f"| {'sim(ms)':>14} |"
     )
     print(cols1)
@@ -1041,21 +1148,31 @@ def main():
         # Run Engine and Reactor in isolated subprocesses
         if args.engine:
             e_res = run_python_backend_process_89(
-                filepath, 'engine',  args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep
+                filepath, 'engine',  args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep,
+                getattr(args, 'perf', False), getattr(args, 'perf_events', '')
             )
         else:
             e_res = {"engine": "Engine", "file": filename, "error": "disabled"}
             
         if args.rx_prop or args.rx_sweep:
             r_res = run_python_backend_process_89(
-                filepath, 'reactor', args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep
+                filepath, 'reactor', args.vectors, args.warmup, args.optimize, args.rx_prop, args.rx_sweep,
+                getattr(args, 'perf', False), getattr(args, 'perf_events', '')
+            )
+            ro_res = run_python_backend_process_89(
+                filepath, 'reactor_oop', args.vectors, args.warmup, args.optimize, True, False,
+                getattr(args, 'perf', False), getattr(args, 'perf_events', '')
             )
         else:
             r_res = {"engine": "Reactor", "file": filename, "error": "disabled"}
+            ro_res = {"engine": "ReactorOOP", "file": filename, "error": "disabled"}
             
         # Run Icarus harness
         if args.icarus:
-            i_res = run_icarus_harness_89(filepath, args.vectors, args.warmup)
+            i_res = run_icarus_harness_89(
+                filepath, args.vectors, args.warmup,
+                getattr(args, 'perf', False), getattr(args, 'perf_events', '')
+            )
         else:
             i_res = {"engine": "Icarus", "file": filename, "error": "disabled"}
 
@@ -1063,6 +1180,7 @@ def main():
         r_str    = f"{r_res['time_ms']:.1f}"   if 'error' not in r_res else "ERR"
         rs_str   = (f"{r_res['sweep_ms']:.1f}" if 'sweep_ms'   in r_res
                     else ("ERR" if 'sweep_error' in r_res else "N/A"))
+        ro_str   = f"{ro_res['time_ms']:.1f}"   if 'error' not in ro_res else "ERR"
         i_sim_str= f"{i_res['time_ms']:.2f}"   if 'error' not in i_res else "ERR"
 
         # Eval sub-lines
@@ -1070,24 +1188,26 @@ def main():
         r_ev  = f"{r_res.get('total_evals', 0):>11,}" if 'error' not in r_res else f"{'ERR':>11}"
         rs_ev = (f"{r_res['sweep_evals']:>12,}"        if 'sweep_evals' in r_res
                  else (f"{'ERR':>12}" if 'sweep_error' in r_res else f"{'N/A':>12}"))
+        ro_ev = f"{ro_res.get('total_evals', 0):>12,}" if 'error' not in ro_res else f"{'ERR':>12}"
 
         row_str = (
             f"| {filename:<16} | "
             f"{e_str:>10} | {r_str:>11} | {rs_str:>12} | "
+            f"{ro_str:>12} | "
             f"{i_sim_str:>14} |"
         )
         md_lines.append(row_str)
 
         if not getattr(args, 'json', False):
             print(row_str)
-            print(f"| {'evals':<16} | {e_ev} | {r_ev} | {rs_ev} | {'-':>14} |")
+            print(f"| {'evals':<16} | {e_ev} | {r_ev} | {rs_ev} | {ro_ev} | {'-':>14} |")
             sys.stdout.flush()
 
-        all_results.append((filename, e_res, r_res, i_res))
+        all_results.append((filename, e_res, r_res, ro_res, i_res))
 
     if getattr(args, 'json', False):
         ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        circuits_data = [{"circuit": fn, "engine": e, "reactor": r, "icarus": i} for fn, e, r, i in all_results]
+        circuits_data = [{"circuit": fn, "engine": e, "reactor": r, "reactor_oop": ro, "icarus": i} for fn, e, r, ro, i in all_results]
         payload = {
             "meta": {"timestamp": ts, "target": args.target, "total_vectors": args.vectors, "warmup_vectors": args.warmup, "measured_vectors": measured, "optimize": args.optimize},
             "circuits": circuits_data

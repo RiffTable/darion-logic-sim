@@ -105,6 +105,7 @@ cdef class Gate:
             return
         source.info.hitlist.emplace_back(<CPP_Gate*>self.info, index, source.info.output)
         self.sources[index] = source
+        self.info.book[UNKNOWN] -= 1
         self.info.book[source.info.output] += 1
         self.info.invalid -= 1
         if source.info.output==UNKNOWN:
@@ -119,6 +120,7 @@ cdef class Gate:
         pop(source.info.hitlist, <CPP_Gate*>self.info, index)
         self.sources[index] = None
         self.info.book[source.info.output] -= 1
+        self.info.book[UNKNOWN] += 1
         self.info.invalid += 1
         self.info.output=UNKNOWN
    
@@ -181,23 +183,22 @@ cdef class Gate:
     cpdef bint setlimits(self,int size):
         if size<2 or self.id>=BUFFER_ID:
             return False
-        cdef int i
-        cdef int n
-
-        if size>self.info.inputlimit:
-            for _ in range(size-self.info.inputlimit):
-                self.sources.append(None)
-            self.info.invalid += (size - self.info.inputlimit)
+        cdef int limit=self.info.inputlimit
+        if size>limit:
+            self.sources.extend([None]*(size-limit))
             self.info.inputlimit=size
+            self.info.book[UNKNOWN] += (size-limit)
+            self.info.invalid += (size-limit)
+            self.process()
             return True
-        elif size<self.info.inputlimit:
-            for i in range(size, self.info.inputlimit):
-                if self.sources[i]:
-                    return False
-                i+=1
-            self.info.invalid -= (self.info.inputlimit - size)
-            self.sources = self.sources[:size]
+        elif size<limit:
+            for i in range(size,limit):
+                if self.sources[i]:return False
+            self.sources=self.sources[:size]
             self.info.inputlimit=size
+            self.info.book[UNKNOWN] -= (limit-size)
+            self.info.invalid -= (limit-size)
+            self.process()
             return True
         return False
 

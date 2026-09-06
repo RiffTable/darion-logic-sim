@@ -4,14 +4,26 @@ import subprocess
 import glob
 import re
 import datetime
+import argparse
 
 if sys.platform != "linux":
     print("Error: Hardware profiling ('perf' and FIFOs) is Linux-exclusive. Aborting.")
     sys.exit(0)
 
-CIRCUITS = sorted(glob.glob("tests/ISCAS85/*.v"), key=lambda x: os.path.getsize(x))
+parser = argparse.ArgumentParser(description="Multi-engine hardware profiling")
+parser.add_argument("--vectors", type=int, default=50000, help="Number of test vectors (default: 500)")
+parser.add_argument("--filter", type=str, default="", help="Filter circuits by name (e.g., 'voter')")
+parser.add_argument("--limit", type=int, default=None, help="Limit number of circuits tested")
+args = parser.parse_args()
+
+CIRCUITS = sorted(glob.glob("tests/ISCAS89/*.v"), key=lambda x: os.path.getsize(x))
+if args.filter:
+    CIRCUITS = [c for c in CIRCUITS if args.filter in os.path.basename(c)]
+if args.limit is not None:
+    CIRCUITS = CIRCUITS[:args.limit]
+
 EVENTS = "L1-dcache-loads:u,L1-dcache-load-misses:u,l2_cache_req_stat.ic_dc_miss_in_l2:u,cache-misses:u,ex_ret_brn:u,ex_ret_brn_misp:u,instructions:u,cycles:u"
-VECTORS = 10000
+VECTORS = args.vectors
 
 ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 os.makedirs("tests/test_result/perf", exist_ok=True)
@@ -35,90 +47,38 @@ for c_path in CIRCUITS:
         except: pass
     os.mkfifo(fifo_path)
     
-    # PASS 1: Pure Python Engine (isolated via internal worker)
-    cmd_engine = [
-        "perf", "record", "-D", "-1", f"--control=fifo:{fifo_path}", "-e", EVENTS, "-o", "perf_engine.data",
-        "--", "python3", "tests/benchmark.py", "--internal-worker", c_path,
-        "--mode", "engine", "--vectors", str(VECTORS), "--warmup", "100"
-    ]
-    if os.path.exists("perf_engine.data"): os.remove("perf_engine.data")
-    subprocess.run(cmd_engine, capture_output=True)
-    
-    res_engine = subprocess.run(["perf", "report", "-i", "perf_engine.data", "--stdio", "--no-children", "--percent-limit=0.01"], capture_output=True, text=True)
-    stats_eng = {}
-    current_event = None
-    for line in res_engine.stdout.split("\n"):
-        m_event = re.search(r"# Samples: .* of event '(.*?)'", line)
-        if m_event:
-            current_event = m_event.group(1)
-            continue
-        m_total = re.search(r"# Event count \(approx\.\):\s+(\d+)", line)
-        if m_total:
-            stats_eng[current_event] = {"total": int(m_total.group(1))}
-
-    # PASS 1.5: Reactor OOP
-    cmd_oop = [
-        "perf", "record", "-D", "-1", f"--control=fifo:{fifo_path}", "-e", EVENTS, "-o", "perf_oop.data",
-        "--", "python3", "tests/benchmark.py", "--internal-worker", c_path,
-        "--mode", "reactor_oop", "--vectors", str(VECTORS), "--warmup", "100",
-        "--no-rx-sweep"
-    ]
-    if os.path.exists("perf_oop.data"): os.remove("perf_oop.data")
-    subprocess.run(cmd_oop, capture_output=True)
-    
-    res_oop = subprocess.run(["perf", "report", "-i", "perf_oop.data", "--stdio", "--no-children", "--percent-limit=0.01"], capture_output=True, text=True)
-    stats_oop = {}
-    current_event = None
-    for line in res_oop.stdout.split("\n"):
-        m_event = re.search(r"# Samples: .* of event '(.*?)'", line)
-        if m_event:
-            current_event = m_event.group(1)
-            continue
-        m_total = re.search(r"# Event count \(approx\.\):\s+(\d+)", line)
-        if m_total:
-            stats_oop[current_event] = {"total": int(m_total.group(1))}
-
-    
-    # PASS 2: Reactor + Icarus
+    # PASS 1: Run unified benchmark which internally traces all engines separately
     cmd_record = [
-        "perf", "record", "-D", "-1", f"--control=fifo:{fifo_path}", "-e", EVENTS, "-o", "perf_tmp.data",
-        "--", "python3", "tests/benchmark.py", c_path,
-        "--vectors", str(VECTORS), "--warmup", "100", "--optimize", "--no-engine", "--json"
+        "python3", "tests/benchmark_89.py", c_path,
+        "--vectors", str(VECTORS), "--warmup", "10", "--optimize", "--json", "--no-engine",
+        "--perf", "--perf-events", EVENTS
     ]
-    if os.path.exists("perf_tmp.data"): os.remove("perf_tmp.data")
     subprocess.run(cmd_record, capture_output=True)
-    if os.path.exists(fifo_path):
-        try: os.remove(fifo_path)
-        except: pass
-        
-    cmd_report = ["perf", "report", "-i", "perf_tmp.data", "--stdio", "--no-children", "--percent-limit=0.01"]
-    res = subprocess.run(cmd_report, capture_output=True, text=True)
-    output = res.stdout
     
-    stats = {}
-    current_event = None
+    # Parse individual reports
+    engine_stats = {"engine": {}, "prop": {}, "sweep": {}, "oop": {}, "icarus": {}}
     
-    for line in output.split("\n"):
-        m_event = re.search(r"# Samples: .* of event '(.*?)'", line)
-        if m_event:
-            current_event = m_event.group(1)
-            continue
-            
-        m_total = re.search(r"# Event count \(approx\.\):\s+(\d+)", line)
-        if m_total:
-            stats[current_event] = {"total": int(m_total.group(1)), "prop": 0.0, "sweep": 0.0, "icarus": 0.0}
-            continue
-            
-        if current_event:
-            m_pct = re.search(r"^\s*([0-9\.]+)\%", line)
-            if m_pct:
-                pct = float(m_pct.group(1))
-                if "Circuit_propagate" in line:
-                    stats[current_event]["prop"] += pct
-                elif "Circuit_sweep" in line:
-                    stats[current_event]["sweep"] += pct
-                elif " vvp " in line or re.search(r"^\s*[0-9\.]+\%\s+(vvp|:\d+)\s+", line):
-                    stats[current_event]["icarus"] += pct
+    report_files = {
+        "engine": f"perf_engine_prop_{c_name}.txt",
+        "prop": f"perf_reactor_prop_{c_name}.txt",
+        "sweep": f"perf_reactor_sweep_{c_name}.txt",
+        "oop": f"perf_reactor_oop_prop_{c_name}.txt",
+        "icarus": f"perf_icarus_{c_name}.txt"
+    }
+
+    for eng, rep_file in report_files.items():
+        if os.path.exists(rep_file):
+            with open(rep_file, "r", encoding="utf-8") as f:
+                current_event = None
+                for line in f:
+                    m_event = re.search(r"# Samples: .* of event '(.*?)'", line)
+                    if m_event:
+                        current_event = m_event.group(1)
+                        continue
+                    m_total = re.search(r"# Event count \(approx\.\):\s+(\d+)", line)
+                    if m_total and current_event:
+                        engine_stats[eng][current_event] = int(m_total.group(1))
+            os.remove(rep_file)
 
     def fmt(n):
         if n >= 1e9: return f"{n/1e9:.2f}B"
@@ -128,15 +88,7 @@ for c_path in CIRCUITS:
 
     for engine in ["engine", "prop", "sweep", "oop", "icarus"]:
         def get_count(evt):
-            if engine == "engine":
-                if evt not in stats_eng: return 0
-                return stats_eng[evt]["total"]
-            elif engine == "oop":
-                if evt not in stats_oop: return 0
-                return stats_oop[evt]["total"]
-            else:
-                if evt not in stats: return 0
-                return int(stats[evt]["total"] * (stats[evt][engine] / 100.0))
+            return engine_stats[engine].get(evt, 0)
 
         l1_load = get_count("L1-dcache-loads:u") or get_count("L1-dcache-loads")
         l1_miss = get_count("L1-dcache-load-misses:u") or get_count("L1-dcache-load-misses")
@@ -159,9 +111,6 @@ for c_path in CIRCUITS:
         
         row_str = f"| {c_name:<10} | {ipc:>5.2f} | {fmt(brn):<8} | {fmt(brn_miss):<8} | {fmt(l1_load):<8} | {l1_hr:>7.2f}% | {fmt(l1_miss):<8} | {l2_hr:>7.2f}% | {fmt(l2_miss):<12} |"
         results[engine].append(row_str)
-
-if os.path.exists("perf_tmp.data"): os.remove("perf_tmp.data")
-if os.path.exists("perf_engine.data"): os.remove("perf_engine.data")
 
 with open(REPORT_FILE, "w") as f:
     f.write("# Hardware Profiling\n\n")

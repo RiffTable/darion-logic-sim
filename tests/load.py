@@ -234,7 +234,7 @@ def measure_icarus_ram(v_file: str) -> dict:
         # 1. Measure Empty VVP Baseline
         subprocess.run(["iverilog", "-o", empty_vvp_file, wait_tb], capture_output=True, text=True)
         
-        p_empty = psutil.Popen(["vvp", empty_vvp_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        p_empty = psutil.Popen(["vvp", empty_vvp_file], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         for line in p_empty.stdout:
             if "READY" in line: break
         base_mem_mb = p_empty.memory_info().rss / (1024 * 1024)
@@ -255,7 +255,7 @@ def measure_icarus_ram(v_file: str) -> dict:
         if res.returncode != 0:
             return {"error": "Compile N/A"}
         
-        p = psutil.Popen(["vvp", vvp_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        p = psutil.Popen(["vvp", vvp_file], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         for line in p.stdout:
             if "READY" in line: break
             
@@ -306,12 +306,11 @@ def main():
     parser.set_defaults(rx_prop=True)
     parser.add_argument('--no-rx-sweep', dest='rx_sweep', action='store_false', help='Skip Reactor memory benchmark (compatibility)')
     parser.set_defaults(rx_sweep=True)
-    parser.add_argument('--no-reactor-oop', dest='reactor_oop', action='store_false', help='Skip Reactor OOP benchmark')
-    parser.set_defaults(reactor_oop=True)
+
     parser.add_argument('--no-icarus', dest='icarus', action='store_false', help='Skip Icarus Verilog benchmark')
     parser.set_defaults(icarus=True)
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
-    parser.add_argument('--mode', type=str, choices=['engine', 'reactor', 'reactor_oop'], help=argparse.SUPPRESS)
+    parser.add_argument('--mode', type=str, choices=['engine', 'reactor'], help=argparse.SUPPRESS)
     parser.add_argument('--dump', action='store_true', help='Only generate final data')
     parser.add_argument('--json', action='store_true', help='Only generate json output')
     args = parser.parse_args()
@@ -325,25 +324,22 @@ def main():
 
     v_files = get_v_files(args.target)
 
-    W = 230
+    W = 175
     cols1 = (
         f"| {'Circuit':<16} | {'Gates':<10} "
         f"| {'':<10} | {'':<10} | {'Engine':^10} | {'':<10} "
         f"| {'':<10} | {'':<10} | {'Reactor':^10} | {'':<10} | {'':<10} "
-        f"| {'':<10} | {'':<10} | {'Reactor OOP':^10} | {'':<10} | {'':<10} "
         f"| {'':<10} | {'':<10} | {'Icarus':^10} | {'':<10} |"
     )
     sep = (
         f"|{'-'*18}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
-        f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|"
     )
     cols2 = (
         f"| {'':<16} | {'':<10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Load(ms)':>10} "
-        f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Load(ms)':>10} | {'Opt(ms)':>10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Load(ms)':>10} | {'Opt(ms)':>10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Comp(ms)':>10} |"
     )
@@ -380,12 +376,7 @@ def main():
         else:
             r_dict = {"error": "N/A"}
             
-        if args.reactor_oop:
-            res_ro = subprocess.run([sys.executable, __file__, "--internal-worker", vf, "--mode", "reactor_oop"], capture_output=True, text=True)
-            ro_dict = _parse_mem(res_ro)
-        else:
-            ro_dict = {"error": "N/A"}
-        
+
         if args.icarus:
             i_dict = measure_icarus_ram(vf)
         else:
@@ -411,17 +402,15 @@ def main():
                 "gates": gates_val,
                 "engine": e_dict,
                 "reactor": r_dict,
-                "reactor_oop": ro_dict,
                 "icarus": i_dict
             })
         else:
             e_str = eng_cols(e_dict)
             r_str = rx_cols(r_dict)
-            ro_str = rx_cols(ro_dict)
             i_str = ic_cols(i_dict)
             
             gates_str = f"{gates_val:,}" if gates_val is not None else "N/A"
-            row_str = f"| {fn:<16} | {gates_str:>10} | {e_str} | {r_str} | {ro_str} | {i_str} |"
+            row_str = f"| {fn:<16} | {gates_str:>10} | {e_str} | {r_str} | {i_str} |"
             
             if not getattr(args, 'json', False):
                 print(row_str)
