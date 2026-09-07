@@ -34,10 +34,8 @@ struct Task {
 
 // Bitmask Definitions
 enum GateFlags : uint8_t {
-    FLAG_VALUE     = 1 << 0, // Bit 0 (Dec: 1)
-    FLAG_SCHEDULED = 1 << 1, // Bit 1 (Dec: 2)
-    FLAG_MARK      = 1 << 2, // Bit 2 (Dec: 4)
-    FLAG_UPDATE    = 1 << 3  // Bit 3 (Dec: 8)
+ // Bit 3 (Dec: 8)
+    
 };
 
 struct CPP_Gate {
@@ -61,14 +59,13 @@ struct CPP_Gate {
     uint8_t      inputlimit;
     uint8_t      flags;
     uint8_t      book[3];
-    uint8_t      invalid;
     unsigned int target_time;    // moved before hitlist — stays in hot cacheline
     std::vector<Profile> hitlist; // 24 B; out-of-line data prefetched separately
 
-    CPP_Gate() : type(0), output(2), inputlimit(2), flags(8), invalid(2), target_time(0), hitlist() {
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(8), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(8), invalid(lim), target_time(0), hitlist() {
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(8), target_time(0), hitlist() {
         book[0] = book[1] = book[2] = 0;
     }
 };

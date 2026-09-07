@@ -11,12 +11,12 @@ if sys.platform != "linux":
     sys.exit(0)
 
 parser = argparse.ArgumentParser(description="Multi-engine hardware profiling")
-parser.add_argument("--vectors", type=int, default=50000, help="Number of test vectors (default: 500)")
+parser.add_argument("--vectors", type=int, default=5000, help="Number of test vectors (default: 500)")
 parser.add_argument("--filter", type=str, default="", help="Filter circuits by name (e.g., 'voter')")
 parser.add_argument("--limit", type=int, default=None, help="Limit number of circuits tested")
 args = parser.parse_args()
 
-CIRCUITS = sorted(glob.glob("tests/ISCAS89/*.v"), key=lambda x: os.path.getsize(x))
+CIRCUITS = sorted(glob.glob("tests/ISCAS85/*.v"), key=lambda x: os.path.getsize(x))
 if args.filter:
     CIRCUITS = [c for c in CIRCUITS if args.filter in os.path.basename(c)]
 if args.limit is not None:
@@ -49,7 +49,7 @@ for c_path in CIRCUITS:
     
     # PASS 1: Run unified benchmark which internally traces all engines separately
     cmd_record = [
-        "python3", "tests/benchmark_89.py", c_path,
+        "python3", "tests/benchmark.py", c_path,
         "--vectors", str(VECTORS), "--warmup", "10", "--optimize", "--json", "--no-engine",
         "--perf", "--perf-events", EVENTS
     ]

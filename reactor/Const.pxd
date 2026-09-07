@@ -26,14 +26,25 @@ cpdef enum:
     NOR_ID = 3
     XOR_ID = 4
     XNOR_ID = 5
+
+    SINGLE_INPUT_ID = 6
     BUFFER_ID = 6
     NOT_ID = 7
+
     IC_INPUT_PIN_ID = 8
     VARIABLE_ID = 9
     IC_OUTPUT_PIN_ID = 10
+
     IC_ID = 11
     TOTAL = 12
 
+    FLAG_NEGATE=1<<0
+    FLAG_VALID=1<<1
+    FLAG_AND=1<<4
+    FLAG_OR=1<<5
+    # FLAG_OTHER=1<<6
+
+    LUT= 0x254
     NAME=-1
     CUSTOM_NAME=NAME+1
     ID=NAME+2

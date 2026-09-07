@@ -30,7 +30,7 @@ cdef inline void hide(Profile& profile, CPP_Gate* gate_infolist, list gate_verse
     cdef CPP_Gate* target_info = profile.target
     if target_info.type != VARIABLE_ID:
         target_info.book[profile.output] -= 1
-    target_info.invalid += 1
+    target_info.inputlimit += 1
     cdef int target_loc = target_info - gate_infolist
     cdef Gate target_gate = <Gate>gate_verse[target_loc]
     target_gate._sources[profile.index] = -1
@@ -42,7 +42,7 @@ cdef inline void reveal(Profile& profile, Gate source, list gate_verse):
     cdef CPP_Gate* target_info = profile.target
     if target_info.type != VARIABLE_ID:
         target_info.book[UNKNOWN] += 1
-    target_info.invalid -= 1
+    target_info.inputlimit -= 1
     cdef int target_loc = target_info - gate_infolist
     cdef Gate target_gate = <Gate>gate_verse[target_loc]
     target_gate._sources[profile.index] = source.location
@@ -53,7 +53,7 @@ cdef class Gate:
         self.codename = name
         self.location = -1
         self.id = id
-        if id >= BUFFER_ID:
+        if id >= SINGLE_INPUT_ID:
             self._sources = [-1]
         else:
             self._sources = [-1, -1]
@@ -161,12 +161,7 @@ cdef class Gate:
     @inputlimit.setter
     def inputlimit(self, int val):
         self.info.inputlimit = val
-        self.info.invalid = val
         
-    @property
-    def invalid(self):
-        '''How many unconnected input pins this gate has'''
-        return self.info.invalid
     cdef void process(self):
         '''Recompute this gate's output from its current inputs and type
         a slower yet safer method of updating output'''
@@ -219,7 +214,7 @@ cdef class Gate:
             
         src_info.hitlist.emplace_back(&gate_infolist[self.location], index, src_info.output)
         self._sources[index] = source
-        self_info.invalid -= 1
+        self_info.inputlimit -= 1
         if self.id!=VARIABLE_ID:
             self_info.book[src_info.output] += 1
         self.process()
@@ -234,7 +229,7 @@ cdef class Gate:
         cdef CPP_Gate* src_info = &gate_infolist[src_loc]
         pop(src_info.hitlist, gate_infolist, &gate_infolist[self.location], index)
         self._sources[index] = -1
-        self_info.invalid += 1
+        self_info.inputlimit += 1
         self_info.output = UNKNOWN
 
     cdef void reset(self):
@@ -316,15 +311,14 @@ cdef class Gate:
         cdef CPP_Gate* info = self.info
         cdef int i
         cdef int current
-        if size < 2 or info.type >= BUFFER_ID:
+        if size < 2 or info.type >= SINGLE_INPUT_ID:
             return False
-        current = info.inputlimit
+        current = len(self._sources)
 
         if size > current:
             for _ in range(size - current):
                 self._sources.append(-1)
-            info.inputlimit = size
-            info.invalid += (size - current)
+            info.inputlimit += (size - current)
             self.process()
             return True
         elif size < current:
@@ -333,8 +327,7 @@ cdef class Gate:
                     return False
             for i in range(current - size):
                 self._sources.pop()
-            info.inputlimit = size
-            info.invalid -= (current - size)
+            info.inputlimit -= (current - size)
             self.process()
             return True
         return False

@@ -707,7 +707,8 @@ cdef class Circuit:
         self.copydata.clear()
         cdef int i=0,j=0,n
         cdef vector[int] hash_map,in_degree,hidden,serial
-        cdef Profile* profile, *end
+        cdef Profile* profile, 
+        cdef Profile *end
         cdef int degree=0,index=0,active_gates=0
         cdef CPP_Gate* info
         cdef vector[CPP_Gate] new_gate_infolist
@@ -1189,7 +1190,7 @@ cdef class Circuit:
             else:
                 (<IC>i).reset()
 
-    cdef void complete_task(self, Task task) nogil:
+    cdef void complete_task(self, Task task) noexcept nogil:
         '''Process one task called from the async drain loop on the main thread.'''
         self.Global_Clock = task.time   
         cdef int origin = task.gate_loc
@@ -1237,7 +1238,7 @@ cdef class Circuit:
             book[new_output] += 1
             high = book[HIGH]
             low  = book[LOW]
-            if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+            if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
             elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
             elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
             else: target_output= (high&1)^(gate_type&1)
@@ -1255,15 +1256,15 @@ cdef class Circuit:
             self.time_queue.push(Task(origin, next_time, origin))
             self.time_limit.push(next_time + (self.FanOut_delay[self_info.type] * self_info.hitlist.size()))
 
-    cdef void propagate(self, int origin) nogil:
+    cdef void propagate(self, int origin) noexcept nogil:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
         cdef Profile* end
-        cdef int gate_loc
-        cdef int realsource, high, low,limit,gate_type
-        cdef int new_output, profile_output, target_output
-        cdef int index = 0, end_point = 1, size = 0
-        cdef int eval = 0
+        cdef Py_ssize_t gate_loc
+        cdef Py_ssize_t realsource, high, low,limit,gate_type,flags
+        cdef Py_ssize_t new_output, profile_output, target_output
+        cdef Py_ssize_t index = 0, end_point = 1, size = 0
+        cdef Py_ssize_t eval = 0
         cdef CPP_Gate** read_queue = self.queue[0]
         cdef CPP_Gate** write_queue = self.queue[1]
         cdef CPP_Gate* self_info
@@ -1305,16 +1306,16 @@ cdef class Circuit:
                 while profile != end:
                     profile_output = profile.output
                     target_info = profile.target
-                    gate_type = target_info.type
+                    flags = target_info.flags
                     book = target_info.book
                     book[profile_output] -= 1
                     book[new_output] += 1
                     high = book[HIGH]
                     low  = book[LOW]
-                    if (new_output==UNKNOWN) or target_info.invalid:target_output=UNKNOWN
-                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                    else: target_output= (high&1)^(gate_type&1)
+                    if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
+                    elif flags & FLAG_AND: target_output= (low==0)^(flags&1)
+                    elif flags & FLAG_OR: target_output= (high>0)^(flags&1)
+                    else: target_output= (high&1)^(flags&1)
                     write_queue[size] = profile.target
                     size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
                     target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
@@ -1327,7 +1328,7 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    cdef void batch_propagate(self,Py_ssize_t end_point) nogil:
+    cdef void batch_propagate(self,Py_ssize_t end_point) noexcept nogil:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
         cdef Profile* end
@@ -1375,7 +1376,7 @@ cdef class Circuit:
                     book[new_output] += 1
                     high = book[HIGH]
                     low  = book[LOW]
-                    if (new_output==UNKNOWN) or  target_info.invalid:target_output=UNKNOWN
+                    if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
                     elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
                     elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
                     else: target_output= (high&1)^(gate_type&1)
@@ -1391,11 +1392,11 @@ cdef class Circuit:
             read_queue, write_queue = write_queue, read_queue
         self.eval_count += eval
 
-    cdef void sweep(self, int origin) nogil:
+    cdef void sweep(self, int origin) noexcept nogil:
         '''propagate the output of a gate to its targets'''
         cdef Profile* profile
         cdef Profile* end
-        cdef Py_ssize_t realsource, high, low,limit,gate_type
+        cdef Py_ssize_t realsource, high, low,limit,flags
         cdef Py_ssize_t new_output, profile_output, target_output
         cdef Py_ssize_t index = 0,end_point = 0, size = self.gate_infolist.size()
         cdef Py_ssize_t eval = 0
@@ -1419,16 +1420,16 @@ cdef class Circuit:
                 while profile != end:
                     profile_output = profile.output
                     target_info = profile.target
-                    gate_type = target_info.type
+                    flags = target_info.flags
                     book = target_info.book
                     book[profile_output] -= 1
                     book[new_output] += 1
                     high = book[HIGH]
                     low  = book[LOW]                        
-                    if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
-                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                    else: target_output= (high&1)^(gate_type&1)
+                    if new_output==UNKNOWN or target_info.inputlimit:target_output=UNKNOWN
+                    elif flags & FLAG_AND: target_output= (low==0)^(flags&FLAG_NEGATE)
+                    elif flags & FLAG_OR: target_output= (high>0)^(flags&FLAG_NEGATE)
+                    else: target_output= (high&1)^(flags&FLAG_NEGATE)
 
                     self.queue[0][end_point] = profile.target
                     end_point += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output) & ((profile.target - gate_infolist)<=index))

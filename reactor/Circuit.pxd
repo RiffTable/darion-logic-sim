@@ -76,12 +76,12 @@ cdef class Circuit:
     cpdef void copy(self, list components)
     cpdef list paste(self)
     cpdef void transfer_info(self, Gate gate, int id)
-    cdef void complete_task(self, Task task) nogil
-    cdef void propagate(self, int origin) nogil
-    cdef void sweep(self, int origin) nogil
+    cdef void complete_task(self, Task task) noexcept nogil
+    cdef void propagate(self, int origin) noexcept nogil
+    cdef void sweep(self, int origin) noexcept nogil
     cpdef double batch_toggle(self, list batch, int batch_size=*)
     cpdef list geometry(self)
-    cdef void batch_propagate(self, Py_ssize_t end_point) nogil
+    cdef void batch_propagate(self, Py_ssize_t end_point) noexcept nogil
     cpdef bint visual_queue_empty(self)
     cpdef void visual_queue_clear(self)
     cpdef int pop_visual_queue(self)
