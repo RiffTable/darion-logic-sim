@@ -37,7 +37,7 @@ cdef class Circuit:
     cpdef bint setlimits(self, Gate gate, int size)
     cpdef void connect(self, Gate target, Gate source, int index)
     cpdef void toggle(self, Gate target, int value)
-    cpdef double batch_toggle(self, list batch, int batch_size=*)
+    cpdef double batch_toggle(self, list batch, int batch_size=*, bint perf_trace=*)
     cpdef void disconnect(self, Gate target, int index)
     cpdef void delobj(self, object gate)
     cpdef IC build_ic(self)

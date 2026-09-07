@@ -24,7 +24,8 @@ cdef inline void pop(vector[Profile]& hitlist,CPP_Gate* target, int pin_index):
 cdef inline void hide(Profile& profile):
     cdef CPP_Gate* target_info = <CPP_Gate*>profile.target
     cdef Gate target = <Gate>target_info.gate
-    target_info.book[profile.output] -= 1
+    if profile.output == HIGH: target_info.high -= 1
+    elif profile.output == LOW: target_info.low -= 1
     target_info.invalid += 1
     target.sources[profile.index] = None
     profile.output = UNKNOWN
@@ -32,7 +33,6 @@ cdef inline void hide(Profile& profile):
 cdef inline void reveal(Profile& profile,Gate source):
     cdef CPP_Gate* target_info = <CPP_Gate*>profile.target
     cdef Gate target = <Gate>target_info.gate
-    target_info.book[UNKNOWN] += 1
     target_info.invalid -= 1
     target.sources[profile.index] = source
 
@@ -71,7 +71,6 @@ cdef class Gate:
         return result
 
     cdef void process(self):
-        cdef uint8_t* book
         cdef int gate_type
         cdef int limit
         cdef int low
@@ -86,11 +85,9 @@ cdef class Gate:
             else:
                 limit=self.info.inputlimit
                 gate_type=self.id
-                book = self.info.book
-                high = book[HIGH]
-                low = book[LOW]
-                realsource = high+low
-                if likely(realsource==limit) or unlikely(realsource and realsource+book[UNKNOWN]==limit):
+                high = self.info.high
+                low = self.info.low
+                if likely(self.info.invalid == 0):
                     if gate_type<=NAND_ID:self.info.output = (low==0)^(gate_type&1)
                     elif gate_type<=NOR_ID:self.info.output = (high>0)^(gate_type&1)
                     else:self.info.output = (high&1)^(gate_type&1)
@@ -105,8 +102,8 @@ cdef class Gate:
             return
         source.info.hitlist.emplace_back(<CPP_Gate*>self.info, index, source.info.output)
         self.sources[index] = source
-        self.info.book[UNKNOWN] -= 1
-        self.info.book[source.info.output] += 1
+        if source.info.output == HIGH: self.info.high += 1
+        elif source.info.output == LOW: self.info.low += 1
         self.info.invalid -= 1
         if source.info.output==UNKNOWN:
             self.info.output = UNKNOWN
@@ -119,17 +116,15 @@ cdef class Gate:
         cdef Gate source = self.sources[index]
         pop(source.info.hitlist, <CPP_Gate*>self.info, index)
         self.sources[index] = None
-        self.info.book[source.info.output] -= 1
-        self.info.book[UNKNOWN] += 1
+        if source.info.output == HIGH: self.info.high -= 1
+        elif source.info.output == LOW: self.info.low -= 1
         self.info.invalid += 1
         self.info.output=UNKNOWN
    
     cdef void reset(self):
-        cdef uint8_t* book
         if self.id!= VARIABLE_ID:
-            book = self.info.book
-            book[UNKNOWN] += book[LOW] + book[HIGH]
-            book[LOW] = book[HIGH] = 0
+            self.info.high = 0
+            self.info.low = 0
         self.info.output = UNKNOWN
         cdef Profile* profile = self.info.hitlist.data()
         cdef Profile* end = profile + self.info.hitlist.size()
@@ -155,10 +150,9 @@ cdef class Gate:
                 if source is not None:
                     pop(source.info.hitlist, <CPP_Gate*>self.info, i)
         self.info.output=UNKNOWN
-        cdef uint8_t* book
         if self.id != VARIABLE_ID:
-            book = self.info.book
-            book[LOW] = book[HIGH] = book[UNKNOWN] = 0
+            self.info.high = 0
+            self.info.low = 0
             self.info.invalid = self.info.inputlimit
 
     cdef void reveal(self):
@@ -172,7 +166,8 @@ cdef class Gate:
                 source=<Gate>PyList_GET_ITEM(sources,i)
                 if source is not None:
                     source.info.hitlist.emplace_back(<CPP_Gate*>self.info, i, source.info.output)
-                    self.info.book[source.info.output]+=1
+                    if source.info.output == HIGH: self.info.high += 1
+                    elif source.info.output == LOW: self.info.low += 1
                     self.info.invalid -= 1
         n=self.info.hitlist.size()
         # reconnect to targets via Python-side hitlist only
@@ -187,7 +182,6 @@ cdef class Gate:
         if size>limit:
             self.sources.extend([None]*(size-limit))
             self.info.inputlimit=size
-            self.info.book[UNKNOWN] += (size-limit)
             self.info.invalid += (size-limit)
             self.process()
             return True
@@ -196,7 +190,6 @@ cdef class Gate:
                 if self.sources[i]:return False
             self.sources=self.sources[:size]
             self.info.inputlimit=size
-            self.info.book[UNKNOWN] -= (limit-size)
             self.info.invalid -= (limit-size)
             self.process()
             return True
@@ -222,7 +215,7 @@ cdef class Gate:
         
     @property
     def book(self):
-        return [self.info.book[0], self.info.book[1], self.info.book[2]]
+        return [self.info.low, self.info.high, self.info.invalid]
 
     @property
     def value(self):

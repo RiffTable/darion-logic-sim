@@ -173,7 +173,7 @@ class Circuit:
                 if gate is not None and getattr(gate, 'inputlimit', None) == 0:
                     gate.scheduled = False
 
-    def batch_toggle(self, batch: list, batch_size: int = 0) -> float:
+    def batch_toggle(self, batch: list, batch_size: int = 0, perf_trace: bool = False) -> float:
         """toggles multiple variables for performance"""
         if getattr(self, '_loc_map_counter', -1) != self.counter:
             self._location_map = {g.location: g for g in self.objlist[VARIABLE_ID] if g is not None}
@@ -184,6 +184,14 @@ class Circuit:
         if batch_size <= 0:
             batch_size = n
             
+        if perf_trace:
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                os.write(fd, b"enable\n")
+                os.close(fd)
+            except Exception:
+                pass
+
         start = time.perf_counter_ns()
         for i in range(0, n):
                 location, value = batch[i]
@@ -194,6 +202,15 @@ class Circuit:
                     self.propagate(gate)
                     
         end = time.perf_counter_ns()
+
+        if perf_trace:
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                os.write(fd, b"disable\n")
+                os.close(fd)
+            except Exception:
+                pass
+
         return (end - start) / 1000000.0
 
     def disconnect(self, target: Gate, index: int):

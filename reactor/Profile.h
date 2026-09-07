@@ -47,7 +47,9 @@ struct CPP_Gate {
     //   offset  1: output       (uint8_t, 1 B)
     //   offset  2: inputlimit   (uint8_t, 1 B)
     //   offset  3: flags        (uint8_t, 1 B)
-    //   offset  4: book[3]      (uint8_t, 3 B)
+    //   offset  4: high         (uint8_t, 1 B)
+    //   offset  5: low          (uint8_t, 1 B)
+    //   offset  6: reserved     (uint8_t, 1 B)
     //   offset  7: invalid (uint8_t, 1 B)
     //   offset  8: target_time  (uint32_t, 4 B)
     //   offset 12: [4 B natural padding to align 8-B hitlist pointer]
@@ -58,15 +60,15 @@ struct CPP_Gate {
     uint8_t      output;
     uint8_t      inputlimit;
     uint8_t      flags;
-    uint8_t      book[3];
+    uint8_t      high;
+    uint8_t      low;
+    uint8_t      reserved; // Keep padding for size alignment
     unsigned int target_time;    // moved before hitlist — stays in hot cacheline
     std::vector<Profile> hitlist; // 24 B; out-of-line data prefetched separately
 
-    CPP_Gate() : type(0), output(2), inputlimit(2), flags(8), target_time(0), hitlist() {
-        book[0] = book[1] = book[2] = 0;
+    CPP_Gate() : type(0), output(2), inputlimit(2), flags(8), high(0), low(0), reserved(0), target_time(0), hitlist() {
     }
-    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(8), target_time(0), hitlist() {
-        book[0] = book[1] = book[2] = 0;
+    CPP_Gate(uint8_t t, uint8_t lim) : type(t), output(2), inputlimit(lim), flags(8), high(0), low(0), reserved(0), target_time(0), hitlist() {
     }
 };
 

@@ -53,7 +53,9 @@ cdef extern from "Profile.h":
         uint8_t output
         uint8_t inputlimit
         uint8_t flags
-        uint8_t book[3]
+        uint8_t high
+        uint8_t low
+        uint8_t reserved
         unsigned int target_time
         vector[Profile] hitlist
         CPP_Gate()

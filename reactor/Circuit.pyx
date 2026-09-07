@@ -198,7 +198,7 @@ cdef class Circuit:
                     if gate_info.inputlimit == 0:
                         gate_info.flags &= ~FLAG_SCHEDULED
 
-    cpdef double batch_toggle(self, list batch, int batch_size=0):
+    cpdef double batch_toggle(self, list batch, int batch_size=0, bint perf_trace=False):
         '''toggles multiple variables and sweeps exactly once for performance'''
         cdef int target, value
         cdef tuple pair
@@ -208,6 +208,7 @@ cdef class Circuit:
         cdef vector[uint8_t] values
         cdef int i, j, n
         cdef double start, end
+        cdef int fd
         
         n = len(batch)
         if batch_size <= 0:
@@ -219,6 +220,16 @@ cdef class Circuit:
             targets.push_back(pair[0])
             values.push_back(pair[1])
             
+        if perf_trace:
+            import os
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                if fd >= 0:
+                    os.write(fd, b"enable\n")
+                    os.close(fd)
+            except Exception:
+                pass
+
         start = time.perf_counter_ns()
         
         if MODE != COMPILE:
@@ -248,6 +259,17 @@ cdef class Circuit:
                 self.sweep(origin)
                 
         end = time.perf_counter_ns()
+
+        if perf_trace:
+            import os
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                if fd >= 0:
+                    os.write(fd, b"disable\n")
+                    os.close(fd)
+            except Exception:
+                pass
+
         return (end - start) / 1000000.0
 
     cpdef void disconnect(self, Gate target, int index):
@@ -491,7 +513,7 @@ cdef class Circuit:
                 else:
                     ch_str = f"val:{comp._sources}"
 
-                book = f"[{info.book[0]},{info.book[1]},{info.book[2]}]"
+                book = f"[{info.low},{info.high},{len(comp._sources)-info.inputlimit-info.low-info.high}]"
 
                 # Targets from info.hitlist — repr() only, no colors in auxiliary columns.
                 tgt = []
@@ -1201,7 +1223,7 @@ cdef class Circuit:
         cdef unsigned int next_time
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint8_t* book
+
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
         
@@ -1233,15 +1255,12 @@ cdef class Circuit:
             profile_output = profile.output
             target_info = profile.target
             gate_type = target_info.type
-            book = target_info.book
-            book[profile_output] -= 1
-            book[new_output] += 1
-            high = book[HIGH]
-            low  = book[LOW]
+            target_info.high += (new_output == HIGH) - (profile_output == HIGH)
+            target_info.low += (new_output == LOW) - (profile_output == LOW)
             if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
-            elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-            elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-            else: target_output= (high&1)^(gate_type&1)
+            elif gate_type<OR_ID: target_output= (target_info.low==0)^(gate_type&1)
+            elif gate_type <XOR_ID: target_output= (target_info.high>0)^(gate_type&1)
+            else: target_output= (target_info.high&1)^(gate_type&1)
             if target_output != target_info.output:
                 target_info.output = target_output
                 target_info.target_time = self.Global_Clock + self.Global_delay[target_info.type] + (self.FanIn_delay[target_info.type] * target_info.inputlimit) + (self.FanOut_delay[target_info.type] * target_info.hitlist.size())
@@ -1269,7 +1288,7 @@ cdef class Circuit:
         cdef CPP_Gate** write_queue = self.queue[1]
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint8_t *book
+        cdef int next_time
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
             
@@ -1307,15 +1326,12 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info = profile.target
                     flags = target_info.flags
-                    book = target_info.book
-                    book[profile_output] -= 1
-                    book[new_output] += 1
-                    high = book[HIGH]
-                    low  = book[LOW]
+                    target_info.high += (new_output == HIGH) - (profile_output == HIGH)
+                    target_info.low += (new_output == LOW) - (profile_output == LOW)
                     if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
-                    elif flags & FLAG_AND: target_output= (low==0)^(flags&1)
-                    elif flags & FLAG_OR: target_output= (high>0)^(flags&1)
-                    else: target_output= (high&1)^(flags&1)
+                    elif flags & FLAG_AND: target_output= (target_info.low==0)^(flags&1)
+                    elif flags & FLAG_OR: target_output= (target_info.high>0)^(flags&1)
+                    else: target_output= (target_info.high&1)^(flags&1)
                     write_queue[size] = profile.target
                     size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
                     target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
@@ -1341,7 +1357,7 @@ cdef class Circuit:
         cdef CPP_Gate** write_queue = self.queue[1]
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint8_t *book
+
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()            
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
@@ -1371,15 +1387,12 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info = profile.target
                     gate_type = target_info.type
-                    book = target_info.book
-                    book[profile_output] -= 1
-                    book[new_output] += 1
-                    high = book[HIGH]
-                    low  = book[LOW]
+                    target_info.high += (new_output == HIGH) - (profile_output == HIGH)
+                    target_info.low += (new_output == LOW) - (profile_output == LOW)
                     if (new_output==UNKNOWN) or target_info.inputlimit: target_output=UNKNOWN
-                    elif gate_type<OR_ID: target_output= (low==0)^(gate_type&1)
-                    elif gate_type <XOR_ID: target_output= (high>0)^(gate_type&1)
-                    else: target_output= (high&1)^(gate_type&1)
+                    elif gate_type<OR_ID: target_output= (target_info.low==0)^(gate_type&1)
+                    elif gate_type <XOR_ID: target_output= (target_info.high>0)^(gate_type&1)
+                    else: target_output= (target_info.high&1)^(gate_type&1)
                     write_queue[size] = profile.target
                     size += ( ((target_info.flags & FLAG_MARK)==0 )& (target_output!=target_info.output))
                     target_info.flags |= FLAG_MARK * (target_output!=target_info.output)
@@ -1402,7 +1415,7 @@ cdef class Circuit:
         cdef Py_ssize_t eval = 0
         cdef CPP_Gate* self_info
         cdef CPP_Gate* target_info
-        cdef uint8_t *book
+
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
         for index in range(origin,size):
@@ -1421,11 +1434,10 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info = profile.target
                     flags = target_info.flags
-                    book = target_info.book
-                    book[profile_output] -= 1
-                    book[new_output] += 1
-                    high = book[HIGH]
-                    low  = book[LOW]                        
+                    target_info.high += (new_output == HIGH) - (profile_output == HIGH)
+                    target_info.low += (new_output == LOW) - (profile_output == LOW)
+                    high = target_info.high
+                    low  = target_info.low                        
                     if new_output==UNKNOWN or target_info.inputlimit:target_output=UNKNOWN
                     elif flags & FLAG_AND: target_output= (low==0)^(flags&FLAG_NEGATE)
                     elif flags & FLAG_OR: target_output= (high>0)^(flags&FLAG_NEGATE)

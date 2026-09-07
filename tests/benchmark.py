@@ -542,9 +542,7 @@ class VerilogRunner:
                 perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 time.sleep(0.1)
 
-            send_perf_ctrl("enable")
-            propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
-            send_perf_ctrl("disable")
+            propagate_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size, use_perf) if flat_measured_batches else 0.0
             
             if use_perf and perf_proc:
                 perf_proc.terminate()
@@ -630,9 +628,7 @@ class VerilogRunner:
                     perf_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     time.sleep(0.1)
                 
-                send_perf_ctrl("enable")
-                sweep_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size) if flat_measured_batches else 0.0
-                send_perf_ctrl("disable")
+                sweep_ms = self.circuit.batch_toggle(flat_measured_batches, batch_size, use_perf) if flat_measured_batches else 0.0
                 
                 if use_perf and perf_proc:
                     perf_proc.terminate()

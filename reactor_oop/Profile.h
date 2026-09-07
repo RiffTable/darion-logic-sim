@@ -46,16 +46,15 @@ struct CPP_Gate {
     uint8_t output;
     uint8_t inputlimit;
     uint8_t flags;
-    uint8_t book[3];
+    uint8_t high;
+    uint8_t low;
     uint8_t invalid;
     unsigned int target_time;
     std::vector<Profile> hitlist;
 
-    CPP_Gate() : gate(NULL), type(0), output(2), inputlimit(2), flags(8), invalid(2), target_time(0), hitlist() {
-        book[0] = book[1] = book[2] = 0;
+    CPP_Gate() : gate(NULL), type(0), output(2), inputlimit(2), flags(8), high(0), low(0), invalid(2), target_time(0), hitlist() {
     }
-    CPP_Gate(void* g, int8_t t, uint8_t lim) : gate(g), type(t), output(2), inputlimit(lim), flags(8), invalid(lim), target_time(0), hitlist() {
-        book[0] = book[1] = book[2] = 0;
+    CPP_Gate(void* g, int8_t t, uint8_t lim) : gate(g), type(t), output(2), inputlimit(lim), flags(8), high(0), low(0), invalid(lim), target_time(0), hitlist() {
     }
 };
 #endif

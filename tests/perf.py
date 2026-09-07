@@ -11,7 +11,7 @@ if sys.platform != "linux":
     sys.exit(0)
 
 parser = argparse.ArgumentParser(description="Multi-engine hardware profiling")
-parser.add_argument("--vectors", type=int, default=5000, help="Number of test vectors (default: 500)")
+parser.add_argument("--vectors", type=int, default=50000, help="Number of test vectors (default: 500)")
 parser.add_argument("--filter", type=str, default="", help="Filter circuits by name (e.g., 'voter')")
 parser.add_argument("--limit", type=int, default=None, help="Limit number of circuits tested")
 args = parser.parse_args()

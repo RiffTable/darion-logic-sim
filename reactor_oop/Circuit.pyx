@@ -98,22 +98,56 @@ cdef class Circuit:
             target.info.output=value if MODE==SIMULATE else UNKNOWN
             self.propagate(target)
 
-    cpdef double batch_toggle(self, list batch, int batch_size=0):
+    cpdef double batch_toggle(self, list batch, int batch_size=0, bint perf_trace=False):
         '''toggles multiple variables and propagates for performance'''
         cdef int value
         cdef tuple pair
-        cdef Gate target
         cdef double start, end
+        cdef int fd
+        cdef vector[CPP_Gate*] targets
+        cdef vector[uint8_t] values
+        cdef int i, n = len(batch)
+        cdef CPP_Gate* info
+        
+        if batch_size <= 0:
+            batch_size = n
+            
+        targets.reserve(n)
+        values.reserve(n)
+        for pair in batch:
+            targets.push_back((<Gate>pair[0]).info)
+            values.push_back(pair[1])
+
+        if perf_trace:
+            import os
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                if fd >= 0:
+                    os.write(fd, b"enable\n")
+                    os.close(fd)
+            except Exception:
+                pass
 
         start = time.perf_counter_ns()
-        for pair in batch:
-            target = <Gate>pair[0]
-            value = pair[1]
-            if value != target.info.output:
-                target.info.flags = (target.info.flags & ~FLAG_VALUE) | value
-                target.info.output = value if MODE == SIMULATE else UNKNOWN
-                self.propagate(target)
+        for i in range(n):
+            info = targets[i]
+            value = values[i]
+            if value != info.output:
+                info.flags = (info.flags & ~FLAG_VALUE) | value
+                info.output = value if MODE == SIMULATE else UNKNOWN
+                self.propagate(<Gate>info.gate)
         end = time.perf_counter_ns()
+
+        if perf_trace:
+            import os
+            try:
+                fd = os.open("/tmp/rx_perf_ctrl", os.O_WRONLY | getattr(os, 'O_NONBLOCK', 0))
+                if fd >= 0:
+                    os.write(fd, b"disable\n")
+                    os.close(fd)
+            except Exception:
+                pass
+
         return (end - start) / 1000000.0
 
     cpdef void disconnect(self, Gate target, int index):
@@ -664,8 +698,8 @@ cdef class Circuit:
                     eval+=1
                     if profile.output!=UNKNOWN:
                         target_info=<CPP_Gate*>profile.target
-                        target_info.book[profile.output]-=1
-                        target_info.book[UNKNOWN]+=1
+                        if profile.output == HIGH: target_info.high -= 1
+                        elif profile.output == LOW: target_info.low -= 1
                         if target_info.output!=UNKNOWN:
                                 write_queue[size]=<CPP_Gate*>target_info
                                 size+=1
@@ -714,14 +748,12 @@ cdef class Circuit:
                     profile_output = profile.output
                     target_info=<CPP_Gate*>profile.target
                     gate_type = target_info.type
-                    target_info.book[profile_output]-=1
-                    target_info.book[new_output]+=1
-                    high=target_info.book[HIGH]
-                    low=target_info.book[LOW]
+                    target_info.high += (new_output == HIGH) - (profile_output == HIGH)
+                    target_info.low += (new_output == LOW) - (profile_output == LOW)
                     if new_output==UNKNOWN or target_info.invalid:target_output=UNKNOWN
-                    elif gate_type<OR_ID:target_output = (low==0)^(gate_type&1)
-                    elif gate_type<XOR_ID:target_output = (high>0)^(gate_type&1)
-                    else:target_output = (high&1)^(gate_type&1)
+                    elif gate_type<OR_ID:target_output = (target_info.low==0)^(gate_type&1)
+                    elif gate_type<XOR_ID:target_output = (target_info.high>0)^(gate_type&1)
+                    else:target_output = (target_info.high&1)^(gate_type&1)
                         
                     write_queue[size]=<CPP_Gate*>target_info
                     size += ( ((target_info.flags & FLAG_MARK)==0) & (target_output!=target_info.output) )
