@@ -259,7 +259,7 @@ class Gate:
     def clock(self):
         if self.id!=VARIABLE_ID:
             return False
-        self.inputlimit=0
+        self.inputlimit=255
         return True
 
 class Variable(Gate):

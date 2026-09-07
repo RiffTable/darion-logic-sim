@@ -186,7 +186,7 @@ cdef class Circuit:
             for gate in self.objlist[VARIABLE_ID]:
                 if gate is not None:
                     gate_info = &self.gate_infolist[gate.location]
-                    if gate_info.inputlimit == 0 and not (gate_info.flags & FLAG_SCHEDULED):
+                    if gate_info.inputlimit == 255 and not (gate_info.flags & FLAG_SCHEDULED):
                         gate_info.flags |= FLAG_SCHEDULED
                         self.time_queue.push(Task(gate.location, self.Global_Clock + gate.delay_book[PRIMARY], gate.location))
             if self.runner is None or self.runner.done():
@@ -195,7 +195,7 @@ cdef class Circuit:
             for gate in self.objlist[VARIABLE_ID]:
                 if gate is not None:
                     gate_info = &self.gate_infolist[gate.location]
-                    if gate_info.inputlimit == 0:
+                    if gate_info.inputlimit == 255:
                         gate_info.flags &= ~FLAG_SCHEDULED
 
     cpdef double batch_toggle(self, list batch, int batch_size=0, bint perf_trace=False):
@@ -1226,6 +1226,7 @@ cdef class Circuit:
 
         cdef CPP_Gate* gate_infolist = self.gate_infolist.data()
         self_info = &gate_infolist[origin]
+        if self_info.type == -1: return
         
         if self_info.type != VARIABLE_ID:
             if task.time < self_info.target_time:
@@ -1236,7 +1237,7 @@ cdef class Circuit:
         else:
             if not (self_info.flags & FLAG_SCHEDULED):
                 return
-            if self_info.inputlimit == 0:
+            if self_info.inputlimit == 255:
                 self_info.flags ^= FLAG_VALUE
                 self_info.output = (self_info.flags & FLAG_VALUE)
                 if self.recording:
@@ -1267,8 +1268,7 @@ cdef class Circuit:
                 self.time_queue.push(Task(profile.target - gate_infolist, target_info.target_time, profile.target - gate_infolist))
             profile.output = new_output
             profile += 1
-
-        if self_info.inputlimit == 0:
+        if self_info.inputlimit == 255:
             with gil:
                 next_time = self.Global_Clock + (<Gate>PyList_GET_ITEM(self.gate_verse, origin)).delay_book[self_info.output]
             self_info.target_time = next_time
@@ -1295,8 +1295,7 @@ cdef class Circuit:
         read_queue[0] = &gate_infolist[origin]
         # if not (self_info.flags & FLAG_UPDATE):
         #     self_info.flags |= FLAG_UPDATE
-        #     self.visual_queue.push_back(&gate_infolist[origin])
-            
+        #     self.visual_queue.push_back(&gate_infolist[origin])    
         cdef Py_ssize_t wave_limit=self.gate_infolist.size()-self.hidden
         while end_point > 0:
             if unlikely(wave_limit<0):
@@ -1489,8 +1488,8 @@ cdef class Circuit:
                 size = self.time_queue.size()
                 for i in range(size):
                     # Drain all oscillator tasks sitting at the head of the queue
-                    # (mirrors engine's inner while-inputlimit==0 loop)
-                    while (not self.time_queue.empty() and self.gate_infolist[self.time_queue.top().gate_loc].inputlimit == 0):
+                    # (mirrors engine's inner while-inputlimit==255 loop)
+                    while (not self.time_queue.empty() and self.gate_infolist[self.time_queue.top().gate_loc].inputlimit == 255):
                         with gil: await asyncio.sleep(DELAY)
                         task = self.time_queue.top()
                         self.time_queue.pop()

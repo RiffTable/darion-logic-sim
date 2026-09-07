@@ -286,6 +286,108 @@ def measure_icarus_ram(v_file: str) -> dict:
                 except: pass
 
 
+
+# ===========================================================================
+# 3. VERILATOR RAM LOADER
+# ===========================================================================
+def measure_verilator_ram(v_file: str) -> dict:
+    if not shutil.which("verilator"): return {"error": "verilator not found"}
+
+    base_path   = os.path.splitext(v_file)[0]
+    tb_file     = base_path + "_mem_main.cpp"
+    obj_dir     = base_path + "_mem_obj_dir"
+    
+    with open(v_file, 'r', encoding='utf-8') as f:
+        v_content = f.read()
+    
+    module_name = "unknown"
+    for m in re.finditer(r'\bmodule\s+([a-zA-Z0-9_]+)', v_content):
+        if m.group(1).lower() != 'dff':
+            module_name = m.group(1)
+            break
+            
+    if module_name == "unknown": return {"error": "No module found"}
+
+    tb = []
+    tb.append(f'#include "V{module_name}.h"')
+    tb.append('#include "verilated.h"')
+    tb.append('#include <unistd.h>')
+    tb.append('int main(int argc, char** argv) {')
+    tb.append('    Verilated::commandArgs(argc, argv);')
+    tb.append(f'    V{module_name}* top = new V{module_name};')
+    tb.append('    write(1, "READY\\n", 6);')
+    tb.append('    char buf[1];')
+    tb.append('    read(0, buf, 1);')
+    tb.append('    delete top;')
+    tb.append('    return 0;')
+    tb.append('}')
+
+    with open(tb_file, 'w', encoding='utf-8') as f:
+        f.write("\n".join(tb))
+
+    try:
+        import time
+        t_start = time.perf_counter_ns()
+        
+        comp_cmd = ["verilator", "-O3", "-Wno-fatal", "--cc", v_file, "--exe", tb_file, "--top-module", module_name, "--Mdir", obj_dir]
+        comp_res = subprocess.run(comp_cmd, capture_output=True, text=True)
+        if comp_res.returncode != 0: return {"error": "Parse N/A"}
+
+        build_cmd = ["make", "-j", str(os.cpu_count() or 4), "-C", obj_dir, "-f", f"V{module_name}.mk", f"V{module_name}"]
+        build_res = subprocess.run(build_cmd, capture_output=True, text=True)
+        if build_res.returncode != 0: return {"error": "Build N/A"}
+        
+        t_end = time.perf_counter_ns()
+        load_time_ms = (t_end - t_start) / 1_000_000.0
+        
+        exe_path = os.path.join(obj_dir, f"V{module_name}")
+        
+        # Measure Empty Baseline (just a dummy C++ program doing the same wait)
+        dummy_tb_file = base_path + "_dummy.cpp"
+        dummy_exe = base_path + "_dummy_exe"
+        with open(dummy_tb_file, 'w') as f:
+            f.write("#include <unistd.h>\nint main() { write(1, \"READY\\n\", 6); char buf[1]; read(0, buf, 1); return 0; }\n")
+        subprocess.run(["g++", dummy_tb_file, "-o", dummy_exe])
+        
+        p_empty = psutil.Popen([dummy_exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        for line in p_empty.stdout:
+            if "READY" in line: break
+        base_mem_mb = p_empty.memory_info().rss / (1024 * 1024)
+        p_empty.kill()
+        
+        p = psutil.Popen([exe_path], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        for line in p.stdout:
+            if "READY" in line: break
+            
+        loaded_mem_mb = p.memory_info().rss / (1024 * 1024)
+        
+        peak_mb = 0
+        try:
+            with open(f"/proc/{p.pid}/status", "r") as f:
+                for line in f:
+                    if line.startswith("VmHWM:"):
+                        peak_mb = int(line.split()[1]) / 1024.0
+                        break
+        except Exception:
+            peak_mb = loaded_mem_mb
+            
+        p.kill()
+        
+        delta_mb = max(loaded_mem_mb - base_mem_mb, 0.01)
+        return {"prog_mb": base_mem_mb, "circ_mb": delta_mb, "peak_mb": peak_mb, "load_ms": load_time_ms, "opt_ms": 0.0}
+
+    except Exception as e:
+        return {"error": "Subprocess N/A"}
+    finally:
+        for p in (tb_file, base_path + "_dummy.cpp", base_path + "_dummy_exe"):
+            if os.path.exists(p): 
+                try: os.remove(p)
+                except: pass
+        if os.path.exists(obj_dir):
+            try: shutil.rmtree(obj_dir)
+            except: pass
+
+
 def get_v_files(target):
     if os.path.isfile(target) and target.endswith('.v'): return [target]
     return sorted([os.path.join(r, f) for r, _, fs in os.walk(target) for f in fs if f.endswith('.v') and not f.endswith('_tb.v')], key=os.path.getsize)
@@ -309,6 +411,8 @@ def main():
 
     parser.add_argument('--no-icarus', dest='icarus', action='store_false', help='Skip Icarus Verilog benchmark')
     parser.set_defaults(icarus=True)
+    parser.add_argument('--no-verilator', dest='verilator', action='store_false', help='Skip Verilator benchmark')
+    parser.set_defaults(verilator=True)
     parser.add_argument('--internal-worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--mode', type=str, choices=['engine', 'reactor'], help=argparse.SUPPRESS)
     parser.add_argument('--dump', action='store_true', help='Only generate final data')
@@ -329,18 +433,21 @@ def main():
         f"| {'Circuit':<16} | {'Gates':<10} "
         f"| {'':<10} | {'':<10} | {'Engine':^10} | {'':<10} "
         f"| {'':<10} | {'':<10} | {'Reactor':^10} | {'':<10} | {'':<10} "
-        f"| {'':<10} | {'':<10} | {'Icarus':^10} | {'':<10} |"
+        f"| {'':<10} | {'':<10} | {'Icarus':^10} | {'':<10} "
+        f"| {'':<10} | {'':<10} | {'Verilator':^10} | {'':<10} |"
     )
     sep = (
         f"|{'-'*18}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
+        f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}"
         f"|{'-'*12}|{'-'*12}|{'-'*12}|{'-'*12}|"
     )
     cols2 = (
         f"| {'':<16} | {'':<10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Load(ms)':>10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Load(ms)':>10} | {'Opt(ms)':>10} "
+        f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Comp(ms)':>10} "
         f"| {'Prog(MB)':>10} | {'Circ(MB)':>10} | {'Peak(MB)':>10} | {'Comp(ms)':>10} |"
     )
 
@@ -381,6 +488,11 @@ def main():
             i_dict = measure_icarus_ram(vf)
         else:
             i_dict = {"error": "N/A"}
+            
+        if args.verilator:
+            v_dict = measure_verilator_ram(vf)
+        else:
+            v_dict = {"error": "N/A"}
 
         def eng_cols(d):
             if "error" in d: return f"{'N/A':>10} | {'N/A':>10} | {'N/A':>10} | {'N/A':>10}"
@@ -402,15 +514,17 @@ def main():
                 "gates": gates_val,
                 "engine": e_dict,
                 "reactor": r_dict,
-                "icarus": i_dict
+                "icarus": i_dict,
+                "verilator": v_dict
             })
         else:
             e_str = eng_cols(e_dict)
             r_str = rx_cols(r_dict)
             i_str = ic_cols(i_dict)
+            v_str = ic_cols(v_dict)
             
             gates_str = f"{gates_val:,}" if gates_val is not None else "N/A"
-            row_str = f"| {fn:<16} | {gates_str:>10} | {e_str} | {r_str} | {i_str} |"
+            row_str = f"| {fn:<16} | {gates_str:>10} | {e_str} | {r_str} | {i_str} | {v_str} |" 
             
             if not getattr(args, 'json', False):
                 print(row_str)

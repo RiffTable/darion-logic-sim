@@ -68,11 +68,8 @@ cdef object get(int choice, vector[CPP_Gate]& gate_infolist, list gate_verse):
             gate.info.flags |= FLAG_AND
         elif choice <XOR_ID:
             gate.info.flags |= FLAG_OR
-        # else:
-        #     gate.info.flags |= FLAG_OTHER
             
-        if choice &1:
-            gate.info.flags |= FLAG_NEGATE
+        gate.info.flags |= (choice & 1) & (choice != VARIABLE_ID)
             
         gate.gate_verse = gate_verse
         gate_verse.append(gate)

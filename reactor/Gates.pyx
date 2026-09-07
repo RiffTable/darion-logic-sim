@@ -199,6 +199,7 @@ cdef class Gate:
         '''Remove the gate from the global list and mark its slot as deleted'''
         self.all_gates[self.location] = None
         self.info.type = -1
+        self.info.flags &= ~FLAG_SCHEDULED
 
     cdef void connect(self, int source, int index):
         '''Wire a source gate into this gate's input slot at index'''
@@ -389,7 +390,7 @@ cdef class Gate:
     cpdef bint clock(self):
         if self.id != VARIABLE_ID:
             return False
-        self.info.inputlimit = 0
+        self.info.inputlimit = 255
         return True
 
 cdef class Variable(Gate):

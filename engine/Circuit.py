@@ -160,7 +160,7 @@ class Circuit:
         self.clocks_enabled = enable
         if enable:
             for gate in self.objlist[VARIABLE_ID]:
-                if gate is not None and getattr(gate, 'inputlimit', None) == 0:
+                if gate is not None and getattr(gate, 'inputlimit', None) == 255:
                     if not gate.scheduled:
                         next_time = self.Global_Clock + gate.book[PRIMARY]
                         gate.target_time = next_time
@@ -170,7 +170,7 @@ class Circuit:
                 self.runner = asyncio.create_task(self.task_manager())
         else:
             for gate in self.objlist[VARIABLE_ID]:
-                if gate is not None and getattr(gate, 'inputlimit', None) == 0:
+                if gate is not None and getattr(gate, 'inputlimit', None) == 255:
                     gate.scheduled = False
 
     def batch_toggle(self, batch: list, batch_size: int = 0, perf_trace: bool = False) -> float:
@@ -721,7 +721,7 @@ class Circuit:
         while self.time_queue:
             n=len(self.time_queue)
             for i in range(n):
-                while self.time_queue and self.time_queue[0].gate.inputlimit==0:
+                while self.time_queue and self.time_queue[0].gate.inputlimit==255:
                     await asyncio.sleep(Const.DELAY)
                     self.complete_task(heapq.heappop(self.time_queue))
                     if self.time_limit:
@@ -750,7 +750,7 @@ class Circuit:
         else:
             if not gate.scheduled:
                 return
-            if gate.inputlimit == 0:
+            if gate.inputlimit == 255:
                 gate.value ^= 1
                 gate.output = gate.value
                 if self.recording:
@@ -809,7 +809,7 @@ class Circuit:
                     )
                 profile.output = new_output
 
-        if gate.inputlimit == 0:
+        if gate.inputlimit == 255:
             next_time = self.Global_Clock + gate.book[gate.output]
             gate.target_time = next_time
             heapq.heappush(

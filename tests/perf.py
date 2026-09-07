@@ -34,7 +34,7 @@ divider = f"|{'-'*12}|{'-'*7}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*10}|{'-'*
 
 print("Collecting full multi-engine hardware profiling... This will take a few minutes.\n")
 
-results = {"engine": [], "prop": [], "sweep": [], "oop": [], "icarus": []}
+results = {"engine": [], "prop": [], "sweep": [], "oop": [], "icarus": [], "verilator": []}
 
 for c_path in CIRCUITS:
     c_name = os.path.basename(c_path)
@@ -56,14 +56,15 @@ for c_path in CIRCUITS:
     subprocess.run(cmd_record, capture_output=True)
     
     # Parse individual reports
-    engine_stats = {"engine": {}, "prop": {}, "sweep": {}, "oop": {}, "icarus": {}}
+    engine_stats = {"engine": {}, "prop": {}, "sweep": {}, "oop": {}, "icarus": {}, "verilator": {}}
     
     report_files = {
         "engine": f"perf_engine_prop_{c_name}.txt",
         "prop": f"perf_reactor_prop_{c_name}.txt",
         "sweep": f"perf_reactor_sweep_{c_name}.txt",
         "oop": f"perf_reactor_oop_prop_{c_name}.txt",
-        "icarus": f"perf_icarus_{c_name}.txt"
+        "icarus": f"perf_icarus_{c_name}.txt",
+        "verilator": f"perf_verilator_{c_name}.txt"
     }
 
     for eng, rep_file in report_files.items():
@@ -86,7 +87,7 @@ for c_path in CIRCUITS:
         if n >= 1e3: return f"{n/1e3:.2f}K"
         return str(n)
 
-    for engine in ["engine", "prop", "sweep", "oop", "icarus"]:
+    for engine in ["engine", "prop", "sweep", "oop", "icarus", "verilator"]:
         def get_count(evt):
             return engine_stats[engine].get(evt, 0)
 
@@ -117,7 +118,7 @@ with open(REPORT_FILE, "w") as f:
     f.write(f"**Test Parameters:**\n- **Vectors simulated:** {VECTORS:,}\n\n")
     f.write("Extracted purely from hardware counters (`perf`) to isolate the true computational core of each simulation engine, bypassing Python and Icarus VPI harness overhead.\n\n")
     
-    for engine, title in [("icarus", "Icarus Verilog (`vvp`)"), ("engine", "Pure Python Engine"), ("prop", "Reactor: `rx-prop` (Wavefront BFS)"), ("oop", "Reactor OOP: (Wavefront BFS)"), ("sweep", "Reactor: `rx-sweep` (Linear Compiled)")]:
+    for engine, title in [("icarus", "Icarus Verilog (`vvp`)"), ("verilator", "Verilator C++"), ("engine", "Pure Python Engine"), ("prop", "Reactor: `rx-prop` (Wavefront BFS)"), ("oop", "Reactor OOP: (Wavefront BFS)"), ("sweep", "Reactor: `rx-sweep` (Linear Compiled)")]:
         f.write(f"## {title}\n\n")
         f.write(header + "\n")
         f.write(divider + "\n")
