@@ -46,9 +46,9 @@ def main():
 
     sizes = []
     current_size = 100
-    while current_size <= 500_000:
+    while current_size <=1_000_000:
         sizes.append(current_size)
-        current_size = int(current_size * 1.3)
+        current_size = int(current_size * 1.15)
         
     data = {
         "oop": {"l1_miss_rate": [], "l2_miss_rate": [], "l3_miss_rate": [], "ipc": [], "l1_miss": [], "l2_miss": [], "l3_miss": [], "l1_loads": [], "brn": [], "iters": [], "time_ms": [], "evals": []},
